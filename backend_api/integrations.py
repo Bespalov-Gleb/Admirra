@@ -44,15 +44,15 @@ cfg = get_config()
 # Yandex Direct Credentials
 YANDEX_CLIENT_ID = cfg.oauth.yandex_client_id
 YANDEX_CLIENT_SECRET = cfg.oauth.yandex_client_secret
-# Второе приложение «AdMirra — для организаций»: право «Работа с организациями
-# Яндекс ID» не влезло в основное приложение (лимит 3 сервиса). Через него
-# кабинеты паспортных организаций подключаются «как сотрудник».
+# Отдельное OAuth-приложение для паспортных организаций. У него обязательно
+# должен быть источник данных «Работа с организациями Яндекс ID»
+# (passport:business). Оно может совпадать с основным только если это право
+# добавлено в настройки того же приложения.
 YANDEX_ORG_CLIENT_ID = cfg.oauth.yandex_org_client_id
 YANDEX_ORG_CLIENT_SECRET = cfg.oauth.yandex_org_client_secret
 YANDEX_AUTH_URL = cfg.oauth.yandex_auth_url
 YANDEX_TOKEN_URL = cfg.oauth.yandex_token_url
-YANDEX_DIRECT_SCOPE = "direct:api metrika:read"
-YANDEX_ORGANIZATION_SCOPE = "passport:business direct:api metrika:read"
+YANDEX_ORGANIZATION_SCOPE = "passport:business"
 
 # VK Ads Credentials (Authorization Code Grant)
 # Документация: https://ads.vk.com/doc/api/info/Авторизация%20в%20API#AuthorizationCodeGrant
@@ -219,10 +219,12 @@ def _build_yandex_authorize_url(redirect_uri: str, state: str, *, as_org: bool =
         "force_confirm": "yes",
         "state": state,
     }
-    # passport:business must be present both in the OAuth application settings
-    # and in the requested scope. It lets Yandex offer "Войти как сотрудник"
-    # for an account that belongs to a Yandex ID organization.
-    params["scope"] = YANDEX_ORGANIZATION_SCOPE if as_org else YANDEX_DIRECT_SCOPE
+    # Apps already carry their Direct and Metrika permissions in Yandex OAuth.
+    # Request only passport:business here (the same trigger used by the
+    # organization-aware flow) so Yandex can offer "Войти как сотрудник".
+    # This still requires the exact named data source in app settings.
+    if as_org:
+        params["scope"] = YANDEX_ORGANIZATION_SCOPE
     return f"{YANDEX_AUTH_URL}?{urlencode(params)}"
 
 

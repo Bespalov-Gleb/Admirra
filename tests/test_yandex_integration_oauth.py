@@ -19,7 +19,7 @@ def test_yandex_authorize_url_is_code_flow_with_bound_state_and_account_choice()
     assert query["response_type"] == ["code"]
     assert query["client_id"] == ["test-client"]
     assert query["redirect_uri"] == ["https://admirra.ru/auth/yandex/callback"]
-    assert query["scope"] == ["direct:api metrika:read"]
+    assert "scope" not in query
     assert query["force_confirm"] == ["yes"]
     assert query["state"] == ["one-time-state"]
 
@@ -35,7 +35,7 @@ def test_yandex_organization_authorize_url_requests_business_scope():
     query = parse_qs(urlparse(url).query)
     assert query["response_type"] == ["code"]
     assert query["client_id"] == ["org-client"]
-    assert query["scope"] == ["passport:business direct:api metrika:read"]
+    assert query["scope"] == ["passport:business"]
     assert query["force_confirm"] == ["yes"]
 
 
