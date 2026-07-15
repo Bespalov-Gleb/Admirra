@@ -52,7 +52,11 @@ YANDEX_ORG_CLIENT_ID = cfg.oauth.yandex_org_client_id
 YANDEX_ORG_CLIENT_SECRET = cfg.oauth.yandex_org_client_secret
 YANDEX_AUTH_URL = cfg.oauth.yandex_auth_url
 YANDEX_TOKEN_URL = cfg.oauth.yandex_token_url
-YANDEX_ORGANIZATION_SCOPE = "passport:business"
+# OAuth issues a token only with the explicitly requested scope. For an
+# organization connection it must therefore contain both the organization
+# identity and the APIs we call immediately after the callback. OAuth expects
+# comma-separated values here.
+YANDEX_ORGANIZATION_SCOPE = "passport:business,direct:api,metrika:read"
 
 # VK Ads Credentials (Authorization Code Grant)
 # Документация: https://ads.vk.com/doc/api/info/Авторизация%20в%20API#AuthorizationCodeGrant
@@ -240,10 +244,10 @@ def _build_yandex_authorize_url(redirect_uri: str, state: str, *, as_org: bool =
         "force_confirm": "yes",
         "state": state,
     }
-    # Apps already carry their Direct and Metrika permissions in Yandex OAuth.
-    # Request only passport:business here (the same trigger used by the
-    # organization-aware flow) so Yandex can offer "Войти как сотрудник".
-    # This still requires the exact named data source in app settings.
+    # Ask all mandatory permissions explicitly. If only passport:business is
+    # requested, Yandex issues a token that can select an organization but is
+    # not allowed to call Direct afterwards. The values must also be enabled
+    # in the separate organization OAuth application.
     if as_org:
         params["scope"] = YANDEX_ORGANIZATION_SCOPE
     return f"{YANDEX_AUTH_URL}?{urlencode(params)}"
