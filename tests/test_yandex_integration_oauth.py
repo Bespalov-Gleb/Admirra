@@ -24,6 +24,27 @@ def test_yandex_authorize_url_is_code_flow_with_bound_state_and_account_choice()
     assert query["state"] == ["one-time-state"]
 
 
+def test_yandex_organization_authorize_url_requests_business_scope():
+    with patch.object(integrations, "YANDEX_ORG_CLIENT_ID", "org-client"), patch.object(
+        integrations, "YANDEX_AUTH_URL", "https://oauth.yandex.ru/authorize"
+    ):
+        url = integrations._build_yandex_authorize_url(
+            "https://admirra.ru/auth/yandex/callback", "one-time-state", as_org=True
+        )
+
+    query = parse_qs(urlparse(url).query)
+    assert query["response_type"] == ["code"]
+    assert query["client_id"] == ["org-client"]
+    assert query["scope"] == ["passport:business direct:api metrika:read"]
+    assert query["force_confirm"] == ["yes"]
+
+
+def test_yandex_organization_login_is_recognized():
+    assert integrations._is_yandex_organization_login("porg-example")
+    assert integrations._is_yandex_organization_login(" PORG-example ")
+    assert not integrations._is_yandex_organization_login("ordinary-yandex-login")
+
+
 def test_yandex_redirect_is_limited_to_active_deployment_callback():
     with patch.object(integrations, "resolve_frontend_url", return_value="https://admirra.ru"):
         assert integrations._validate_yandex_integration_redirect_uri(

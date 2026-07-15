@@ -51,6 +51,8 @@ YANDEX_ORG_CLIENT_ID = cfg.oauth.yandex_org_client_id
 YANDEX_ORG_CLIENT_SECRET = cfg.oauth.yandex_org_client_secret
 YANDEX_AUTH_URL = cfg.oauth.yandex_auth_url
 YANDEX_TOKEN_URL = cfg.oauth.yandex_token_url
+YANDEX_DIRECT_SCOPE = "direct:api metrika:read"
+YANDEX_ORGANIZATION_SCOPE = "passport:business direct:api metrika:read"
 
 # VK Ads Credentials (Authorization Code Grant)
 # Документация: https://ads.vk.com/doc/api/info/Авторизация%20в%20API#AuthorizationCodeGrant
@@ -116,6 +118,11 @@ def _integration_for_project_access(
 def _yandex_integration_state_hash(state: str) -> str:
     """Hash opaque browser state before persisting it in the database."""
     return hashlib.sha256(state.encode("utf-8")).hexdigest()
+
+
+def _is_yandex_organization_login(login: Optional[str]) -> bool:
+    """Yandex ID organization identities are issued as porg-* logins."""
+    return str(login or "").strip().lower().startswith("porg-")
 
 
 def _validate_yandex_integration_redirect_uri(redirect_uri: str) -> str:
@@ -212,11 +219,10 @@ def _build_yandex_authorize_url(redirect_uri: str, state: str, *, as_org: bool =
         "force_confirm": "yes",
         "state": state,
     }
-    if not as_org:
-        params["scope"] = "direct:api metrika:read"
-    # Org-приложение: scope не передаём — Яндекс выдаст все отмеченные права
-    # приложения, включая «Работа с организациями Яндекс ID». Именно это право
-    # добавляет на экране входа кнопку «Войти как сотрудник» организации.
+    # passport:business must be present both in the OAuth application settings
+    # and in the requested scope. It lets Yandex offer "Войти как сотрудник"
+    # for an account that belongs to a Yandex ID organization.
+    params["scope"] = YANDEX_ORGANIZATION_SCOPE if as_org else YANDEX_DIRECT_SCOPE
     return f"{YANDEX_AUTH_URL}?{urlencode(params)}"
 
 
@@ -1209,6 +1215,30 @@ async def exchange_yandex_token(
         except Exception as e:
             logger.error(f"Failed to fetch Yandex user info: {e}")
 
+        # A successful consent screen alone is not enough: a user can choose
+        # the personal option in an organization-aware dialog. In that case
+        # Yandex issues a normal personal token and Direct cannot expose the
+        # organization's cabinets. Do not silently save that token as an org
+        # integration; the user must retry and choose "Войти как сотрудник".
+        if is_org_flow:
+            if not yandex_login:
+                raise HTTPException(
+                    status_code=502,
+                    detail=(
+                        "Не удалось проверить, что Яндекс выдал токен организации. "
+                        "Начните подключение заново и войдите как сотрудник организации."
+                    ),
+                )
+            if not _is_yandex_organization_login(yandex_login):
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "Яндекс выдал личный токен, а не токен организации. Нажмите «Выбрать аккаунт», "
+                        "войдите под сотрудником нужной организации и выберите «Войти как сотрудник». "
+                        "Если этой кнопки нет, данный аккаунт не добавлен в организацию Яндекс ID."
+                    ),
+                )
+
         # 3. Save integration for the server-bound project.
         db_integration = db.query(models.Integration).filter(
             models.Integration.client_id == project.id,
@@ -2172,12 +2202,10 @@ async def get_integration_profiles(
             profiles = []
             seen_logins = set()
 
-            # ARCHITECTURE: One Yandex account (email) can have access to multiple advertising profiles
-            # 1. Personal — Clients.get (без Client-Login)
-            # 2. Agency clients — AgencyClients.get
-            # 3. Shared cabinets — ManagedLogins* + Clients.get с Client-Login и OrganizationFieldNames
-            #    * ManagedLogins не в enum FieldNames, но API возвращает при запросе;
-            #    это единственный способ увидеть кабинеты паспортной организации
+            # ARCHITECTURE: One Yandex account can have its own Direct cabinet
+            # and, if it is an agency, a list of agency clients. Passport
+            # organizations are represented by their own porg-* identity in
+            # Clients.get after the user chooses "Войти как сотрудник" in OAuth.
 
             # 1. Always include the personal account itself
             # Get personal advertising account login via Clients.get API
@@ -2206,13 +2234,18 @@ async def get_integration_profiles(
             
             if personal_login and personal_login.lower() != "unknown":
                 personal_client = clients_info[0] if clients_info else {}
+                is_organization = _is_yandex_organization_login(personal_login)
                 personal_name = cabinet_display_name(
                     organization_name_from_client(personal_client),
                     personal_client.get("ClientInfo", ""),
                     personal_login,
-                    "Личный аккаунт",
+                    "Организация" if is_organization else "Личный аккаунт",
                 )
-                profiles.append({"login": personal_login, "name": personal_name, "type": "personal"})
+                profiles.append({
+                    "login": personal_login,
+                    "name": personal_name,
+                    "type": "organization" if is_organization else "personal",
+                })
                 seen_logins.add(personal_login.lower())
                 logger.info(f"✅ Added personal profile: {personal_login} ({personal_name})")
 
@@ -2231,47 +2264,6 @@ async def get_integration_profiles(
                         logger.warning(f"⚠️ Skipped agency client (duplicate or empty login): {login}")
             except Exception as agency_err:
                 logger.warning(f"No agency clients found or error: {agency_err}")
-
-            # 3. Кабинеты с делегированным доступом (ManagedLogins — недокументированное поле API).
-            # Имя: Organization.Name через Clients.get + Client-Login (документация Clients.get).
-            try:
-                direct_api = YandexDirectAPI(access_token)
-                clients_info_managed = clients_info or await direct_api.get_clients() or []
-                managed_logins_to_fetch = []
-                for c_info in clients_info_managed:
-                    managed = c_info.get("ManagedLogins", [])
-                    for m_login in managed:
-                        if m_login and m_login.lower() not in seen_logins:
-                            managed_logins_to_fetch.append(m_login)
-                            seen_logins.add(m_login.lower())
-
-                # Организаций может быть много (50+ кабинетов) — тянем имена
-                # ограниченной пачкой параллельных запросов, иначе визард ждёт минуту.
-                sem = asyncio.Semaphore(5)
-
-                async def fetch_profile(m_login):
-                    async with sem:
-                        return m_login, await direct_api.get_cabinet_profile_for_login(m_login)
-
-                fetched = await asyncio.gather(
-                    *(fetch_profile(m_login) for m_login in managed_logins_to_fetch),
-                    return_exceptions=True,
-                )
-                for item in fetched:
-                    if isinstance(item, Exception):
-                        logger.warning(f"Error fetching shared cabinet profile: {item}")
-                        continue
-                    m_login, profile_info = item
-                    org_name = profile_info.get("organization_name", "").strip() if profile_info else ""
-                    display_name = org_name if org_name else f"Кабинет ({m_login})"
-                    profiles.append({
-                        "login": m_login,
-                        "name": display_name,
-                        "type": "managed",
-                    })
-                    logger.info(f"Added shared cabinet: {m_login} ({display_name})")
-            except Exception as managed_err:
-                logger.warning(f"Error fetching shared cabinets: {managed_err}")
 
             # Fallback if nothing found
             if not profiles:
