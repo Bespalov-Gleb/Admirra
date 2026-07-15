@@ -54,9 +54,9 @@ YANDEX_AUTH_URL = cfg.oauth.yandex_auth_url
 YANDEX_TOKEN_URL = cfg.oauth.yandex_token_url
 # OAuth issues a token only with the explicitly requested scope. For an
 # organization connection it must therefore contain both the organization
-# identity and the APIs we call immediately after the callback. OAuth expects
-# comma-separated values here.
-YANDEX_ORGANIZATION_SCOPE = "passport:business,direct:api,metrika:read"
+# identity and the APIs we call immediately after the callback. The Yandex
+# authorize endpoint accepts the values as a space-delimited list.
+YANDEX_ORGANIZATION_SCOPE = "passport:business direct:api metrika:read"
 
 # VK Ads Credentials (Authorization Code Grant)
 # Документация: https://ads.vk.com/doc/api/info/Авторизация%20в%20API#AuthorizationCodeGrant

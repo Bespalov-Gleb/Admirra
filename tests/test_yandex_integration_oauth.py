@@ -35,7 +35,7 @@ def test_yandex_organization_authorize_url_requests_business_scope():
     query = parse_qs(urlparse(url).query)
     assert query["response_type"] == ["code"]
     assert query["client_id"] == ["org-client"]
-    assert query["scope"] == ["passport:business,direct:api,metrika:read"]
+    assert query["scope"] == ["passport:business direct:api metrika:read"]
     assert query["force_confirm"] == ["yes"]
 
 
