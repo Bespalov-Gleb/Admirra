@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -43,6 +43,28 @@ def test_yandex_organization_login_is_recognized():
     assert integrations._is_yandex_organization_login("porg-example")
     assert integrations._is_yandex_organization_login(" PORG-example ")
     assert not integrations._is_yandex_organization_login("ordinary-yandex-login")
+
+
+@pytest.mark.asyncio
+async def test_organization_login_is_confirmed_by_direct_clients_not_passport_profile():
+    with patch.object(integrations, "YandexDirectAPI") as direct_api:
+        direct_api.return_value.get_clients = AsyncMock(
+            return_value=[{"Login": "employee-login"}, {"Login": "porg-rustech"}]
+        )
+
+        organization_login = await integrations._organization_login_from_direct_token("test-token")
+
+    assert organization_login == "porg-rustech"
+
+
+@pytest.mark.asyncio
+async def test_organization_login_requires_porg_direct_cabinet():
+    with patch.object(integrations, "YandexDirectAPI") as direct_api:
+        direct_api.return_value.get_clients = AsyncMock(return_value=[{"Login": "employee-login"}])
+
+        organization_login = await integrations._organization_login_from_direct_token("test-token")
+
+    assert organization_login is None
 
 
 def test_yandex_redirect_is_limited_to_active_deployment_callback():

@@ -125,6 +125,27 @@ def _is_yandex_organization_login(login: Optional[str]) -> bool:
     return str(login or "").strip().lower().startswith("porg-")
 
 
+async def _organization_login_from_direct_token(access_token: str) -> Optional[str]:
+    """Return the organization cabinet confirmed by Direct for an OAuth token.
+
+    ``login.yandex.ru/info`` describes the human Yandex ID in some organization
+    flows. It is therefore not sufficient for determining whether Direct issued
+    an organization cabinet. Clients.get is the source that returns the actual
+    advertising cabinet login, including the ``porg-*`` organization login.
+    """
+    try:
+        clients = await YandexDirectAPI(access_token).get_clients()
+    except Exception as exc:
+        logger.warning("Could not verify organization OAuth token via Direct Clients.get: %s", exc)
+        return None
+
+    for client in clients or []:
+        login = str(client.get("Login") or "").strip()
+        if _is_yandex_organization_login(login):
+            return login
+    return None
+
+
 def _validate_yandex_integration_redirect_uri(redirect_uri: str) -> str:
     """Accept exactly the callback registered for this deployment."""
     normalized = (redirect_uri or "").strip().rstrip("/")
@@ -1217,29 +1238,23 @@ async def exchange_yandex_token(
         except Exception as e:
             logger.error(f"Failed to fetch Yandex user info: {e}")
 
-        # A successful consent screen alone is not enough: a user can choose
-        # the personal option in an organization-aware dialog. In that case
-        # Yandex issues a normal personal token and Direct cannot expose the
-        # organization's cabinets. Do not silently save that token as an org
-        # integration; the user must retry and choose "Войти как сотрудник".
+        # The Passport info endpoint can return the personal Yandex ID of an
+        # employee even when OAuth was completed "as employee". The Direct
+        # cabinet is the authoritative source: only Clients.get can confirm
+        # the porg-* organization login that will be used in reports.
         if is_org_flow:
-            if not yandex_login:
-                raise HTTPException(
-                    status_code=502,
-                    detail=(
-                        "Не удалось проверить, что Яндекс выдал токен организации. "
-                        "Начните подключение заново и войдите как сотрудник организации."
-                    ),
-                )
-            if not _is_yandex_organization_login(yandex_login):
+            organization_login = await _organization_login_from_direct_token(access_token)
+            if not organization_login:
                 raise HTTPException(
                     status_code=409,
                     detail=(
-                        "Яндекс выдал личный токен, а не токен организации. Нажмите «Выбрать аккаунт», "
-                        "войдите под сотрудником нужной организации и выберите «Войти как сотрудник». "
-                        "Если этой кнопки нет, данный аккаунт не добавлен в организацию Яндекс ID."
+                        "Яндекс Директ не подтвердил кабинет организации. Проверьте, что для нового "
+                        "Client ID одобрен доступ к Direct API, затем повторите вход как сотрудник."
                     ),
                 )
+            # Store the advertising cabinet identity rather than the employee's
+            # personal Passport login.
+            yandex_login = organization_login
 
         # 3. Save integration for the server-bound project.
         db_integration = db.query(models.Integration).filter(
