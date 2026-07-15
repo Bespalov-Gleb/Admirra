@@ -499,6 +499,16 @@ const sheetsDisconnecting = ref(false)
 
 const goalRows = ref([])
 const isInitializing = ref(false)
+// The parent project list is deliberately cached while a modal is open. Keep a
+// tiny, modal-local copy of integrations so an initial sync can finish without
+// making the user reload the whole Projects page.
+const liveDetectorIntegrations = ref(null)
+let detectorSyncPollTimer = null
+let detectorSyncPollAttempts = 0
+let detectorSyncPollInFlight = false
+let detectorSyncPollRun = 0
+const DETECTOR_SYNC_POLL_INTERVAL_MS = 2000
+const DETECTOR_SYNC_POLL_MAX_ATTEMPTS = 30
 
 const projectDisplayId = computed(() => props.project?.display_id || String(props.project?.id || '').substring(0, 8).toUpperCase())
 
@@ -614,8 +624,12 @@ const channelStatusInfo = (integration) => {
   return { text: 'неизвестно', cls: '' }
 }
 
+const detectorIntegrations = computed(() => (
+  liveDetectorIntegrations.value ?? props.project?.integrations ?? []
+))
+
 const projectChannels = computed(() => {
-  const integrations = props.project?.integrations || []
+  const integrations = detectorIntegrations.value
   return integrations.map((intg) => {
     const status = channelStatusInfo(intg)
     return {
@@ -629,7 +643,7 @@ const projectChannels = computed(() => {
 })
 
 const integrationState = computed(() => {
-  const integrations = props.project?.integrations || []
+  const integrations = detectorIntegrations.value
   if (integrations.length === 0) return 'A'
   const allSyncing = integrations.every((i) => {
     const s = String(i.sync_status || '').toUpperCase()
@@ -638,6 +652,59 @@ const integrationState = computed(() => {
   if (allSyncing) return 'B'
   return 'C'
 })
+
+function stopDetectorSyncPolling() {
+  detectorSyncPollRun += 1
+  if (detectorSyncPollTimer) {
+    clearTimeout(detectorSyncPollTimer)
+    detectorSyncPollTimer = null
+  }
+  detectorSyncPollAttempts = 0
+}
+
+async function refreshDetectorIntegrations(projectId) {
+  if (!projectId || detectorSyncPollInFlight) return
+  detectorSyncPollInFlight = true
+  try {
+    const { data } = await api.get('integrations/', { params: { client_id: projectId } })
+    // A user can switch projects or close the modal while a response is in
+    // flight. Never let that response replace the current project's state.
+    if (props.project?.id === projectId) {
+      liveDetectorIntegrations.value = Array.isArray(data) ? data : []
+    }
+  } catch {
+    // Keep the parent snapshot if a short status poll fails. It is preferable
+    // to showing an empty "no integrations" state while the network recovers.
+  } finally {
+    detectorSyncPollInFlight = false
+  }
+}
+
+async function pollDetectorSyncUntilReady(run, projectId) {
+  await refreshDetectorIntegrations(projectId)
+  if (run !== detectorSyncPollRun || props.project?.id !== projectId) return
+
+  if (integrationState.value !== 'B' || detectorSyncPollAttempts >= DETECTOR_SYNC_POLL_MAX_ATTEMPTS) {
+    stopDetectorSyncPolling()
+    // The final sync can add selected goals after the modal's initial load.
+    // Refreshing rows here makes them available immediately when the skeleton
+    // disappears, without a page reload.
+    if (integrationState.value === 'C') await loadGoals()
+    return
+  }
+  detectorSyncPollAttempts += 1
+  detectorSyncPollTimer = setTimeout(() => {
+    void pollDetectorSyncUntilReady(run, projectId)
+  }, DETECTOR_SYNC_POLL_INTERVAL_MS)
+}
+
+function startDetectorSyncPolling() {
+  stopDetectorSyncPolling()
+  if (integrationState.value === 'B' && props.project?.id) {
+    const run = detectorSyncPollRun
+    void pollDetectorSyncUntilReady(run, props.project.id)
+  }
+}
 
 const currentPeriodLabel = computed(() => {
   const format = (value) => {
@@ -662,6 +729,8 @@ watch(
   () => props.project?.id,
   async () => {
     if (props.project) {
+      stopDetectorSyncPolling()
+      liveDetectorIntegrations.value = null
       form.name = props.project.name || ''
       form.description = props.project.description || ''
       form.site_url = props.project.site_url || ''
@@ -686,6 +755,7 @@ watch(
       isInitializing.value = false
       loadGoogleSheetsStatus()
       snapshotForm()
+      startDetectorSyncPolling()
     }
   },
   { immediate: true }
@@ -709,7 +779,7 @@ watch(
 )
 
 async function loadGoals() {
-  const integrations = props.project?.integrations || []
+  const integrations = detectorIntegrations.value
   const rows = []
 
   const goalNameCache = {}
@@ -1210,6 +1280,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  stopDetectorSyncPolling()
   document.removeEventListener('keydown', onEscape)
   document.documentElement.style.overflow = savedOverflow
   document.body.style.overflow = ''
