@@ -184,6 +184,9 @@ class DetectorCfg:
     plan_cpl_warning_target_multiplier: float
     plan_cpl_problem_budget_share: float
     plan_cpl_warning_budget_share: float
+    # Мини-ТЗ P-2: вторая цифра (7-дневный CPL) показывается в тексте, только
+    # когда расходится с накопительным сильнее этого порога.
+    plan_cpl_divergence_threshold: float
     plan_leads_warning_deviation: float
     plan_leads_problem_deviation: float
     plan_min_expected_leads: int
@@ -391,6 +394,7 @@ def get_config() -> Config:
             plan_cpl_warning_target_multiplier=float(_env("DETECTOR_PLAN_CPL_WARNING_TARGET_MULTIPLIER", "10")),
             plan_cpl_problem_budget_share=float(_env("DETECTOR_PLAN_CPL_PROBLEM_BUDGET_SHARE", "0.15")),
             plan_cpl_warning_budget_share=float(_env("DETECTOR_PLAN_CPL_WARNING_BUDGET_SHARE", "0.30")),
+            plan_cpl_divergence_threshold=float(_env("DETECTOR_PLAN_CPL_DIVERGENCE_THRESHOLD", "0.15")),
             plan_leads_warning_deviation=float(_env("DETECTOR_PLAN_LEADS_WARNING_DEVIATION", "0.10")),
             plan_leads_problem_deviation=float(_env("DETECTOR_PLAN_LEADS_PROBLEM_DEVIATION", "0.40")),
             plan_min_expected_leads=int(_env("DETECTOR_PLAN_MIN_EXPECTED_LEADS", "10")),

@@ -22,6 +22,7 @@ def cfg(**overrides):
         "plan_cpl_warning_target_multiplier": 10.0,
         "plan_cpl_problem_budget_share": 0.15,
         "plan_cpl_warning_budget_share": 0.30,
+        "plan_cpl_divergence_threshold": 0.15,
         "plan_leads_warning_deviation": 0.10,
         "plan_leads_problem_deviation": 0.40,
         "plan_min_expected_leads": 10,
@@ -155,6 +156,63 @@ def test_p2_uses_money_volume_not_lead_count_and_budget_cap(monkeypatch):
     assert result is not None
     assert result.severity == "problem"
     assert "заявок нет" in result.hypothesis_text
+
+
+def _p2_mocks(monkeypatch, spend_period, leads_period, spend_7d, leads_7d):
+    """Раздаём накопительному и 7-дневному окнам разные значения по дате старта."""
+    monkeypatch.setattr(iteration3, "_target_exists", lambda *_: True)
+
+    def stats(db, client_id, channel, start, end, *args):
+        return (spend_period if start == date(2026, 7, 1) else spend_7d, 0, 0)
+
+    def goal_leads(db, client_id, channel, goal_id, is_summary, start, end, *args):
+        return leads_period if start == date(2026, 7, 1) else leads_7d
+
+    monkeypatch.setattr(iteration3, "_sum_channel_stats", stats)
+    monkeypatch.setattr(iteration3, "_sum_goal_leads", goal_leads)
+
+
+def test_p2_leads_with_cumulative_cpl_and_names_both_bases(monkeypatch):
+    # §5, кейс SIB ATV: накопительный 4 067 ₽, 7-дневный 3 372 ₽, цель 2 000 ₽.
+    _p2_mocks(monkeypatch, spend_period=113_876, leads_period=28, spend_7d=33_720, leads_7d=10)
+    alert = iteration3._make_plan_cpl(None, "p", target(2_000), budget(200_000), date(2026, 7, 15), cfg())
+    assert alert is not None
+    assert alert.severity == "problem"
+    assert alert.meta["lead"] == "period"
+    assert round(alert.actual_value) == 4067  # число совпадает с карточкой периода
+    assert "с начала периода 01.07–30.07" in alert.hypothesis_text
+    assert "За последние 7 дней" in alert.hypothesis_text
+    assert "улучшается" in alert.hypothesis_text
+    assert alert.meta["cpl_7d"] == pytest.approx(3_372.0)
+
+
+def test_p2_hides_second_number_when_divergence_is_small(monkeypatch):
+    # Расхождение баз ≤ 15% — в тексте только накопительный CPL.
+    _p2_mocks(monkeypatch, spend_period=52_000, leads_period=20, spend_7d=13_500, leads_7d=5)
+    alert = iteration3._make_plan_cpl(None, "p", target(2_000), budget(200_000), date(2026, 7, 15), cfg(plan_cpl_warning_ratio=1.3))
+    assert alert is not None
+    assert alert.meta["lead"] == "period"
+    assert "За последние 7 дней" not in alert.hypothesis_text
+
+
+def test_p2_degradation_trigger_fires_red_when_cumulative_is_fine(monkeypatch):
+    # §5: 20 дней в цели, последние 7 дней — 6 100 ₽; накопительный 2 250 ₽ (1.1×).
+    _p2_mocks(monkeypatch, spend_period=56_250, leads_period=25, spend_7d=12_200, leads_7d=2)
+    alert = iteration3._make_plan_cpl(None, "p", target(2_000), budget(200_000), date(2026, 7, 21), cfg(plan_cpl_warning_ratio=1.3))
+    assert alert is not None
+    assert alert.severity == "problem"
+    assert alert.meta["lead"] == "degradation"
+    assert "Заявки резко подорожали" in alert.hypothesis_text
+    assert "6 100" in alert.hypothesis_text.replace(" ", " ")
+    assert "2 250" in alert.hypothesis_text.replace(" ", " ")
+
+
+def test_p2_stays_silent_when_neither_cumulative_nor_degradation_breaches(monkeypatch):
+    # §5: накопительный 1.2× (ниже жёлтого 1.3), 7-дневный 1.55× (ниже красного 1.8) — тишина.
+    _p2_mocks(monkeypatch, spend_period=48_000, leads_period=20, spend_7d=15_500, leads_7d=5)
+    assert iteration3._make_plan_cpl(
+        None, "p", target(2_000), budget(200_000), date(2026, 7, 15), cfg(plan_cpl_warning_ratio=1.3),
+    ) is None
 
 
 def test_p3_derives_or_respects_manual_lead_plan(monkeypatch):

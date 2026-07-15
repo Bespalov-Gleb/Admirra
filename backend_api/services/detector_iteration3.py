@@ -522,6 +522,20 @@ def _target_exists(db: Session, client_id: uuid.UUID, target: models.ProjectTarg
     )
 
 
+def _plan_base_label(period_start: date, period_end: date) -> str:
+    """Мини-ТЗ P-2 §3: база расчёта всегда названа, голая цифра запрещена."""
+    month_last_day = (period_start.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+    if period_start.day == 1 and period_end == month_last_day:
+        return "с начала месяца"
+    return f"с начала периода {period_start.strftime('%d.%m')}–{period_end.strftime('%d.%m')}"
+
+
+def _times_ru(ratio: float) -> str:
+    """«в 2 раза дороже» вместо «+117%» — правило текстов итерации 2."""
+    value = f"{ratio:.1f}".rstrip("0").rstrip(".").replace(".", ",")
+    return f"в {value} раза дороже"
+
+
 def _make_plan_cpl(
     db: Session, client_id: uuid.UUID, target: models.ProjectTargetCPA,
     budget: models.ProjectBudget | None, reference_date: date, cfg: DetectorCfg,
@@ -532,36 +546,91 @@ def _make_plan_cpl(
     channel = target.channel
     if channel not in AD_CHANNELS:
         return None
-    start = _target_window_start(db, target, reference_date, cfg)
-    # A period shorter than seven days uses all of its available days.  A fresh
-    # CPL version still waits until the window can contain meaningful data.
-    if (reference_date - start).days + 1 < min(cfg.plan_cpl_window_days, (target.period_end - target.period_start).days + 1):
+    # Мини-ТЗ P-2: основной CPL — накопительный с начала периода плана (даты
+    # версии цели). План — договорённость на период, проверяется само обещание;
+    # число в алерте совпадает с карточкой при фильтре по периоду. Правило
+    # «окно минимум 7 дней» отменено: ранний шум отсекают денежные фильтры.
+    period_first = target.period_start
+    if reference_date < period_first:
         return None
-    spend, _, _ = _sum_channel_stats(db, client_id, channel, start, reference_date, selected)
-    leads = _sum_goal_leads(db, client_id, channel, target.goal_id, bool(target.is_summary), start, reference_date, selected, vk_codes)
+    spend, _, _ = _sum_channel_stats(db, client_id, channel, period_first, reference_date, selected)
+    leads = _sum_goal_leads(db, client_id, channel, target.goal_id, bool(target.is_summary), period_first, reference_date, selected, vk_codes)
     target_cpl = float(target.target_cpa)
     budget_amount = float(budget.amount) if budget else float("inf")
     red_min = min(cfg.plan_cpl_problem_target_multiplier * target_cpl, cfg.plan_cpl_problem_budget_share * budget_amount)
     yellow_min = min(cfg.plan_cpl_warning_target_multiplier * target_cpl, cfg.plan_cpl_warning_budget_share * budget_amount)
-    if spend < red_min:
+
+    cpl_period = spend / leads if leads else (math.inf if spend > 0 else 0.0)
+    ratio_period = cpl_period / target_cpl if target_cpl else math.inf
+
+    # Триггер деградации: скользящие 7 дней (не раньше версии плана), только
+    # красный порог и красный денежный фильтр, применённый к 7-дневному окну.
+    window_start = _target_window_start(db, target, reference_date, cfg)
+    spend_7d, _, _ = _sum_channel_stats(db, client_id, channel, window_start, reference_date, selected)
+    leads_7d = _sum_goal_leads(db, client_id, channel, target.goal_id, bool(target.is_summary), window_start, reference_date, selected, vk_codes)
+    cpl_7d = spend_7d / leads_7d if leads_7d else (math.inf if spend_7d > 0 else 0.0)
+    ratio_7d = cpl_7d / target_cpl if target_cpl else math.inf
+
+    period_severity = None
+    if spend >= red_min and ratio_period >= cfg.plan_cpl_problem_ratio:
+        period_severity = "problem"
+    elif spend >= yellow_min and ratio_period >= cfg.plan_cpl_warning_ratio:
+        period_severity = "warning"
+    degradation = spend_7d >= red_min and ratio_7d >= cfg.plan_cpl_problem_ratio
+
+    if not period_severity and not degradation:
         return None
-    actual_cpl = spend / leads if leads else math.inf
-    ratio = actual_cpl / target_cpl if math.isfinite(actual_cpl) else math.inf
-    if ratio < cfg.plan_cpl_warning_ratio:
-        return None
-    severity = "problem" if ratio >= cfg.plan_cpl_problem_ratio else "warning"
-    if severity == "warning" and spend < yellow_min:
-        return None
+    # Один алерт: превышены оба — ведёт накопительный, деградация внутри текстом.
+    lead = "period" if period_severity else "degradation"
+    severity = period_severity or "problem"
+
     label = target.goal_name or ("Все конверсии" if target.is_summary else f"цели {target.goal_id}")
-    if not leads:
-        text = f"Расход идёт, заявок нет по «{label}»: потрачено {_money(spend)} при целевом CPL {_money(target_cpl)}. Проверьте трафик и трекинг. Суммы с НДС."
+    base_label = _plan_base_label(target.period_start, target.period_end)
+
+    # Вторая цифра — только при заметном расхождении баз (§3), с направлением.
+    divergence = None
+    if math.isfinite(cpl_period) and math.isfinite(cpl_7d) and cpl_period > 0 and leads and leads_7d:
+        if abs(cpl_7d - cpl_period) / cpl_period > cfg.plan_cpl_divergence_threshold:
+            divergence = "улучшается" if cpl_7d < cpl_period else "ухудшается"
+
+    if lead == "period":
+        if not leads:
+            text = (
+                f"Расход идёт, заявок нет по «{label}»: {base_label} потрачено {_money(spend)} "
+                f"при целевом CPL {_money(target_cpl)}. Проверьте трафик и трекинг. Суммы с НДС."
+            )
+        else:
+            text = (
+                f"Стоимость заявки выше цели по «{label}»: {base_label} — {_money(cpl_period)} "
+                f"при целевом CPL {_money(target_cpl)} ({_times_ru(ratio_period)})."
+            )
+            if divergence:
+                text += f" За последние 7 дней — {_money(cpl_7d)}, ситуация {divergence}."
+            text += " Суммы с НДС."
+        ratio_lead, cpl_lead = ratio_period, cpl_period
     else:
-        text = f"Стоимость заявки выше цели по «{label}»: {_money(actual_cpl)} при целевом CPL {_money(target_cpl)} ({ratio:.1f}×). Суммы с НДС."
+        base_cap = base_label[0].upper() + base_label[1:]
+        period_part = (
+            f"{base_cap} пока {_money(cpl_period)}" if math.isfinite(cpl_period) and leads
+            else f"{base_cap} статистики пока мало"
+        )
+        text = (
+            f"Заявки резко подорожали по «{label}»: за последние 7 дней — {_money(cpl_7d)} "
+            f"при целевом CPL {_money(target_cpl)} ({_times_ru(ratio_7d)}). "
+            f"{period_part} — успейте скорректировать, пока неделя не испортила месяц. Суммы с НДС."
+        )
+        ratio_lead, cpl_lead = ratio_7d, cpl_7d
+
     return AlertCandidate("cpa", "goal" if not target.is_summary else "project", target.goal_id, channel,
-                          "plan_cpl", severity, round((ratio - 1) * 100, 2) if math.isfinite(ratio) else 9999,
-                          target_cpl, actual_cpl if math.isfinite(actual_cpl) else spend, "up", hypothesis_text=text,
-                          meta={"check": "P-2", "goal_name": label, "spend": spend, "leads": leads,
-                                "window_start": start.isoformat(), "period_start": target.period_start.isoformat(), "period_end": target.period_end.isoformat()})
+                          "plan_cpl", severity, round((ratio_lead - 1) * 100, 2) if math.isfinite(ratio_lead) else 9999,
+                          target_cpl, cpl_lead if math.isfinite(cpl_lead) else spend, "up", hypothesis_text=text,
+                          meta={"check": "P-2", "lead": lead, "goal_name": label,
+                                "spend": spend, "leads": leads,
+                                "cpl_period": cpl_period if math.isfinite(cpl_period) else None,
+                                "spend_7d": spend_7d, "leads_7d": leads_7d,
+                                "cpl_7d": cpl_7d if math.isfinite(cpl_7d) else None,
+                                "window_start": window_start.isoformat(),
+                                "period_start": target.period_start.isoformat(), "period_end": target.period_end.isoformat()})
 
 
 def _make_plan_leads(
