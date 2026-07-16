@@ -335,6 +335,9 @@ class IntegrationResponse(IntegrationBase):
     expires_at: Optional[datetime] = None
     agency_client_login: Optional[str] = None
     is_agency: Optional[bool] = None
+    # 'org' — кабинет подключён через приложение «AdMirra для организаций»
+    # (паспортная организация Яндекса); NULL — обычное подключение.
+    oauth_app: Optional[str] = None
     selected_goals: Optional[List[str]] = None
     primary_goal_id: Optional[str] = None
     selected_counters: Optional[List[str]] = None

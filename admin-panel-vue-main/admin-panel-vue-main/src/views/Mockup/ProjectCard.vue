@@ -315,6 +315,10 @@
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.6c.7 0 1.36.3 1.83.81l1.04 1.13c.28.31.69.49 1.11.49h5.42A2.5 2.5 0 0 1 21 9.93v6.57A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-9Z"/></svg>
                     {{ entry.folderName }}
                   </span>
+                  <span v-if="isOrganizationProject(project)" class="org-badge" title="Кабинет Яндекса подключён как организация">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/><path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01"/></svg>
+                    Организация
+                  </span>
                   <span v-if="isProjectPaused(project)" class="paused-badge">На паузе</span>
                 </button>
                 <p class="project-tile-description">{{ project.description || 'Без описания' }}</p>
@@ -975,6 +979,11 @@ const syncingIntegrations = ref(false)
 const projectsSyncing = computed(() => syncingIntegrations.value || globalSyncingIntegrations.value.length > 0)
 
 const isProjectPaused = (p) => String(p?.status || '').toLowerCase() === 'paused'
+// Проект-организация: есть кабинет Яндекса, подключённый через приложение
+// «AdMirra для организаций» (oauth_app='org'); порг-логин — запасной признак.
+const isOrganizationProject = (p) => (p?.integrations || []).some((i) =>
+  i?.oauth_app === 'org' || String(i?.account_id || '').toLowerCase().startsWith('porg-'),
+)
 // Счётчик считает карточки с паузой, включая проекты внутри папок (реком. ТЗ п.7)
 const pausedProjectsCount = computed(() => projects.value.filter(isProjectPaused).length)
 const projectFilterOptions = computed(() => [
@@ -4294,6 +4303,26 @@ onMounted(async () => {
   font-size: 0.7rem;
   font-weight: 700;
   vertical-align: middle;
+}
+
+/* Бейдж «Организация» — кабинет Яндекса, подключённый как организация */
+.org-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  margin-left: 0.4rem;
+  padding: 0.12rem 0.5rem;
+  border-radius: 99rem;
+  background: rgba(139, 92, 246, 0.12);
+  color: #7c3aed;
+  font-size: 0.7rem;
+  font-weight: 700;
+  vertical-align: middle;
+}
+.org-badge svg { opacity: 0.85; }
+:global(.darkmode) .org-badge {
+  background: rgba(167, 139, 250, 0.18);
+  color: #c4b5fd;
 }
 
 /* Кнопка и меню «В папку» */
