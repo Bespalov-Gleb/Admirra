@@ -116,6 +116,10 @@
     <section class="heading-section">
       <div class="dashboard-title-row">
         <h1>{{ dashboardTitle }}</h1>
+        <span v-if="isOrganizationDashboardProject" class="org-badge" title="Кабинет Яндекса подключён как организация">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/><path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01"/></svg>
+          Организация
+        </span>
       </div>
       <div class="dashboard-view-row">
         <div class="dashboard-view-tabs" role="tablist" aria-label="Режим экрана">
@@ -3518,6 +3522,14 @@ const dashboardTitle = computed(() => {
   return 'Отчет по всем проектам'
 })
 
+const isOrganizationDashboardProject = computed(() => {
+  if (!filters.client_id) return false
+  const project = projects.value.find((item) => String(item.id) === String(filters.client_id))
+  return (project?.integrations || []).some((i) =>
+    i?.oauth_app === 'org' || String(i?.account_id || '').toLowerCase().startsWith('porg-'),
+  )
+})
+
 const isAllChannelsMode = computed(() => filters.channel === 'all')
 const allChannelsDataLoading = computed(() => (
   isAllChannelsMode.value && (loading.value || reportGoalsLoading.value)
@@ -5531,6 +5543,7 @@ watch(
 
 onMounted(() => {
   refreshUserReportSettings()
+  fetchProjects({ preferCache: true })
   fetchIntegrations()
   fetchReportGoals()
   loadSavedComment()
@@ -5914,6 +5927,25 @@ onMounted(() => {
 
 .dashboard-title-row h1 {
   margin-bottom: 0;
+}
+
+.org-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  margin-left: 0.6rem;
+  padding: 0.16rem 0.6rem;
+  border-radius: 99rem;
+  background: rgba(139, 92, 246, 0.12);
+  color: #7c3aed;
+  font-size: 0.78rem;
+  font-weight: 700;
+  vertical-align: middle;
+}
+.org-badge svg { opacity: 0.85; }
+.figma-dashboard.is-dark .org-badge {
+  background: rgba(167, 139, 250, 0.18);
+  color: #c4b5fd;
 }
 
 .detector-status-chip {
