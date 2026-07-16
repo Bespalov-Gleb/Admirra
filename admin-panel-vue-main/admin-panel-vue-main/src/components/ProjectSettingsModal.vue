@@ -258,6 +258,19 @@
                   </div>
                   <p v-if="periodError" class="psm-field-error mb-4">{{ periodError }}</p>
 
+                  <!-- Повторить прошлый план: копирует бюджеты и целевые CPL
+                       прошлого периода в текущий, чтобы не заносить вручную -->
+                  <button
+                    v-if="previousPlanPeriod"
+                    type="button"
+                    class="psm-repeat-plan"
+                    @click="repeatPreviousPlan"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9 9 0 0 1 6.7 3H21m0-3v3.5h-3.5"/><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-6.7-3H3m0 3v-3.5h3.5"/></svg>
+                    <span>Повторить план прошлого периода</span>
+                    <b>{{ previousPlanLabel }}</b>
+                  </button>
+
                   <!-- Budgets per channel -->
                   <div class="mb-6">
                     <h4 class="psm-subsection-title">Бюджет на период — по каналам</h4>
@@ -499,6 +512,11 @@ const sheetsDisconnecting = ref(false)
 
 const goalRows = ref([])
 const isInitializing = ref(false)
+// Все сохранённые версии планов (все периоды) — для «Повторить прошлый план».
+// Планы версионные, старые периоды остаются историей, поэтому источник для
+// копирования уже есть в этих ответах API, отдельный эндпоинт не нужен.
+const allBudgetRecords = ref([])
+const allTargetRecords = ref([])
 // The parent project list is deliberately cached while a modal is open. Keep a
 // tiny, modal-local copy of integrations so an initial sync can finish without
 // making the user reload the whole Projects page.
@@ -706,14 +724,80 @@ function startDetectorSyncPolling() {
   }
 }
 
-const currentPeriodLabel = computed(() => {
-  const format = (value) => {
-    if (!value) return ''
-    const [year, month, day] = value.split('-')
-    return `${day}.${month}.${year}`
+const formatRuDate = (value) => {
+  if (!value) return ''
+  const [year, month, day] = value.split('-')
+  return `${day}.${month}.${year}`
+}
+
+const currentPeriodLabel = computed(() => `${formatRuDate(form.period_start)} — ${formatRuDate(form.period_end)}`)
+
+// Источник для «Повторить прошлый план» — самый свежий сохранённый период,
+// который начинается РАНЬШЕ текущего периода формы. Даты ISO (YYYY-MM-DD)
+// сравниваются лексикографически = хронологически.
+const previousPlanPeriod = computed(() => {
+  const periods = new Map()
+  for (const r of [...allBudgetRecords.value, ...allTargetRecords.value]) {
+    if (!r?.period_start || !r?.period_end) continue
+    if (String(r.period_start) >= String(form.period_start || '9999-12-31')) continue
+    periods.set(`${r.period_start}|${r.period_end}`, { start: r.period_start, end: r.period_end })
   }
-  return `${format(form.period_start)} — ${format(form.period_end)}`
+  if (!periods.size) return null
+  return [...periods.values()].sort((a, b) => String(b.start).localeCompare(String(a.start)))[0]
 })
+
+const previousPlanLabel = computed(() => {
+  const p = previousPlanPeriod.value
+  return p ? `${formatRuDate(p.start)} — ${formatRuDate(p.end)}` : ''
+})
+
+// Есть ли уже заполненные значения в текущем периоде — чтобы предупредить
+// о перезаписи перед копированием.
+const currentPeriodHasValues = () => {
+  const anyBudget = projectChannels.value.some((ch) => String(budgets[ch.id] || '').trim())
+  const anyTarget = goalRows.value.some((g) => String(g.targetCpa || '').trim())
+  return anyBudget || anyTarget
+}
+
+function repeatPreviousPlan() {
+  const source = previousPlanPeriod.value
+  if (!source) return
+  if (currentPeriodHasValues() && !window.confirm('Заполненные значения текущего периода будут заменены планом прошлого периода. Продолжить?')) {
+    return
+  }
+
+  // Бюджеты и план заявок — по совпадению канала
+  const srcBudgets = allBudgetRecords.value.filter(
+    (b) => b.period_start === source.start && b.period_end === source.end,
+  )
+  for (const ch of projectChannels.value) {
+    const match = srcBudgets.find((b) => samePlatform(ch.platform, b.channel))
+    if (match) {
+      // Как в loadBudgets: сырое значение, без formatBudgetInput —
+      // тот убирает нецифры и сломал бы дробный бюджет
+      budgets[ch.id] = match.amount != null ? String(match.amount) : ''
+      manualLeads[ch.id] = match.manual_leads ?? null
+    }
+  }
+
+  // Целевые CPL/CPA — по совпадению (канал, цель, сводная строка)
+  const srcTargets = allTargetRecords.value.filter(
+    (t) => t.period_start === source.start && t.period_end === source.end,
+  )
+  for (const row of goalRows.value) {
+    const match = srcTargets.find(
+      (t) => samePlatform(row.platform, t.channel)
+        && Boolean(t.is_summary) === Boolean(row.isSummary)
+        && (row.isSummary || String(t.goal_id) === String(row.goalId)),
+    )
+    if (match) {
+      row.targetCpa = match.target_cpa != null ? String(match.target_cpa) : ''
+      row.controlEnabled = Boolean(match.control_enabled && match.target_cpa)
+    }
+  }
+
+  toaster.success(`План скопирован из периода ${previousPlanLabel.value}. Проверьте значения и сохраните.`)
+}
 
 function snapshotForm() {
   initialFormSnapshot.value = JSON.stringify({
@@ -939,9 +1023,11 @@ async function resolveActivePeriod() {
       api.get(`clients/${props.project.id}/budgets`).catch(() => ({ data: [] })),
       api.get(`clients/${props.project.id}/target-cpa`).catch(() => ({ data: [] })),
     ])
+    allBudgetRecords.value = Array.isArray(budgetsRes.data) ? budgetsRes.data : []
+    allTargetRecords.value = Array.isArray(cpaRes.data) ? cpaRes.data : []
     const records = [
-      ...(Array.isArray(budgetsRes.data) ? budgetsRes.data : []),
-      ...(Array.isArray(cpaRes.data) ? cpaRes.data : []),
+      ...allBudgetRecords.value,
+      ...allTargetRecords.value,
     ].filter((r) => r && r.period_start && r.period_end)
     for (const r of records) {
       if (!latest || String(r.period_start) > String(latest.period_start)) latest = r
@@ -2029,6 +2115,43 @@ onUnmounted(() => {
   grid-template-columns: repeat(2, minmax(0, 11.1111rem));
   gap: 0.8333rem;
   margin-bottom: 1.1111rem;
+}
+
+.psm-repeat-plan {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5556rem;
+  margin-bottom: 1.1111rem;
+  padding: 0.6481rem 0.9722rem;
+  border: 1px solid rgba(37, 99, 235, 0.28);
+  border-radius: 0.6944rem;
+  background: rgba(37, 99, 235, 0.06);
+  color: #2563eb;
+  font-size: 0.8565rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+.psm-repeat-plan:hover {
+  background: rgba(37, 99, 235, 0.11);
+  border-color: rgba(37, 99, 235, 0.45);
+}
+.psm-repeat-plan b {
+  padding: 0.1389rem 0.4167rem;
+  border-radius: 0.4167rem;
+  background: rgba(37, 99, 235, 0.12);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+:root.dark .psm-repeat-plan,
+.dark .psm-repeat-plan {
+  border-color: rgba(96, 165, 250, 0.3);
+  background: rgba(96, 165, 250, 0.12);
+  color: #93c5fd;
+}
+:root.dark .psm-repeat-plan b,
+.dark .psm-repeat-plan b {
+  background: rgba(96, 165, 250, 0.2);
 }
 
 .psm-budget-grid {
