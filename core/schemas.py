@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field, field_validator, field_serializer
-from typing import Optional, List, Any, Literal
+from typing import Optional, List, Any, Literal, Dict
 from uuid import UUID
 from datetime import datetime, timezone
 import json
@@ -428,6 +428,10 @@ class StatsSummary(BaseModel):
     goals_syncing: bool = False
     goals_sync_message: Optional[str] = None
     trends: Optional[StatsTrend] = None
+    # Расход в разбивке по площадкам (yandex/vk/avito). Нужен фронту, чтобы корректно
+    # применять НДС по каждой площадке (Яндекс/VK ×1.22, Avito уже с НДС). Без этого
+    # поля Pydantic вырезал его из ответа, и в режиме папки НДС для VK не начислялся.
+    cost_by_platform: Optional[Dict[str, float]] = None
 
 # Client Schemas
 class ClientBase(BaseModel):

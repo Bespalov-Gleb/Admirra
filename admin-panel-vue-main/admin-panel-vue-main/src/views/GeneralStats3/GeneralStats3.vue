@@ -5934,7 +5934,7 @@ onMounted(() => {
   align-items: center;
   gap: 0.28rem;
   margin-left: 0.6rem;
-  margin-top: -0.25rem;
+  margin-top: -1.5rem;
   padding: 0.16rem 0.6rem;
   border-radius: 99rem;
   background: rgba(139, 92, 246, 0.12);
