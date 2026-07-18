@@ -6,32 +6,33 @@ import uuid
 import json
 import os
 from typing import List, Optional
-from automation.vk_goal_action_mapping import is_vk_lead_action
 
 class StatsService:
     @staticmethod
     def get_vk_lead_action_scope(
         db: Session,
         client_ids: List[uuid.UUID],
-    ) -> dict[uuid.UUID, Optional[set[str]]]:
+    ) -> dict[uuid.UUID, set[str]]:
         """
         Возвращает CPL-настройку отдельно для каждой VK-интеграции.
 
-        None означает совместимость со старой интеграцией: её неизвестный тип
-        результата не отбрасываем. Для настроенных интеграций используются ровно
-        выбранные пользователем коды.
+        В результат попадают только явно выбранные агентством действия. Если
+        настройка ещё не задана, возвращается пустой набор: нельзя молча считать
+        лидами произвольные результаты VK (трафик, сообщения и т. п.).
+
+        ``selected_goals`` остаётся только переходным источником для старых
+        интеграций, где выбор был сохранён до появления ``lead_action_types``.
         """
         integrations = db.query(models.Integration).filter(
             models.Integration.client_id.in_(client_ids),
             models.Integration.platform == models.IntegrationPlatform.VK_ADS,
         ).all()
-        result: dict[uuid.UUID, Optional[set[str]]] = {}
+        result: dict[uuid.UUID, set[str]] = {}
         for integration in integrations:
             # VK selection intentionally has its own field. selected_goals is
             # still read only as a compatibility bridge for integrations made
             # before the client-link/lead-actions flow was introduced.
             raw = integration.lead_action_types
-            explicit_empty_selection = raw is not None
             if raw is None and integration.selected_goals:
                 raw = integration.selected_goals
             configured: set[str] = set()
@@ -41,23 +42,10 @@ class StatsService:
                     configured = {str(code) for code in (parsed or []) if code}
                 except (TypeError, ValueError):
                     configured = set()
-            if configured or explicit_empty_selection:
-                # An explicitly empty VK selection means no synthetic total
-                # "Заявки"/CPL, exactly as chosen by the agency.
-                result[integration.id] = configured
-                continue
-
-            observed_codes = [
-                str(row[0])
-                for row in db.query(models.Campaign.vk_goal_action_id).filter(
-                    models.Campaign.integration_id == integration.id,
-                    models.Campaign.vk_goal_action_id.isnot(None),
-                    models.Campaign.vk_goal_action_id != "",
-                ).distinct().all()
-                if row[0]
-            ]
-            default_codes = {code for code in observed_codes if is_vk_lead_action(code)}
-            result[integration.id] = default_codes or None
+            # Пустой набор — это корректное состояние «лиды не настроены».
+            # Автодефолт лид-форм записывается синком прямо в lead_action_types,
+            # поэтому здесь не должно быть второго, более широкого дефолта.
+            result[integration.id] = configured
         return result
 
     @staticmethod
@@ -69,14 +57,17 @@ class StatsService:
         scope = StatsService.get_vk_lead_action_scope(db, client_ids)
         clauses = []
         for integration_id, codes in scope.items():
-            integration_clause = models.Campaign.integration_id == integration_id
-            if codes is not None:
-                integration_clause = and_(
-                    integration_clause,
-                    models.Campaign.vk_goal_action_id.in_(sorted(codes)),
-                )
-            clauses.append(integration_clause)
-        return query.filter(or_(*clauses)) if clauses else query
+            # У этой интеграции нет выбранных лидовых действий: она не должна
+            # попасть ни в числитель, ни в знаменатель CPL.
+            if not codes:
+                continue
+            clauses.append(and_(
+                models.Campaign.integration_id == integration_id,
+                models.Campaign.vk_goal_action_id.in_(sorted(codes)),
+            ))
+        # Пустой scope должен вернуть ноль, а не снять фильтр и не превратить
+        # все native-конверсии VK в «лиды».
+        return query.filter(or_(*clauses)) if clauses else query.filter(False)
 
     @staticmethod
     def get_metrika_goal_integration_ids(
@@ -281,6 +272,7 @@ class StatsService:
                 "goals_sync_message": None,
                 "cost_by_platform": {"yandex": 0, "vk": 0, "avito": 0},
                 "lead_cost_by_platform": {"yandex": 0, "vk": 0, "avito": 0},
+                "leads_configured": True,
                 "trends": None
             }
 
@@ -636,7 +628,10 @@ class StatsService:
             if not cpa_available:
                 avg_cpa = 0.0
             elif platform == "all":
-                avg_cpa = costs / convs if convs > 0 else 0.0
+                # В общей сводке CPL также должен опираться на лидовый расход:
+                # VK-вложения не для лидов не входят в показатель.
+                lead_costs = yandex_cost + vk_lead_cost + avito_cost
+                avg_cpa = lead_costs / convs if convs > 0 else 0.0
             elif total_platform_conversions_for_cpa > 0:
                 avg_cpa = (
                     yandex_avg_cpa * yandex_convs_for_cpa
@@ -673,6 +668,25 @@ class StatsService:
 
         # Current period data
         curr = get_data(d_start, d_end)
+
+        # Настроены ли лиды для скоупа — определяется КОНФИГУРАЦИЕЙ (а не данными
+        # периода): Яндекс/Авито — выбранными целями Метрики, VK — составом
+        # lead_action_types с лидовыми кодами. Нужно для состояния «лиды не настроены»
+        # независимо от того, есть ли статистика в выбранном периоде (ТЗ VK разд.4).
+        def _compute_leads_configured() -> bool:
+            vk_configured = any(
+                bool(codes)
+                for codes in StatsService.get_vk_lead_action_scope(db, client_ids).values()
+            )
+            # Разбивка каналов приходит отдельными platform=... запросами:
+            # выбранные лиды VK не должны маскировать ненастроенные цели Яндекса.
+            if platform == "vk":
+                return vk_configured
+            if platform in ("yandex", "avito"):
+                return bool(selected_goal_ids_for_summary)
+            return bool(selected_goal_ids_for_summary) or vk_configured
+
+        leads_configured = _compute_leads_configured()
         goals_syncing = False
         if (
             selected_goal_ids_for_summary
@@ -801,6 +815,7 @@ class StatsService:
                 "goals_sync_message": "Данные целей ещё синхронизируются" if goals_syncing else None,
                 "cost_by_platform": curr.get("cost_by_platform", {"yandex": 0, "vk": 0, "avito": 0}),
                 "lead_cost_by_platform": curr.get("lead_cost_by_platform", {"yandex": 0, "vk": 0, "avito": 0}),
+                "leads_configured": leads_configured,
                 "revenue": 0.0,
                 "profit": -round(curr["costs"], 2),
                 "roi": -100.0 if curr["costs"] > 0 else 0.0,
@@ -810,6 +825,7 @@ class StatsService:
                 "prev": {
                     "leads": int(prev["convs"]) if prev else 0,
                     "expenses": round(float(prev["costs"]), 2) if prev else 0.0,
+                    "lead_cost_by_platform": prev.get("lead_cost_by_platform", {"yandex": 0, "vk": 0, "avito": 0}) if prev else {"yandex": 0, "vk": 0, "avito": 0},
                 },
             }
         
@@ -888,6 +904,7 @@ class StatsService:
             "goals_sync_message": "Данные целей ещё синхронизируются" if goals_syncing else None,
             "cost_by_platform": curr.get("cost_by_platform", {"yandex": 0, "vk": 0, "avito": 0}),
             "lead_cost_by_platform": curr.get("lead_cost_by_platform", {"yandex": 0, "vk": 0, "avito": 0}),
+            "leads_configured": leads_configured,
             "revenue": 0.0,  # Placeholder for future financial integration
             "profit": -round(curr["costs"], 2),
             "roi": -100.0 if curr["costs"] > 0 else 0.0,
@@ -897,6 +914,7 @@ class StatsService:
             "prev": {
                 "leads": int(prev["convs"]) if prev else 0,
                 "expenses": round(float(prev["costs"]), 2) if prev else 0.0,
+                "lead_cost_by_platform": prev.get("lead_cost_by_platform", {"yandex": 0, "vk": 0, "avito": 0}) if prev else {"yandex": 0, "vk": 0, "avito": 0},
             },
         }
 
@@ -983,6 +1001,7 @@ class StatsService:
         def run_vk_query(start, end):
             q = db.query(
                 models.Campaign.id.label("campaign_id"),
+                models.Campaign.integration_id.label("integration_id"),
                 models.Campaign.name.label("campaign_display_name"),
                 models.Campaign.external_id.label("campaign_external_id"),
                 models.Campaign.vk_goal_action_id.label("vk_goal_action_id"),
@@ -1006,7 +1025,7 @@ class StatsService:
             if end:
                 q = q.filter(models.VKStats.date <= end)
             return q.group_by(
-                models.Campaign.id, models.Campaign.name, models.Campaign.external_id,
+                models.Campaign.id, models.Campaign.integration_id, models.Campaign.name, models.Campaign.external_id,
                 models.Campaign.vk_goal_action_id, models.Campaign.vk_goal_action_name,
                 models.VKStats.campaign_name,
             ).all()
@@ -1284,6 +1303,7 @@ class StatsService:
 
         if platform in ["all", "vk"]:
             v_results = run_vk_query(d_start, d_end)
+            vk_lead_scope = StatsService.get_vk_lead_action_scope(db, client_ids)
 
             # Previous period VK data keyed by campaign_id
             prev_v_rows = {}
@@ -1348,6 +1368,10 @@ class StatsService:
                     "conversions_attributed": True,
                     "name": f"[VK] {disp_name}",
                     "target_action_name": vk_target,
+                    # Для клиентских отчётов и любых поверхностей, где слово
+                    # «лиды» используется буквально: только действие, выбранное
+                    # в настройке именно этого VK-кабинета.
+                    "is_lead_action": vk_code in vk_lead_scope.get(getattr(r, "integration_id", None), set()),
                     "impressions": imps,
                     "clicks": clicks,
                     "cost": round(cost, 2),

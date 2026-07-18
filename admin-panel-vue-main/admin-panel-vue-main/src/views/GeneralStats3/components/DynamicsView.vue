@@ -184,7 +184,7 @@
               <th>Клики</th>
               <th>CTR</th>
               <th>CPC</th>
-              <th v-if="hasYandexSummary" class="dyn-th-group">Конверсии Я</th>
+              <th v-if="hasYandexSummary" class="dyn-th-group">Лиды Я</th>
               <th v-if="hasYandexSummary">CPL Я</th>
               <template v-for="g in goals" :key="g.id">
                 <th class="dyn-th-goal">{{ g.name }}</th>
@@ -245,7 +245,7 @@ const metrics = [
   { key: 'clicks', label: 'Клики', color: '#38bdf8', money: false },
   { key: 'cpc', label: 'CPC', color: '#8b5cf6', money: true },
   { key: 'cpl', label: 'CPL', color: '#f97373', money: true },
-  { key: 'leads', label: 'Конверсии', color: '#22c55e', money: false },
+  { key: 'leads', label: 'Лиды', color: '#22c55e', money: false },
 ]
 
 const granularity = ref('month')
@@ -275,10 +275,12 @@ const withCostVat = (cbp, raw) => {
   return props.includeVat ? (y * VAT + v * VAT + a) : (y + v + a / VAT)
 }
 const adjCost = (p) => withCostVat(p.cost_by_platform, p.cost)
+// Лидовый расход периода — для CPL (ТЗ VK п.3/№10): VK — расход лидовых кампаний.
+const adjLeadCost = (p) => withCostVat(p.lead_cost_by_platform || p.cost_by_platform, p.cost)
 const adjCpc = (p) => (p.clicks > 0 ? adjCost(p) / p.clicks : 0)
 const adjOverallCpl = (p) => {
   const leads = Number(p.leads || 0)
-  return leads > 0 ? adjCost(p) / leads : 0
+  return leads > 0 ? adjLeadCost(p) / leads : 0
 }
 // Яндекс отдаёт расход без НДС → при НДС-режиме ×1.22, без НДС остаётся как есть.
 const adjCpl = (p) => {

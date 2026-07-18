@@ -1,127 +1,45 @@
 <template>
   <div ref="dashboardRef" class="figma-dashboard" :class="{ 'is-dark': isDarkMode }">
-    <section class="top-grid">
-      <div class="panel panel-channels">
-        <h2>Подключенные каналы</h2>
-        <div class="channel-balance-block">
-          <div v-if="channelBalances.length" class="channel-balance-list">
-            <div
-              v-for="balance in channelBalances"
-              :key="balance.id"
-              class="analytics-balance-tile"
-              :style="{ '--balance-bg': balance.bg, '--balance-color': balance.color }"
-            >
-              <img :src="balance.asset" :alt="balance.name" class="analytics-balance-icon" />
-              <span class="analytics-balance-name">{{ balance.name }}</span>
-              <span class="analytics-balance-value">{{ balance.value }}</span>
-            </div>
-          </div>
-          <div v-else class="channel-balance-empty">Нет подключенных РК</div>
-        </div>
+    <!-- Сервисная строка: входы рекламы слева, доставка отчётов справа. -->
+    <section class="dashboard-service-row" :class="{ 'dashboard-service-row--empty': reportsBlockEmpty }">
+      <div class="dashboard-service-sources">
+        <span v-for="channel in serviceChannelItems" :key="channel.key" class="dashboard-source-chip" :class="`dashboard-source-chip--${channel.key}`">
+          <img :src="channel.asset" alt="" />
+          {{ channel.name }} · {{ channel.balance }}
+        </span>
+        <button type="button" class="dashboard-source-add" @click="goToIntegrations">+ Подключить</button>
       </div>
-
-      <div class="panel panel-reports">
-        <!-- Один тулбар: заголовок + живые чипы каналов слева, действия справа
-             на общей оси — вместо четырёх колонок с «висящим» лейблом -->
-        <div class="reports-toolbar">
-          <div class="reports-toolbar__left">
-            <h2>Отчёты</h2>
-            <div class="chips-row report-icons-row">
-              <button
-                v-for="item in visibleProjectReportChannels"
-                :key="item.name"
-                class="report-icon-btn"
-                :data-channel="item.value"
-                :class="{
-                  active: isReportChannelEnabled(item),
-                  connected: isReportChannelConnected(item),
-                  unlinked: item.linkable && !isReportChannelConnected(item),
-                  disabled: item.disabled
-                }"
-                type="button"
-                :title="reportChannelTitle(item)"
-                @click="openProjectReportSettings"
-              >
-                <span class="report-icon-circle" :style="{ '--report-bg': getChipBackground(item) }">
-                  <span v-if="item.iconClass" :class="['report-mask-icon', item.iconClass]"></span>
-                  <img
-                    v-else-if="item.asset"
-                    :src="item.asset"
-                    alt=""
-                    :class="['chip-img', item.imageClass]"
-                  />
-                  <span v-else-if="item.letter" class="chip-letter">{{ item.letter }}</span>
-                  <component v-else :is="item.icon" class="chip-icon" />
-                </span>
-              </button>
-              <button
-                v-for="target in visibleProjectChatTargets"
-                :key="target.id"
-                class="report-icon-btn active connected"
-                type="button"
-                :title="`${target.kind === 'max' ? 'MAX' : 'Telegram'} · ${target.title || 'получатель проекта'}`"
-                @click="openProjectReportSettings"
-              >
-                <span class="report-icon-circle"><span class="chip-letter">{{ target.kind === 'max' ? 'M' : 'T' }}</span></span>
-              </button>
-            </div>
-          </div>
-
-          <div class="reports-toolbar__actions">
-            <button class="select-like cs-head reports-settings-head" type="button" :title="projectReportSummary" @click="openProjectReportSettings">
-              <span class="cs-current">{{ projectReportSummary }}</span>
-            </button>
-            <button class="primary-report" type="button" :disabled="sendingTg || sendingEmail || sendingMax" @click="handleSendSelectedReport">
-              {{ sendingTg || sendingEmail || sendingMax ? 'Подготовка...' : 'Отправить отчёт' }}
-              <CheckCircleIcon />
-            </button>
-            <div
-              class="custom-select report-export-select"
-              :class="{ open: openMenu === 'export' }"
-              v-click-outside="() => closeMenu('export')"
-            >
-              <button class="select-like cs-head report-export-head" type="button" @click="toggleMenu('export')">
-                <span class="cs-current">{{ sendingExport ? 'Экспорт...' : 'Экспорт отчёта' }}</span>
-                <span class="cs-arrow">
-                  <ChevronDownIcon />
-                </span>
-              </button>
-              <div class="cs-list dropdown-panel export">
-                <button type="button" class="cs-option" @click="handleExportAction('pdf')"><DocumentArrowDownIcon /> Скачать в PDF</button>
-                <button type="button" class="cs-option" @click="handleExportAction('png')"><PhotoIcon /> Скачать PNG</button>
-                <button type="button" class="cs-option" :disabled="sendingExport" @click="handleExportAction('link')"><LinkIcon /> {{ sendingExport ? 'Формируем ссылку…' : 'Ссылка для клиента' }}</button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div v-if="reportsBlockEmpty" class="report-empty-row">
-          <span class="report-empty-row__text">Каналы не подключены — настройте доставку отчётов</span>
-          <button type="button" class="report-empty-row__btn" @click="openProjectReportSettings">Настроить</button>
-        </div>
-
-        <button
-          v-if="pendingProjectDelivery"
-          type="button"
-          class="report-pending-row"
-          @click="openDeliveryPreview(pendingProjectDelivery)"
-        >
-          <span>Ждёт одобрения</span>
-          <strong>{{ pendingProjectDelivery.scope_label }}</strong>
-          <small>{{ formatReportDate(pendingProjectDelivery.start_date) }} — {{ formatReportDate(pendingProjectDelivery.end_date) }}</small>
-        </button>
-      </div>
+      <button v-if="!reportsBlockEmpty" type="button" class="dashboard-delivery-status" @click="openProjectReportSettings">
+        <ArrowPathIcon />
+        <span v-if="projectReportSettings?.enabled" class="dashboard-delivery-prefix">Автоотправка отчётов ·</span>
+        <span>{{ projectReportSummary }}</span>
+        <template v-if="projectRecipientCount === 1">
+          <span class="dashboard-delivery-separator">·</span>
+          <span class="dashboard-delivery-single">
+            <span class="dashboard-delivery-kind" :class="`dashboard-delivery-kind--${projectReportRecipients[0]?.kind}`">{{ projectReportRecipients[0]?.kind === 'telegram' ? 'T' : projectReportRecipients[0]?.kind === 'max' ? 'M' : '@' }}</span>
+            {{ projectReportRecipients[0]?.title }}
+          </span>
+        </template>
+        <template v-else>
+          <span class="dashboard-delivery-separator">·</span>
+          <span v-for="kind in serviceDeliveryKinds" :key="kind" class="dashboard-delivery-kind" :class="`dashboard-delivery-kind--${kind}`">{{ kind === 'telegram' ? 'T' : kind === 'max' ? 'M' : '@' }}</span>
+          {{ projectRecipientCount }} {{ recipientCountLabel }}
+        </template>
+      </button>
+      <button v-else type="button" class="dashboard-delivery-empty" @click="openProjectReportSettings">📤 Отчёты могут уходить клиентам сами — Telegram, MAX или почта <b>Настроить →</b></button>
     </section>
 
+    <button v-if="pendingProjectDelivery" type="button" class="report-pending-row dashboard-pending-row" @click="openDeliveryPreview(pendingProjectDelivery)">
+      <span>●</span><strong>Отчёт за {{ formatReportDate(pendingProjectDelivery.start_date) }} — {{ formatReportDate(pendingProjectDelivery.end_date) }} ждёт одобрения</strong><em>Проверить</em>
+    </button>
+
     <section class="heading-section">
-      <div class="dashboard-title-row">
+      <div class="dashboard-title-row dashboard-title-row--actions">
         <h1>{{ dashboardTitle }}</h1>
         <span v-if="isOrganizationDashboardProject" class="org-badge" title="Кабинет Яндекса подключён как организация">
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/><path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01"/></svg>
           Организация
         </span>
-      </div>
-      <div class="dashboard-view-row">
         <div class="dashboard-view-tabs" role="tablist" aria-label="Режим экрана">
           <button
             type="button"
@@ -140,7 +58,7 @@
             @click="activeView = 'dynamics'"
           >Динамика</button>
         </div>
-        <div class="dashboard-view-row__actions">
+        <div class="dashboard-view-row__actions dashboard-report-actions">
           <!-- Настройки проекта: единственная точка входа к плану и детектору. -->
           <button
             v-if="filters.client_id && !folderMode"
@@ -163,6 +81,22 @@
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.8-3 8.6-7 10-4-1.4-7-5.2-7-10V6l7-3z"/></svg>
             <span>{{ detectorStatusChip.label }}</span>
           </span>
+          <div class="custom-select report-export-select" :class="{ open: openMenu === 'export' }" v-click-outside="() => closeMenu('export')">
+            <button class="project-settings-btn" type="button" @click="toggleMenu('export')"><DocumentArrowDownIcon /><span>{{ sendingExport ? 'Экспорт...' : 'Экспорт отчёта' }}</span><ChevronDownIcon /></button>
+            <div class="cs-list dropdown-panel export">
+              <button type="button" class="cs-option" @click="handleExportAction('pdf')"><DocumentArrowDownIcon /> Скачать PDF</button>
+              <button type="button" class="cs-option" @click="handleExportAction('png')"><PhotoIcon /> Скачать PNG</button>
+              <button type="button" class="cs-option" @click="handleExportAction('link')"><LinkIcon /> Ссылка для клиента</button>
+            </div>
+          </div>
+          <div v-if="!reportsBlockEmpty" class="custom-select dashboard-send-split" :class="{ open: openMenu === 'delivery-actions' }" v-click-outside="() => closeMenu('delivery-actions')">
+            <button type="button" class="dashboard-send-main" :disabled="sendingTg || sendingEmail || sendingMax" @click="handleSendSelectedReport">{{ sendingTg || sendingEmail || sendingMax ? 'Подготовка...' : 'Отправить отчёт' }}</button>
+            <button type="button" class="dashboard-send-caret" @click="toggleMenu('delivery-actions')"><ChevronDownIcon /></button>
+            <div class="cs-list dropdown-panel dashboard-delivery-menu">
+              <button type="button" class="cs-option" @click="openProjectReportSettings"><Cog6ToothIcon /> Настройки доставки</button>
+              <button type="button" class="cs-option" @click="router.push({ name: 'Reports' })"><ArrowPathRoundedSquareIcon /> История отправок</button>
+            </div>
+          </div>
         </div>
       </div>
       <div class="filters-row">
@@ -325,23 +259,17 @@
           </Teleport>
         </div>
 
-        <span class="sync-status-label" :class="{ active: dashboardSyncInProgress }">
+        <div class="filter-right-group custom-select dashboard-more-select" :class="{ open: openMenu === 'report-options' }" v-click-outside="() => closeMenu('report-options')">
+          <button type="button" class="filter-btn cs-head" @click="toggleMenu('report-options')">⋯ НДС, доп. параметры</button>
+          <div class="cs-list dropdown-panel dashboard-options-menu">
+            <label class="nds-check-wrap"><input type="checkbox" v-model="includeVat" class="nds-checkbox" /><span class="nds-label">НДС 22%</span></label>
+          </div>
+        </div>
+
+        <button type="button" class="sync-status-label" :class="{ active: dashboardSyncInProgress }" :disabled="dashboardSyncInProgress" @click="handleSyncIntegrations">
           <ArrowPathIcon :class="{ spinning: dashboardSyncInProgress }" />
           {{ syncStatusLabel }}
-        </span>
-
-        <div class="filter-right-group">
-          <label class="nds-check-wrap">
-            <input type="checkbox" v-model="includeVat" class="nds-checkbox" />
-            <span class="nds-label">НДС 22%</span>
-          </label>
-
-          <button class="sync-btn sync-btn-ghost" type="button" :disabled="dashboardSyncInProgress" @click="handleSyncIntegrations">
-            <ArrowPathIcon :class="{ spinning: dashboardSyncInProgress }" />
-            {{ dashboardSyncInProgress ? 'Синхронизация...' : 'Синхронизация' }}
-          </button>
-
-        </div>
+        </button>
       </div>
     </section>
 
@@ -436,23 +364,7 @@
       draggable=".metric-card-item"
       @end="saveKpiConfig"
     >
-      <article v-for="key in visibleSlots" :key="key" class="metric-card metric-card-item" :class="metricAnomalyClass(key)">
-        <!-- ТЗ «Флажок детектора на KPI-карточке»: бейдж 16px с «!», выступает
-             за угол; клик-зона 44px; поповер по клику и ховеру; клик по бейджу
-             никогда не скрывает алерт -->
-        <button
-          v-if="getMetricAnomaly(key)"
-          type="button"
-          class="kpi-flag"
-          :ref="(element) => setMetricFlagRef(key, element)"
-          @mouseenter="hoverDetectorMetric(key)"
-          @mouseleave="unhoverDetectorMetric()"
-          @click.stop="toggleDetectorMetricPopover(key)"
-        >
-          <span class="kpi-flag__badge" :class="`kpi-flag__badge--${getMetricAnomaly(key).severity}`">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5.5v8"/><circle cx="12" cy="18" r="1.6" fill="currentColor" stroke="none"/></svg>
-          </span>
-        </button>
+      <article v-for="key in visibleSlots" :key="key" class="metric-card metric-card-item" :data-metric="key" :class="metricAnomalyClass(key)">
         <div class="metric-head">
           <span class="metric-icon drag-handle" title="Перетащить">
             <component :is="metricsMap[key]?.icon" />
@@ -477,10 +389,26 @@
             >лиды не настроены → Настроить</button>
             <strong v-else>{{ metricsMap[key]?.value }}</strong>
           </div>
-          <span v-if="metricsMap[key]?.trend && !((key === 'leads' || key === 'cpa') && leadsNotConfigured)" class="trend" :class="{ negative: metricsMap[key]?.negative }">
-            <ArrowTrendingUpIcon v-if="metricsMap[key]?.trendUp" class="trend-icon" />
-            <ArrowTrendingDownIcon v-else class="trend-icon" />
-            {{ metricsMap[key]?.trend }}
+          <span v-if="(metricsMap[key]?.trend || getMetricAnomaly(key)) && !((key === 'leads' || key === 'cpa') && leadsNotConfigured)" class="trend" :class="{ negative: metricsMap[key]?.negative }">
+            <template v-if="metricsMap[key]?.trend">
+              <ArrowTrendingUpIcon v-if="metricsMap[key]?.trendUp" class="trend-icon" />
+              <ArrowTrendingDownIcon v-else class="trend-icon" />
+              {{ metricsMap[key]?.trend }}
+            </template>
+            <!-- Точка сохраняет доступ к пояснению детектора, не перетягивая
+                 внимание с числа и дельты. -->
+            <button
+              v-if="getMetricAnomaly(key)"
+              type="button"
+              class="kpi-flag"
+              :ref="(element) => setMetricFlagRef(key, element)"
+              aria-label="Пояснение аномалии"
+              @mouseenter="hoverDetectorMetric(key)"
+              @mouseleave="unhoverDetectorMetric()"
+              @click.stop="toggleDetectorMetricPopover(key)"
+            >
+              <span class="kpi-flag__badge" :class="`kpi-flag__badge--${getMetricAnomaly(key).severity}`"></span>
+            </button>
           </span>
           <button class="card-delete-btn" type="button" @click.stop="hideCard(key)" title="Скрыть">
             <XMarkIcon />
@@ -560,7 +488,7 @@
     </Teleport>
 
     <section
-      v-if="directionsEnabled && !selectedDirectionId && directionStats.items.length"
+      v-if="directionsEnabled && filters.channel !== 'vk' && !selectedDirectionId && directionStats.items.length"
       class="directions-panel panel"
       :class="{ 'panel--syncing': dashboardSyncInProgress }"
     >
@@ -619,7 +547,9 @@
       </div>
     </section>
 
-    <section class="chart-goals-grid" :class="{ 'chart-goals-grid--stacked': isAllChannelsMode }">
+    <!-- Блок целей — всегда на всю ширину (график сверху, цели снизу): в одноканальном
+         виде это одна карточка на всю ширину (ТЗ VK раздел 1, правило вырождения). -->
+    <section class="chart-goals-grid chart-goals-grid--stacked">
       <article
         class="panel chart-panel"
         :class="{
@@ -1898,10 +1828,11 @@ const openProjectReportSettings = () => {
 }
 const projectReportSummary = computed(() => {
   const s = projectReportSettings.value
-  if (!s || !s.enabled) return 'Настройки отчётов'
+  if (!s) return 'Настройки отчётов'
+  if (!s.enabled) return 'Автоотправка отключена'
   const dayLabels = { daily: 'ежедневно', weekdays: 'по будням', monday: 'по понедельникам', friday: 'по пятницам' }
   const mode = s.approval_required === false ? 'без проверки' : 'с проверкой'
-  return `${dayLabels[s.day] || s.day} ${s.send_time || '10:00'} · ${mode}`
+  return `${dayLabels[s.day] || s.day} ${s.send_time || '10:00'} МСК · ${mode}`
 })
 const visibleProjectReportChannels = computed(() => {
   const selected = new Set(projectReportSettings.value?.channels || [])
@@ -1915,16 +1846,51 @@ const visibleProjectChatTargets = computed(() => {
   const selected = new Set((projectReportSettings.value?.chat_targets || []).map(String))
   return (projectReportSettings.value?.available_chat_targets || []).filter((target) => selected.has(String(target.id)))
 })
+const projectReportRecipients = computed(() => {
+  const settings = projectReportSettings.value || {}
+  const selectedChannels = new Set(settings.channels || [])
+  const recipients = []
+
+  // Личные привязки — по одному получателю для каждого действительно доступного
+  // канала. E-mail ниже раскрываем по каждому выбранному адресу.
+  visibleProjectReportChannels.value
+    .filter((channel) => channel.value !== 'email')
+    .forEach((channel) => recipients.push({ kind: channel.value, title: `Мой ${channel.name}` }))
+
+  if (selectedChannels.has('email')) {
+    const emails = new Map((settings.available_email_recipients || []).map((item) => [String(item.email).toLowerCase(), item]))
+    ;(settings.email_recipients || []).forEach((email) => {
+      const recipient = emails.get(String(email).toLowerCase())
+      recipients.push({ kind: 'email', title: recipient?.title || recipient?.email || String(email) })
+    })
+  }
+
+  const targets = new Map((settings.available_chat_targets || []).map((item) => [String(item.id), item]))
+  ;(settings.chat_targets || []).forEach((id) => {
+    const target = targets.get(String(id))
+    if (!target || target.status === 'unavailable') return
+    recipients.push({ kind: target.kind, title: target.title || target.chat_id })
+  })
+  return recipients
+})
+const projectRecipientCount = computed(() => projectReportRecipients.value.length)
+const recipientCountLabel = computed(() => {
+  const count = projectRecipientCount.value
+  if (count % 10 === 1 && count % 100 !== 11) return 'получатель'
+  if ([2, 3, 4].includes(count % 10) && ![12, 13, 14].includes(count % 100)) return 'получателя'
+  return 'получателей'
+})
+const serviceDeliveryKinds = computed(() => {
+  const kinds = new Set(projectReportRecipients.value.map((recipient) => recipient.kind))
+  return [...kinds].filter((kind) => ['telegram', 'max', 'email'].includes(kind))
+})
 // Пустое состояние блока «Отчёты»: ни одного подключённого канала/группы (ТЗ экран 1)
 const reportsBlockEmpty = computed(() => {
   const s = projectReportSettings.value
-  if (!s) return false
-  const connected = new Set(Array.isArray(s.connected_channels) ? s.connected_channels : [])
-  const selectedChannels = Array.isArray(s.channels) ? s.channels : []
-  const hasPersonal = selectedChannels.some((channel) => channel === 'email'
-    ? Boolean(s.email_recipients?.length)
-    : connected.has(channel))
-  return !hasPersonal && !(s.chat_targets || []).length
+  // До ответа API также считаем состояние пустым: иначе на новом проекте на миг
+  // появляется «Отправить отчёт», хотя получателей ещё нет.
+  if (!s) return true
+  return projectRecipientCount.value === 0
 })
 const currentReportScopeParams = computed(() => ({
   ...(filters.folder_id ? { folder_id: filters.folder_id } : {}),
@@ -3598,22 +3564,19 @@ const availableDashboardChannels = computed(() => {
   ))
 })
 
-// Настроены ли лиды у канала: есть хотя бы один суммируемый (лидовый) тип действий
-// (VK — lead_action_types, Яндекс — выбранные цели Метрики). ТЗ VK раздел 4.
-const channelLeadsConfigured = (key) => {
-  const items = isAllChannelsMode.value ? (reportGoalsByChannel.value?.[key] || []) : (reportGoals.value || [])
-  return items.some((item) => item.summable !== false)
-}
-// Состояние «лиды не настроены»: ни один подключённый канал с расходом не имеет
-// настроенных лидовых действий. Тогда KPI «Лиды»/«CPL» показывают ссылку в
-// настройки, а не «0 шт.», и чипы графика Лиды/CPL задизейблены (ТЗ VK раздел 4).
-const leadsNotConfigured = computed(() => {
-  const chans = availableDashboardChannels.value
-  if (!chans.length) return false
-  const anySpend = chans.some((ch) => Number(ch.summary?.expenses || 0) > 0)
-  if (!anySpend) return false
-  return !chans.some((ch) => channelLeadsConfigured(ch.key))
-})
+const serviceChannelItems = computed(() => channelBalances.value.slice(0, 3).map((channel) => ({
+  ...channel,
+  // У балансов другие технические имена платформ, чем у KPI; CSS-ключи приводим
+  // к трём рекламным источникам, которые показывает макет.
+  key: normalizeDashboardPlatform(channel.id),
+  balance: channel.value,
+})))
+
+// Состояние «лиды не настроены» определяется КОНФИГУРАЦИЕЙ интеграции
+// (leads_configured с бэка), а не данными периода и не наличием расхода (ТЗ VK
+// разд.4): если лиды настроены, но за период нет статистики — состояние НЕ
+// включается; если расхода нет, но лиды не настроены — включается.
+const leadsNotConfigured = computed(() => dashboardSummary.value?.leads_configured === false)
 
 const dashboardSummary = computed(() => {
   if (
@@ -3648,6 +3611,8 @@ const dashboardSummary = computed(() => {
         Number(item.summary.lead_cost_by_platform?.[item.key] ?? item.summary.expenses ?? 0),
       ])
     ),
+    // Лиды настроены, если хотя бы у одного канала они настроены (конфигурацией).
+    leads_configured: availableDashboardChannels.value.some((item) => item.summary?.leads_configured === true),
   }
 })
 
@@ -4413,8 +4378,9 @@ const goalChannelGroups = computed(() => {
         // не рисуем пустую карточку целей (ТЗ единого дашборда п.4).
         noSpend: rawExpenses <= 0,
         // Канал подключён, но лиды не настроены — помечаем со ссылкой в настройки
-        // (ТЗ единого дашборда п.14). Для VK/Яндекса это отсутствие выбранных целей.
-        leadsConfigured: selectedItems.length > 0,
+        // (ТЗ VK разд.4). Определяется конфигурацией (leads_configured с бэка),
+        // а не наличием данных за период.
+        leadsConfigured: channel.summary?.leads_configured !== false,
         expenses: formatMoney(rawExpenses),
         // CPL — от лидового расхода канала (п.10), не от всего расхода.
         cpl: total > 0 ? formatMoney(leadExpenses / total) : '—',
@@ -4439,7 +4405,7 @@ const goalChannelGroups = computed(() => {
     asset: key === 'yandex' ? yandexMetrikaIcon : meta.asset,
     bars: goalBars.value,
     expenses: formatMoney(expenses),
-    leadsConfigured: channelLeadsConfigured(key),
+    leadsConfigured: dashboardSummary.value?.leads_configured !== false,
     cpl: goalsSummaryCpl.value,
     summaryLabel: key === 'vk'
       ? (selectedDashboardGoalItems.value.length ? 'Заявки · по выбранным действиям · общий CPL' : 'Выберите действия для расчёта CPL')
@@ -5804,6 +5770,9 @@ onMounted(() => {
   grid-template-columns: 49.4rem 1fr;
   gap: 2rem;
   align-items: stretch;
+}
+.top-grid--single {
+  grid-template-columns: 1fr;
 }
 
 .panel-channels,
@@ -14763,4 +14732,20 @@ onMounted(() => {
   .detector-popover button { min-height: 44px; }
   .anomaly-dot { min-width: 18px; min-height: 18px; padding: 13px; background-clip: content-box; }
 }
+/* Dashboard v2: only content zone; global header/sidebar intentionally untouched. */
+.figma-dashboard { max-width: 1240px; margin: 0 auto; padding-top: 1.5rem; }
+.dashboard-service-row { display:flex; align-items:center; gap:.75rem; min-height:3.5rem; padding:0 0 .9rem; border-bottom:1px solid #e9edf3; }
+.dashboard-service-sources { display:flex; align-items:center; flex-wrap:wrap; gap:.45rem; min-width:0; }
+.dashboard-source-chip,.dashboard-source-add { display:inline-flex; align-items:center; gap:.35rem; min-height:1.8rem; padding:.25rem .65rem; border:0; border-radius:999px; font-size:.75rem; font-weight:650; white-space:nowrap; }
+.dashboard-source-chip { background:#fcf1dc; color:#9a6a12; }.dashboard-source-chip img { width:1rem; height:1rem; object-fit:contain; }.dashboard-source-chip--vk { background:#edf4ff; color:#2563eb; }.dashboard-source-chip--avito { background:#eef8f2; color:#16834a; }
+.dashboard-source-add { border:1px dashed #d9e0ea; background:#fff; color:#98a2b6; cursor:pointer; }
+.dashboard-delivery-status,.dashboard-delivery-empty { display:inline-flex; align-items:center; gap:.4rem; margin-left:auto; border:0; background:transparent; color:#5c6b84; font-size:.76rem; text-align:right; cursor:pointer; }.dashboard-delivery-status:hover,.dashboard-delivery-empty:hover { color:#2f6bea; }.dashboard-delivery-status svg { width:1rem; height:1rem; }.dashboard-delivery-single { display:inline-flex; align-items:center; gap:.25rem; min-width:0; }.dashboard-delivery-kind { display:grid; place-items:center; width:1.08rem; height:1.08rem; border-radius:.28rem; background:#2aa5e0; color:#fff; font-size:.62rem; font-weight:800; }.dashboard-delivery-kind--max { background:#6c5ce7; }.dashboard-delivery-kind--email { background:#8896ac; }.dashboard-delivery-empty b { margin-left:.25rem; color:#2f6bea; }
+.dashboard-pending-row { display:flex; align-items:center; width:100%; gap:.55rem; margin-top:.75rem; padding:.6rem .9rem; border:0; border-radius:.65rem; background:#fcf1dc; color:#9a6a12; text-align:left; cursor:pointer; }.dashboard-pending-row > span { color:#efa827; }.dashboard-pending-row strong { font-size:.78rem; font-weight:600; }.dashboard-pending-row em { margin-left:auto; color:#fff; border-radius:.4rem; background:#2f6bea; padding:.28rem .55rem; font-size:.72rem; font-style:normal; font-weight:700; }
+.dashboard-title-row--actions { display:flex; align-items:center; gap:.65rem; flex-wrap:wrap; margin-top:1.15rem; }.dashboard-title-row--actions h1 { margin:0; }.dashboard-title-row--actions .dashboard-view-tabs { margin-left:.1rem; }.dashboard-report-actions { margin-left:auto; display:flex; align-items:center; gap:.45rem; }.dashboard-report-actions .project-settings-btn { min-height:2.15rem; padding:.42rem .7rem; font-size:.76rem; }.dashboard-report-actions .project-settings-btn > svg { width:1rem; height:1rem; }.dashboard-send-split { display:flex; position:relative; overflow:visible; }.dashboard-send-main,.dashboard-send-caret { min-height:2.15rem; border:0; color:#fff; background:#2f6bea; cursor:pointer; font-size:.78rem; font-weight:700; }.dashboard-send-main { padding:0 .75rem; border-radius:.55rem 0 0 .55rem; }.dashboard-send-caret { padding:0 .42rem; border-left:1px solid rgba(255,255,255,.24); border-radius:0 .55rem .55rem 0; }.dashboard-send-caret svg { width:.9rem; }.dashboard-delivery-menu { right:0; left:auto; min-width:13rem; }
+.filters-row { align-items:center; }.sync-status-label { margin-left:auto; min-height:2rem; border:0; background:transparent; padding:.25rem .4rem; color:#98a2b6; font:inherit; font-size:.76rem; cursor:pointer; }.sync-status-label:hover:not(:disabled) { color:#2f6bea; }.filter-right-group { margin-left:0; position:relative; }.dashboard-options-menu { right:0; left:auto; min-width:11rem; padding:.55rem; }.dashboard-options-menu .nds-check-wrap { padding:.35rem; }.dashboard-options-menu .nds-label { font-size:.78rem; }
+/* KPI becomes a single compact strip. Existing drag and hide mechanics remain available. */
+.figma-dashboard .kpi-grid { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:0; margin-top:1.35rem; padding:.85rem .35rem; border:1px solid #e9edf3; border-radius:.85rem; background:#fff; box-shadow:none; }.figma-dashboard .metric-card { min-width:0; min-height:0; padding:.15rem .9rem; border:0; border-left:1px solid #e9edf3; border-radius:0; background:transparent; box-shadow:none; overflow:visible; }.figma-dashboard .metric-card:first-child { border-left:0; }.figma-dashboard .metric-card.metric-card--anomaly-warning,.figma-dashboard .metric-card.metric-card--anomaly-problem { border-top-color:transparent; border-right-color:transparent; border-bottom-color:transparent; border-left-color:#e9edf3; box-shadow:none; }.figma-dashboard .metric-head { display:block; }.figma-dashboard .metric-icon,.figma-dashboard .card-delete-btn { display:none; }.figma-dashboard .metric-text h3 { margin:0; color:#98a2b6; font-size:.72rem; font-weight:500; }.figma-dashboard .metric-text strong { display:block; margin-top:.18rem; color:#1b2437; font-size:1.35rem; line-height:1.15; white-space:nowrap; }.figma-dashboard .trend { display:flex; align-items:center; margin-top:.15rem; color:#5c6b84; font-size:.72rem; }.figma-dashboard .trend .trend-icon { display:none; }.figma-dashboard .metric-card[data-metric="clicks"] .trend,.figma-dashboard .metric-card[data-metric="cpc"] .trend,.figma-dashboard .metric-card[data-metric="leads"] .trend,.figma-dashboard .metric-card[data-metric="cpa"] .trend { color:#188a4c; }.figma-dashboard .metric-card[data-metric="clicks"] .trend.negative,.figma-dashboard .metric-card[data-metric="cpc"] .trend.negative,.figma-dashboard .metric-card[data-metric="leads"] .trend.negative,.figma-dashboard .metric-card[data-metric="cpa"] .trend.negative { color:#c23a3a; }.figma-dashboard .metric-card[data-metric="expenses"] .trend,.figma-dashboard .metric-card[data-metric="impressions"] .trend { color:#5c6b84; }.figma-dashboard .kpi-flag { position:relative; top:auto; right:auto; flex:0 0 1rem; width:1rem; height:1rem; margin-left:.16rem; padding:0; }.figma-dashboard .kpi-flag__badge { width:.42rem; height:.42rem; box-shadow:none; animation:none; }.figma-dashboard .kpi-flag__badge--warning,.figma-dashboard .kpi-flag__badge--problem { background:#f2b400; }.figma-dashboard .kpi-flag__badge svg { display:none; }.figma-dashboard .metric-channel-breakdown { display:none; }
+.figma-dashboard.is-dark .dashboard-source-add,.figma-dashboard.is-dark .kpi-grid { background:rgba(255,255,255,.04); border-color:rgba(255,255,255,.1); }.figma-dashboard.is-dark .metric-card { border-color:rgba(255,255,255,.1); }.figma-dashboard.is-dark .metric-text strong { color:#f8fafc; }.figma-dashboard.is-dark .dashboard-service-row { border-color:rgba(255,255,255,.1); }
+@media (max-width: 1000px) { .dashboard-service-row { align-items:flex-start; flex-direction:column; }.dashboard-delivery-status,.dashboard-delivery-empty { margin-left:0; text-align:left; }.dashboard-report-actions { width:100%; margin-left:0; }.figma-dashboard .kpi-grid { grid-template-columns:repeat(3,1fr); row-gap:.8rem; }.figma-dashboard .metric-card:nth-child(4) { border-left:0; } }
+@media (max-width: 620px) { .dashboard-title-row--actions .dashboard-view-tabs { order:4; }.dashboard-report-actions { flex-wrap:wrap; }.dashboard-report-actions .detector-status-chip { order:-1; }.filters-row .sync-status-label { margin-left:0; }.figma-dashboard .kpi-grid { grid-template-columns:repeat(2,1fr); }.figma-dashboard .metric-card:nth-child(odd) { border-left:0; }.dashboard-delivery-status { font-size:.7rem; }.dashboard-delivery-status > svg,.dashboard-delivery-prefix { display:none; } }
 </style>

@@ -8,6 +8,7 @@ import secrets
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from core.database import SessionLocal
@@ -483,90 +484,261 @@ def _json_safe(value):
     return json.loads(json.dumps(value, ensure_ascii=False, default=str))
 
 
+def _scope_email_rows(db: Session, delivery, user_id):
+    """Email recipients belonging to the exact project/folder delivery scope."""
+    query = db.query(models.ReportEmailRecipient).filter(
+        models.ReportEmailRecipient.user_id == user_id,
+    )
+    if delivery.folder_id:
+        return query.filter(models.ReportEmailRecipient.folder_id == delivery.folder_id).all()
+    if delivery.client_id:
+        return query.filter(models.ReportEmailRecipient.client_id == delivery.client_id).all()
+    return query.filter(
+        models.ReportEmailRecipient.client_id.is_(None),
+        models.ReportEmailRecipient.folder_id.is_(None),
+    ).all()
+
+
+def _email_values(value) -> list[str]:
+    """Normalise legacy JSON arrays and the new recipient objects to emails."""
+    emails = []
+    for item in _jlist(value, []):
+        email = item.get("email") if isinstance(item, dict) else item
+        email = str(email or "").strip().lower()
+        if email and email not in emails:
+            emails.append(email)
+    return emails
+
+
+def _delivery_target_details(db: Session, delivery, user) -> tuple[list[dict], list[dict]]:
+    target_ids = [str(value) for value in _jlist(delivery.chat_targets, [])]
+    chat_details = []
+    if target_ids:
+        targets = db.query(models.ReportChatTarget).filter(
+            models.ReportChatTarget.user_id == user.id,
+            models.ReportChatTarget.id.in_(target_ids),
+        ).all()
+        for target in targets:
+            chat_details.append({
+                "id": str(target.id),
+                "key": f"target:{target.id}",
+                "kind": target.kind,
+                "title": target.title or ("Telegram" if target.kind == "telegram" else "MAX"),
+                "target_type": target.target_type,
+                "status": getattr(target, "status", None) or "active",
+                "last_error": getattr(target, "last_error", None),
+            })
+
+    selected = set(_email_values(getattr(delivery, "email_recipients", None)))
+    email_details = []
+    for recipient in _scope_email_rows(db, delivery, user.id):
+        email = str(recipient.email).strip().lower()
+        if email in selected:
+            email_details.append({
+                "id": str(recipient.id),
+                "key": f"email:{email}",
+                "kind": "email",
+                "title": recipient.title or email,
+                "email": email,
+                "target_type": "email",
+                "status": recipient.status or "active",
+                "last_error": recipient.last_error,
+            })
+            selected.discard(email)
+    # A queued delivery remains reproducible even if a recipient is later
+    # deleted from settings. The historical route is then explicitly marked
+    # unavailable instead of being silently lost.
+    for email in sorted(selected):
+        email_details.append({
+            "id": email,
+            "key": f"email:{email}",
+            "kind": "email",
+            "title": email,
+            "email": email,
+            "target_type": "email",
+            "status": "unavailable",
+            "last_error": "Получатель был удалён из настроек проекта",
+        })
+    return chat_details, email_details
+
+
+def _delivery_cpl_target(db: Session, delivery, template: str | None = None) -> float | None:
+    """Freeze a single matching CPA target alongside each template snapshot."""
+    if not delivery.client_id:
+        return None
+    platform_map = {
+        "yandex": models.IntegrationPlatform.YANDEX_DIRECT,
+        "vk": models.IntegrationPlatform.VK_ADS,
+        "avito": models.IntegrationPlatform.AVITO_ADS,
+    }
+    query = db.query(models.ProjectTargetCPA).filter(
+        models.ProjectTargetCPA.client_id == delivery.client_id,
+        models.ProjectTargetCPA.target_cpa.isnot(None),
+        models.ProjectTargetCPA.period_start <= delivery.end_date,
+        models.ProjectTargetCPA.period_end >= delivery.start_date,
+    )
+    channel = platform_map.get(template or delivery.platform or "all")
+    if channel:
+        query = query.filter(or_(
+            models.ProjectTargetCPA.channel == channel,
+            models.ProjectTargetCPA.channel.is_(None),
+        ))
+    else:
+        query = query.filter(models.ProjectTargetCPA.channel.is_(None))
+    row = query.order_by(
+        models.ProjectTargetCPA.is_summary.desc(),
+        models.ProjectTargetCPA.created_at.desc(),
+    ).first()
+    return float(row.target_cpa) if row else None
+
+
+def _delivery_message_text(delivery, snapshot: dict) -> str:
+    """One client-facing message, used unchanged by preview and all messengers."""
+    from backend_api.reports.export_service import _with_cost_breakdown_vat
+    from core.public_domain import resolve_frontend_url
+
+    summary = snapshot.get("summary") or {}
+    platform = snapshot.get("platform") or delivery.platform or "all"
+    cost = _with_cost_breakdown_vat(
+        summary.get("expenses"), summary.get("cost_by_platform"), platform
+    )
+    lead_cost = _with_cost_breakdown_vat(
+        summary.get("expenses"), summary.get("lead_cost_by_platform") or summary.get("cost_by_platform"), platform
+    )
+    leads = int(summary.get("leads") or 0)
+    cpl = lead_cost / leads if leads else None
+    label = snapshot.get("client_name") or "Отчёт по рекламе"
+    lines = [
+        f"📊 {label}",
+        f"Период: {delivery.start_date.isoformat()} — {delivery.end_date.isoformat()}",
+        f"Расход: {cost:,.0f} ₽".replace(",", " "),
+    ]
+    balance = summary.get("balance")
+    if isinstance(balance, (int, float)):
+        lines.append(f"Остаток: {float(balance):,.0f} ₽".replace(",", " "))
+    lines.append(f"Заявки: {leads:,}".replace(",", " "))
+    if cpl is not None:
+        cpl_line = f"CPL: {cpl:,.0f} ₽".replace(",", " ")
+        target = snapshot.get("cpl_target")
+        if isinstance(target, (int, float)) and target > 0:
+            cpl_line += f" · план до {float(target):,.0f} ₽".replace(",", " ")
+        lines.append(cpl_line)
+    trend = (summary.get("trends") or {}).get("cpa") if isinstance(summary.get("trends"), dict) else None
+    if isinstance(trend, (int, float)):
+        sign = "+" if trend > 0 else ""
+        lines.append(f"Динамика CPL: {sign}{trend:.1f}%")
+    comment = (delivery.comment or snapshot.get("ai_comment") or "").strip()
+    if comment:
+        lines.extend(["", comment])
+    token = delivery.public_token
+    if token:
+        url = f"{resolve_frontend_url().rstrip('/')}/api/reports/deliveries/public/{token}/pdf"
+        lines.extend(["", f"Полный отчёт: {url}"])
+    return "\n".join(lines)
+
+
+def refresh_delivery_messages(delivery) -> None:
+    """Refresh only presentation text after a comment/template change.
+
+    No stats query is performed here: all values come from the immutable JSON
+    snapshot that was stored before a report entered the approval queue.
+    """
+    snapshot = dict(delivery.snapshot_data or {})
+    if not snapshot:
+        return
+    text = _delivery_message_text(delivery, snapshot)
+    from backend_api.reports.email_template import render_report_email_html
+    email_data = {
+        "summary": snapshot.get("summary") or {},
+        "top_campaigns": snapshot.get("top_campaigns") or [],
+        "client_name": snapshot.get("client_name") or "",
+        "ai_comment": (delivery.comment or "").strip(),
+        "start_date": delivery.start_date.isoformat(),
+        "end_date": delivery.end_date.isoformat(),
+        "generated_at": (delivery.snapshot_created_at or datetime.now(MSK)).strftime("%Y-%m-%d %H:%M"),
+    }
+    subject = f"Отчёт за {delivery.start_date.isoformat()} — {delivery.end_date.isoformat()}"
+    snapshot["ai_comment"] = (delivery.comment or "").strip()
+    snapshot["delivery_messages"] = {
+        "telegram": {"text": text},
+        "max": {"text": text},
+        "email": {"subject": subject, "text": text, "html": render_report_email_html(email_data)},
+    }
+    delivery.snapshot_data = _json_safe(snapshot)
+
+
+def refresh_delivery_snapshot_files(delivery) -> None:
+    """Re-render selected fixed data after an editor action, never live stats."""
+    from backend_api.reports.pdf_service import generate_report_pdf_from_snapshot
+    from backend_api.reports.export_service import pdf_full_png
+    snapshot = dict(delivery.snapshot_data or {})
+    if not snapshot:
+        return
+    snapshot["ai_comment"] = (delivery.comment or "").strip()
+    delivery.snapshot_data = _json_safe(snapshot)
+    delivery.pdf_snapshot = generate_report_pdf_from_snapshot(snapshot, delivery.comment)
+    try:
+        delivery.png_snapshot = pdf_full_png(delivery.pdf_snapshot)
+    except Exception as exc:
+        logger.warning("Delivery %s PNG snapshot skipped: %s", delivery.id, exc)
+        delivery.png_snapshot = None
+    refresh_delivery_messages(delivery)
+
+
 async def build_delivery_snapshot(db: Session, delivery, user) -> None:
-    """Фиксирует комментарий, данные превью и файлы до очереди/отправки."""
+    """Freeze all template variants, recipients and presentation before queueing."""
     if delivery.pdf_snapshot and delivery.snapshot_data:
         return
-    if bool(delivery.include_ai_comment) and not (delivery.comment or "").strip():
-        try:
-            from backend_api.services.subscription import SubscriptionService
-            from ai.report_generator import generate_report
-            SubscriptionService.ensure_can_use_ai(db, user, requested=1)
-            delivery.comment = await generate_report(
-                db=db,
-                user_id=user.id,
-                client_id=delivery.client_id,
-                start_date=delivery.start_date.isoformat(),
-                end_date=delivery.end_date.isoformat(),
-                report_type="full",
-                folder_id=str(delivery.folder_id) if delivery.folder_id else None,
-            )
-            SubscriptionService.increment_ai_usage(db, user, requested=1)
-        except Exception as exc:
-            logger.warning("Delivery %s AI comment skipped: %s", delivery.id, exc)
-            delivery.comment = "AI-комментарий временно недоступен. Отчёт сформирован без аналитического вывода."
-
     sections = _jlist(delivery.sections, ["kpi", "chart", "channels", "campaigns"])
     chart_metrics = _jlist(delivery.chart_metrics, ["cost", "clicks"])
     dynamics_metrics = _jlist(delivery.dynamics_metrics, ["cost"])
     folder_id = str(delivery.folder_id) if delivery.folder_id else None
     start_str = delivery.start_date.isoformat()
     end_str = delivery.end_date.isoformat()
-    delivery.pdf_snapshot, render_data = generate_report_pdf(
-        db=db,
-        user_id=user.id,
-        client_id=delivery.client_id,
-        start_date=start_str,
-        end_date=end_str,
-        comment=delivery.comment,
-        include_dynamics=bool(delivery.include_dynamics),
-        folder_id=folder_id,
-        platform=delivery.platform or "all",
-        layout=delivery.report_format or "desktop",
-        sections=sections,
-        chart_metrics=chart_metrics,
-        dynamics_metrics=dynamics_metrics,
-        return_data=True,
-    )
-    try:
-        from backend_api.reports.export_service import pdf_first_page_png
-        delivery.png_snapshot = pdf_first_page_png(delivery.pdf_snapshot)
-    except Exception as exc:
-        logger.warning("Delivery %s PNG snapshot skipped: %s", delivery.id, exc)
-        delivery.png_snapshot = None
-    target_ids = [str(value) for value in _jlist(delivery.chat_targets, [])]
-    target_details = []
-    if target_ids:
-        for target in db.query(models.ReportChatTarget).filter(
-            models.ReportChatTarget.user_id == user.id,
-            models.ReportChatTarget.id.in_(target_ids),
-        ).all():
-            target_details.append({
-                "id": str(target.id), "kind": target.kind, "title": target.title,
-                "target_type": target.target_type,
-            })
-    render_data["delivery_targets"] = target_details
-    delivery.snapshot_data = _json_safe(render_data)
     delivery.public_token = delivery.public_token or secrets.token_urlsafe(32)
     delivery.public_expires_at = datetime.now(MSK) + timedelta(days=30)
     delivery.snapshot_created_at = datetime.now(MSK)
+    target_details, email_details = _delivery_target_details(db, delivery, user)
+    template_snapshots = {}
+    supported_templates = ("all", "yandex", "vk", "avito")
+    for template in supported_templates:
+        try:
+            _pdf, render_data = generate_report_pdf(
+                db=db,
+                user_id=user.id,
+                client_id=delivery.client_id,
+                start_date=start_str,
+                end_date=end_str,
+                comment=delivery.comment,
+                include_dynamics=bool(delivery.include_dynamics),
+                folder_id=folder_id,
+                platform=template,
+                layout=delivery.report_format or "desktop",
+                sections=sections,
+                chart_metrics=chart_metrics,
+                dynamics_metrics=dynamics_metrics,
+                return_data=True,
+                render_pdf=False,
+            )
+            # The selected template bytes are rendered below from this exact
+            # fixed data; other variants need no eager PDF generation.
+            render_data["cpl_target"] = _delivery_cpl_target(db, delivery, template)
+            template_snapshots[template] = _json_safe(render_data)
+        except Exception as exc:
+            logger.info("Delivery %s template %s unavailable: %s", delivery.id, template, exc)
+    selected = delivery.platform or "all"
+    if selected not in template_snapshots:
+        raise ValueError("Не удалось сформировать выбранный шаблон отчёта")
+    snapshot = dict(template_snapshots[selected])
+    snapshot["template_snapshots"] = template_snapshots
+    snapshot["delivery_targets"] = target_details
+    snapshot["email_target_details"] = email_details
+    delivery.snapshot_data = _json_safe(snapshot)
+    refresh_delivery_snapshot_files(delivery)
 
 
 def _snapshot_caption(delivery) -> str:
-    data = delivery.snapshot_data or {}
-    summary = data.get("summary") or {}
-    from backend_api.reports.export_service import _with_cost_breakdown_vat
-    expenses = _with_cost_breakdown_vat(
-        summary.get("expenses"), summary.get("cost_by_platform"), delivery.platform,
-    )
-    leads = int(summary.get("leads") or 0)
-    clicks = int(summary.get("clicks") or 0)
-    return "\n".join([
-        f"📊 Отчёт за {delivery.start_date.isoformat()} — {delivery.end_date.isoformat()}",
-        f"Расходы: {expenses:,.0f} ₽".replace(",", " "),
-        f"Клики: {clicks:,}".replace(",", " "),
-        f"Лиды: {leads:,}".replace(",", " "),
-    ])
+    return ((delivery.snapshot_data or {}).get("delivery_messages") or {}).get("telegram", {}).get("text") or _delivery_message_text(delivery, delivery.snapshot_data or {})
 
 
 def _retry_channels(delivery, retry_failed_only: bool) -> tuple[list[str], list[str]]:
@@ -581,9 +753,59 @@ def _retry_channels(delivery, retry_failed_only: bool) -> tuple[list[str], list[
     return channels, targets
 
 
-async def send_report_delivery(db: Session, delivery, user, *, retry_failed_only: bool = False) -> dict:
+def switch_delivery_template(delivery, template: str) -> None:
+    """Select an already frozen template; this must never query live stats."""
+    template = str(template or "").strip().lower()
+    if template not in {"all", "yandex", "vk", "avito"}:
+        raise ValueError("Неизвестный шаблон отчёта")
+    current = dict(delivery.snapshot_data or {})
+    snapshots = current.get("template_snapshots") or {}
+    if template not in snapshots:
+        raise ValueError("Для этого шаблона нет сохранённого снимка")
+    selected = dict(snapshots[template])
+    selected["template_snapshots"] = snapshots
+    selected["delivery_targets"] = current.get("delivery_targets") or []
+    selected["email_target_details"] = current.get("email_target_details") or []
+    delivery.platform = template
+    delivery.snapshot_data = _json_safe(selected)
+    refresh_delivery_snapshot_files(delivery)
+
+
+async def _generate_automatic_comment_if_needed(db: Session, delivery, user) -> None:
+    """Only unattended automatic sends may spend an AI credit implicitly.
+
+    Opening a preview and sending a report after human approval never call this
+    function. That keeps the Draft → Edited → Approved workflow explicit.
+    """
+    if getattr(delivery, "source", "manual") != "auto" or not getattr(delivery, "include_ai_comment", False) or (getattr(delivery, "comment", None) or "").strip():
+        return
+    try:
+        from backend_api.services.subscription import SubscriptionService
+        from ai.report_generator import generate_report
+        SubscriptionService.ensure_can_use_ai(db, user, requested=1)
+        delivery.comment = (await generate_report(
+            db=db,
+            user_id=user.id,
+            client_id=delivery.client_id,
+            start_date=delivery.start_date.isoformat(),
+            end_date=delivery.end_date.isoformat(),
+            report_type="comment",
+            folder_id=str(delivery.folder_id) if delivery.folder_id else None,
+            platform=delivery.platform or "all",
+        ) or "").strip() or None
+        delivery.comment_status = "draft" if delivery.comment else "none"
+        SubscriptionService.increment_ai_usage(db, user, requested=1)
+        refresh_delivery_snapshot_files(delivery)
+    except Exception as exc:
+        # A report is still useful without AI, and automatic delivery must not
+        # turn into a false failed delivery merely because commentary is absent.
+        logger.warning("Delivery %s automatic AI comment skipped: %s", delivery.id, exc)
+
+
+async def send_report_delivery(db: Session, delivery, user, *, retry_failed_only: bool = False, retry_email: str | None = None) -> dict:
     """Отправляет строго сохранённый снимок; при retry — только упавшие маршруты."""
     await build_delivery_snapshot(db, delivery, user)
+    await _generate_automatic_comment_if_needed(db, delivery, user)
     channels, target_ids = _retry_channels(delivery, retry_failed_only)
     previous = dict(delivery.delivery_results or {}) if retry_failed_only else {}
     results = {
@@ -591,6 +813,7 @@ async def send_report_delivery(db: Session, delivery, user, *, retry_failed_only
         "max": previous.get("max"),
         "email": previous.get("email"),
         "targets": dict(previous.get("targets") or {}),
+        "email_targets": dict(previous.get("email_targets") or {}),
         "errors": dict(previous.get("errors") or {}),
     }
     def checkpoint() -> None:
@@ -605,9 +828,6 @@ async def send_report_delivery(db: Session, delivery, user, *, retry_failed_only
         delivery.public_token = secrets.token_urlsafe(32)
         delivery.public_expires_at = datetime.now(MSK) + timedelta(days=30)
         db.commit()
-    from core.public_domain import resolve_frontend_url
-    pdf_url = f"{resolve_frontend_url().rstrip('/')}/api/reports/deliveries/public/{delivery.public_token}/pdf"
-
     if "telegram" in channels:
         results["errors"].pop("telegram", None)
         chat_id = (user.report_telegram_chat_id or "").strip()
@@ -621,7 +841,7 @@ async def send_report_delivery(db: Session, delivery, user, *, retry_failed_only
                     results["telegram"] = await telegram_notifier.send_photo(
                         chat_id=chat_id,
                         photo=delivery.png_snapshot,
-                        caption=f"{caption}\n\nPDF: {pdf_url}",
+                        caption=caption,
                     )
                 else:
                     results["telegram"] = await telegram_notifier.send_document(
@@ -661,50 +881,58 @@ async def send_report_delivery(db: Session, delivery, user, *, retry_failed_only
 
     if "email" in channels:
         results["errors"].pop("email", None)
-        recipients = _parse_email_recipients(getattr(delivery, "email_recipients", None))
+        recipients = _email_values(getattr(delivery, "email_recipients", None))
+        if retry_email:
+            requested = str(retry_email).strip().lower()
+            recipients = [email for email in recipients if email == requested]
+        elif retry_failed_only:
+            recipients = [email for email in recipients if not (results["email_targets"].get(email) or {}).get("ok")]
         if not recipients:
-            results["email"] = False
-            results["errors"]["email"] = "Email-получатели проекта не указаны"
+            # There may simply be no failed address left after a retry.
+            results["email"] = all((value or {}).get("ok") is True for value in results["email_targets"].values())
+            if not results["email"]:
+                results["errors"]["email"] = "Email-получатели проекта не указаны"
         else:
-            try:
-                data = delivery.snapshot_data or {}
-                from backend_api.services.unisender import is_configured as unisender_ok, send_report_email as uni_send
-                if unisender_ok():
-                    from backend_api.reports.email_template import render_report_email_html
-                    email_data = {
-                        "summary": data.get("summary") or {},
-                        "top_campaigns": data.get("top_campaigns") or [],
-                        "client_name": data.get("client_name") or "",
-                        "ai_comment": delivery.comment or "",
-                        "start_date": delivery.start_date.isoformat(),
-                        "end_date": delivery.end_date.isoformat(),
-                        "generated_at": delivery.snapshot_created_at.strftime("%Y-%m-%d %H:%M"),
-                    }
-                    ok, err = await uni_send(
-                        recipients=recipients,
-                        subject=f"Отчёт за {delivery.start_date} — {delivery.end_date}",
-                        html_body=render_report_email_html(email_data),
-                        plain_body=f"{caption}\n\n{delivery.comment or ''}",
-                        pdf_bytes=delivery.pdf_snapshot,
-                        filename=f"report_{delivery.start_date}_{delivery.end_date}.pdf",
-                    )
-                else:
-                    from lead_validator.services.email_sender import email_sender
-                    ok, err = await email_sender.send_report_email(
-                        recipients=recipients,
-                        subject=f"Отчёт за {delivery.start_date} — {delivery.end_date}",
-                        body=f"{caption}\n\n{delivery.comment or ''}",
-                        pdf_bytes=delivery.pdf_snapshot,
-                        filename=f"report_{delivery.start_date}_{delivery.end_date}.pdf",
-                    )
-                results["email"] = bool(ok)
-                if err:
-                    results["errors"]["email"] = str(err)
-                elif not ok:
-                    results["errors"]["email"] = "Email-провайдер не подтвердил отправку"
-            except Exception as exc:
-                results["email"] = False
-                results["errors"]["email"] = str(exc)
+            email_rows = {str(row.email).strip().lower(): row for row in _scope_email_rows(db, delivery, user.id)}
+            message = ((delivery.snapshot_data or {}).get("delivery_messages") or {}).get("email") or {}
+            for email in recipients:
+                ok, error = False, None
+                try:
+                    from backend_api.services.unisender import is_configured as unisender_ok, send_report_email as uni_send
+                    if unisender_ok():
+                        ok, error = await uni_send(
+                            recipients=[email],
+                            subject=message.get("subject") or f"Отчёт за {delivery.start_date} — {delivery.end_date}",
+                            html_body=message.get("html") or "",
+                            plain_body=message.get("text") or caption,
+                            pdf_bytes=delivery.pdf_snapshot,
+                            filename=f"report_{delivery.start_date}_{delivery.end_date}.pdf",
+                        )
+                    else:
+                        from lead_validator.services.email_sender import email_sender
+                        ok, error = await email_sender.send_report_email(
+                            recipients=[email],
+                            subject=message.get("subject") or f"Отчёт за {delivery.start_date} — {delivery.end_date}",
+                            body=message.get("text") or caption,
+                            pdf_bytes=delivery.pdf_snapshot,
+                            filename=f"report_{delivery.start_date}_{delivery.end_date}.pdf",
+                        )
+                except Exception as exc:
+                    error = str(exc)
+                error = str(error) if error else (None if ok else "Email-провайдер не подтвердил отправку")
+                results["email_targets"][email] = {"ok": bool(ok), **({"error": error} if error else {})}
+                row = email_rows.get(email)
+                if row:
+                    row.status = "active" if ok else "unavailable"
+                    row.last_error = error
+                    row.last_delivery_at = datetime.now(MSK)
+            results["email"] = bool(recipients) and all(
+                (results["email_targets"].get(email) or {}).get("ok") is True
+                for email in _email_values(getattr(delivery, "email_recipients", None))
+            )
+            if not results["email"]:
+                failed = [email for email, item in results["email_targets"].items() if not item.get("ok")]
+                results["errors"]["email"] = "; ".join(failed) or "Email-провайдер не подтвердил отправку"
         checkpoint()
 
     if target_ids:
@@ -736,7 +964,7 @@ async def send_report_delivery(db: Session, delivery, user, *, retry_failed_only
                             ok = await telegram_notifier.send_photo(
                                 chat_id=target.chat_id,
                                 photo=delivery.png_snapshot,
-                                caption=f"{caption}\n\nPDF: {pdf_url}",
+                                caption=caption,
                             )
                         else:
                             ok = await telegram_notifier.send_document(
@@ -763,6 +991,10 @@ async def send_report_delivery(db: Session, delivery, user, *, retry_failed_only
                 "title": getattr(target, "title", None),
                 **({"error": error} if error else {}),
             }
+            if target:
+                target.status = "active" if ok else "unavailable"
+                target.last_error = error
+                target.last_delivery_at = datetime.now(MSK)
             checkpoint()
     results["groups"] = f"{sum(1 for v in results['targets'].values() if v.get('ok'))}/{len(results['targets'])}"
     return results

@@ -435,6 +435,9 @@ class StatsSummary(BaseModel):
     # «Лидовый расход» по каналам — для расчёта CPL по лидоспособным кампаниям
     # (VK — лидовый objective, Авито/Яндекс — весь расход). ТЗ единого дашборда п.10.
     lead_cost_by_platform: Optional[Dict[str, float]] = None
+    # Настроены ли лиды (конфигурацией, а не данными периода): для состояния
+    # «лиды не настроены» независимо от наличия статистики. ТЗ VK разд.4.
+    leads_configured: Optional[bool] = None
 
 # Client Schemas
 class ClientBase(BaseModel):
@@ -559,6 +562,28 @@ class ReportChatTargetResponse(BaseModel):
     target_type: str = "group"
     chat_id: str
     title: Optional[str] = None
+    status: str = "active"
+    last_error: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ReportEmailRecipientCreate(BaseModel):
+    email: EmailStr
+    title: Optional[str] = None
+
+
+class ReportEmailRecipientResponse(BaseModel):
+    id: UUID
+    email: EmailStr
+    title: Optional[str] = None
+    client_id: Optional[UUID] = None
+    folder_id: Optional[UUID] = None
+    status: str = "active"
+    last_error: Optional[str] = None
+    last_delivery_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
 
     class Config:
@@ -570,6 +595,7 @@ class ReportProjectSettingsResponse(ReportScheduleBase):
     scope_label: Optional[str] = None
     connected_channels: List[str] = []
     available_chat_targets: List[ReportChatTargetResponse] = []
+    available_email_recipients: List[ReportEmailRecipientResponse] = []
 
 
 class ReportDeliveryCreate(BaseModel):
@@ -615,6 +641,7 @@ class ReportDeliveryResponse(BaseModel):
     chart_metrics: List[str] = []
     dynamics_metrics: List[str] = []
     comment: Optional[str] = None
+    comment_status: str = "none"
     anomaly_reason: Optional[str] = None
     delivery_results: Optional[dict] = None
     approved_by_name: Optional[str] = None  # кто утвердил (человек) или None → «авто»
@@ -628,6 +655,15 @@ class ReportDeliveryResponse(BaseModel):
 
 class ReportDeliveryApprove(BaseModel):
     comment: Optional[str] = None
+    # History can retry exactly one failed email without re-sending messenger
+    # routes or another recipient of the same report.
+    retry_email: Optional[EmailStr] = None
+
+
+class ReportDeliveryTemplateUpdate(BaseModel):
+    """Template is the report data scope: all | yandex | vk | avito."""
+    template: Literal["all", "yandex", "vk", "avito"]
+    discard_comment: bool = False
 
 
 class ReportDeliveryDraft(BaseModel):
@@ -641,6 +677,10 @@ class ReportDeliveryPreviewKpi(BaseModel):
     cpl: float = 0
     impressions: int = 0
     clicks: int = 0
+    balance: Optional[float] = None
+    currency: Optional[str] = None
+    cpl_target: Optional[float] = None
+    cpl_trend: Optional[float] = None
 
 
 class ReportDeliveryPreviewCampaign(BaseModel):
@@ -658,6 +698,10 @@ class ReportDeliveryPreview(BaseModel):
     kpi: ReportDeliveryPreviewKpi
     top_campaigns: List[ReportDeliveryPreviewCampaign] = []
     comment: Optional[str] = None
+    comment_status: str = "none"
+    template: str = "all"
+    delivery_messages: dict = {}
+    snapshot_png_url: Optional[str] = None
 
 
 # ── Папки проектов (группировка филиалов одного заказчика) ──

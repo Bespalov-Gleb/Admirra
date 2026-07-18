@@ -12,7 +12,7 @@
     </header>
 
     <section class="reports-layout">
-      <div class="reports-panel">
+      <div v-if="pending.length" class="reports-panel reports-panel--queue">
         <div class="reports-panel-head">
           <div>
             <h2>Ожидают проверки</h2>
@@ -40,11 +40,10 @@
             <small>{{ formatDate(item.start_date) }} — {{ formatDate(item.end_date) }}</small>
             <em v-if="item.anomaly_reason">{{ item.anomaly_reason }}</em>
           </button>
-          <div v-if="!pending.length" class="reports-empty">Очередь проверки пуста</div>
         </div>
       </div>
 
-      <div class="reports-panel">
+      <div class="reports-panel reports-panel--history">
         <div class="reports-panel-head">
           <div>
             <h2>История отправок</h2>
@@ -58,35 +57,26 @@
             <span>Проект · период</span>
             <span>Кто утвердил</span>
             <span>Каналы</span>
-            <span>Статус</span>
+            <span aria-label="Настройки"></span>
           </div>
-          <div v-for="item in history" :key="item.id" class="reports-table-row">
+          <div v-for="item in history" :key="item.id" class="reports-table-row reports-table-row--item" role="button" tabindex="0" @click="historyDelivery = item" @keydown.enter="historyDelivery = item">
             <span class="history-date">{{ formatDateTime(item.sent_at || item.approved_at || item.created_at) }}</span>
-            <span class="history-scope">{{ item.scope_label }} · {{ formatDate(item.start_date) }} — {{ formatDate(item.end_date) }}</span>
+            <span class="history-scope"><template v-if="item.status === 'cancelled'"><b class="history-cancelled">Отменён</b> · </template>{{ item.scope_label }} · {{ formatDate(item.start_date) }} — {{ formatDate(item.end_date) }}</span>
             <span class="history-approver">{{ item.approved_by_name || 'авто' }}</span>
             <span class="history-channels">
-              <span
+              <button
                 v-for="ch in channelBadges(item)"
                 :key="ch.key"
-                class="history-channel-ic"
+                type="button"
+                class="history-channel-badge"
                 :class="[ch.cls, { failed: ch.ok === false }]"
                 :title="ch.title"
-              ><span class="hc-mask" :class="`hc-mask--${ch.cls}`"></span></span>
+                :disabled="ch.ok !== false || retryingId === item.id"
+                @click.stop="retryDelivery(item, ch.email)"
+              >{{ ch.label }} {{ ch.ok === true ? '✓' : ch.ok === false ? '✕ ⟳' : '—' }}</button>
               <span v-if="!channelBadges(item).length" class="history-channels-empty">—</span>
             </span>
-            <span class="history-status-cell">
-              <span :class="['history-status', item.status]">{{ statusLabel(item.status) }}</span>
-              <button
-                v-if="item.status === 'failed' || item.status === 'partial'"
-                type="button"
-                class="history-retry"
-                :disabled="retryingId === item.id"
-                :title="'Повторить отправку'"
-                @click="retryDelivery(item)"
-              >
-                <ArrowPathIcon :class="{ spinning: retryingId === item.id }" />
-              </button>
-            </span>
+            <button type="button" class="history-settings" title="Настройки отчётов проекта" @click.stop="openSettings(item)"><Cog6ToothIcon /></button>
           </div>
           <div v-if="!history.length" class="reports-empty">Истории пока нет</div>
         </div>
@@ -99,17 +89,28 @@
       @close="activeDelivery = null"
       @sent="handleSent"
     />
+    <ReportSnapshotModal v-if="historyDelivery" :delivery="historyDelivery" @close="historyDelivery = null" @retry="handleHistoryRetry" />
+    <ProjectReportSettingsModal
+      v-if="settingsScope"
+      :client-id="settingsScope.clientId"
+      :folder-id="settingsScope.folderId"
+      :title="settingsScope.title"
+      @close="settingsScope = null"
+      @saved="load"
+    />
   </main>
 </template>
 
 <script setup>
 import { onMounted, ref } from 'vue'
-import { ArrowPathIcon } from '@heroicons/vue/24/outline'
+import { ArrowPathIcon, Cog6ToothIcon } from '@heroicons/vue/24/outline'
 import api from '@/api/axios'
 import { useToaster } from '@/composables/useToaster'
 import { useTheme } from '@/composables/useTheme'
 import { refreshReportsQueue } from '@/composables/useReportsQueue'
 import ReportApprovalModal from '../GeneralStats3/components/ReportApprovalModal.vue'
+import ProjectReportSettingsModal from '../GeneralStats3/components/ProjectReportSettingsModal.vue'
+import ReportSnapshotModal from './ReportSnapshotModal.vue'
 
 const { isDarkMode } = useTheme()
 const toaster = useToaster()
@@ -117,6 +118,8 @@ const loading = ref(false)
 const pending = ref([])
 const history = ref([])
 const activeDelivery = ref(null)
+const historyDelivery = ref(null)
+const settingsScope = ref(null)
 const retryingId = ref(null)
 
 const load = async () => {
@@ -143,6 +146,7 @@ const CHANNEL_META = {
 }
 
 const channelBadges = (item) => {
+  if (item?.status === 'cancelled') return []
   const res = item.delivery_results || {}
   const out = []
   for (const ch of (item.channels || [])) {
@@ -151,7 +155,17 @@ const channelBadges = (item) => {
     const raw = res[ch]
     const ok = raw == null ? null : Boolean(raw)
     const error = res.errors?.[ch]
-    out.push({ key: ch, cls: meta.cls, ok, title: `${meta.label}${ok === false ? ` — ${error || 'ошибка'}` : ''}` })
+    if (ch === 'email') {
+      const emails = Array.isArray(item.email_recipients) ? item.email_recipients : []
+      const emailResults = res.email_targets || {}
+      for (const email of emails) {
+        const target = emailResults[email] || {}
+        const emailOk = target.ok == null ? ok : Boolean(target.ok)
+        out.push({ key: `email-${email}`, cls: meta.cls, label: `Email · ${email}`, email, ok: emailOk, title: `Email · ${email}${emailOk === false ? ` — ${target.error || error || 'ошибка'}` : ''}` })
+      }
+      continue
+    }
+    out.push({ key: ch, cls: meta.cls, label: meta.label, ok, title: `${meta.label}${ok === false ? ` — ${error || 'ошибка'}` : ''}` })
   }
   const targetResults = res.targets || {}
   for (const targetId of (item.chat_targets || [])) {
@@ -160,6 +174,7 @@ const channelBadges = (item) => {
     out.push({
       key: `target-${targetId}`,
       cls: target.kind === 'max' ? 'mx' : 'tg',
+      label: target.title || 'Получатель',
       ok,
       title: `${target.title || 'Получатель проекта'}${ok === false ? ` — ${target.error || 'ошибка'}` : ''}`,
     })
@@ -167,11 +182,11 @@ const channelBadges = (item) => {
   return out
 }
 
-const retryDelivery = async (item) => {
+const retryDelivery = async (item, retryEmail = null) => {
   if (!item?.id || retryingId.value) return
   retryingId.value = item.id
   try {
-    const { data } = await api.post(`reports/deliveries/${item.id}/approve`, { comment: item.comment })
+    const { data } = await api.post(`reports/deliveries/${item.id}/approve`, { comment: item.comment, ...(retryEmail ? { retry_email: retryEmail } : {}) })
     if (data?.status === 'sent') toaster.success('Неуспешные маршруты отправлены повторно')
     else if (data?.status === 'partial') toaster.warning('Часть маршрутов по-прежнему недоступна')
     else toaster.error('Повторная отправка не удалась. Проверьте каналы')
@@ -186,6 +201,19 @@ const retryDelivery = async (item) => {
 const handleSent = async () => {
   activeDelivery.value = null
   await load()
+}
+
+const handleHistoryRetry = async (updated) => {
+  historyDelivery.value = updated || null
+  await load()
+}
+
+const openSettings = (item) => {
+  if (!item.client_id && !item.folder_id) {
+    toaster.warning('У сводного отчёта нет отдельной настройки проекта')
+    return
+  }
+  settingsScope.value = { clientId: item.client_id || null, folderId: item.folder_id || null, title: item.scope_label || 'Проект' }
 }
 
 const formatDate = (value) => {
@@ -290,7 +318,7 @@ onMounted(load)
 
 .reports-layout {
   display: grid;
-  grid-template-columns: minmax(28rem, 0.78fr) minmax(0, 1.22fr);
+  grid-template-columns: 1fr;
   gap: 1.6rem;
 }
 
@@ -344,6 +372,7 @@ onMounted(load)
 }
 
 .reports-list { display: grid; gap: 0.75rem; }
+.reports-panel--queue .reports-list { grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); }
 
 .report-queue-card {
   display: grid;
@@ -455,7 +484,7 @@ onMounted(load)
 
 .reports-table-row {
   display: grid;
-  grid-template-columns: 10rem minmax(18rem, 1fr) 9rem 7.2rem 10rem;
+  grid-template-columns: 9rem minmax(16rem, 1fr) 8rem minmax(13rem, .8fr) 2.3rem;
   gap: 1rem;
   align-items: center;
   min-height: 3.8rem;
@@ -464,6 +493,10 @@ onMounted(load)
   background: #f8fafc;
   color: #4b5563;
 }
+
+.reports-table-row--item { cursor: pointer; transition: transform .14s, background .14s, box-shadow .14s; }
+.reports-table-row--item:hover { transform: translateY(-1px); background: #fff; box-shadow: 0 .35rem 1rem rgba(15,23,42,.07); }
+.reports-page.is-dark .reports-table-row--item:hover { background: rgba(255,255,255,.075); }
 
 .reports-page.is-dark .reports-table-row {
   background: rgba(255, 255, 255, 0.04);
@@ -500,6 +533,11 @@ onMounted(load)
 .reports-page.is-dark .history-scope { color: #e6ebf3; }
 
 .history-channels { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; }
+.history-channel-badge { border: 0; border-radius: .5rem; padding: .36rem .48rem; background: #eef4ff; color: #2659bf; font: inherit; font-size: .76rem; line-height: 1; white-space: nowrap; cursor: default; }
+.history-channel-badge.mx { background: #f1ebff; color: #7148cc; }.history-channel-badge.em { background: #edf1f5; color: #526275; }
+.history-channel-badge.failed { background: #fff0f0; color: #c24141; cursor: pointer; }.history-channel-badge:disabled:not(.failed) { opacity: 1; }
+.history-settings { display:grid; place-items:center; width:2rem; height:2rem; border:0; border-radius:.55rem; background:transparent; color:#64748b; cursor:pointer; }.history-settings:hover { background:#eaf0ff; color:#2563eb; }.history-settings svg { width:1.15rem; height:1.15rem; }
+.history-cancelled { color:#9a6700; font-weight:750; }
 
 .history-channel-ic {
   width: 1.85rem;

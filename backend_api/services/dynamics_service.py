@@ -190,6 +190,15 @@ def get_dynamics_series(
         clicks = int(summary.get("clicks") or 0)
         impressions = int(summary.get("impressions") or 0)
         cost_by_platform = summary.get("cost_by_platform") or {}
+        lead_cost_by_platform = summary.get("lead_cost_by_platform") or {}
+
+        def lead_cost(platform_key: str) -> float:
+            # Ноль — валидный лидовый расход. Его нельзя подменять всем расходом
+            # канала только потому, что в периоде не было лидовых кампаний.
+            value = lead_cost_by_platform.get(platform_key)
+            return float(cost_by_platform.get(platform_key) or 0) if value is None else float(value or 0)
+
+        total_lead_cost = sum(lead_cost(key) for key in ("yandex", "vk", "avito"))
 
         # Лиды по каждой выбранной цели за период — в том же scope, что и summary.
         goal_counts: dict = {}
@@ -245,11 +254,17 @@ def get_dynamics_series(
             "ctr": round(clicks / impressions * 100, 2) if impressions > 0 else 0,
             "cpc": round(cost / clicks, 2) if clicks > 0 else 0,
             "leads": int(summary.get("leads") or 0),
-            "cpl": round(cost / int(summary.get("leads") or 0), 2) if int(summary.get("leads") or 0) > 0 else None,
+            # CPL — от лидового расхода (ТЗ VK п.3/№10), не от всего расхода канала.
+            "cpl": round(total_lead_cost / int(summary.get("leads") or 0), 2) if int(summary.get("leads") or 0) > 0 else None,
             "cost_by_platform": {
                 "yandex": round(float(cost_by_platform.get("yandex") or 0), 2),
                 "vk": round(float(cost_by_platform.get("vk") or 0), 2),
                 "avito": round(float(cost_by_platform.get("avito") or 0), 2),
+            },
+            "lead_cost_by_platform": {
+                "yandex": round(lead_cost("yandex"), 2),
+                "vk": round(lead_cost("vk"), 2),
+                "avito": round(lead_cost("avito"), 2),
             },
             "goals": goals,
             "yandex_summary": yandex_summary,

@@ -22,12 +22,13 @@ def _daily_series(db: Session, client_ids, d_start, d_end, platform: str = "all"
     from sqlalchemy import func as sa_func
     out = {}
 
-    def add(rows, key):
+    def add(rows, key, include_leads: bool = True):
         for stat_date, cost, clicks, leads, impressions in rows:
-            item = out.setdefault(str(stat_date), {"cost_yandex": 0.0, "cost_vk": 0.0, "cost_avito": 0.0, "clicks": 0, "leads": 0, "impressions": 0})
+            item = out.setdefault(str(stat_date), {"cost_yandex": 0.0, "cost_vk": 0.0, "cost_vk_lead": 0.0, "cost_avito": 0.0, "clicks": 0, "leads": 0, "impressions": 0})
             item[f"cost_{key}"] += float(cost or 0)
             item["clicks"] += int(clicks or 0)
-            item["leads"] += int(leads or 0)
+            if include_leads:
+                item["leads"] += int(leads or 0)
             item["impressions"] += int(impressions or 0)
 
     if platform in ("all", "yandex"):
@@ -43,7 +44,22 @@ def _daily_series(db: Session, client_ids, d_start, d_end, platform: str = "all"
             .filter(models.VKStats.client_id.in_(client_ids), models.VKStats.date >= d_start, models.VKStats.date <= d_end)
             .group_by(models.VKStats.date).all(),
             "vk",
+            include_leads=False,
         )
+        # Для графика отчёта и число заявок, и их расход должны брать один и тот
+        # же настроенный scope VK; native-конверсии трафиковых кампаний не лиды.
+        vk_lead_q = db.query(
+            models.VKStats.date,
+            sa_func.sum(models.VKStats.cost),
+            sa_func.sum(models.VKStats.conversions),
+        ).join(
+            models.Campaign, models.VKStats.campaign_id == models.Campaign.id
+        ).filter(models.VKStats.client_id.in_(client_ids), models.VKStats.date >= d_start, models.VKStats.date <= d_end)
+        vk_lead_q = StatsService.apply_vk_lead_action_scope(vk_lead_q, db, client_ids)
+        for stat_date, lead_cost, leads in vk_lead_q.group_by(models.VKStats.date).all():
+            item = out.setdefault(str(stat_date), {"cost_yandex": 0.0, "cost_vk": 0.0, "cost_vk_lead": 0.0, "cost_avito": 0.0, "clicks": 0, "leads": 0, "impressions": 0})
+            item["cost_vk_lead"] += float(lead_cost or 0)
+            item["leads"] += int(leads or 0)
     if platform in ("all", "avito"):
         add(
             db.query(models.AvitoStats.date, sa_func.sum(models.AvitoStats.cost), sa_func.sum(models.AvitoStats.clicks), sa_func.sum(models.AvitoStats.conversions), sa_func.sum(models.AvitoStats.impressions))
@@ -69,6 +85,7 @@ def generate_report_pdf(
     chart_metrics: list | None = None,
     dynamics_metrics: list | None = None,
     return_data: bool = False,
+    render_pdf: bool = True,
 ) -> bytes | tuple[bytes, dict]:
     """
     Генерирует PDF-отчёт на основе данных дашборда.
@@ -95,7 +112,11 @@ def generate_report_pdf(
         db, effective_client_ids, d_start, d_end, platform or "all", None, None
     )
     top_campaigns = sorted(
-        [c for c in campaigns if c.get("conversions", 0) > 0],
+        [
+            c for c in campaigns
+            if c.get("conversions", 0) > 0
+            and (c.get("platform") != "vk" or c.get("is_lead_action") is True)
+        ],
         key=lambda x: x.get("conversions", 0),
         reverse=True,
     )[:10]
@@ -164,6 +185,12 @@ def generate_report_pdf(
             )
         except Exception as e:
             logger.warning("Dynamics block skipped: %s", e)
+
+    # Queue creation freezes four template data sets. Only the selected one
+    # needs an actual PDF/PNG; skipping the other three WeasyPrint renders
+    # keeps opening a preview responsive without compromising immutability.
+    if return_data and not render_pdf:
+        return b"", data
 
     html = render_report_html(data, layout=layout or "desktop")
 

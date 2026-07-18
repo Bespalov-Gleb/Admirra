@@ -42,10 +42,12 @@ async def generate_report(
     end_date: str,
     report_type: str = "full",
     folder_id=None,
+    platform: str = "all",
 ) -> str:
     """
     Генерирует текстовый отчёт на основе данных дашборда.
-    report_type: "full" — полный отчёт, "recommendations" — только рекомендации.
+    report_type: "full" — полный отчёт, "recommendations" — только рекомендации,
+    "comment" — короткий клиентский вывод для доставки отчёта.
     """
     if not settings.OPENAI_API_KEY:
         logger.error("generate_report: OPENAI_API_KEY не настроен")
@@ -66,10 +68,10 @@ async def generate_report(
 
     # Собираем контекст
     summary = StatsService.aggregate_summary(
-        db, effective_client_ids, d_start, d_end, "all", None, None
+        db, effective_client_ids, d_start, d_end, platform or "all", None, None
     )
     campaigns = StatsService.get_campaign_stats(
-        db, effective_client_ids, d_start, d_end, "all", None, None
+        db, effective_client_ids, d_start, d_end, platform or "all", None, None
     )
 
     # Топ-5 кампаний по конверсиям
@@ -83,7 +85,18 @@ async def generate_report(
 
     client = _create_anthropic_client()
 
-    system_prompt = """Ты — профессиональный аналитик рекламных кампаний с экспертизой в Яндекс Директ и ВК Реклама.
+    if report_type == "comment":
+        system_prompt = """Ты — аналитик рекламных кампаний. Сформируй короткий комментарий для клиента к уже готовому отчёту.
+
+Строгие правила:
+- ровно 3–5 обычных связных предложений на русском языке;
+- без заголовков, таблиц, списков, Markdown и приветствий;
+- не переписывай подряд KPI, которые клиент уже видит в карточках;
+- назови только существенное изменение или риск, его вероятную причину по данным и одно понятное действие;
+- если данных недостаточно, честно скажи это в одном из предложений и не выдумывай причины.
+"""
+    else:
+        system_prompt = """Ты — профессиональный аналитик рекламных кампаний с экспертизой в Яндекс Директ и ВК Реклама.
 
 Твоя задача — анализировать данные и формировать чёткие, структурированные отчёты на русском языке.
 
@@ -115,7 +128,7 @@ async def generate_report(
 2. Что масштабировать (с обоснованием)
 3. Что протестировать (конкретные гипотезы)
 Каждый пункт — не более 2 предложений. Без общих слов."""
-    else:
+    elif report_type != "comment":
         system_prompt += """
 
 Развёрнутый отчёт. Структура:
@@ -137,12 +150,26 @@ async def generate_report(
             temperature=1.0,
         )
         text = response.content[0].text if response.content else ""
-        result = text.strip()
+        result = _normalise_delivery_comment(text) if report_type == "comment" else text.strip()
         logger.info("generate_report: Anthropic returned %d chars", len(result))
         return result
     except Exception as e:
         logger.exception("Anthropic API error: %s", e)
         raise
+
+
+def _normalise_delivery_comment(text: str) -> str:
+    """Remove accidental Markdown/list formatting from the client message."""
+    import re
+    clean_lines = []
+    for line in str(text or "").splitlines():
+        line = re.sub(r"^\s*(?:[-*•]|\d+[.)])\s*", "", line).strip()
+        line = re.sub(r"^#{1,6}\s*", "", line)
+        if line:
+            clean_lines.append(line)
+    clean = re.sub(r"\s+", " ", " ".join(clean_lines)).strip()
+    sentences = [part.strip() for part in re.split(r"(?<=[.!?])\s+", clean) if part.strip()]
+    return " ".join(sentences[:5]).strip()
 
 
 def _build_context(

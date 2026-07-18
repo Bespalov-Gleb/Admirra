@@ -95,7 +95,6 @@ def get_vk_goal_actions(
         VK_CATEGORY_LABEL_RU,
         get_vk_goal_action_category,
         get_vk_goal_action_name_ru,
-        is_vk_lead_action,
     )
     from backend_api.stats_service import StatsService
 
@@ -131,7 +130,7 @@ def get_vk_goal_actions(
             "summable": (
                 action_id in configured_codes
                 if has_configured_scope
-                else is_vk_lead_action(action_id)
+                else False
             ),
         })
     return result

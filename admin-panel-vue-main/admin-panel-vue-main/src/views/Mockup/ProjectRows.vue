@@ -854,11 +854,7 @@ const withProjectVat = (num, project) => {
   }
   return includeVat.value ? value * VAT_RATE : value
 }
-const adjustedProjectExpenses = (metric, project) => {
-  const byPlatform = metric?.cost_by_platform
-  if (!byPlatform || typeof byPlatform !== 'object') {
-    return withProjectVat(metric?.expenses, project)
-  }
+const _breakdownVat = (byPlatform) => {
   const yandex = Number(byPlatform.yandex || 0)
   const vk = Number(byPlatform.vk || 0)
   const avito = Number(byPlatform.avito || 0)
@@ -868,13 +864,28 @@ const adjustedProjectExpenses = (metric, project) => {
   // «без НДС»: Яндекс/VK как есть, у Авито вычитаем НДС
   return yandex + vk + (avito / VAT_RATE)
 }
+const adjustedProjectExpenses = (metric, project) => {
+  const byPlatform = metric?.cost_by_platform
+  if (!byPlatform || typeof byPlatform !== 'object') {
+    return withProjectVat(metric?.expenses, project)
+  }
+  return _breakdownVat(byPlatform)
+}
+// Лидовый расход проекта — для CPL (ТЗ VK п.3): VK — расход лидовых кампаний.
+const adjustedProjectLeadExpenses = (metric, project) => {
+  const byPlatform = metric?.lead_cost_by_platform
+  if (!byPlatform || typeof byPlatform !== 'object') {
+    return adjustedProjectExpenses(metric, project)
+  }
+  return _breakdownVat(byPlatform)
+}
 const adjustedProjectCpc = (metric, project) => {
   const clicks = Number(metric?.clicks || 0)
   return clicks > 0 ? adjustedProjectExpenses(metric, project) / clicks : withProjectVat(metric?.cpc, project)
 }
 const adjustedProjectCpa = (metric, project) => {
   const leads = Number(metric?.leads || 0)
-  return leads > 0 ? adjustedProjectExpenses(metric, project) / leads : withProjectVat(metric?.cpa, project)
+  return leads > 0 ? adjustedProjectLeadExpenses(metric, project) / leads : withProjectVat(metric?.cpa, project)
 }
 
 const formatMoscowSyncDate = (value) => {

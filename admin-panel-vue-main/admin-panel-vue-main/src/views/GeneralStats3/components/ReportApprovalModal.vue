@@ -21,10 +21,19 @@
           <div class="report-approval-preview">
             <div class="report-approval-preview__head">
               <strong>Отчёт · {{ formatDate(delivery?.start_date) }} — {{ formatDate(delivery?.end_date) }}</strong>
-              <span class="report-status-badge" :class="`report-status-badge--${commentStatus}`">
+              <span v-if="commentStatus !== 'none'" class="report-status-badge" :class="`report-status-badge--${commentStatus}`">
                 {{ statusLabel }}
               </span>
             </div>
+
+            <label class="report-template-select">Шаблон
+              <select :value="preview.template || delivery?.platform || 'all'" :disabled="switchingTemplate || loadingPreview" @change="changeTemplate($event.target.value)">
+                <option value="all">Сводный</option>
+                <option value="yandex">Яндекс Директ</option>
+                <option value="vk">VK Реклама</option>
+                <option value="avito">Avito Ads</option>
+              </select>
+            </label>
 
             <div class="report-approval-kpi">
               <div class="report-approval-kpi__cell">
@@ -44,8 +53,9 @@
             <div class="report-approval-chart">
               <span v-if="loadingPreview">Загружаем данные отчёта…</span>
               <template v-else>
-                <span class="report-approval-chart__icon">📊</span>
-                <span>Графики и разбивка по кампаниям — во вложении отчёта</span>
+                <img v-if="snapshotImageUrl" class="report-approval-snapshot" :src="snapshotImageUrl" alt="Снимок отчёта с графиками и разбивкой" />
+                <span v-else class="report-approval-chart__icon">📊</span>
+                <span v-if="!snapshotImageUrl">Снимок отчёта пока недоступен</span>
                 <ul v-if="preview.top_campaigns.length" class="report-approval-chart__list">
                   <li v-for="c in preview.top_campaigns.slice(0, 3)" :key="c.name">
                     <span class="report-approval-chart__name">{{ c.name }}</span>
@@ -57,7 +67,7 @@
 
             <!-- AI-комментарий — единственная редактируемая зона -->
             <div class="report-approval-ai">
-              <div class="report-approval-ai__label">✦ AI-комментарий — единственная редактируемая зона</div>
+              <div class="report-approval-ai__label">✦ AI-комментарий</div>
               <textarea
                 v-if="editing"
                 v-model="comment"
@@ -65,13 +75,13 @@
                 placeholder="Комментарий будет добавлен в отчёт"
                 @input="markEdited"
               ></textarea>
-              <p v-else class="report-approval-ai__text">{{ comment || 'Комментарий не задан.' }}</p>
+              <p v-else class="report-approval-ai__text">{{ comment || 'Комментарий не задан — его можно сгенерировать только по этой кнопке.' }}</p>
               <div class="report-approval-ai__actions">
                 <button type="button" class="report-approval-chip" @click="editing = !editing">
                   {{ editing ? 'Готово' : '✎ Править' }}
                 </button>
                 <button type="button" class="report-approval-chip" :disabled="regenerating" @click="regenerate">
-                  {{ regenerating ? 'Генерируем…' : '⟳ Сгенерировать заново' }}
+                  {{ regenerating ? 'Генерируем…' : (comment ? '⟳ Сгенерировать заново' : '✦ Сгенерировать комментарий') }}
                 </button>
               </div>
             </div>
@@ -91,6 +101,10 @@
               >{{ tab.label }}</button>
             </div>
             <p class="report-approval-channelhint">{{ activeChannelHint }}</p>
+            <div class="report-approval-message" :class="{ email: activeTab === 'email' }">
+              <div v-if="activeTab === 'email'" v-html="activeMessage.html || activeMessage.text"></div>
+              <pre v-else>{{ activeMessage.text || 'Сообщение будет сформировано после загрузки снимка.' }}</pre>
+            </div>
 
             <p class="report-approval-side__label">Куда уходит</p>
             <div class="report-approval-targets">
@@ -120,7 +134,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import api from '@/api/axios'
 import { useToaster } from '@/composables/useToaster'
 import { useTheme } from '@/composables/useTheme'
@@ -140,12 +154,17 @@ const savingDraft = ref(false)
 const regenerating = ref(false)
 const cancelling = ref(false)
 const loadingPreview = ref(false)
-const commentStatus = ref('draft') // draft | edited | approved
+const switchingTemplate = ref(false)
+const commentStatus = ref('none') // none | draft | edited | approved
 const activeTab = ref('telegram')
+const snapshotImageUrl = ref('')
 
 const preview = reactive({
   kpi: { cost: 0, leads: 0, cpl: 0, impressions: 0, clicks: 0 },
   top_campaigns: [],
+  template: 'all',
+  delivery_messages: {},
+  snapshot_png_url: null,
 })
 
 const channelNames = { telegram: 'Telegram', max: 'MAX', email: 'Email' }
@@ -154,7 +173,7 @@ const statusLabel = computed(() => ({
   draft: 'Черновик AI',
   edited: 'Отредактировано',
   approved: 'Утверждён',
-}[commentStatus.value] || 'Черновик AI'))
+}[commentStatus.value] || ''))
 
 const channelTabs = computed(() => {
   const used = new Set(Array.isArray(props.delivery?.channels) ? props.delivery.channels : [])
@@ -167,10 +186,12 @@ const channelTabs = computed(() => {
 })
 
 const activeChannelHint = computed(() => {
-  if (activeTab.value === 'email') return 'Письмо клиенту: выжимка отчёта в теле + PDF во вложении.'
-  if (activeTab.value === 'max') return 'Сообщение в MAX: выжимка показателей + PDF во вложении.'
-  return 'Сообщение в Telegram: выжимка 4–6 строк + PNG-превью и ссылка на PDF.'
+  if (activeTab.value === 'email') return 'Письмо, которое получит клиент: текст отчёта и PDF-вложение.'
+  if (activeTab.value === 'max') return 'Сообщение в MAX: тот же текст отчёта и PDF-вложение.'
+  return 'Сообщение в Telegram: текст отчёта, PNG-снимок и ссылка на PDF.'
 })
+
+const activeMessage = computed(() => preview.delivery_messages?.[activeTab.value] || {})
 
 const deliveryTargets = computed(() => {
   const channels = Array.isArray(props.delivery?.channels) ? props.delivery.channels : []
@@ -180,9 +201,10 @@ const deliveryTargets = computed(() => {
   if (channels.includes('max')) rows.push({ key: 'mx', icon: 'mx', glyph: 'M', text: 'MAX — мне лично', used: true })
   if (channels.includes('email')) {
     const emails = Array.isArray(props.delivery?.email_recipients) ? props.delivery.email_recipients : []
-    rows.push({ key: 'em', icon: 'em', glyph: '@', text: emails.join(', ') || 'Email проекта', used: true })
+    for (const email of (emails.length ? emails : ['Email проекта'])) rows.push({ key: `em-${email}`, icon: 'em', glyph: '@', text: email, used: true })
   }
   for (const target of targets) {
+    if (target.kind === 'email') continue
     const isMax = target.kind === 'max'
     rows.push({
       key: `target-${target.id}`,
@@ -199,6 +221,22 @@ const markEdited = () => {
   if (commentStatus.value !== 'edited') commentStatus.value = 'edited'
 }
 
+const releaseSnapshotImage = () => {
+  if (snapshotImageUrl.value) URL.revokeObjectURL(snapshotImageUrl.value)
+  snapshotImageUrl.value = ''
+}
+
+const loadSnapshotImage = async (url) => {
+  releaseSnapshotImage()
+  if (!url) return
+  try {
+    const { data } = await api.get(url.replace(/^\/api\//, ''), { responseType: 'blob' })
+    snapshotImageUrl.value = URL.createObjectURL(data)
+  } catch {
+    // The message still remains fully usable if an optional image cannot load.
+  }
+}
+
 const loadPreview = async () => {
   if (!props.delivery?.id) return
   loadingPreview.value = true
@@ -206,7 +244,12 @@ const loadPreview = async () => {
     const { data } = await api.get(`reports/deliveries/${props.delivery.id}/preview`)
     preview.kpi = data?.kpi || preview.kpi
     preview.top_campaigns = Array.isArray(data?.top_campaigns) ? data.top_campaigns : []
-    if (data?.comment && !comment.value) comment.value = data.comment
+    preview.template = data?.template || props.delivery?.platform || 'all'
+    preview.delivery_messages = data?.delivery_messages || {}
+    preview.snapshot_png_url = data?.snapshot_png_url || null
+    if (data?.comment !== undefined) comment.value = data.comment || ''
+    commentStatus.value = data?.comment_status || (comment.value ? 'draft' : 'none')
+    await loadSnapshotImage(preview.snapshot_png_url)
   } catch {
     // данные превью не критичны — оставляем нули
   } finally {
@@ -217,13 +260,34 @@ const loadPreview = async () => {
 watch(() => props.delivery, (value) => {
   comment.value = value?.comment || ''
   editing.value = false
-  commentStatus.value = 'draft'
+  commentStatus.value = value?.comment_status || (comment.value ? 'draft' : 'none')
   const firstUsed = channelTabs.value.find((t) => t.used)
   activeTab.value = firstUsed ? firstUsed.value : 'telegram'
   preview.kpi = { cost: 0, leads: 0, cpl: 0, impressions: 0, clicks: 0 }
   preview.top_campaigns = []
+  preview.delivery_messages = {}
+  preview.snapshot_png_url = null
   loadPreview()
 }, { immediate: true })
+
+onBeforeUnmount(releaseSnapshotImage)
+
+const changeTemplate = async (template) => {
+  if (!props.delivery?.id || template === preview.template || switchingTemplate.value) return
+  if (comment.value && !window.confirm('Смена шаблона удалит текущий AI-комментарий: он относится к прежним данным. Продолжить?')) return
+  switchingTemplate.value = true
+  try {
+    await api.put(`reports/deliveries/${props.delivery.id}/template`, { template, discard_comment: Boolean(comment.value) })
+    comment.value = ''
+    commentStatus.value = 'none'
+    await loadPreview()
+    toaster.success('Шаблон отчёта изменён')
+  } catch (err) {
+    toaster.error(err.response?.data?.detail || 'Не удалось сменить шаблон')
+  } finally {
+    switchingTemplate.value = false
+  }
+}
 
 const regenerate = async () => {
   if (!props.delivery?.id || regenerating.value) return
@@ -232,6 +296,7 @@ const regenerate = async () => {
     const { data } = await api.post(`reports/deliveries/${props.delivery.id}/regenerate-comment`)
     comment.value = data?.comment || ''
     commentStatus.value = 'draft'
+    await loadPreview()
     toaster.success('AI-комментарий обновлён')
   } catch (err) {
     toaster.error(err.response?.data?.detail || 'Не удалось сгенерировать комментарий')
@@ -261,8 +326,9 @@ const saveDraft = async () => {
   if (!props.delivery?.id || savingDraft.value) return
   savingDraft.value = true
   try {
-    await api.put(`reports/deliveries/${props.delivery.id}`, { comment: comment.value })
-    commentStatus.value = 'edited'
+    const { data } = await api.put(`reports/deliveries/${props.delivery.id}`, { comment: comment.value })
+    commentStatus.value = data?.comment_status || (comment.value ? 'edited' : 'none')
+    await loadPreview()
     toaster.success('Черновик сохранён')
   } catch (err) {
     toaster.error(err.response?.data?.detail || 'Не удалось сохранить черновик')
@@ -454,6 +520,11 @@ const approve = async () => {
   font-weight: 750;
 }
 
+.report-template-select { display: flex; align-items: center; gap: 0.55rem; margin: -0.15rem 0 0.8rem; color: #64748b; font-size: 0.78rem; font-weight: 750; }
+.report-template-select select { min-width: 10rem; border: 1px solid rgba(15, 23, 42, 0.13); border-radius: 0.5rem; padding: 0.36rem 0.5rem; background: #fff; color: #334155; font: inherit; }
+.report-approval-modal.is-dark .report-template-select { color: rgba(255,255,255,.55); }
+.report-approval-modal.is-dark .report-template-select select { background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.12); color: #f8fafc; }
+
 .report-approval-modal.is-dark .report-approval-preview__head strong { color: #f1f5f9; }
 
 .report-status-badge {
@@ -512,6 +583,12 @@ const approve = async () => {
   color: #98a2b6;
   font-size: 0.86rem;
 }
+
+.report-approval-snapshot { display: block; width: 100%; max-height: 15rem; margin-bottom: 0.8rem; object-fit: cover; object-position: top; border: 1px solid rgba(15,23,42,.08); border-radius: 0.65rem; background: #fff; }
+.report-approval-message { min-height: 10rem; max-height: 19rem; overflow: auto; margin: 0.6rem 0 1rem; border: 1px solid rgba(15,23,42,.08); border-radius: 0.75rem; background: #f8fafc; color: #334155; font-size: .78rem; line-height: 1.45; }
+.report-approval-message pre { margin: 0; padding: .8rem; white-space: pre-wrap; font: inherit; }
+.report-approval-message.email > div { padding: .7rem; }
+.report-approval-modal.is-dark .report-approval-message { background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.08); color: rgba(255,255,255,.78); }
 
 .report-approval-modal.is-dark .report-approval-chart {
   background: rgba(255, 255, 255, 0.06);

@@ -61,35 +61,17 @@ def _ad_integrations(db: Session, client_id: uuid.UUID) -> list[models.Integrati
     )
 
 
-def _vk_lead_codes(db: Session, client_id: uuid.UUID) -> set[str] | None:
-    """Выбранные лид-типы VK (Integration.lead_action_types).
+def _vk_lead_codes(db: Session, client_id: uuid.UUID) -> set[str]:
+    """Выбранные лид-типы VK для быстрых проверок детектора.
 
-    None — выбор не настраивался (легаси-поведение: лидами считаются все
-    conversions). Пустой set — пользователь явно ничего не отметил: заявок нет.
-    Детектор обязан считать заявки так же, как дашборд, — по выбору проекта.
+    Пустой set означает «лиды не настроены». Считать все native-конверсии
+    лидовыми нельзя; точные запросы ниже дополнительно применяют scope отдельно
+    для каждой интеграции, чтобы не смешивать настройки нескольких кабинетов.
     """
-    has_explicit = False
-    codes: set[str] = set()
-    rows = (
-        db.query(models.Integration.lead_action_types)
-        .filter(
-            models.Integration.client_id == client_id,
-            models.Integration.platform == models.IntegrationPlatform.VK_ADS,
-        )
-        .all()
-    )
-    for (raw,) in rows:
-        if raw is None:
-            continue
-        has_explicit = True
-        try:
-            parsed = json.loads(raw) if isinstance(raw, str) else raw
-            for code in parsed or []:
-                if code:
-                    codes.add(str(code))
-        except (TypeError, ValueError, json.JSONDecodeError):
-            logger.warning("Invalid lead_action_types for client %s", client_id)
-    return codes if has_explicit else None
+    from backend_api.stats_service import StatsService
+
+    scope = StatsService.get_vk_lead_action_scope(db, [client_id])
+    return {code for codes in scope.values() for code in codes}
 
 
 def _vk_leads_query(db: Session, client_id: uuid.UUID, start: date, end: date, vk_codes: set[str] | None, goal_id: str | None = None):
@@ -103,29 +85,28 @@ def _vk_leads_query(db: Session, client_id: uuid.UUID, start: date, end: date, v
         query = query.join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id).filter(
             models.Campaign.vk_goal_action_id == str(goal_id)
         )
-    elif vk_codes is not None:
-        query = query.join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id).filter(
-            models.Campaign.vk_goal_action_id.in_(vk_codes)
-        )
+    else:
+        # Для сводной цели применяем выбор отдельно для каждого VK-кабинета.
+        from backend_api.stats_service import StatsService
+        query = query.join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id)
+        query = StatsService.apply_vk_lead_action_scope(query, db, [client_id])
     return query
 
 
 def _vk_lead_spend(db: Session, client_id: uuid.UUID, start: date, end: date, vk_codes: set[str] | None) -> float | None:
-    """«Лидовый расход» VK — расход только лидоспособных кампаний (ТЗ единого
-    дашборда п.10). None — выбор лид-типов не настроен (legacy: весь расход)."""
-    if vk_codes is None:
-        return None
-    row = (
+    """«Лидовый расход» VK — расход только кампаний выбранных действий."""
+    from backend_api.stats_service import StatsService
+
+    query = (
         db.query(func.sum(models.VKStats.cost))
         .join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id)
         .filter(
             models.VKStats.client_id == client_id,
             models.VKStats.date >= start,
             models.VKStats.date <= end,
-            models.Campaign.vk_goal_action_id.in_(vk_codes),
         )
-        .one()
     )
+    row = StatsService.apply_vk_lead_action_scope(query, db, [client_id]).one()
     return float(row[0] or 0)
 
 
@@ -174,15 +155,10 @@ def _sum_channel_stats(
     if channel == models.IntegrationPlatform.VK_ADS:
         if vk_codes is None:
             vk_codes = _vk_lead_codes(db, client_id)
-        if vk_codes is None:
-            leads = int(row[2] or 0)
-        else:
-            leads = int(_vk_leads_query(db, client_id, start, end, vk_codes).scalar() or 0)
-            # CPL считаем от лидового расхода — расход кампаний с лидовым objective,
-            # а не всего кабинета VK (ТЗ единого дашборда п.10).
-            lead_spend = _vk_lead_spend(db, client_id, start, end, vk_codes)
-            if lead_spend is not None:
-                raw_spend = lead_spend
+        leads = int(_vk_leads_query(db, client_id, start, end, vk_codes).scalar() or 0)
+        # CPL считаем от лидового расхода — расход кампаний с лидовым objective,
+        # а не всего кабинета VK (ТЗ единого дашборда п.10).
+        raw_spend = _vk_lead_spend(db, client_id, start, end, vk_codes) or 0.0
     else:
         query = db.query(func.sum(models.MetrikaGoals.conversion_count)).filter(
             models.MetrikaGoals.client_id == client_id,
@@ -221,9 +197,8 @@ def _window_funnel(
     clicks = int(row[2] or 0)
     if channel == models.IntegrationPlatform.VK_ADS:
         if vk_codes is None:
-            leads = int(row[3] or 0)
-        else:
-            leads = int(_vk_leads_query(db, client_id, start, end, vk_codes).scalar() or 0)
+            vk_codes = _vk_lead_codes(db, client_id)
+        leads = int(_vk_leads_query(db, client_id, start, end, vk_codes).scalar() or 0)
     else:
         query = db.query(func.sum(models.MetrikaGoals.conversion_count)).filter(
             models.MetrikaGoals.client_id == client_id,
@@ -304,22 +279,20 @@ def _daily_channel_values(
         )
     }
     goal_rows: dict[date, int] = {}
-    if channel == models.IntegrationPlatform.VK_ADS and vk_codes is not None:
-        goal_rows = {
-            row[0]: int(row[1] or 0)
-            for row in (
-                db.query(models.VKStats.date, func.sum(models.VKStats.conversions))
-                .join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id)
-                .filter(
-                    models.VKStats.client_id == client_id,
-                    models.VKStats.date >= start,
-                    models.VKStats.date <= end,
-                    models.Campaign.vk_goal_action_id.in_(vk_codes),
-                )
-                .group_by(models.VKStats.date)
-                .all()
+    if channel == models.IntegrationPlatform.VK_ADS:
+        from backend_api.stats_service import StatsService
+
+        query = (
+            db.query(models.VKStats.date, func.sum(models.VKStats.conversions))
+            .join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id)
+            .filter(
+                models.VKStats.client_id == client_id,
+                models.VKStats.date >= start,
+                models.VKStats.date <= end,
             )
-        }
+        )
+        query = StatsService.apply_vk_lead_action_scope(query, db, [client_id])
+        goal_rows = {row[0]: int(row[1] or 0) for row in query.group_by(models.VKStats.date).all()}
     if channel != models.IntegrationPlatform.VK_ADS:
         query = db.query(models.MetrikaGoals.date, func.sum(models.MetrikaGoals.conversion_count)).filter(
             models.MetrikaGoals.client_id == client_id,
@@ -338,7 +311,7 @@ def _daily_channel_values(
     while cursor <= end:
         spend, clicks, conversions = stat_rows.get(cursor, (0.0, 0, 0))
         if channel == models.IntegrationPlatform.VK_ADS:
-            leads = conversions if vk_codes is None else goal_rows.get(cursor, 0)
+            leads = goal_rows.get(cursor, 0)
         else:
             leads = goal_rows.get(cursor, 0)
         values.append((cursor, spend, clicks, leads))
@@ -368,10 +341,10 @@ def _daily_goal_leads(
             query = query.join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id).filter(
                 models.Campaign.vk_goal_action_id == str(goal_id)
             )
-        elif vk_codes is not None:
-            query = query.join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id).filter(
-                models.Campaign.vk_goal_action_id.in_(vk_codes)
-            )
+        elif is_summary:
+            from backend_api.stats_service import StatsService
+            query = query.join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id)
+            query = StatsService.apply_vk_lead_action_scope(query, db, [client_id])
         return {row[0]: int(row[1] or 0) for row in query.group_by(models.VKStats.date).all()}
     query = db.query(models.MetrikaGoals.date, func.sum(models.MetrikaGoals.conversion_count)).filter(
         models.MetrikaGoals.client_id == client_id,
@@ -1009,12 +982,12 @@ def campaign_highlights(
                 table.date <= end,
             )
         )
-        if channel == models.IntegrationPlatform.VK_ADS and vk_codes is not None:
+        if channel == models.IntegrationPlatform.VK_ADS:
             # Кампании с нелидовым целевым действием не судим по цене заявки:
             # их «конверсии» — не заявки по определению проекта.
-            query = query.join(models.Campaign, table.campaign_id == models.Campaign.id).filter(
-                models.Campaign.vk_goal_action_id.in_(vk_codes)
-            )
+            from backend_api.stats_service import StatsService
+            query = query.join(models.Campaign, table.campaign_id == models.Campaign.id)
+            query = StatsService.apply_vk_lead_action_scope(query, db, [client_id])
         factor = _money_factor(channel)
         for campaign_id, cost, conversions in query.group_by(table.campaign_id).all():
             spend = float(cost or 0) * factor

@@ -1642,16 +1642,26 @@ const topGoalSummary = (goals, platformCode, expenses) => {
 
 const formatGoalCpl = (goal, platformCode) => goal.hasCost ? formatMoney(withChannelVat(goal.cpl, platformCode)) : '—'
 
+const metricLeadExpenses = (metric, platformCode) => {
+  const breakdown = metric?.lead_cost_by_platform
+  return (breakdown && breakdown[platformCode] != null)
+    ? Number(breakdown[platformCode])
+    : Number(metric?.expenses || 0)
+}
+
 const projectChannelSummaries = (project) => {
   if (project.__isFolder) return folderChannelSummaries(project)
   const insights = getProjectInsights(project.id)
   return projectPlatformCards(project).map((platform) => {
     const metric = insights[platform.code] || emptyMetric()
     const goals = normalizeGoalRows(insights.goals?.[platform.code] || [])
-    const summary = topGoalSummary(goals, platform.code, metric.expenses)
+    // CPL — от лидового расхода канала (ТЗ VK п.3): для VK берём расход лидовых
+    // кампаний (lead_cost_by_platform), а не весь расход канала.
+    const leadExpenses = metricLeadExpenses(metric, platform.code)
+    const summary = topGoalSummary(goals, platform.code, leadExpenses)
     // ТЗ «Дельта по заявкам» §4: prev = null (нет данных за P′) → дельты нет.
     // База сравнения — предыдущий сопоставимый период, его считает бэк (§6).
-    const prevExpenses = Number(metric.prev?.expenses || 0)
+    const prevLeadExpenses = metricLeadExpenses(metric.prev, platform.code)
     const countedGoals = goals.filter((goal) => goal.summable !== false)
     const isVk = platform.code === 'vk'
     const prevTotal = sumPrevCounts(countedGoals)
@@ -1659,7 +1669,7 @@ const projectChannelSummaries = (project) => {
     // CPL канала считается как расход/цели — та же формула для прошлого периода.
     // §6: cpl_prev = null при leads_prev ∈ {0, null} — деление на ноль не маскируем.
     const prevAvgCpl = (prevTotal != null && prevTotal > 0)
-      ? prevExpenses / prevTotal
+      ? prevLeadExpenses / prevTotal
       : null
     let cplDeltaPct = null
     if (summary.avgCpl !== null && summary.avgCpl > 0 && prevAvgCpl !== null && prevAvgCpl > 0) {
@@ -1688,13 +1698,15 @@ const folderChannelSummaries = (folder) => {
   return projectPlatformCards(folder).map((platform) => {
     const goalMap = new Map()
     let expenses = 0
-    let prevExpenses = 0
+    let leadExpenses = 0
+    let prevLeadExpenses = 0
 
     for (const member of members) {
       const insights = getProjectInsights(member.id)
       const metric = insights[platform.code] || emptyMetric()
       expenses += Number(metric.expenses || 0)
-      prevExpenses += Number(metric.prev?.expenses || 0)
+      leadExpenses += metricLeadExpenses(metric, platform.code)
+      prevLeadExpenses += metricLeadExpenses(metric.prev, platform.code)
 
       for (const goal of normalizeGoalRows(insights.goals?.[platform.code] || [])) {
         // В одной папке у разных проектов один и тот же тип VK-действия может
@@ -1730,8 +1742,8 @@ const folderChannelSummaries = (folder) => {
     // §4: null, если данных за P′ нет ни по одной цели папки
     const prevGoalTotal = sumPrevCounts(countedGoals)
     const goalNounValue = goalNoun(goalTotal)
-    const avgCpl = goalTotal > 0 ? expenses / goalTotal : null
-    const prevAvgCpl = prevGoalTotal != null && prevGoalTotal > 0 ? prevExpenses / prevGoalTotal : null
+    const avgCpl = goalTotal > 0 ? leadExpenses / goalTotal : null
+    const prevAvgCpl = prevGoalTotal != null && prevGoalTotal > 0 ? prevLeadExpenses / prevGoalTotal : null
     let cplDeltaPct = null
     if (avgCpl !== null && avgCpl > 0 && prevAvgCpl !== null && prevAvgCpl > 0) {
       cplDeltaPct = Math.round(((avgCpl - prevAvgCpl) / prevAvgCpl) * 100)

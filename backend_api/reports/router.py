@@ -8,6 +8,7 @@ from datetime import date, datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, defer
 import uuid
 
@@ -275,6 +276,8 @@ async def _resolve_report_comment(
     start_date: str,
     end_date: str,
     folder_id: Optional[str] = None,
+    report_type: str = "full",
+    platform: str = "all",
 ) -> Optional[str]:
     """Возвращает комментарий: готовый или сгенерированный AI."""
     use_comment = (comment or "").strip() if comment else None
@@ -286,8 +289,8 @@ async def _resolve_report_comment(
             from ai.report_generator import generate_report
             use_comment = await generate_report(
                 db=db, user_id=user_id, client_id=client_id,
-                start_date=start_date, end_date=end_date, report_type="full",
-                folder_id=folder_id,
+                start_date=start_date, end_date=end_date, report_type=report_type,
+                folder_id=folder_id, platform=platform,
             )
             if not use_comment or not str(use_comment).strip():
                 use_comment = "AI не удалось сформировать комментарий."
@@ -880,6 +883,47 @@ def _assert_scope_access(db: Session, user_id, client_id=None, folder_id=None) -
             raise HTTPException(status_code=404, detail="Папка не найдена")
 
 
+def _scope_email_recipients_query(db: Session, user_id, *, client_id=None, folder_id=None):
+    query = db.query(models.ReportEmailRecipient).filter(
+        models.ReportEmailRecipient.user_id == user_id,
+    )
+    if folder_id:
+        return query.filter(models.ReportEmailRecipient.folder_id == folder_id)
+    return query.filter(models.ReportEmailRecipient.client_id == client_id)
+
+
+def _available_email_recipients(db: Session, user_id, *, client_id=None, folder_id=None):
+    return _scope_email_recipients_query(
+        db, user_id, client_id=client_id, folder_id=folder_id,
+    ).order_by(models.ReportEmailRecipient.created_at).all()
+
+
+def _ensure_scope_email_recipients(db: Session, user_id, emails, *, client_id=None, folder_id=None) -> list[str]:
+    """Compatibility bridge for existing settings clients.
+
+    The July UI creates recipients explicitly, but older clients still submit an
+    email array with project settings.  Upsert it here so no saved addresses
+    disappear during rollout.
+    """
+    normalized = list(dict.fromkeys(
+        str(value).strip().lower() for value in (emails or []) if str(value).strip()
+    ))
+    known = {
+        row.email.lower(): row
+        for row in _available_email_recipients(db, user_id, client_id=client_id, folder_id=folder_id)
+    }
+    for email in normalized:
+        if email not in known:
+            db.add(models.ReportEmailRecipient(
+                user_id=user_id,
+                client_id=client_id,
+                folder_id=folder_id,
+                email=email,
+                status="active",
+            ))
+    return normalized
+
+
 def _delivery_succeeded(results: Optional[dict]) -> bool:
     from backend_api.reports.scheduler import _delivery_succeeded as succeeded
     return succeeded(results)
@@ -941,7 +985,7 @@ def _delivery_to_response(
         channels=_jlist(d.channels),
         email_recipients=_jlist(getattr(d, "email_recipients", None)),
         chat_targets=_jlist(d.chat_targets),
-        chat_target_details=(d.snapshot_data or {}).get("delivery_targets") or [],
+        chat_target_details=(d.snapshot_data or {}).get("delivery_targets", []) + (d.snapshot_data or {}).get("email_target_details", []),
         report_format=d.report_format or "desktop",
         include_dynamics=bool(d.include_dynamics),
         include_ai_comment=bool(d.include_ai_comment),
@@ -949,6 +993,7 @@ def _delivery_to_response(
         chart_metrics=_jlist(d.chart_metrics, ["cost", "clicks"]),
         dynamics_metrics=_jlist(d.dynamics_metrics, ["cost"]),
         comment=d.comment,
+        comment_status=getattr(d, "comment_status", None) or ("draft" if d.comment else "none"),
         anomaly_reason=d.anomaly_reason,
         delivery_results=d.delivery_results,
         approved_by_name=approver_name,
@@ -962,16 +1007,8 @@ def _refresh_delivery_comment_snapshot(d: models.ReportDelivery) -> None:
     """Обновляет комментарий в файлах, сохраняя исходные цифры снимка."""
     if not d.snapshot_data:
         return
-    from backend_api.reports.pdf_service import generate_report_pdf_from_snapshot
-    from backend_api.reports.export_service import pdf_first_page_png
-    snapshot = dict(d.snapshot_data)
-    snapshot["ai_comment"] = (d.comment or "").strip()
-    d.snapshot_data = snapshot
-    d.pdf_snapshot = generate_report_pdf_from_snapshot(snapshot, d.comment)
-    try:
-        d.png_snapshot = pdf_first_page_png(d.pdf_snapshot)
-    except Exception as exc:
-        logger.warning("Delivery %s PNG refresh skipped: %s", d.id, exc)
+    from backend_api.reports.scheduler import refresh_delivery_snapshot_files
+    refresh_delivery_snapshot_files(d)
 
 
 def _default_project_settings_response(db: Session, current_user: models.User, client_id=None, folder_id=None):
@@ -988,6 +1025,9 @@ def _default_project_settings_response(db: Session, current_user: models.User, c
             models.ReportChatTarget.client_id.is_(None), models.ReportChatTarget.folder_id.is_(None)
         )
     targets = targets_query.order_by(models.ReportChatTarget.created_at).all()
+    emails = _available_email_recipients(
+        db, current_user.id, client_id=client_id, folder_id=folder_id,
+    ) if (client_id or folder_id) else []
     connected = []
     if (current_user.report_telegram_chat_id or "").strip():
         connected.append("telegram")
@@ -1015,6 +1055,7 @@ def _default_project_settings_response(db: Session, current_user: models.User, c
         scope_label="Проект" if client_id else ("Папка" if folder_id else "Все проекты"),
         connected_channels=connected,
         available_chat_targets=targets,
+        available_email_recipients=emails,
     )
 
 
@@ -1038,6 +1079,7 @@ def get_project_report_settings(
     resp = _schedule_to_response(db, s).model_dump()
     resp["connected_channels"] = base.connected_channels
     resp["available_chat_targets"] = base.available_chat_targets
+    resp["available_email_recipients"] = base.available_email_recipients
     return schemas.ReportProjectSettingsResponse(**resp)
 
 
@@ -1078,6 +1120,9 @@ def save_project_report_settings(
     next_channels = body.channels if body.channels is not None else _jlist(getattr(s, "channels", None), [])
     next_targets = body.chat_targets if body.chat_targets is not None else _jlist(getattr(s, "chat_targets", None), [])
     next_emails = body.email_recipients if body.email_recipients is not None else _jlist(getattr(s, "email_recipients", None), [])
+    next_emails = _ensure_scope_email_recipients(
+        db, current_user.id, next_emails, client_id=client_id, folder_id=folder_id,
+    )
     next_enabled = bool(body.enabled) if body.enabled is not None else bool(s.enabled)
     if body.chat_targets is not None:
         scoped_check = db.query(models.ReportChatTarget.id).filter(models.ReportChatTarget.user_id == current_user.id)
@@ -1099,7 +1144,7 @@ def save_project_report_settings(
     if body.channels is not None:
         s.channels = _dump_list(body.channels)
     if body.email_recipients is not None:
-        s.email_recipients = _dump_emails(body.email_recipients)
+        s.email_recipients = _dump_emails(next_emails)
     if body.day is not None:
         s.day = body.day
     if body.send_time is not None:
@@ -1231,18 +1276,10 @@ async def create_report_delivery(
     allowed_targets = {str(row.id) for row in target_query.all()}
     if any(str(target) not in allowed_targets for target in body.chat_targets):
         raise HTTPException(status_code=422, detail="Получатель не относится к выбранному проекту")
+    # Opening a preview must not spend an AI credit.  A comment is generated
+    # only by the explicit action in the preview, or by a no-review schedule
+    # immediately before actual automatic delivery.
     comment = (body.comment or "").strip() or None
-    if body.include_ai_comment and not comment:
-        comment = await _resolve_report_comment(
-            ai=True,
-            comment=None,
-            db=db,
-            user_id=current_user.id,
-            client_id=body.client_id,
-            start_date=body.start_date,
-            end_date=body.end_date,
-            folder_id=str(body.folder_id) if body.folder_id else None,
-        )
     d = models.ReportDelivery(
         user_id=current_user.id,
         schedule_id=body.schedule_id,
@@ -1263,6 +1300,7 @@ async def create_report_delivery(
         chart_metrics=_dump_list(body.chart_metrics),
         dynamics_metrics=_dump_list(body.dynamics_metrics),
         comment=comment,
+        comment_status="draft" if comment else "none",
         anomaly_reason=body.anomaly_reason,
     )
     db.add(d)
@@ -1312,6 +1350,80 @@ def get_report_delivery(
     return _delivery_to_response(db, d)
 
 
+@router.get("/deliveries/{delivery_id}/snapshot.png")
+def get_delivery_snapshot_png(
+    delivery_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """The exact immutable PNG attached to Telegram and shown in history."""
+    d = db.query(models.ReportDelivery).filter(
+        models.ReportDelivery.id == delivery_id,
+        models.ReportDelivery.user_id == current_user.id,
+    ).first()
+    if not d or not d.png_snapshot:
+        raise HTTPException(status_code=404, detail="Снимок PNG не найден")
+    return Response(
+        content=d.png_snapshot,
+        media_type="image/png",
+        headers={"Content-Disposition": f'inline; filename="report_{d.start_date}_{d.end_date}.png"'},
+    )
+
+
+@router.get("/deliveries/{delivery_id}/snapshot.pdf")
+def get_delivery_snapshot_pdf(
+    delivery_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    d = db.query(models.ReportDelivery).filter(
+        models.ReportDelivery.id == delivery_id,
+        models.ReportDelivery.user_id == current_user.id,
+    ).first()
+    if not d or not d.pdf_snapshot:
+        raise HTTPException(status_code=404, detail="Снимок PDF не найден")
+    return Response(
+        content=d.pdf_snapshot,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="report_{d.start_date}_{d.end_date}.pdf"'},
+    )
+
+
+def _delivery_cpl_target(db: Session, d: models.ReportDelivery) -> Optional[float]:
+    """Best matching project CPL target frozen into a preview label.
+
+    Folders may contain incompatible targets, therefore they intentionally show
+    no single CPL plan.  For a project we prefer the summary target and then a
+    project-wide target for the selected template.
+    """
+    if not d.client_id:
+        return None
+    channel_map = {
+        "yandex": models.IntegrationPlatform.YANDEX_DIRECT,
+        "vk": models.IntegrationPlatform.VK_ADS,
+        "avito": models.IntegrationPlatform.AVITO_ADS,
+    }
+    q = db.query(models.ProjectTargetCPA).filter(
+        models.ProjectTargetCPA.client_id == d.client_id,
+        models.ProjectTargetCPA.target_cpa.isnot(None),
+        models.ProjectTargetCPA.period_start <= d.end_date,
+        models.ProjectTargetCPA.period_end >= d.start_date,
+    )
+    channel = channel_map.get(d.platform or "all")
+    if channel:
+        q = q.filter(or_(
+            models.ProjectTargetCPA.channel == channel,
+            models.ProjectTargetCPA.channel.is_(None),
+        ))
+    else:
+        q = q.filter(models.ProjectTargetCPA.channel.is_(None))
+    rows = q.order_by(
+        models.ProjectTargetCPA.is_summary.desc(),
+        models.ProjectTargetCPA.created_at.desc(),
+    ).all()
+    return float(rows[0].target_cpa) if rows else None
+
+
 @router.get("/deliveries/{delivery_id}/preview", response_model=schemas.ReportDeliveryPreview)
 def get_report_delivery_preview(
     delivery_id: uuid.UUID,
@@ -1342,14 +1454,23 @@ def get_report_delivery_preview(
             summary, top_campaigns, client_name = {}, [], None
     from backend_api.reports.export_service import _with_cost_breakdown_vat, _with_channel_vat, _campaign_platform
     cost = _with_cost_breakdown_vat(summary.get("expenses", 0), summary.get("cost_by_platform"), d.platform)
+    # CPL — от лидового расхода (ТЗ VK п.3/№10), не от всего расхода канала.
+    lead_cost = _with_cost_breakdown_vat(summary.get("expenses", 0), summary.get("lead_cost_by_platform") or summary.get("cost_by_platform"), d.platform)
     leads = int(summary.get("leads", 0) or 0)
-    cpl = (cost / leads) if leads else float(summary.get("cpa", 0) or 0)
+    cpl = (lead_cost / leads) if leads else float(summary.get("cpa", 0) or 0)
+    trends = summary.get("trends") if isinstance(summary.get("trends"), dict) else {}
     kpi = schemas.ReportDeliveryPreviewKpi(
         cost=round(cost, 2),
         leads=leads,
         cpl=round(cpl, 2),
         impressions=int(summary.get("impressions", 0) or 0),
         clicks=int(summary.get("clicks", 0) or 0),
+        balance=summary.get("balance"),
+        currency=summary.get("currency"),
+        # Values in a delivery preview must remain those the approver saw when
+        # the queue item was created. New project plans affect only new items.
+        cpl_target=snapshot.get("cpl_target") if snapshot.get("cpl_target") is not None else _delivery_cpl_target(db, d),
+        cpl_trend=trends.get("cpa"),
     )
     camps = []
     for c in (top_campaigns or [])[:5]:
@@ -1366,7 +1487,48 @@ def get_report_delivery_preview(
         kpi=kpi,
         top_campaigns=camps,
         comment=d.comment,
+        comment_status=getattr(d, "comment_status", None) or ("draft" if d.comment else "none"),
+        template=d.platform or "all",
+        delivery_messages=snapshot.get("delivery_messages") or {},
+        snapshot_png_url=f"/api/reports/deliveries/{d.id}/snapshot.png" if d.png_snapshot else None,
     )
+
+
+@router.put("/deliveries/{delivery_id}/template", response_model=schemas.ReportDeliveryResponse)
+def update_report_delivery_template(
+    delivery_id: uuid.UUID,
+    body: schemas.ReportDeliveryTemplateUpdate,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Switch preview template without reading live statistics again."""
+    d = db.query(models.ReportDelivery).filter(
+        models.ReportDelivery.id == delivery_id,
+        models.ReportDelivery.user_id == current_user.id,
+    ).first()
+    if not d:
+        raise HTTPException(status_code=404, detail="Отчёт не найден")
+    if d.status not in ("pending", "failed", "partial"):
+        raise HTTPException(status_code=422, detail="Шаблон можно изменить только до отправки")
+    if body.template == (d.platform or "all"):
+        return _delivery_to_response(db, d)
+    if d.comment and not body.discard_comment:
+        raise HTTPException(
+            status_code=409,
+            detail="Смена шаблона требует заново сгенерировать комментарий. Подтвердите замену.",
+        )
+    try:
+        from backend_api.reports.scheduler import switch_delivery_template
+        switch_delivery_template(d, body.template)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    if body.discard_comment:
+        d.comment = None
+        d.comment_status = "none"
+        _refresh_delivery_comment_snapshot(d)
+    db.commit()
+    db.refresh(d)
+    return _delivery_to_response(db, d)
 
 
 @router.post("/deliveries/{delivery_id}/regenerate-comment", response_model=schemas.ReportDeliveryResponse)
@@ -1389,8 +1551,10 @@ async def regenerate_delivery_comment(
         client_id=d.client_id, start_date=d.start_date.isoformat(),
         end_date=d.end_date.isoformat(),
         folder_id=str(d.folder_id) if d.folder_id else None,
+        report_type="comment", platform=d.platform or "all",
     )
     d.comment = (new_comment or "").strip() or None
+    d.comment_status = "draft" if d.comment else "none"
     _refresh_delivery_comment_snapshot(d)
     db.commit()
     db.refresh(d)
@@ -1414,6 +1578,7 @@ def save_report_delivery_draft(
     if d.status not in ("pending", "failed", "partial"):
         raise HTTPException(status_code=422, detail="Этот отчёт уже обработан")
     d.comment = (body.comment or "").strip() or None
+    d.comment_status = "edited" if d.comment else "none"
     _refresh_delivery_comment_snapshot(d)
     db.commit()
     db.refresh(d)
@@ -1467,6 +1632,7 @@ async def approve_report_delivery(
     retry_failed_only = d.status in ("failed", "partial") and bool(d.delivery_results)
     if body.comment is not None:
         d.comment = body.comment.strip() or None
+        d.comment_status = "edited" if d.comment else "none"
         _refresh_delivery_comment_snapshot(d)
 
     try:
@@ -1474,6 +1640,8 @@ async def approve_report_delivery(
         if not d.approved_by_user_id:
             d.approved_by_user_id = current_user.id
             d.approved_at = datetime.now(timezone.utc)
+        if d.comment:
+            d.comment_status = "approved"
         db.flush()
         claimed = db.query(models.ReportDelivery).filter(
             models.ReportDelivery.id == d.id,
@@ -1484,7 +1652,11 @@ async def approve_report_delivery(
             raise HTTPException(status_code=409, detail="Отчёт уже отправляется или обработан")
         d.status = "sending"
         db.commit()
-        results = await send_report_delivery(db, d, current_user, retry_failed_only=retry_failed_only)
+        results = await send_report_delivery(
+            db, d, current_user,
+            retry_failed_only=retry_failed_only,
+            retry_email=str(body.retry_email).lower() if body.retry_email else None,
+        )
         d.delivery_results = results
         d.status = delivery_status_from_results(results, _jlist(d.channels), _jlist(d.chat_targets))
         d.sent_at = datetime.now(timezone.utc) if d.status in ("sent", "partial") else None
@@ -1821,6 +1993,69 @@ def delete_chat_target(
         target_ids = [str(value) for value in _jlist(schedule.chat_targets, [])]
         if target_id_text in target_ids:
             schedule.chat_targets = _dump_list([value for value in target_ids if value != target_id_text])
+    db.delete(row)
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/email-recipients", response_model=schemas.ReportEmailRecipientResponse)
+def create_email_recipient(
+    body: schemas.ReportEmailRecipientCreate,
+    client_id: Optional[uuid.UUID] = Query(None),
+    folder_id: Optional[uuid.UUID] = Query(None),
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    if not client_id and not folder_id:
+        raise HTTPException(status_code=422, detail="Email-получатель должен относиться к проекту или папке")
+    _assert_scope_access(db, current_user.id, client_id=client_id, folder_id=folder_id)
+    email = str(body.email).strip().lower()
+    existing = _scope_email_recipients_query(
+        db, current_user.id, client_id=client_id, folder_id=folder_id,
+    ).filter(models.ReportEmailRecipient.email == email).first()
+    if existing:
+        if body.title and body.title.strip():
+            existing.title = body.title.strip()
+            db.commit()
+            db.refresh(existing)
+        return existing
+    row = models.ReportEmailRecipient(
+        user_id=current_user.id,
+        client_id=client_id,
+        folder_id=folder_id,
+        email=email,
+        title=(body.title or "").strip() or None,
+        status="active",
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@router.delete("/email-recipients/{recipient_id}")
+def delete_email_recipient(
+    recipient_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    row = db.query(models.ReportEmailRecipient).filter(
+        models.ReportEmailRecipient.id == recipient_id,
+        models.ReportEmailRecipient.user_id == current_user.id,
+    ).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Email-получатель не найден")
+    # Remove the selection from the active project rule immediately; historical
+    # deliveries retain their own snapshot and can still be inspected.
+    scope = _scope_filter(
+        db.query(models.ReportSchedule), user_id=current_user.id,
+        client_id=row.client_id, folder_id=row.folder_id,
+    ).first()
+    if scope:
+        selected = [email for email in _jlist(scope.email_recipients, []) if email.lower() != row.email.lower()]
+        scope.email_recipients = _dump_list(selected)
+        if not selected:
+            scope.channels = _dump_list([channel for channel in _jlist(scope.channels, []) if channel != "email"])
     db.delete(row)
     db.commit()
     return {"ok": True}

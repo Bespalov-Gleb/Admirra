@@ -172,7 +172,7 @@ _CHART_METRIC_META = {
     "clicks": {"label": "Клики", "unit": "", "color": "#38BDF8", "decimals": 0},
     "cpc": {"label": "CPC", "unit": " ₽", "color": "#D38CFF", "decimals": 2},
     "cpa": {"label": "CPL", "unit": " ₽", "color": "#EB8525", "decimals": 2},
-    "leads": {"label": "Конверсии", "unit": "", "color": "#8ADA70", "decimals": 0},
+    "leads": {"label": "Лиды", "unit": "", "color": "#8ADA70", "decimals": 0},
 }
 
 
@@ -182,12 +182,14 @@ def _metric_value_from(item: dict) -> dict:
     clicks = int(item.get("clicks") or 0)
     impressions = int(item.get("impressions") or 0)
     leads = int(item.get("leads") or 0)
+    # CPL — от лидового расхода (ТЗ VK п.3/№10), если он передан в строке.
+    lead_cost = float(item["lead_cost"]) if item.get("lead_cost") is not None else cost
     return {
         "cost": cost,
         "impressions": impressions,
         "clicks": clicks,
         "cpc": (cost / clicks) if clicks > 0 else 0.0,
-        "cpa": (cost / leads) if leads > 0 else 0.0,
+        "cpa": (lead_cost / leads) if leads > 0 else 0.0,
         "leads": leads,
     }
 
@@ -438,7 +440,13 @@ def render_report_html(data: dict, layout: str = "desktop") -> str:
                 + float(item.get("cost_vk") or 0) * VAT_RATE
                 + float(item.get("cost_avito") or 0)
             )
-            day_points.append(_metric_value_from({**item, "cost": cost}))
+            # Лидовый расход дня для CPL: VK — только лидовые кампании (cost_vk_lead).
+            lead_cost = (
+                float(item.get("cost_yandex") or 0) * VAT_RATE
+                + float(item.get("cost_vk_lead", item.get("cost_vk")) or 0) * VAT_RATE
+                + float(item.get("cost_avito") or 0)
+            )
+            day_points.append(_metric_value_from({**item, "cost": cost, "lead_cost": lead_cost}))
             d = str(item.get("date") or "")
             day_labels.append(f"{d[8:10]}.{d[5:7]}" if len(d) >= 10 else d)
         for metric in [m for m in chart_metrics if m in _CHART_METRIC_META]:
@@ -518,7 +526,8 @@ def render_report_html(data: dict, layout: str = "desktop") -> str:
         has_incomplete = False
         for p in dyn_periods:
             cost = _with_cost_breakdown_vat(p.get("cost", 0), p.get("cost_by_platform"))
-            dyn_points.append(_metric_value_from({**p, "cost": cost}))
+            lead_cost = _with_cost_breakdown_vat(p.get("cost", 0), p.get("lead_cost_by_platform") or p.get("cost_by_platform"))
+            dyn_points.append(_metric_value_from({**p, "cost": cost, "lead_cost": lead_cost}))
             label = str(p.get("label", ""))
             dyn_labels.append(label if len(label) <= 12 else label[:12])
             has_incomplete = has_incomplete or bool(p.get("incomplete"))

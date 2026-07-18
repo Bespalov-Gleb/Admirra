@@ -320,6 +320,9 @@ class ReportDelivery(Base):
     chart_metrics = Column(String, nullable=True)
     dynamics_metrics = Column(String, nullable=True)
     comment = Column(Text, nullable=True)
+    # none | draft | edited | approved.  Stored server-side so the preview keeps
+    # the correct state after a refresh instead of inventing it in the browser.
+    comment_status = Column(String(16), nullable=False, default="none", server_default="none")
     anomaly_reason = Column(Text, nullable=True)
     delivery_results = Column(JSON, nullable=True)
     # Неизменяемый снимок: превью и все каналы используют одни и те же цифры/файлы.
@@ -363,9 +366,41 @@ class ReportChatTarget(Base):
     kind = Column(String, nullable=False)  # telegram | max
     chat_id = Column(String, nullable=False)
     title = Column(String, nullable=True)
+    # A linked chat is active until a delivery to this exact recipient fails.
+    # The next successful retry restores it automatically.
+    status = Column(String(24), nullable=False, default="active", server_default="active")
+    last_error = Column(Text, nullable=True)
+    last_delivery_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     user = relationship("User", backref="report_chat_targets")
+
+
+class ReportEmailRecipient(Base):
+    """Адрес получателя отчётов, привязанный к одному проекту или папке.
+
+    Старые массивы email в расписаниях остаются как список выбранных адресов,
+    а эта таблица даёт адресам собственный статус и историю ошибки.  Благодаря
+    этому можно отключить и повторить доставку только одному email.
+    """
+    __tablename__ = "report_email_recipients"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=True, index=True)
+    folder_id = Column(UUID(as_uuid=True), ForeignKey("folders.id", ondelete="CASCADE"), nullable=True, index=True)
+    email = Column(String(320), nullable=False)
+    title = Column(String(255), nullable=True)
+    status = Column(String(24), nullable=False, default="active", server_default="active")
+    last_error = Column(Text, nullable=True)
+    last_delivery_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    user = relationship("User", backref="report_email_recipients")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "client_id", "folder_id", "email", name="uq_report_email_recipient_scope"),
+    )
 
 
 class Folder(Base):

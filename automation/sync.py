@@ -1150,8 +1150,10 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                         if campaign.vk_goal_action_id
                     }
                     if observed_objectives:
-                        from automation.vk_goal_action_mapping import is_vk_lead_action
-                        lead_defaults = sorted({c for c in observed_objectives if is_vk_lead_action(c)})
+                        # По ТЗ автодефолт — только лид-формы; прочие лидовые типы
+                        # (сообщения, конверсии на сайте и т.п.) агентство выбирает само.
+                        from automation.vk_goal_action_mapping import is_vk_lead_form
+                        lead_defaults = sorted({c for c in observed_objectives if is_vk_lead_form(c)})
                         if lead_defaults:
                             integration.lead_action_types = json.dumps(lead_defaults)
                             integration.vk_known_lead_action_types = json.dumps(sorted(observed_objectives))

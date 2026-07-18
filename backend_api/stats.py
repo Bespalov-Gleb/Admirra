@@ -18,7 +18,6 @@ from automation.sync import sync_integration, sync_metrika_goals_background
 from automation.vk_goal_action_mapping import (
     get_vk_goal_action_name_ru,
     get_vk_goal_action_category,
-    is_vk_lead_action,
     VK_CATEGORY_LABEL_RU,
 )
 from automation.yandex_direct import YandexDirectAPI
@@ -2627,32 +2626,14 @@ async def get_goals(
         prev_date_from, prev_date_to = resolve_previous_period(date_from_obj, date_to_obj, period_preset)
         prev_has_data = _has_prev_stats_coverage(db, effective_client_ids, prev_date_from, prev_date_to, "vk")
 
-        # Настраиваемый CPL: новые VK-интеграции хранят выбор в
-        # Integration.lead_action_types. selected_goals — только переходный
-        # fallback для данных, созданных до этой миграции. Если не настроено —
-        # дефолтные лид-типы.
-        # (is_vk_lead_action). Это определяет флаг summable ниже, по которому
-        # дашборд считает сводный CPL и не суммирует не-лидовые типы.
-        vk_lead_codes: set[str] = set()
-        vk_has_explicit_selection = False
-        for lead_types, legacy_selected_goals in db.query(
-            models.Integration.lead_action_types,
-            models.Integration.selected_goals,
-        ).filter(
-            models.Integration.client_id.in_(effective_client_ids),
-            models.Integration.platform == models.IntegrationPlatform.VK_ADS,
-        ).all():
-            if lead_types is not None:
-                vk_has_explicit_selection = True
-            raw_types = lead_types if lead_types is not None else legacy_selected_goals
-            if raw_types:
-                try:
-                    parsed = json.loads(raw_types) if isinstance(raw_types, str) else raw_types
-                    for c in parsed or []:
-                        if c:
-                            vk_lead_codes.add(str(c))
-                except Exception:
-                    pass
+        # Состав заявок VK задаётся интеграцией. Если он не задан, ни один
+        # native-результат не становится «лидом» автоматически: синк сам
+        # запишет безопасный автодефолт только для лид-форм.
+        vk_lead_codes = {
+            code
+            for codes in StatsService.get_vk_lead_action_scope(db, effective_client_ids).values()
+            for code in codes
+        }
 
         for row in vk_rows:
             prev_q = db.query(
@@ -2691,13 +2672,9 @@ async def get_goals(
 
             # №3: категория и флаг summable. Лиды (заявки) можно суммировать в один
             # итог; трафик/охват/просмотры/подписки — нельзя складывать с лидами.
-            # №5: если CPL настроен (vk_lead_codes) — summable по выбору пользователя,
-            # иначе — по дефолтной классификации лид-типов.
+            # №5: в общий показатель попадают только явно выбранные действия.
             category = get_vk_goal_action_category(code)
-            if vk_has_explicit_selection or vk_lead_codes:
-                summable = str(code) in vk_lead_codes
-            else:
-                summable = is_vk_lead_action(code)
+            summable = str(code) in vk_lead_codes
 
             result.append({
                 "id": str(code or ""),

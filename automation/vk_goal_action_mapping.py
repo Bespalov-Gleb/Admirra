@@ -160,3 +160,18 @@ def get_vk_goal_action_category(code: str) -> str:
 def is_vk_lead_action(code: str) -> bool:
     """True, если тип ЦД считается лидом (результат-заявка) и его можно суммировать."""
     return get_vk_goal_action_category(code) == "lead"
+
+# Коды лид-форм (однозначно лидовая семантика). Используются ТОЛЬКО для автодефолта
+# при подключении кабинета: по ТЗ автоматически лидовыми отмечаются лишь лид-формы,
+# остальные лидовые типы (сообщения, конверсии на сайте, продажи каталога и т.п.)
+# агентство выбирает само в настройках интеграции.
+VK_LEAD_FORM_CODES: set[str] = {
+    "leadads", "lead_forms", "leadforms", "leadgen", "evt_51_lead_forms",
+}
+
+
+def is_vk_lead_form(code: str) -> bool:
+    """True только для лид-форм — для автодефолта состава лидов при подключении."""
+    if not code or not isinstance(code, str):
+        return False
+    return _clean_code(code) in VK_LEAD_FORM_CODES

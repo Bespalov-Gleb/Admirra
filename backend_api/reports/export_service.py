@@ -82,7 +82,11 @@ def _get_report_data(db, user_id, client_id, start_date, end_date, comment, fold
         db, effective_client_ids, d_start, d_end, platform or "all", None, None
     )
     top_campaigns = sorted(
-        [c for c in campaigns if c.get("conversions", 0) > 0],
+        [
+            c for c in campaigns
+            if c.get("conversions", 0) > 0
+            and (c.get("platform") != "vk" or c.get("is_lead_action") is True)
+        ],
         key=lambda x: x.get("conversions", 0),
         reverse=True,
     )[:10]
@@ -134,6 +138,42 @@ def pdf_first_page_png(pdf_bytes: bytes) -> bytes:
             doc.close()
     except ImportError:
         raise ImportError("Установите pymupdf: pip install pymupdf")
+
+
+def pdf_full_png(pdf_bytes: bytes) -> bytes:
+    """Render every page of a fixed report into one vertical PNG.
+
+    A history snapshot must not silently lose campaigns or charts that happen
+    to flow onto page two.  Reports are compact, but stacking pages makes the
+    stored PNG deterministic even when a long campaign table is selected.
+    """
+    try:
+        import fitz
+        from PIL import Image
+        from io import BytesIO
+
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        try:
+            pages = []
+            for page in doc:
+                pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5), alpha=False)
+                pages.append(Image.open(BytesIO(pix.tobytes("png"))).convert("RGB"))
+            if not pages:
+                raise ValueError("В PDF нет страниц")
+            width = max(page.width for page in pages)
+            height = sum(page.height for page in pages)
+            image = Image.new("RGB", (width, height), "white")
+            offset = 0
+            for page in pages:
+                image.paste(page, ((width - page.width) // 2, offset))
+                offset += page.height
+            out = BytesIO()
+            image.save(out, format="PNG", optimize=True)
+            return out.getvalue()
+        finally:
+            doc.close()
+    except ImportError:
+        raise ImportError("Полный PNG-рендер требует pymupdf и Pillow")
 
 
 def generate_report_docx(
