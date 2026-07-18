@@ -1018,6 +1018,8 @@ class CampaignStat(BaseModel):
     conversions_attributed: bool = True
     conversions_estimated: bool = False
     name: str
+    # Ключевое целевое действие кампании (ТЗ единого дашборда п.6)
+    target_action_name: Optional[str] = None
     impressions: int
     clicks: int
     cost: float

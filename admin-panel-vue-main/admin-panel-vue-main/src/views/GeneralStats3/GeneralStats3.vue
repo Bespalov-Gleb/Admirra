@@ -671,6 +671,18 @@
                 <span>{{ channel.name }}</span>
                 <CheckCircleIcon />
               </button>
+              <button
+                v-if="chartTotalAvailable"
+                type="button"
+                class="chart-total-toggle"
+                :class="{ active: chartShowTotal }"
+                :aria-pressed="chartShowTotal"
+                @click="chartShowTotal = !chartShowTotal"
+              >
+                <span class="chart-total-sigma">Σ</span>
+                <span>Все каналы</span>
+                <CheckCircleIcon />
+              </button>
             </div>
           </div>
         </div>
@@ -869,10 +881,13 @@
               <div class="goals-bar-left">
                 <span class="goals-bar-name">
                   {{ bar.name }}
+                  <span v-if="bar.notLead" class="goals-bar-notlead">· не лид</span>
                   <span v-if="bar.alert" class="row-anomaly-dot" :class="`row-anomaly-dot--${bar.alert.severity}`"></span>
                 </span>
                 <div class="goals-bar-meta">
+                  <span v-if="bar.spendText" class="goals-bar-spend">{{ bar.spendText }}</span>
                   <strong class="goals-bar-count" :class="bar.countClass">{{ bar.countText }}</strong>
+                  <span v-if="bar.unitText" class="goals-bar-unit">{{ bar.unitText }}</span>
                   <span v-if="bar.trend !== null" class="goals-bar-trend" :class="bar.trendClass">{{ bar.trendText }}</span>
                 </div>
               </div>
@@ -968,7 +983,7 @@
             :disabled="!campaignTreeRows.length"
             @click="toggleExpandAllCampaignRows"
           >
-            {{ anyCampaignRowExpanded ? 'Свернуть всё' : 'Развернуть всё' }}
+            {{ campaignAnyExpanded ? 'Свернуть всё' : 'Развернуть всё' }}
           </button>
         </div>
       </div>
@@ -1027,6 +1042,17 @@
             <span class="campaign-empty-cell" :style="{ '--tree-indent': `${campaign.level * 1.55}rem` }">
               {{ campaign.name }}
             </span>
+          </template>
+          <template v-else-if="campaign.aggregate">
+            <button type="button" class="campaign-aggregate-cell" @click="showAllCampaignRows = true">
+              <span>Ещё {{ campaign.count }} {{ campaign.count === 1 ? 'кампания' : 'кампаний' }} · {{ campaign.cost }} · {{ campaign.leads }} {{ campaign.leads === 1 ? 'лид' : 'лидов' }}</span>
+              <b>развернуть все →</b>
+            </button>
+          </template>
+          <template v-else-if="campaign.sectionToggle">
+            <button type="button" class="campaign-inactive-cell" @click="showInactiveCampaignRows = !showInactiveCampaignRows">
+              Неактивные за период ({{ campaign.count }}) — без расхода или остановлены · {{ campaign.open ? 'свернуть' : 'развернуть' }}
+            </button>
           </template>
           <template v-else>
           <span class="campaign-name-cell" :style="{ '--tree-indent': `${campaign.level * 1.55}rem` }">
@@ -1096,14 +1122,13 @@
           <span>{{ campaign.clicks }} <b v-if="campaign.trendClicks" :class="{ negative: campaign.trendClicks.negative }"><component :is="campaign.trendClicks.icon" />{{ campaign.trendClicks.text }}</b></span>
           <span>{{ campaign.ctr }} <b v-if="campaign.trendCtr" :class="{ negative: campaign.trendCtr.negative }"><component :is="campaign.trendCtr.icon" />{{ campaign.trendCtr.text }}</b></span>
           <span>{{ campaign.cpc }} <b v-if="campaign.trendCpc" :class="{ negative: campaign.trendCpc.negative }"><component :is="campaign.trendCpc.icon" />{{ campaign.trendCpc.text }}</b></span>
-          <span :title="campaign.conversionsEstimated ? 'Лиды распределены пропорционально расходу внутри родительского уровня' : (campaign.conversionsAttributed ? '' : 'Лиды не атрибутируются на этом уровне')">
-            {{ campaign.leads }}
-            <em v-if="campaign.leadsApprox" class="campaign-estimate-badge">ориентир.</em>
-            <b v-if="campaign.trendLeads" :class="{ negative: campaign.trendLeads.negative }"><component :is="campaign.trendLeads.icon" />{{ campaign.trendLeads.text }}</b>
-          </span>
-          <span :title="campaign.conversionsEstimated ? 'CPL рассчитан по распределённым лидам' : (campaign.conversionsAttributed ? '' : 'CPL не атрибутируется на этом уровне')">
-            {{ campaign.cpa }}
-            <b v-if="campaign.trendCpa" :class="{ negative: campaign.trendCpa.negative }"><component :is="campaign.trendCpa.icon" />{{ campaign.trendCpa.text }}</b>
+          <span class="campaign-target-cell" :class="{ 'campaign-target-cell--bad': campaign.targetBad }">
+            <span class="campaign-target-name">{{ campaign.targetActionName }}</span>
+            <span class="campaign-target-meta">
+              {{ campaign.targetCount }} · {{ campaign.targetCpa }}
+              <em v-if="campaign.leadsApprox" class="campaign-estimate-badge">ориентир.</em>
+              <b v-if="campaign.trendCpa" :class="{ negative: campaign.trendCpa.negative }"><component :is="campaign.trendCpa.icon" />{{ campaign.trendCpa.text }}</b>
+            </span>
           </span>
           </template>
         </div>
@@ -1773,6 +1798,14 @@ const chartSelectedMetricKeys = ref(['expenses'])
 // (ТЗ единого дашборда п.5). Значение оставлено константой для computeds ниже.
 const chartBreakdownMode = ref('channels')
 const chartSelectedPlatforms = ref(['yandex', 'vk', 'avito'])
+// Σ «Все каналы» — суммарная линия по всем каналам (ТЗ единого дашборда п.5).
+// Только для суммируемых метрик (расход/показы/клики/лиды); для CPC/CPL сумма
+// не имеет смысла, поэтому там скрыта.
+const chartShowTotal = ref(false)
+const CHART_ADDITIVE_METRICS = new Set(['expenses', 'impressions', 'clicks', 'leads'])
+const chartTotalAvailable = computed(() =>
+  showKpiChannelSplit.value && CHART_ADDITIVE_METRICS.has(activeChartMetricKeys.value[0] || 'expenses')
+)
 const chartHoverIndex = ref(-1)
 const chartSvgRef = ref(null)
 const dashboardRef = ref(null)
@@ -3030,8 +3063,9 @@ const campaignTableColumns = [
   { key: 'clicks', label: 'Клики', width: 122, min: 96 },
   { key: 'ctr', label: 'CTR', width: 110, min: 88 },
   { key: 'cpc', label: 'CPC', width: 122, min: 96 },
-  { key: 'leads', label: 'Лиды', width: 118, min: 94 },
-  { key: 'cpa', label: 'CPL', width: 132, min: 108 },
+  // ТЗ единого дашборда п.6: вместо колонок «Лиды»/«CPL» — одна «Целевое действие»
+  // (ключевая цель + количество + CPA).
+  { key: 'target', label: 'Целевое действие', width: 250, min: 180 },
 ]
 const getDefaultCampaignColumnWidths = () =>
   Object.fromEntries(campaignTableColumns.map((column) => [column.key, column.width]))
@@ -3262,6 +3296,11 @@ const formatCampaignTreeRow = (campaign, index, level = 0, parent = null) => {
     leads: conversionsAttributed ? `${formatNumber(conversions)} шт.` : '—',
     leadsApprox: conversionsEstimated && conversions > 0,
     cpa: hasPositiveLeads ? formatMoney(withVat(campaign.cpa, { platform: campaign.platform })) : '—',
+    // Целевое действие (п.6): ключевая цель кампании + количество + CPA.
+    targetActionName: campaign.target_action_name || parent?.targetActionName || 'Целевое действие',
+    targetCount: conversionsAttributed ? `${formatNumber(conversions)} шт.` : '—',
+    targetCpa: hasPositiveLeads ? `CPA ${formatMoney(withVat(campaign.cpa, { platform: campaign.platform }))}` : 'без заявок',
+    targetBad: conversionsAttributed && conversions === 0 && Number(campaign.cost || 0) > 0,
     conversionsAttributed,
     conversionsEstimated,
     hierarchyUnavailable,
@@ -3406,9 +3445,21 @@ const collapseAllCampaignRows = () => {
   expandedCampaignRows.value = new Set()
 }
 
+// «Развернуть всё» раскрывает и хвост топ-10, и неактивные, и детализацию кампаний
+// (ТЗ единого дашборда п.9/п.12).
+const campaignAnyExpanded = computed(() =>
+  anyCampaignRowExpanded.value || showAllCampaignRows.value || showInactiveCampaignRows.value
+)
 const toggleExpandAllCampaignRows = () => {
-  if (anyCampaignRowExpanded.value) collapseAllCampaignRows()
-  else expandAllCampaignRows()
+  if (campaignAnyExpanded.value) {
+    collapseAllCampaignRows()
+    showAllCampaignRows.value = false
+    showInactiveCampaignRows.value = false
+  } else {
+    showAllCampaignRows.value = true
+    showInactiveCampaignRows.value = true
+    expandAllCampaignRows()
+  }
 }
 
 const selectedChannel = computed(() => filterChannels.value.find((item) => item.value === filters.channel)?.name || 'Все каналы')
@@ -3822,6 +3873,16 @@ const chartSeries = computed(() => {
         channel,
         values: getChartSourceValues(metricKey, channel.key),
       }))
+    // Σ «Все каналы» — поэлементная сумма по всем каналам (только суммируемые метрики).
+    if (chartShowTotal.value && chartTotalAvailable.value) {
+      const allSeries = availableDashboardChannels.value.map((channel) => getChartSourceValues(metricKey, channel.key))
+      const len = allSeries.reduce((max, values) => Math.max(max, values.length), 0)
+      const totalValues = Array.from({ length: len }, (_, i) => allSeries.reduce((sum, values) => sum + (Number(values[i]) || 0), 0))
+      rows.push({
+        channel: { key: '__total__', name: 'Σ Все каналы', color: '#111827', asset: null },
+        values: totalValues,
+      })
+    }
     const sharedMax = Math.max(...rows.flatMap((row) => row.values), 1)
     return rows.map(({ channel, values }) => {
         const points = buildChartPoints(values, sharedMax)
@@ -4164,7 +4225,16 @@ const goalsTotalLabel = computed(() => {
 // разрезе цели физически не существует). Единый цвет канала; красный — только для
 // строк с нулём при наличии расхода канала (ТЗ единого дашборда п.7).
 const GOAL_ZERO_COLOR = '#E5484D'
-const buildGoalBars = (sourceItems, { channelColor = null, channelHasSpend = false } = {}) => {
+// Ярлык результата по категории objective VK (ТЗ единого дашборда п.11): у каждого
+// типа действий — свой результат рядом с расходом (лиды→CPL, подписки→цена
+// подписчика, охват/трафик→цена действия).
+const goalUnitLabel = (category) => {
+  if (category === 'lead') return 'CPL'
+  if (category === 'subscription') return 'цена подписчика'
+  if (category === 'traffic') return 'цена перехода'
+  return 'цена действия'
+}
+const buildGoalBars = (sourceItems, { channelColor = null, channelHasSpend = false, channelKey = null, showSpend = false } = {}) => {
   const colors = ['#3f63f6', '#f39a72', '#6ee7b7', '#8ada70', '#d38cff', '#38bdf8', '#facc15', '#fb7185', '#a78bfa', '#14b8a6']
   if (!sourceItems.length) return []
   const items = sourceItems.map((goal, index) => {
@@ -4175,10 +4245,15 @@ const buildGoalBars = (sourceItems, { channelColor = null, channelHasSpend = fal
     const id = goal.id || goal.goal_id || goal.external_id || `goal-${index}`
     const alert = getAlertForEntity('goal', id)
     const zeroWithSpend = safeCount === 0 && channelHasSpend
+    const costRaw = parseOptionalNumber(goal.cost)
+    const cost = Number.isFinite(costRaw) ? costRaw : null
     return {
       id,
       name: goal.name || goal.goal_name || `Цель ${index + 1}`,
       count: safeCount,
+      cost,
+      category: goal.category || null,
+      notLead: showSpend && goal.summable === false,
       zeroWithSpend,
       color: zeroWithSpend ? GOAL_ZERO_COLOR : (channelColor || goal.color || colors[index % colors.length]),
       trend,
@@ -4188,14 +4263,21 @@ const buildGoalBars = (sourceItems, { channelColor = null, channelHasSpend = fal
     }
   }).sort((a, b) => b.count - a.count)
   const maxCount = Math.max(...items.map(i => i.count), 1)
-  return items.map(item => ({
-    ...item,
-    pct: (item.count / maxCount) * 100,
-    countText: `${formatNumber(item.count)} шт.`,
-    countClass: item.zeroWithSpend ? 'goals-bar-count--zero' : '',
-    trendText: item.trend !== null ? `${item.trend > 0 ? '+' : ''}${formatNumber(item.trend, 1)}%` : null,
-    trendClass: item.trend !== null ? (item.trend >= 0 ? 'goals-bar-trend--up' : 'goals-bar-trend--down') : '',
-  }))
+  return items.map(item => {
+    // Расход и «цена результата» по каждому objective (VK). Расход с НДС по каналу.
+    const spendVat = showSpend && item.cost !== null ? withVat(item.cost, { platform: channelKey }) : null
+    const unitValue = spendVat !== null && item.count > 0 ? spendVat / item.count : null
+    return {
+      ...item,
+      pct: (item.count / maxCount) * 100,
+      countText: `${formatNumber(item.count)} шт.`,
+      countClass: item.zeroWithSpend ? 'goals-bar-count--zero' : '',
+      spendText: spendVat !== null ? formatMoney(spendVat) : null,
+      unitText: spendVat !== null ? (unitValue !== null ? `${goalUnitLabel(item.category)} ${formatMoney(unitValue)}` : `${goalUnitLabel(item.category)} —`) : null,
+      trendText: item.trend !== null ? `${item.trend > 0 ? '+' : ''}${formatNumber(item.trend, 1)}%` : null,
+      trendClass: item.trend !== null ? (item.trend >= 0 ? 'goals-bar-trend--up' : 'goals-bar-trend--down') : '',
+    }
+  })
 }
 
 const goalBars = computed(() => {
@@ -4226,7 +4308,14 @@ const goalChannelGroups = computed(() => {
       const displayItems = channel.key === 'vk' ? rawItems : selectedItems
       const rawExpenses = channelAdjustedExpenses(channel.key, channel.summary)
       const leadExpenses = channelLeadExpenses(channel.key, channel.summary)
-      const bars = buildGoalBars(displayItems, { channelColor: channel.color, channelHasSpend: rawExpenses > 0 })
+      const bars = buildGoalBars(displayItems, {
+        channelColor: channel.color,
+        channelHasSpend: rawExpenses > 0,
+        channelKey: channel.key,
+        // Раскладка расхода по objective — только для VK (п.11): у Яндекса расхода
+        // в разрезе цели Метрики не существует.
+        showSpend: channel.key === 'vk',
+      })
       const total = selectedItems.reduce((sum, item) => sum + Number(item.count || 0), 0)
       return {
         ...channel,
@@ -4270,9 +4359,42 @@ const goalChannelGroups = computed(() => {
   }]
 })
 
+// ТЗ единого дашборда п.12: активные — с расходом за период; неактивные — без
+// расхода/остановленные (отдельная свёртка). Дефолт таблицы — топ-10 по расходу,
+// хвост сворачивается в агрегатную строку.
+const CAMPAIGN_TOP_LIMIT = 10
+const showAllCampaignRows = ref(false)
+const showInactiveCampaignRows = ref(false)
+
+const _campaignHasActivity = (c) => (
+  Number(c.cost || 0) > 0
+  || Number(c.impressions || 0) > 0
+  || Number(c.clicks || 0) > 0
+  || Number(c.conversions ?? c.leads ?? 0) > 0
+)
+const activeCampaignSourceRows = computed(() => sortedCampaignSourceRows.value.filter(_campaignHasActivity))
+const inactiveCampaignSourceRows = computed(() => sortedCampaignSourceRows.value.filter((c) => !_campaignHasActivity(c)))
+
 const campaignRows = computed(() => {
-  return sortedCampaignSourceRows.value
+  return activeCampaignSourceRows.value
     .map((campaign, index) => formatCampaignTreeRow(campaign, index))
+})
+
+const inactiveCampaignRows = computed(() => {
+  const base = activeCampaignSourceRows.value.length
+  return inactiveCampaignSourceRows.value
+    .map((campaign, index) => formatCampaignTreeRow(campaign, base + index))
+})
+
+// Агрегат хвоста (кампании за пределами топ-10): суммы сходятся с KPI.
+const campaignTailAggregate = computed(() => {
+  const tail = activeCampaignSourceRows.value.slice(CAMPAIGN_TOP_LIMIT)
+  if (!tail.length) return null
+  const cost = tail.reduce((sum, c) => sum + withVat(Number(c.cost || 0), { platform: normalizeDashboardPlatform(c.platform) }), 0)
+  const impressions = tail.reduce((sum, c) => sum + Number(c.impressions || 0), 0)
+  const clicks = tail.reduce((sum, c) => sum + Number(c.clicks || 0), 0)
+  const leads = tail.reduce((sum, c) => sum + Number(c.conversions ?? c.leads ?? 0), 0)
+  return { count: tail.length, cost, impressions, clicks, leads }
 })
 
 const campaignTreeRows = computed(() => {
@@ -4309,7 +4431,41 @@ const campaignTreeRows = computed(() => {
     })
   }
 
-  campaignRows.value.forEach(appendRow)
+  const visibleActive = showAllCampaignRows.value
+    ? campaignRows.value
+    : campaignRows.value.slice(0, CAMPAIGN_TOP_LIMIT)
+  visibleActive.forEach(appendRow)
+
+  // Хвост топ-10 — агрегатной строкой (итоги сходятся с KPI), с «развернуть».
+  const tail = campaignTailAggregate.value
+  if (!showAllCampaignRows.value && tail) {
+    result.push({
+      rowKey: 'campaign-tail-aggregate',
+      aggregate: true,
+      level: 0,
+      tint: '',
+      count: tail.count,
+      cost: formatMoney(tail.cost),
+      impressions: formatNumber(tail.impressions),
+      clicks: formatNumber(tail.clicks),
+      leads: tail.leads,
+    })
+  }
+
+  // Неактивные за период (без расхода/остановленные) — отдельная свёртка.
+  if (inactiveCampaignRows.value.length) {
+    result.push({
+      rowKey: 'campaign-inactive-toggle',
+      sectionToggle: true,
+      level: 0,
+      tint: '',
+      count: inactiveCampaignRows.value.length,
+      open: showInactiveCampaignRows.value,
+    })
+    if (showInactiveCampaignRows.value) {
+      inactiveCampaignRows.value.forEach(appendRow)
+    }
+  }
   return result
 })
 
@@ -8577,6 +8733,20 @@ onMounted(() => {
   white-space: nowrap;
 }
 .goals-bar-count--zero { color: #e5484d; }
+.goals-bar-spend {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #5b6579;
+  white-space: nowrap;
+}
+.goals-bar-unit {
+  font-size: 1.02rem;
+  color: #8a93a6;
+  white-space: nowrap;
+}
+.goals-bar-notlead { font-size: 0.95rem; color: #b7bdc9; font-weight: 500; }
+.figma-dashboard.is-dark .goals-bar-spend { color: #c2c9d6; }
+.figma-dashboard.is-dark .goals-bar-unit { color: #8891a0; }
 
 .goals-bar-trend {
   font-size: 0.9rem;
@@ -8886,6 +9056,28 @@ onMounted(() => {
   font-weight: 600;
 }
 
+.campaign-aggregate-cell,
+.campaign-inactive-cell {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.2rem 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  color: #5b6579;
+}
+.campaign-aggregate-cell b { color: #2563eb; font-weight: 600; margin-left: auto; }
+.campaign-inactive-cell { color: #98a1b3; font-size: 0.95em; }
+.campaign-aggregate-cell:hover b { text-decoration: underline; }
+.campaign-inactive-cell:hover { color: #5b6579; }
+.figma-dashboard.is-dark .campaign-aggregate-cell,
+.figma-dashboard.is-dark .campaign-inactive-cell { color: #9aa3b2; }
+
 .campaign-empty-cell,
 .campaign-loading-cell {
   grid-column: 1 / -1;
@@ -9062,6 +9254,27 @@ onMounted(() => {
   font-style: normal;
   font-weight: 700;
 }
+
+.campaign-target-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.campaign-target-name {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.campaign-target-meta {
+  font-size: 0.92em;
+  color: #5b6579;
+  white-space: nowrap;
+}
+.campaign-target-cell--bad .campaign-target-name,
+.campaign-target-cell--bad .campaign-target-meta { color: #e5484d; }
+.figma-dashboard.is-dark .campaign-target-meta { color: #9aa3b2; }
 
 .campaign-row--anomaly-warning {
   box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.45);
@@ -13334,6 +13547,10 @@ onMounted(() => {
   background: #f6f8ff;
   color: #374151;
 }
+.chart-total-toggle { border-style: dashed !important; }
+.chart-total-toggle.active { border-color: #111827 !important; color: #111827 !important; }
+.chart-total-sigma { font-weight: 800; font-size: 0.9rem; line-height: 1; }
+.figma-dashboard.is-dark .chart-total-toggle.active { border-color: #e5e7eb !important; color: #e5e7eb !important; }
 
 .goals-channel-list {
   display: grid;

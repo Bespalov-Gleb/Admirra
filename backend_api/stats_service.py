@@ -985,6 +985,8 @@ class StatsService:
                 models.Campaign.id.label("campaign_id"),
                 models.Campaign.name.label("campaign_display_name"),
                 models.Campaign.external_id.label("campaign_external_id"),
+                models.Campaign.vk_goal_action_id.label("vk_goal_action_id"),
+                models.Campaign.vk_goal_action_name.label("vk_goal_action_name"),
                 models.VKStats.campaign_name,
                 func.sum(models.VKStats.impressions).label("impressions"),
                 func.sum(models.VKStats.clicks).label("clicks"),
@@ -1003,7 +1005,11 @@ class StatsService:
                 q = q.filter(models.VKStats.date >= start)
             if end:
                 q = q.filter(models.VKStats.date <= end)
-            return q.group_by(models.Campaign.id, models.Campaign.name, models.Campaign.external_id, models.VKStats.campaign_name).all()
+            return q.group_by(
+                models.Campaign.id, models.Campaign.name, models.Campaign.external_id,
+                models.Campaign.vk_goal_action_id, models.Campaign.vk_goal_action_name,
+                models.VKStats.campaign_name,
+            ).all()
 
         def run_avito_query(start, end):
             q = db.query(
@@ -1257,6 +1263,9 @@ class StatsService:
                     ),
                     "conversions_attributed": True,
                     "name": f"[ЯД] {raw_name or 'Без названия'}",
+                    # Для Яндекса ключевая цель — выбранные конверсии Метрики (не
+                    # хранятся на уровне кампании), поэтому общий ярлык (п.6).
+                    "target_action_name": "Конверсии Метрики",
                     "impressions": imps,
                     "clicks": clicks,
                     "cost": round(cost, 2),
@@ -1329,6 +1338,13 @@ class StatsService:
                     "has_children": bool(ext_id),
                     "conversions_attributed": True,
                     "name": f"[VK] {disp_name}",
+                    # Ключевое целевое действие кампании (ТЗ единого дашборда п.6):
+                    # для VK — objective кампании (lead-формы, подписки и т.п.).
+                    "target_action_name": (
+                        (getattr(r, "vk_goal_action_name", None) or "").strip()
+                        or (get_vk_goal_action_name_ru(getattr(r, "vk_goal_action_id", None)) if getattr(r, "vk_goal_action_id", None) else None)
+                        or "Действия VK"
+                    ),
                     "impressions": imps,
                     "clicks": clicks,
                     "cost": round(cost, 2),
@@ -1464,6 +1480,7 @@ class StatsService:
                     "conversions_attributed": True,
                     "conversions_estimated": bool(convs and not avito_conversion_overrides),
                     "name": f"[Avito] {disp_name}",
+                    "target_action_name": "Цели по UTM",
                     "impressions": imps,
                     "clicks": clicks,
                     "cost": round(cost, 2),
