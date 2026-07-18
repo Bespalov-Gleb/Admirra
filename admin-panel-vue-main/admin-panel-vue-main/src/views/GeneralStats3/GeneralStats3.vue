@@ -40,6 +40,18 @@
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/><path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01"/></svg>
           Организация
         </span>
+        <!-- Статус детектора — сразу после названия проекта (по макету владельца),
+             до вкладок; не дублируется в действиях справа. -->
+        <span
+          v-if="filters.client_id && detectorSummary"
+          class="detector-status-chip detector-status-chip--inline"
+          :class="`detector-status-chip--${detectorStatusChip.kind}`"
+          :title="detectorStatusChip.hint"
+          role="status"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.8-3 8.6-7 10-4-1.4-7-5.2-7-10V6l7-3z"/></svg>
+          <span>{{ detectorStatusChip.label }}</span>
+        </span>
         <div class="dashboard-view-tabs" role="tablist" aria-label="Режим экрана">
           <button
             type="button"
@@ -70,17 +82,6 @@
             <Cog6ToothIcon />
             <span>Настройки проекта</span>
           </button>
-          <!-- Информационный статус, не дублирует кнопку настроек. -->
-          <span
-            v-if="filters.client_id && detectorSummary"
-            class="detector-status-chip"
-            :class="`detector-status-chip--${detectorStatusChip.kind}`"
-            :title="detectorStatusChip.hint"
-            role="status"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.8-3 8.6-7 10-4-1.4-7-5.2-7-10V6l7-3z"/></svg>
-            <span>{{ detectorStatusChip.label }}</span>
-          </span>
           <div class="custom-select report-export-select" :class="{ open: openMenu === 'export' }" v-click-outside="() => closeMenu('export')">
             <button class="project-settings-btn" type="button" @click="toggleMenu('export')"><DocumentArrowDownIcon /><span>{{ sendingExport ? 'Экспорт...' : 'Экспорт отчёта' }}</span><ChevronDownIcon /></button>
             <div class="cs-list dropdown-panel export">
@@ -6159,6 +6160,12 @@ onMounted(() => {
   font-weight: 700;
   white-space: nowrap;
   cursor: default;
+}
+/* Инлайн-вариант рядом с названием проекта (по макету): компактнее */
+.detector-status-chip--inline {
+  height: auto;
+  padding: 0.32rem 0.66rem;
+  font-size: 0.78rem;
 }
 
 .detector-status-chip--on {
