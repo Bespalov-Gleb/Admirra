@@ -414,49 +414,6 @@
     />
 
     <template v-if="activeView === 'report'">
-    <section v-if="isAllChannelsMode && hasCompleteChannelBreakdown" class="channel-overview panel">
-      <div class="channel-overview__head">
-        <div>
-          <span class="channel-overview__eyebrow">Все каналы</span>
-          <h2>Распределение по источникам</h2>
-        </div>
-        <button
-          type="button"
-          class="channel-detail-toggle"
-          :class="{ active: showChannelDetails }"
-          :aria-pressed="showChannelDetails"
-          @click="showChannelDetails = !showChannelDetails"
-        >
-          <ChartBarIcon />
-          {{ showChannelDetails ? 'Скрыть разбивку' : 'Показать разбивку' }}
-          <ChevronDownIcon :class="{ rotated: showChannelDetails }" />
-        </button>
-      </div>
-      <div class="channel-overview__grid">
-        <article
-          v-for="channel in channelOverview"
-          :key="channel.key"
-          class="channel-overview-card"
-          :style="{ '--channel-color': channel.color, '--channel-soft': channel.soft }"
-        >
-          <div class="channel-overview-card__title">
-            <span><img :src="channel.asset" alt="" /></span>
-            <div>
-              <strong>{{ channel.name }}</strong>
-              <small>{{ channel.campaigns }} {{ channel.campaigns === 1 ? 'кампания' : 'кампаний' }}</small>
-            </div>
-            <b>{{ channel.share }}%</b>
-          </div>
-          <div class="channel-overview-card__value">{{ channel.expenses }}</div>
-          <div class="channel-overview-card__bar"><i :style="{ width: `${channel.share}%` }"></i></div>
-          <div class="channel-overview-card__meta">
-            <span>{{ channel.impressions }} показов</span>
-            <span>{{ channel.leads }}</span>
-          </div>
-        </article>
-      </div>
-    </section>
-
     <div v-if="dashboardSyncInProgress || allChannelsDataLoading" class="kpi-grid kpi-grid--sync">
       <article v-for="item in METRIC_CONFIG" :key="item.key" class="metric-card metric-card--skeleton">
         <span class="metric-skeleton-icon"></span>
@@ -473,7 +430,7 @@
       v-model="visibleSlots"
       tag="section"
       class="kpi-grid"
-      :class="{ 'kpi-grid--channel-details': isAllChannelsMode && hasCompleteChannelBreakdown && showChannelDetails }"
+      :class="{ 'kpi-grid--channel-details': showKpiChannelSplit }"
       :animation="150"
       handle=".drag-handle"
       draggable=".metric-card-item"
@@ -501,7 +458,16 @@
             <component :is="metricsMap[key]?.icon" />
           </span>
           <div class="metric-text">
-            <h3>{{ metricsMap[key]?.title }}</h3>
+            <h3>
+              {{ metricsMap[key]?.title }}
+              <span
+                v-if="metricsMap[key]?.hint"
+                class="metric-hint"
+                :title="metricsMap[key]?.hintTitle"
+              >· {{ metricsMap[key]?.hint }}
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01" stroke-linecap="round"/></svg>
+              </span>
+            </h3>
             <strong>{{ metricsMap[key]?.value }}</strong>
           </div>
           <span v-if="metricsMap[key]?.trend" class="trend" :class="{ negative: metricsMap[key]?.negative }">
@@ -513,7 +479,7 @@
             <XMarkIcon />
           </button>
         </div>
-        <div v-if="isAllChannelsMode && hasCompleteChannelBreakdown && showChannelDetails" class="metric-channel-breakdown">
+        <div v-if="showKpiChannelSplit" class="metric-channel-breakdown">
           <div
             v-for="channel in metricsMap[key]?.breakdown || []"
             :key="channel.key"
@@ -660,16 +626,6 @@
             <h2>Эффективность кампаний</h2>
             <p>{{ dateRangeLabel }}</p>
           </div>
-          <div v-if="isAllChannelsMode && hasCompleteChannelBreakdown" class="chart-breakdown-switch" role="group" aria-label="Режим графика">
-            <button type="button" :class="{ active: chartBreakdownMode === 'total' }" @click="setChartBreakdownMode('total')">
-              <ChartBarIcon />
-              Общий тренд
-            </button>
-            <button type="button" :class="{ active: chartBreakdownMode === 'channels' }" @click="setChartBreakdownMode('channels')">
-              <ArrowPathRoundedSquareIcon />
-              Сравнить каналы
-            </button>
-          </div>
         </div>
         <div v-else class="panel-title-row">
           <h2>Эффективность кампаний</h2>
@@ -697,7 +653,7 @@
             </div>
           </div>
           <div
-            v-if="isAllChannelsMode && hasCompleteChannelBreakdown && chartBreakdownMode === 'channels'"
+            v-if="showKpiChannelSplit"
             class="chart-control-group chart-control-group--channels"
           >
             <span class="chart-control-label">Каналы</span>
@@ -901,7 +857,7 @@
                   <span v-if="bar.alert" class="row-anomaly-dot" :class="`row-anomaly-dot--${bar.alert.severity}`"></span>
                 </span>
                 <div class="goals-bar-meta">
-                  <strong class="goals-bar-count">{{ bar.countText }}</strong>
+                  <strong class="goals-bar-count" :class="bar.countClass">{{ bar.countText }}</strong>
                   <span v-if="bar.trend !== null" class="goals-bar-trend" :class="bar.trendClass">{{ bar.trendText }}</span>
                 </div>
               </div>
@@ -980,19 +936,6 @@
       <div class="panel-title-row">
         <h2>Рекламные кампании</h2>
         <div class="campaign-sort-tabs" aria-label="Сортировка кампаний">
-          <div v-if="isAllChannelsMode" class="campaign-channel-tabs" aria-label="Фильтр каналов в таблице">
-            <button
-              v-for="channel in campaignChannelOptions"
-              :key="channel.key"
-              type="button"
-              :class="{ active: campaignChannelFilter === channel.key }"
-              @click="campaignChannelFilter = channel.key"
-            >
-              <img v-if="channel.asset" :src="channel.asset" alt="" class="campaign-channel-tab-icon" />
-              <i v-else-if="channel.color" :style="{ background: channel.color }"></i>
-              {{ channel.label }}
-            </button>
-          </div>
           <span class="campaign-sort-label">Сортировать по</span>
           <button
             v-for="option in campaignSortOptions"
@@ -1223,42 +1166,6 @@
           <i></i><i></i><i></i>
         </div>
       </article>
-
-      <div class="side-stat-stack">
-        <article class="panel mini-stat-panel" :class="{ 'panel--syncing': dashboardSyncInProgress }">
-          <h2>Типы устройств</h2>
-          <div v-for="item in deviceStats" :key="item.name" class="progress-line">
-            <span><component :is="item.icon" />{{ item.name }}</span>
-            <div><i :style="{ width: item.width }"></i></div>
-            <b>{{ item.value }}</b>
-          </div>
-          <div v-if="dashboardSyncInProgress" class="sync-panel-overlay sync-panel-overlay--compact">
-            <ArrowPathIcon class="spinning" />
-            <strong>Синхронизация</strong>
-            <i></i><i></i>
-          </div>
-        </article>
-
-        <article class="panel mini-stat-panel" :class="{ 'panel--syncing': dashboardSyncInProgress }">
-          <h2>Плейсменты</h2>
-          <div v-for="item in placements" :key="item.name" class="progress-line placement-line">
-            <span>
-              <span class="placement-icon" :class="item.name === 'РСЯ' ? 'placement-icon--rsya' : 'placement-icon--search'">
-                <img v-if="item.name === 'РСЯ'" :src="yandexDirectIcon" alt="РСЯ" class="placement-icon-img" />
-                <MagnifyingGlassIcon v-else />
-              </span>
-              {{ item.name }}
-            </span>
-            <div><i :style="{ width: item.width }"></i></div>
-            <b>{{ item.value }}</b>
-          </div>
-          <div v-if="dashboardSyncInProgress" class="sync-panel-overlay sync-panel-overlay--compact">
-            <ArrowPathIcon class="spinning" />
-            <strong>Синхронизация</strong>
-            <i></i><i></i>
-          </div>
-        </article>
-      </div>
     </section>
     </template>
 
@@ -1801,8 +1708,10 @@ const METRIC_CONFIG = [
   { key: 'impressions', title: 'Показы',         subtitle: 'По всем каналам', icon: 'chart',    costMetric: false },
   { key: 'clicks',      title: 'Клики',          subtitle: 'Все переходы',    icon: 'cursor',   costMetric: false },
   { key: 'cpc',         title: 'СРС',            subtitle: 'Стоимость клика', icon: 'play',     costMetric: true  },
-  { key: 'leads',       title: 'Лиды',           subtitle: 'По всем каналам', icon: 'calendar', costMetric: false },
-  { key: 'cpa',         title: 'CPL',            subtitle: 'Стоимость лида',  icon: 'badge',    costMetric: true  },
+  { key: 'leads',       title: 'Лиды',           subtitle: 'По всем каналам', icon: 'calendar', costMetric: false,
+    hint: 'по выбранным', hintTitle: 'Действия, отмеченные как лиды в настройках интеграций: VK — выбранные действия (lead-формы и т.п.), Яндекс — выбранные цели Метрики, Авито — цели по UTM. Канал без настроенных лидов в сумму не входит.' },
+  { key: 'cpa',         title: 'CPL',            subtitle: 'Стоимость лида',  icon: 'badge',    costMetric: true,
+    hint: 'по выбранным', hintTitle: 'Лидовый расход ÷ лиды. Лидовый расход — только кампании, способные давать выбранные лиды: VK — кампании с лидовым objective, Яндекс — без медийных/охватных, Авито — весь расход.' },
 ]
 
 // KPI cards drag & hide
@@ -1844,7 +1753,9 @@ const reportSchedule = ref({ ...defaultReportSchedule })
 const reportDeliveryChannels = ref([])
 const selectedChartPeriod = ref('Месяц')
 const chartSelectedMetricKeys = ref(['expenses'])
-const chartBreakdownMode = ref('total')
+// Режим графика всегда «разбивка по каналам» — общий переключатель убран
+// (ТЗ единого дашборда п.5). Значение оставлено константой для computeds ниже.
+const chartBreakdownMode = ref('channels')
 const chartSelectedPlatforms = ref(['yandex', 'vk', 'avito'])
 const chartHoverIndex = ref(-1)
 const chartSvgRef = ref(null)
@@ -2060,7 +1971,14 @@ const directionSuggestionsLoading = ref(false)
 const directionLabelSaving = ref(false)
 const selectedDirectionLabelKey = ref('directions')
 const directionEditor = ref({ id: null, name: '', masks: [] })
-const showChannelDetails = ref(true)
+// Разбивка по каналам внутри KPI-карточек: всегда видна при 2+ каналах
+// (отдельный блок «Распределение по источникам» убран как дубль). При одном
+// канале сплита нет (ТЗ единого дашборда п.2, п.14).
+const showKpiChannelSplit = computed(() =>
+  isAllChannelsMode.value
+  && hasCompleteChannelBreakdown.value
+  && availableDashboardChannels.value.length > 1
+)
 const campaignChannelFilter = ref('all')
 
 const directionLabels = {
@@ -3082,12 +3000,12 @@ const campaignTrend = (value, metric) => {
 
 const campaignSortUserTouched = ref(false)
 const campaignSortOptions = [
+  { value: 'cost', label: 'Расход' },
   { value: 'alerts', label: 'Отклонения' },
   { value: 'leads', label: 'Лиды' },
-  { value: 'cost', label: 'Расход' },
-  { value: 'cpl', label: 'CPL' },
+  { value: 'cpl', label: 'CPA цели' },
 ]
-const campaignSort = ref('leads')
+const campaignSort = ref('cost')
 const CAMPAIGN_COLUMNS_STORAGE_KEY = 'admirra:campaign-table-column-widths:v1'
 const campaignTableColumns = [
   { key: 'name', label: 'Название кампании', width: 390, min: 260 },
@@ -3691,7 +3609,7 @@ const chartMetricChips = [
   { key: 'clicks', label: 'Клики', color: '#159DCE', legacyColor: '#38BDF8', soft: '#eaf8fd', money: false, icon: CursorArrowRaysIcon },
   { key: 'cpc', label: 'CPC', color: '#9461D8', legacyColor: '#D38CFF', soft: '#f5effc', money: true, icon: CursorArrowRippleIcon },
   { key: 'cpa', label: 'CPL', color: '#D97706', legacyColor: '#EB8525', soft: '#fff6e8', money: true, icon: CheckBadgeIcon },
-  { key: 'leads', label: 'Конверсии', color: '#2F9E58', legacyColor: '#8ADA70', soft: '#edf9f1', money: false, icon: CheckCircleIcon },
+  { key: 'leads', label: 'Лиды', color: '#2F9E58', legacyColor: '#8ADA70', soft: '#edf9f1', money: false, icon: CheckCircleIcon },
 ]
 
 const CHART_VIEWBOX_HEIGHT = 300
@@ -4196,7 +4114,11 @@ const goalsTotalLabel = computed(() => {
   return `${formatNumber(total || fallback)} шт.`
 })
 
-const buildGoalBars = (sourceItems) => {
+// Бары целей — по КОЛИЧЕСТВУ конверсий относительно максимума в канале (расход в
+// разрезе цели физически не существует). Единый цвет канала; красный — только для
+// строк с нулём при наличии расхода канала (ТЗ единого дашборда п.7).
+const GOAL_ZERO_COLOR = '#E5484D'
+const buildGoalBars = (sourceItems, { channelColor = null, channelHasSpend = false } = {}) => {
   const colors = ['#3f63f6', '#f39a72', '#6ee7b7', '#8ada70', '#d38cff', '#38bdf8', '#facc15', '#fb7185', '#a78bfa', '#14b8a6']
   if (!sourceItems.length) return []
   const items = sourceItems.map((goal, index) => {
@@ -4206,11 +4128,13 @@ const buildGoalBars = (sourceItems) => {
     const trend = Number.isFinite(trendRaw) ? trendRaw : null
     const id = goal.id || goal.goal_id || goal.external_id || `goal-${index}`
     const alert = getAlertForEntity('goal', id)
+    const zeroWithSpend = safeCount === 0 && channelHasSpend
     return {
       id,
       name: goal.name || goal.goal_name || `Цель ${index + 1}`,
       count: safeCount,
-      color: goal.color || colors[index % colors.length],
+      zeroWithSpend,
+      color: zeroWithSpend ? GOAL_ZERO_COLOR : (channelColor || goal.color || colors[index % colors.length]),
       trend,
       alert,
       alertClass: alert ? `goals-bar-row--anomaly-${alert.severity}` : '',
@@ -4222,12 +4146,18 @@ const buildGoalBars = (sourceItems) => {
     ...item,
     pct: (item.count / maxCount) * 100,
     countText: `${formatNumber(item.count)} шт.`,
+    countClass: item.zeroWithSpend ? 'goals-bar-count--zero' : '',
     trendText: item.trend !== null ? `${item.trend > 0 ? '+' : ''}${formatNumber(item.trend, 1)}%` : null,
     trendClass: item.trend !== null ? (item.trend >= 0 ? 'goals-bar-trend--up' : 'goals-bar-trend--down') : '',
   }))
 }
 
-const goalBars = computed(() => buildGoalBars(dashboardGoalItems.value))
+const goalBars = computed(() => {
+  const key = normalizeDashboardPlatform(filters.channel) || 'yandex'
+  const meta = dashboardChannelMeta[key] || dashboardChannelMeta.yandex
+  const expenses = withCostBreakdownVat(dashboardSummary.value?.expenses || 0, dashboardSummary.value?.cost_by_platform, key)
+  return buildGoalBars(dashboardGoalItems.value, { channelColor: meta.color, channelHasSpend: expenses > 0 })
+})
 
 const goalsSummaryCpl = computed(() => {
   const totalGoals = selectedDashboardGoalItems.value.reduce((sum, item) => {
@@ -4245,9 +4175,9 @@ const goalChannelGroups = computed(() => {
       const rawItems = reportGoalsByChannel.value?.[channel.key] || []
       const selectedItems = rawItems.filter((item) => item.summable !== false)
       const displayItems = channel.key === 'vk' ? rawItems : selectedItems
-      const bars = buildGoalBars(displayItems)
-      const total = selectedItems.reduce((sum, item) => sum + Number(item.count || 0), 0)
       const expenses = channelAdjustedExpenses(channel.key, channel.summary)
+      const bars = buildGoalBars(displayItems, { channelColor: channel.color, channelHasSpend: expenses > 0 })
+      const total = selectedItems.reduce((sum, item) => sum + Number(item.count || 0), 0)
       return {
         ...channel,
         source: channel.key === 'vk' ? 'Действия VK Ads' : 'Конверсии Яндекс Метрики',
@@ -7861,6 +7791,17 @@ onMounted(() => {
   color: #ababab;
   line-height: 1;
 }
+.metric-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: #b7bdc9;
+  cursor: help;
+  white-space: nowrap;
+}
+.metric-hint svg { opacity: 0.75; }
 
 .metric-card p {
   margin: 1.4rem 0 0;
@@ -8550,6 +8491,7 @@ onMounted(() => {
   color: #1e293b;
   white-space: nowrap;
 }
+.goals-bar-count--zero { color: #e5484d; }
 
 .goals-bar-trend {
   font-size: 0.9rem;
@@ -9112,7 +9054,7 @@ onMounted(() => {
 
 .bottom-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 33.3rem;
+  grid-template-columns: minmax(0, 1fr);
   gap: 2rem;
   margin-top: 2rem;
 }
@@ -10072,7 +10014,7 @@ onMounted(() => {
 }
 
 .bottom-grid {
-  grid-template-columns: minmax(0, 1fr) minmax(18.75rem, 0.55fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.3889rem;
   margin-top: 1.3889rem;
 }
