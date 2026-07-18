@@ -432,6 +432,9 @@ class StatsSummary(BaseModel):
     # применять НДС по каждой площадке (Яндекс/VK ×1.22, Avito уже с НДС). Без этого
     # поля Pydantic вырезал его из ответа, и в режиме папки НДС для VK не начислялся.
     cost_by_platform: Optional[Dict[str, float]] = None
+    # «Лидовый расход» по каналам — для расчёта CPL по лидоспособным кампаниям
+    # (VK — лидовый objective, Авито/Яндекс — весь расход). ТЗ единого дашборда п.10.
+    lead_cost_by_platform: Optional[Dict[str, float]] = None
 
 # Client Schemas
 class ClientBase(BaseModel):

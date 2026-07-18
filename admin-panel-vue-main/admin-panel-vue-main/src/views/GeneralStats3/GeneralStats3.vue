@@ -3535,11 +3535,26 @@ const dashboardSummary = computed(() => {
     cost_by_platform: Object.fromEntries(
       availableDashboardChannels.value.map((item) => [item.key, Number(item.summary.expenses || 0)])
     ),
+    // Лидовый расход по каналам для сводного CPL (ТЗ единого дашборда п.10).
+    lead_cost_by_platform: Object.fromEntries(
+      availableDashboardChannels.value.map((item) => [
+        item.key,
+        Number(item.summary.lead_cost_by_platform?.[item.key] ?? item.summary.expenses ?? 0),
+      ])
+    ),
   }
 })
 
 const channelAdjustedExpenses = (key, data) =>
   withVat(Number(data?.expenses || 0), { platform: key })
+
+// Лидовый расход канала (для CPL по п.10): VK — расход лидовых кампаний, Яндекс/Авито
+// — весь расход. lead_cost_by_platform приходит в per-channel summary с бэка.
+const channelLeadExpenses = (key, data) => {
+  const lead = data?.lead_cost_by_platform?.[key]
+  const base = lead === undefined || lead === null ? Number(data?.expenses || 0) : Number(lead)
+  return withVat(base, { platform: key })
+}
 
 const channelMetricRawValue = (key, metricKey, data) => {
   const expenses = channelAdjustedExpenses(key, data)
@@ -3602,8 +3617,11 @@ const metrics = computed(() => {
   const cpaAvailable = data.cpa_available !== false
   const goalsSyncing = Boolean(data.goals_syncing)
   const adjustedExpenses = withCostBreakdownVat(data.expenses, data.cost_by_platform)
+  // CPL считаем от ЛИДОВОГО расхода (кампании, способные давать лиды), а не от всего
+  // расхода канала (ТЗ единого дашборда п.10). lead_cost_by_platform приходит с бэка.
+  const adjustedLeadExpenses = withCostBreakdownVat(data.expenses, data.lead_cost_by_platform || data.cost_by_platform)
   const adjustedCpc = Number(data.clicks || 0) > 0 ? adjustedExpenses / Number(data.clicks || 0) : withVat(data.cpc)
-  const adjustedCpa = Number(data.leads || 0) > 0 ? adjustedExpenses / Number(data.leads || 0) : withVat(data.cpa)
+  const adjustedCpa = Number(data.leads || 0) > 0 ? adjustedLeadExpenses / Number(data.leads || 0) : withVat(data.cpa)
   const values = {
     expenses:    hasData ? formatMoney(adjustedExpenses)                          : '—',
     impressions: hasData ? formatNumber(data.impressions)                         : '—',
@@ -4192,9 +4210,12 @@ const goalsSummaryCpl = computed(() => {
     const count = parseOptionalNumber(item.count ?? item.conversions ?? item.value)
     return sum + (Number.isFinite(count) ? count : 0)
   }, 0)
-  const expenses = withCostBreakdownVat(dashboardSummary.value?.expenses || 0, dashboardSummary.value?.cost_by_platform)
-  if (!totalGoals || !expenses) return '—'
-  return formatMoney(expenses / totalGoals)
+  const leadExpenses = withCostBreakdownVat(
+    dashboardSummary.value?.expenses || 0,
+    dashboardSummary.value?.lead_cost_by_platform || dashboardSummary.value?.cost_by_platform,
+  )
+  if (!totalGoals || !leadExpenses) return '—'
+  return formatMoney(leadExpenses / totalGoals)
 })
 
 const goalChannelGroups = computed(() => {
@@ -4204,6 +4225,7 @@ const goalChannelGroups = computed(() => {
       const selectedItems = rawItems.filter((item) => item.summable !== false)
       const displayItems = channel.key === 'vk' ? rawItems : selectedItems
       const rawExpenses = channelAdjustedExpenses(channel.key, channel.summary)
+      const leadExpenses = channelLeadExpenses(channel.key, channel.summary)
       const bars = buildGoalBars(displayItems, { channelColor: channel.color, channelHasSpend: rawExpenses > 0 })
       const total = selectedItems.reduce((sum, item) => sum + Number(item.count || 0), 0)
       return {
@@ -4218,7 +4240,8 @@ const goalChannelGroups = computed(() => {
         // (ТЗ единого дашборда п.14). Для VK/Яндекса это отсутствие выбранных целей.
         leadsConfigured: selectedItems.length > 0,
         expenses: formatMoney(rawExpenses),
-        cpl: total > 0 ? formatMoney(rawExpenses / total) : '—',
+        // CPL — от лидового расхода канала (п.10), не от всего расхода.
+        cpl: total > 0 ? formatMoney(leadExpenses / total) : '—',
         summaryLabel: channel.key === 'vk'
           ? (total > 0 ? 'Заявки · по выбранным действиям · общий CPL' : 'Выберите действия для расчёта CPL')
           : 'Все конверсии · общий CPL',

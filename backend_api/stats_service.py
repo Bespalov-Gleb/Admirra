@@ -280,6 +280,7 @@ class StatsService:
                 "goals_syncing": False,
                 "goals_sync_message": None,
                 "cost_by_platform": {"yandex": 0, "vk": 0, "avito": 0},
+                "lead_cost_by_platform": {"yandex": 0, "vk": 0, "avito": 0},
                 "trends": None
             }
 
@@ -646,13 +647,22 @@ class StatsService:
                 avg_cpa = 0.0
             
             return {
-                "costs": costs, 
-                "imps": imps, 
-                "clks": clks, 
+                "costs": costs,
+                "imps": imps,
+                "clks": clks,
                 "convs": convs,
                 "cost_by_platform": {
                     "yandex": round(yandex_cost, 2),
                     "vk": round(vk_cost, 2),
+                    "avito": round(avito_cost, 2),
+                },
+                # «Лидовый расход» по каналам (ТЗ единого дашборда п.10): CPL считаем не
+                # от всего расхода канала, а от расхода кампаний, способных давать лиды.
+                # VK — только кампании с лидовым objective (vk_lead_cost); Авито — весь
+                # расход; Яндекс — весь расход (медийные/охватные пока не размечены в БД).
+                "lead_cost_by_platform": {
+                    "yandex": round(yandex_cost, 2),
+                    "vk": round(vk_lead_cost, 2),
                     "avito": round(avito_cost, 2),
                 },
                 "avg_cpc": avg_cpc,  # Взвешенное среднее CPC
@@ -790,6 +800,7 @@ class StatsService:
                 "goals_syncing": goals_syncing,
                 "goals_sync_message": "Данные целей ещё синхронизируются" if goals_syncing else None,
                 "cost_by_platform": curr.get("cost_by_platform", {"yandex": 0, "vk": 0, "avito": 0}),
+                "lead_cost_by_platform": curr.get("lead_cost_by_platform", {"yandex": 0, "vk": 0, "avito": 0}),
                 "revenue": 0.0,
                 "profit": -round(curr["costs"], 2),
                 "roi": -100.0 if curr["costs"] > 0 else 0.0,
@@ -876,6 +887,7 @@ class StatsService:
             "goals_syncing": goals_syncing,
             "goals_sync_message": "Данные целей ещё синхронизируются" if goals_syncing else None,
             "cost_by_platform": curr.get("cost_by_platform", {"yandex": 0, "vk": 0, "avito": 0}),
+            "lead_cost_by_platform": curr.get("lead_cost_by_platform", {"yandex": 0, "vk": 0, "avito": 0}),
             "revenue": 0.0,  # Placeholder for future financial integration
             "profit": -round(curr["costs"], 2),
             "roi": -100.0 if curr["costs"] > 0 else 0.0,

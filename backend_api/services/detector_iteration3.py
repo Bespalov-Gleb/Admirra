@@ -110,6 +110,25 @@ def _vk_leads_query(db: Session, client_id: uuid.UUID, start: date, end: date, v
     return query
 
 
+def _vk_lead_spend(db: Session, client_id: uuid.UUID, start: date, end: date, vk_codes: set[str] | None) -> float | None:
+    """«Лидовый расход» VK — расход только лидоспособных кампаний (ТЗ единого
+    дашборда п.10). None — выбор лид-типов не настроен (legacy: весь расход)."""
+    if vk_codes is None:
+        return None
+    row = (
+        db.query(func.sum(models.VKStats.cost))
+        .join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id)
+        .filter(
+            models.VKStats.client_id == client_id,
+            models.VKStats.date >= start,
+            models.VKStats.date <= end,
+            models.Campaign.vk_goal_action_id.in_(vk_codes),
+        )
+        .one()
+    )
+    return float(row[0] or 0)
+
+
 def _selected_goal_ids(integrations: Iterable[models.Integration]) -> set[str]:
     result: set[str] = set()
     for integration in integrations:
@@ -159,6 +178,11 @@ def _sum_channel_stats(
             leads = int(row[2] or 0)
         else:
             leads = int(_vk_leads_query(db, client_id, start, end, vk_codes).scalar() or 0)
+            # CPL считаем от лидового расхода — расход кампаний с лидовым objective,
+            # а не всего кабинета VK (ТЗ единого дашборда п.10).
+            lead_spend = _vk_lead_spend(db, client_id, start, end, vk_codes)
+            if lead_spend is not None:
+                raw_spend = lead_spend
     else:
         query = db.query(func.sum(models.MetrikaGoals.conversion_count)).filter(
             models.MetrikaGoals.client_id == client_id,
