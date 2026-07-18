@@ -78,7 +78,7 @@
           />
         </div>
 
-        <div v-if="isVkIntegration" class="ip-main">
+        <div v-if="isVkIntegration" class="ip-main" data-vk-lead-actions>
           <h4 class="ip-section-title mb-[0.4167rem]">Целевые действия VK Ads</h4>
           <p class="ip-section-sub">Выберите только те реальные результаты кампаний, которые считать лидами. Изменение не требует повторной авторизации.</p>
           <div v-if="loadingVkLeadActions" class="ip-goals-loading">Загружаем действия…</div>

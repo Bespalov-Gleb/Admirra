@@ -306,7 +306,17 @@ const maybeAutoOpenSettings = async () => {
   const match = integrations.value.find(
     (i) => String(i.platform || '').toUpperCase() === target && i.status !== 'available',
   )
-  if (match) openSettings(match)
+  if (!match) return
+  await openSettings(match)
+  // Для VK — доскроллить прямо к блоку «Целевые действия VK Ads» (выбор лидов),
+  // а не только к карточке (панель рендерит контент асинхронно).
+  if (target === 'VK_ADS') {
+    await nextTick()
+    setTimeout(() => {
+      const el = document.querySelector('[data-vk-lead-actions]')
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 350)
+  }
 }
 
 onMounted(async () => {
