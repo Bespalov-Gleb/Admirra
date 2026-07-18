@@ -34,14 +34,14 @@
     </button>
 
     <section class="heading-section">
-      <div class="dashboard-title-row dashboard-title-row--actions">
-        <h1>{{ dashboardTitle }}</h1>
+      <div
+        v-if="isOrganizationDashboardProject || (filters.client_id && detectorSummary)"
+        class="dashboard-project-meta"
+      >
         <span v-if="isOrganizationDashboardProject" class="org-badge" title="Кабинет Яндекса подключён как организация">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/><path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01"/></svg>
-          Организация
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/><path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01"/></svg>
+          <span>Организация</span>
         </span>
-        <!-- Статус детектора — сразу после названия проекта (по макету владельца),
-             до вкладок; не дублируется в действиях справа. -->
         <span
           v-if="filters.client_id && detectorSummary"
           class="detector-status-chip detector-status-chip--inline"
@@ -52,6 +52,9 @@
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.8-3 8.6-7 10-4-1.4-7-5.2-7-10V6l7-3z"/></svg>
           <span>{{ detectorStatusChip.label }}</span>
         </span>
+      </div>
+      <div class="dashboard-title-row dashboard-title-row--actions">
+        <h1>{{ dashboardTitle }}</h1>
         <div class="dashboard-view-tabs" role="tablist" aria-label="Режим экрана">
           <button
             type="button"
@@ -260,12 +263,10 @@
           </Teleport>
         </div>
 
-        <div class="filter-right-group custom-select dashboard-more-select" :class="{ open: openMenu === 'report-options' }" v-click-outside="() => closeMenu('report-options')">
-          <button type="button" class="filter-btn cs-head" @click="toggleMenu('report-options')">⋯ НДС, доп. параметры</button>
-          <div class="cs-list dropdown-panel dashboard-options-menu">
-            <label class="nds-check-wrap"><input type="checkbox" v-model="includeVat" class="nds-checkbox" /><span class="nds-label">НДС 22%</span></label>
-          </div>
-        </div>
+        <label class="nds-check-wrap dashboard-nds-control">
+          <input v-model="includeVat" type="checkbox" class="nds-checkbox" />
+          <span class="nds-label">НДС 22%</span>
+        </label>
 
         <button type="button" class="sync-status-label" :class="{ active: dashboardSyncInProgress }" :disabled="dashboardSyncInProgress" @click="handleSyncIntegrations">
           <ArrowPathIcon :class="{ spinning: dashboardSyncInProgress }" />
@@ -14751,13 +14752,14 @@ onMounted(() => {
 /* Dashboard v2: только верхняя сервисная зона (до фильтров). */
 .dashboard-service-row { display:flex; align-items:center; gap:.75rem; min-height:3.5rem; padding:0 0 .9rem; border-bottom:1px solid #e9edf3; }
 .dashboard-service-sources { display:flex; align-items:center; flex-wrap:wrap; gap:.45rem; min-width:0; }
-.dashboard-source-chip,.dashboard-source-add { display:inline-flex; align-items:center; gap:.35rem; min-height:1.8rem; padding:.25rem .65rem; border:0; border-radius:999px; font-size:.75rem; font-weight:650; white-space:nowrap; }
-.dashboard-source-chip { background:#fcf1dc; color:#9a6a12; }.dashboard-source-chip img { width:1rem; height:1rem; object-fit:contain; }.dashboard-source-chip--vk { background:#edf4ff; color:#2563eb; }.dashboard-source-chip--avito { background:#eef8f2; color:#16834a; }
+.dashboard-source-chip,.dashboard-source-add { display:inline-flex; align-items:center; gap:.4rem; min-height:2rem; padding:.28rem .72rem; border:0; border-radius:999px; font-size:.86rem; font-weight:650; white-space:nowrap; }
+.dashboard-source-chip { background:#fcf1dc; color:#9a6a12; }.dashboard-source-chip img { width:1.08rem; height:1.08rem; object-fit:contain; }.dashboard-source-chip--vk { background:#edf4ff; color:#2563eb; }.dashboard-source-chip--avito { background:#eef8f2; color:#16834a; }
 .dashboard-source-add { border:1px dashed #d9e0ea; background:#fff; color:#98a2b6; cursor:pointer; }
-.dashboard-delivery-status,.dashboard-delivery-empty { display:inline-flex; align-items:center; gap:.4rem; margin-left:auto; border:0; background:transparent; color:#5c6b84; font-size:.76rem; text-align:right; cursor:pointer; }.dashboard-delivery-status:hover,.dashboard-delivery-empty:hover { color:#2f6bea; }.dashboard-delivery-status svg { width:1rem; height:1rem; }.dashboard-delivery-single { display:inline-flex; align-items:center; gap:.25rem; min-width:0; }.dashboard-delivery-kind { display:grid; place-items:center; width:1.08rem; height:1.08rem; border-radius:.28rem; background:#2aa5e0; color:#fff; font-size:.62rem; font-weight:800; }.dashboard-delivery-kind--max { background:#6c5ce7; }.dashboard-delivery-kind--email { background:#8896ac; }.dashboard-delivery-empty b { margin-left:.25rem; color:#2f6bea; }
+.dashboard-delivery-status,.dashboard-delivery-empty { display:inline-flex; align-items:center; gap:.42rem; margin-left:auto; border:0; background:transparent; color:#5c6b84; font-size:.86rem; text-align:right; cursor:pointer; }.dashboard-delivery-status:hover,.dashboard-delivery-empty:hover { color:#2f6bea; }.dashboard-delivery-status svg { width:1.08rem; height:1.08rem; }.dashboard-delivery-single { display:inline-flex; align-items:center; gap:.25rem; min-width:0; }.dashboard-delivery-kind { display:grid; place-items:center; width:1.14rem; height:1.14rem; border-radius:.28rem; background:#2aa5e0; color:#fff; font-size:.66rem; font-weight:800; }.dashboard-delivery-kind--max { background:#6c5ce7; }.dashboard-delivery-kind--email { background:#8896ac; }.dashboard-delivery-empty b { margin-left:.25rem; color:#2f6bea; }
 .dashboard-pending-row { display:flex; align-items:center; width:100%; gap:.55rem; margin-top:.75rem; padding:.6rem .9rem; border:0; border-radius:.65rem; background:#fcf1dc; color:#9a6a12; text-align:left; cursor:pointer; }.dashboard-pending-row > span { color:#efa827; }.dashboard-pending-row strong { font-size:.78rem; font-weight:600; }.dashboard-pending-row em { margin-left:auto; color:#fff; border-radius:.4rem; background:#2f6bea; padding:.28rem .55rem; font-size:.72rem; font-style:normal; font-weight:700; }
-.dashboard-title-row--actions { display:flex; align-items:center; gap:.65rem; flex-wrap:wrap; margin-top:1.15rem; }.dashboard-title-row--actions h1 { margin:0; }.dashboard-title-row--actions .dashboard-view-tabs { margin-left:.1rem; }.dashboard-report-actions { margin-left:auto; display:flex; align-items:center; gap:.45rem; }.dashboard-report-actions .project-settings-btn { min-height:2.15rem; padding:.42rem .7rem; font-size:.76rem; }.dashboard-report-actions .project-settings-btn > svg { width:1rem; height:1rem; }.dashboard-send-split { display:flex; position:relative; overflow:visible; }.dashboard-send-main,.dashboard-send-caret { min-height:2.15rem; border:0; color:#fff; background:#2f6bea; cursor:pointer; font-size:.78rem; font-weight:700; }.dashboard-send-main { padding:0 .75rem; border-radius:.55rem 0 0 .55rem; }.dashboard-send-caret { padding:0 .42rem; border-left:1px solid rgba(255,255,255,.24); border-radius:0 .55rem .55rem 0; }.dashboard-send-caret svg { width:.9rem; }.dashboard-delivery-menu { right:0; left:auto; min-width:13rem; }
-.filters-row { align-items:center; }.sync-status-label { margin-left:auto; min-height:2rem; border:0; background:transparent; padding:.25rem .4rem; color:#98a2b6; font:inherit; font-size:.76rem; cursor:pointer; }.sync-status-label:hover:not(:disabled) { color:#2f6bea; }.filter-right-group { margin-left:0; position:relative; }.dashboard-options-menu { right:0; left:auto; min-width:11rem; padding:.55rem; }.dashboard-options-menu .nds-check-wrap { padding:.35rem; }.dashboard-options-menu .nds-label { font-size:.78rem; }
+.dashboard-project-meta { display:flex; align-items:center; gap:.45rem; min-height:1.9rem; }.dashboard-project-meta .org-badge,.dashboard-project-meta .detector-status-chip--inline { min-height:1.9rem; margin:0; padding:.32rem .66rem; font-size:.78rem; line-height:1; }.dashboard-project-meta .org-badge { gap:.34rem; }.dashboard-project-meta .org-badge svg { width:.76rem; height:.76rem; }.dashboard-project-meta .detector-status-chip--inline { gap:.36rem; }
+.dashboard-title-row--actions { display:flex; align-items:center; gap:.65rem; flex-wrap:wrap; margin-top:1.15rem; }.dashboard-project-meta + .dashboard-title-row--actions { margin-top:.55rem; }.dashboard-title-row--actions h1 { margin:0; }.dashboard-title-row--actions .dashboard-view-tabs { margin-left:.1rem; }.dashboard-report-actions { margin-left:auto; display:flex; align-items:center; gap:.45rem; }.dashboard-report-actions .project-settings-btn { min-height:2.15rem; padding:.42rem .7rem; font-size:.76rem; }.dashboard-report-actions .project-settings-btn > svg { width:1rem; height:1rem; }.dashboard-send-split { display:flex; position:relative; overflow:visible; }.dashboard-send-main,.dashboard-send-caret { min-height:2.15rem; border:0; color:#fff; background:#2f6bea; cursor:pointer; font-size:.78rem; font-weight:700; }.dashboard-send-main { padding:0 .75rem; border-radius:.55rem 0 0 .55rem; }.dashboard-send-caret { padding:0 .42rem; border-left:1px solid rgba(255,255,255,.24); border-radius:0 .55rem .55rem 0; }.dashboard-send-caret svg { width:.9rem; }.dashboard-delivery-menu { right:0; left:auto; min-width:13rem; }
+.filters-row { align-items:center; }.dashboard-nds-control { gap:.42rem; padding:.2rem .15rem; }.dashboard-nds-control .nds-checkbox { width:1rem; height:1rem; border-width:1.5px; }.dashboard-nds-control .nds-label { font-size:.82rem; font-weight:600; color:#778195; }.sync-status-label { margin-left:auto; min-height:2rem; border:0; background:transparent; padding:.25rem .4rem; color:#98a2b6; font:inherit; font-size:.76rem; cursor:pointer; }.sync-status-label:hover:not(:disabled) { color:#2f6bea; }
 .figma-dashboard.is-dark .dashboard-source-add { background:rgba(255,255,255,.04); border-color:rgba(255,255,255,.1); }.figma-dashboard.is-dark .dashboard-service-row { border-color:rgba(255,255,255,.1); }
 @media (max-width: 1000px) { .dashboard-service-row { align-items:flex-start; flex-direction:column; }.dashboard-delivery-status,.dashboard-delivery-empty { margin-left:0; text-align:left; }.dashboard-report-actions { width:100%; margin-left:0; } }
 @media (max-width: 620px) { .dashboard-title-row--actions .dashboard-view-tabs { order:4; }.dashboard-report-actions { flex-wrap:wrap; }.dashboard-report-actions .detector-status-chip { order:-1; }.filters-row .sync-status-label { margin-left:0; }.dashboard-delivery-status { font-size:.7rem; }.dashboard-delivery-status > svg,.dashboard-delivery-prefix { display:none; } }
