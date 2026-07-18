@@ -1093,6 +1093,18 @@ def run_detector_iteration3(
     # One goal-configuration read per run: every window below reuses it.
     selected = _selected_goal_ids(integrations)
     vk_codes = _vk_lead_codes(db, client_id)
+    # Настроены ли лиды по каналу: VK — по составу lead_action_types интеграции,
+    # Яндекс/Авито — по выбранным целям Метрики. Если лиды не настроены — детектор
+    # не может проверять план по лидам/CPL (P-2/P-3): без выбранных действий число
+    # лидов не определено, и проверки давали бы мусорные алерты (CPL=∞ и т.п.).
+    from backend_api.stats_service import StatsService as _Stats
+    _vk_scope = _Stats.get_vk_lead_action_scope(db, [client_id])
+
+    def _channel_leads_configured(integration) -> bool:
+        if integration.platform == models.IntegrationPlatform.VK_ADS:
+            return bool(_vk_scope.get(integration.id))
+        return bool(selected)
+
     targets_by_channel: dict[models.IntegrationPlatform, list[models.ProjectTargetCPA]] = {}
     for target in targets:
         if target.channel in AD_CHANNELS:
@@ -1111,20 +1123,24 @@ def run_detector_iteration3(
             continue
         fresh_channels.append(channel)
         budget = _budget_for_channel(budgets, channel)
+        leads_ok = _channel_leads_configured(integration)
         if budget:
             has_channel_budget = True
             candidate = _make_plan_spend(db, client_id, channel, budget, ref, client, cfg, selected)
             if candidate:
                 plan_checks.append(candidate)
-        for target in targets_by_channel.get(channel, []):
-            candidate = _make_plan_cpl(db, client_id, target, budget, ref, cfg, selected, vk_codes)
-            if candidate:
-                plan_checks.append(candidate)
-        summary = next((target for target in targets_by_channel.get(channel, []) if target.is_summary), None)
-        if budget:
-            candidate = _make_plan_leads(db, client_id, channel, budget, summary, ref, client, cfg, selected, vk_codes)
-            if candidate:
-                plan_checks.append(candidate)
+        # Лидовые проверки P-2 (CPL) и P-3 (заявки) — только когда лиды канала
+        # настроены; иначе детектор по лидам не работает (см. выше).
+        if leads_ok:
+            for target in targets_by_channel.get(channel, []):
+                candidate = _make_plan_cpl(db, client_id, target, budget, ref, cfg, selected, vk_codes)
+                if candidate:
+                    plan_checks.append(candidate)
+            summary = next((target for target in targets_by_channel.get(channel, []) if target.is_summary), None)
+            if budget:
+                candidate = _make_plan_leads(db, client_id, channel, budget, summary, ref, client, cfg, selected, vk_codes)
+                if candidate:
+                    plan_checks.append(candidate)
         for candidate in (
             _make_balance_alert(db, client_id, integration, ref, cfg, selected),
             _make_stopped_alert(db, client_id, integration, ref, cfg, selected),

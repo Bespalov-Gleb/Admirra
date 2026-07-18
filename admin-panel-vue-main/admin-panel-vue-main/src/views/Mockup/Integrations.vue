@@ -205,7 +205,7 @@
 
 <script setup>
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import api from '../../api/axios'
 import { useProjects } from '../../composables/useProjects'
 import { useToaster } from '../../composables/useToaster'
@@ -215,6 +215,7 @@ import IntegrationSettingsPanel from './IntegrationSettingsPanel.vue'
 const { currentProjectId } = useProjects()
 const toaster = useToaster()
 const router = useRouter()
+const route = useRoute()
 const {
   fetchSyncStatus,
   startIntegrationSync,
@@ -296,7 +297,22 @@ const fetchIntegrations = async () => {
   }
 }
 
-onMounted(fetchIntegrations)
+// Автооткрытие настроек интеграции по ссылке (напр. с дашборда «лиды не настроены →
+// Настроить»): ?open=VK_ADS открывает настройки VK текущего проекта.
+const maybeAutoOpenSettings = async () => {
+  const target = String(route.query.open || '').toUpperCase()
+  if (!target) return
+  await nextTick()
+  const match = integrations.value.find(
+    (i) => String(i.platform || '').toUpperCase() === target && i.status !== 'available',
+  )
+  if (match) openSettings(match)
+}
+
+onMounted(async () => {
+  await fetchIntegrations()
+  await maybeAutoOpenSettings()
+})
 
 // Смена проекта в хедере — перезагружаем список без перезагрузки страницы
 watch(currentProjectId, () => {

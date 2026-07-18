@@ -401,7 +401,7 @@
               type="button"
               class="metric-not-configured"
               title="Лиды не настроены в интеграции VK — отметьте лидовые действия, чтобы считать Лиды и CPL"
-              @click="openProjectSettingsModal"
+              @click="openVkLeadSettings"
             >лиды не настроены → Настроить</button>
             <strong v-else>{{ metricsMap[key]?.value }}</strong>
           </div>
@@ -807,7 +807,7 @@
               type="button"
               class="goals-channel-noleads"
               title="Лиды по этому каналу не настроены — канал не входит в сводные Лиды/CPL. Открыть настройки интеграции."
-              @click="openProjectSettingsModal"
+              @click="openVkLeadSettings(group.key)"
             >лиды не настроены</button>
             <span class="goals-channel-expense">{{ group.expenses }}</span>
           </div>
@@ -1651,6 +1651,16 @@ const goToIntegrations = (channel = null) => {
       ? { resume_integration_id: channel.id, initial_step: 2 }
       : (projectId ? { client_id: projectId } : {}),
   })
+}
+
+// «лиды не настроены → Настроить»: открываем страницу интеграций текущего проекта
+// с автооткрытой панелью настроек нужного канала (для VK — выбор лидовых действий).
+const CHANNEL_TO_INTEGRATION_PLATFORM = { yandex: 'YANDEX_DIRECT', vk: 'VK_ADS', avito: 'AVITO_ADS' }
+const openVkLeadSettings = (channelKey = null) => {
+  const key = channelKey || normalizeDashboardPlatform(filters.channel) || 'vk'
+  const platform = CHANNEL_TO_INTEGRATION_PLATFORM[key] || 'VK_ADS'
+  if (filters.client_id) setCurrentProject(filters.client_id)
+  router.push({ path: '/integrations', query: { open: platform } })
 }
 
 const fetchCampaignHighlights = async () => {
