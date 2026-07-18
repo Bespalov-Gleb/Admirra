@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from core.database import get_db
 from core import models, schemas, security
 from datetime import datetime, timedelta, date
@@ -1263,9 +1263,20 @@ async def get_dynamics(
         models.VKStats.date >= d_start,
         models.VKStats.date <= d_end,
     )
+    # Дневной «лидовый расход» VK (расход кампаний с лидовым objective) — для
+    # суточного CPL по п.10, чтобы график совпадал с KPL/summary.
+    v_lead_cost_stats = db.query(
+        models.VKStats.date,
+        func.sum(models.VKStats.cost).label("cost"),
+    ).join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id).filter(
+        models.VKStats.client_id.in_(effective_client_ids),
+        models.VKStats.date >= d_start,
+        models.VKStats.date <= d_end,
+    )
     if u_campaign_ids:
         v_stats = v_stats.filter(models.Campaign.id.in_(u_campaign_ids))
         v_lead_stats = v_lead_stats.filter(models.Campaign.id.in_(u_campaign_ids))
+        v_lead_cost_stats = v_lead_cost_stats.filter(models.Campaign.id.in_(u_campaign_ids))
         # CRITICAL: Also filter by integration_id when campaigns are selected
         campaign_integrations = db.query(models.Campaign.integration_id).filter(
             models.Campaign.id.in_(u_campaign_ids)
@@ -1274,12 +1285,19 @@ async def get_dynamics(
         if integration_ids:
             v_stats = v_stats.filter(models.Campaign.integration_id.in_(integration_ids))
             v_lead_stats = v_lead_stats.filter(models.Campaign.integration_id.in_(integration_ids))
+            v_lead_cost_stats = v_lead_cost_stats.filter(models.Campaign.integration_id.in_(integration_ids))
     if u_goal_action_ids:
         v_stats = v_stats.filter(models.Campaign.vk_goal_action_id.in_(u_goal_action_ids))
         v_lead_stats = v_lead_stats.filter(models.Campaign.vk_goal_action_id.in_(u_goal_action_ids))
+        v_lead_cost_stats = v_lead_cost_stats.filter(models.Campaign.vk_goal_action_id.in_(u_goal_action_ids))
     else:
         v_lead_stats = StatsService.apply_vk_lead_action_scope(
             v_lead_stats,
+            db,
+            effective_client_ids,
+        )
+        v_lead_cost_stats = StatsService.apply_vk_lead_action_scope(
+            v_lead_cost_stats,
             db,
             effective_client_ids,
         )
@@ -1292,6 +1310,7 @@ async def get_dynamics(
                 v_stats = v_stats.filter(models.Campaign.integration_id.in_(integration_ids))
     v_stats = v_stats.group_by(models.VKStats.date).all()
     v_lead_stats = v_lead_stats.group_by(models.VKStats.date).all()
+    v_lead_cost_stats = v_lead_cost_stats.group_by(models.VKStats.date).all()
 
     a_stats = db.query(
         models.AvitoStats.date,
@@ -1452,10 +1471,14 @@ async def get_dynamics(
         y_s = next((s for s in y_stats if s.date == d), None) if platform in ["all", "yandex"] else None
         v_s = next((s for s in v_stats if s.date == d), None) if platform in ["all", "vk"] else None
         v_lead_s = next((s for s in v_lead_stats if s.date == d), None) if platform in ["all", "vk"] else None
+        v_lead_cost_s = next((s for s in v_lead_cost_stats if s.date == d), None) if platform in ["all", "vk"] else None
         a_s = next((s for s in a_stats if s.date == d), None) if platform in ["all", "avito"] else None
         m_s = next((s for s in m_stats if s.date == d), None) if m_stats else None
 
         c = float((y_s.cost if y_s else 0) + (v_s.cost if v_s else 0) + (a_s.cost if a_s else 0))
+        # Лидовый расход дня (для CPL): VK — только лидовые кампании, Яндекс/Авито —
+        # весь расход (ТЗ единого дашборда п.10).
+        lead_c = float((y_s.cost if y_s else 0) + (v_lead_cost_s.cost if v_lead_cost_s else 0) + (a_s.cost if a_s else 0))
         cl = int((y_s.clicks if y_s else 0) + (v_s.clicks if v_s else 0) + (a_s.clicks if a_s else 0))
         im = int((y_s.impressions if y_s else 0) + (v_s.impressions if v_s else 0) + (a_s.impressions if a_s else 0))
         
@@ -1505,7 +1528,8 @@ async def get_dynamics(
         
         costs.append(round(c, 2)); clicks.append(cl); impressions.append(im); leads.append(le)
         cpc.append(round(c/cl, 2) if cl > 0 else 0)
-        cpa.append(round(c/le, 2) if le > 0 and not mixed_goal_types else 0)
+        # CPL — от лидового расхода (п.10), не от всего расхода канала.
+        cpa.append(round(lead_c/le, 2) if le > 0 and not mixed_goal_types else 0)
 
     return {
         "labels": labels, 
@@ -2685,6 +2709,39 @@ async def get_goals(
                 "category": category,
                 "category_label": VK_CATEGORY_LABEL_RU.get(category, "Другие действия"),
                 "summable": summable,
+            })
+
+        # ТЗ единого дашборда п.11: сумма строк раскладки должна сходиться с расходом
+        # канала. Кампании без vk_goal_action_id исключены из группировки выше —
+        # добавляем их отдельной несуммируемой строкой «Кампании без цели», чтобы
+        # раскладка была полной.
+        no_obj_q = db.query(
+            func.sum(models.VKStats.conversions).label("count"),
+            func.sum(models.VKStats.cost).label("cost"),
+        ).join(models.Campaign, models.VKStats.campaign_id == models.Campaign.id).filter(
+            models.VKStats.client_id.in_(effective_client_ids),
+            models.VKStats.date >= date_from_obj,
+            models.VKStats.date <= date_to_obj,
+            or_(
+                models.Campaign.vk_goal_action_id.is_(None),
+                models.Campaign.vk_goal_action_id == "",
+            ),
+        )
+        if u_campaign_ids:
+            no_obj_q = no_obj_q.filter(models.Campaign.id.in_(u_campaign_ids))
+        no_obj_count, no_obj_cost = no_obj_q.first() or (0, 0)
+        no_obj_cost = float(no_obj_cost or 0)
+        if no_obj_cost > 0:
+            result.append({
+                "id": "__no_objective__",
+                "name": "Кампании без цели",
+                "count": int(no_obj_count or 0),
+                "prev_count": None,
+                "trend": 0.0,
+                "cost": no_obj_cost,
+                "category": "other",
+                "category_label": VK_CATEGORY_LABEL_RU.get("other", "Другие действия"),
+                "summable": False,
             })
 
         return result

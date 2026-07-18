@@ -1799,13 +1799,38 @@ const chartSelectedMetricKeys = ref(['expenses'])
 const chartBreakdownMode = ref('channels')
 const chartSelectedPlatforms = ref(['yandex', 'vk', 'avito'])
 // Σ «Все каналы» — суммарная линия по всем каналам (ТЗ единого дашборда п.5).
-// Только для суммируемых метрик (расход/показы/клики/лиды); для CPC/CPL сумма
-// не имеет смысла, поэтому там скрыта.
+// Для суммируемых метрик — сумма; для CPC/CPL — корректное смешанное значение
+// (общий расход ÷ клики / лидовый расход ÷ лиды), а не арифметическая сумма.
 const chartShowTotal = ref(false)
 const CHART_ADDITIVE_METRICS = new Set(['expenses', 'impressions', 'clicks', 'leads'])
-const chartTotalAvailable = computed(() =>
-  showKpiChannelSplit.value && CHART_ADDITIVE_METRICS.has(activeChartMetricKeys.value[0] || 'expenses')
-)
+const chartTotalAvailable = computed(() => showKpiChannelSplit.value)
+
+// Смешанная итоговая линия по всем каналам с учётом типа метрики.
+const buildChartTotalValues = (metricKey) => {
+  const channels = availableDashboardChannels.value
+  const seriesFor = (m) => channels.map((ch) => getChartSourceValues(m, ch.key))
+  const lenOf = (arrs) => arrs.reduce((max, a) => Math.max(max, a.length), 0)
+  const sumAt = (arrs, i) => arrs.reduce((s, a) => s + (Number(a[i]) || 0), 0)
+  if (CHART_ADDITIVE_METRICS.has(metricKey)) {
+    const arrs = seriesFor(metricKey)
+    return Array.from({ length: lenOf(arrs) }, (_, i) => sumAt(arrs, i))
+  }
+  if (metricKey === 'cpc') {
+    const exp = seriesFor('expenses'); const clk = seriesFor('clicks')
+    return Array.from({ length: lenOf(exp) }, (_, i) => {
+      const c = sumAt(clk, i); return c > 0 ? sumAt(exp, i) / c : 0
+    })
+  }
+  // cpa (CPL) — взвешенное по лидам смешанное значение (каждый канал уже отдаёт
+  // CPL от лидового расхода, п.10).
+  const cpa = seriesFor('cpa'); const lds = seriesFor('leads')
+  return Array.from({ length: lenOf(cpa) }, (_, i) => {
+    const totalLeads = sumAt(lds, i)
+    if (totalLeads <= 0) return 0
+    const weighted = channels.reduce((s, _ch, ci) => s + (Number(cpa[ci]?.[i]) || 0) * (Number(lds[ci]?.[i]) || 0), 0)
+    return weighted / totalLeads
+  })
+}
 const chartHoverIndex = ref(-1)
 const chartSvgRef = ref(null)
 const dashboardRef = ref(null)
@@ -3227,13 +3252,8 @@ const getCampaignSortValue = (campaign) => {
   return Number(campaign.conversions ?? campaign.leads ?? 0)
 }
 
-// ТЗ ит.2 п.2.3: при наличии кампанийных алертов сортировка «Отклонения» — дефолт
-// (пока пользователь сам не переключил сортировку)
-watch(() => [campaigns.value, campaignHighlights.value], ([rows]) => {
-  if (campaignSortUserTouched.value) return
-  const hasAlerts = (rows || []).some((r) => Boolean(campaignHighlights.value[String(r.id)]))
-  if (hasAlerts && campaignSort.value !== 'alerts') campaignSort.value = 'alerts'
-}, { immediate: true })
+// ТЗ единого дашборда п.9/п.12: дефолтная сортировка таблицы — всегда «Расход»,
+// без авто-переключения на «Отклонения». Пользователь сам выбирает «Отклонения».
 
 const sortedCampaignSourceRows = computed(() => {
   const rows = campaigns.value?.length
@@ -3546,13 +3566,19 @@ const connectedAdChannelKeys = computed(() => {
 })
 
 const availableDashboardChannels = computed(() => {
+  const connected = new Set(connectedAdChannelKeys.value)
+  // Строго по is_connected: отключённый канал с исторической статистикой не должен
+  // попадать в блоки (ТЗ единого дашборда п.4/п.14). Пока список интеграций ещё не
+  // загружен (connected пуст) — временно показываем каналы с данными, чтобы не мигал
+  // пустой дашборд; после загрузки фильтр строгий.
+  if (connected.size > 0) {
+    return channelSummaryEntries.value.filter(({ key }) => connected.has(key))
+  }
   const campaignPlatforms = new Set(
     (campaigns.value || []).map((item) => normalizeDashboardPlatform(item.platform))
   )
-  const connected = new Set(connectedAdChannelKeys.value)
   return channelSummaryEntries.value.filter(({ key, summary: item }) => (
     campaignPlatforms.has(key)
-    || connected.has(key)
     || Number(item.expenses || 0) > 0
     || Number(item.impressions || 0) > 0
     || Number(item.clicks || 0) > 0
@@ -3613,7 +3639,11 @@ const channelMetricRawValue = (key, metricKey, data) => {
   const leads = Number(data?.leads || 0)
   if (metricKey === 'expenses') return expenses
   if (metricKey === 'cpc') return clicks > 0 ? expenses / clicks : 0
-  if (metricKey === 'cpa') return leads > 0 ? expenses / leads : 0
+  // CPL канала в KPI-разбивке — от ЛИДОВОГО расхода (п.10), как и сводный CPL.
+  if (metricKey === 'cpa') {
+    const leadExpenses = channelLeadExpenses(key, data)
+    return leads > 0 ? leadExpenses / leads : 0
+  }
   return Number(data?.[metricKey] || 0)
 }
 
@@ -3873,14 +3903,11 @@ const chartSeries = computed(() => {
         channel,
         values: getChartSourceValues(metricKey, channel.key),
       }))
-    // Σ «Все каналы» — поэлементная сумма по всем каналам (только суммируемые метрики).
+    // Σ «Все каналы» — смешанная линия по всем каналам (сумма/средневзвешенное).
     if (chartShowTotal.value && chartTotalAvailable.value) {
-      const allSeries = availableDashboardChannels.value.map((channel) => getChartSourceValues(metricKey, channel.key))
-      const len = allSeries.reduce((max, values) => Math.max(max, values.length), 0)
-      const totalValues = Array.from({ length: len }, (_, i) => allSeries.reduce((sum, values) => sum + (Number(values[i]) || 0), 0))
       rows.push({
         channel: { key: '__total__', name: 'Σ Все каналы', color: '#111827', asset: null },
-        values: totalValues,
+        values: buildChartTotalValues(metricKey),
       })
     }
     const sharedMax = Math.max(...rows.flatMap((row) => row.values), 1)
@@ -4244,9 +4271,13 @@ const buildGoalBars = (sourceItems, { channelColor = null, channelHasSpend = fal
     const trend = Number.isFinite(trendRaw) ? trendRaw : null
     const id = goal.id || goal.goal_id || goal.external_id || `goal-${index}`
     const alert = getAlertForEntity('goal', id)
-    const zeroWithSpend = safeCount === 0 && channelHasSpend
     const costRaw = parseOptionalNumber(goal.cost)
     const cost = Number.isFinite(costRaw) ? costRaw : null
+    // Красным помечаем строку с 0 действий ТОЛЬКО при наличии расхода У ЭТОЙ строки
+    // (для VK — свой расход objective); расход другого objective не красит строку.
+    // Для Яндекса (нет расхода в разрезе цели) — падаем на расход канала.
+    const rowHasSpend = showSpend && cost !== null ? cost > 0 : channelHasSpend
+    const zeroWithSpend = safeCount === 0 && rowHasSpend
     return {
       id,
       name: goal.name || goal.goal_name || `Цель ${index + 1}`,
@@ -4366,12 +4397,10 @@ const CAMPAIGN_TOP_LIMIT = 10
 const showAllCampaignRows = ref(false)
 const showInactiveCampaignRows = ref(false)
 
-const _campaignHasActivity = (c) => (
-  Number(c.cost || 0) > 0
-  || Number(c.impressions || 0) > 0
-  || Number(c.clicks || 0) > 0
-  || Number(c.conversions ?? c.leads ?? 0) > 0
-)
+// Активная кампания за период — только с расходом (ТЗ единого дашборда п.12:
+// «без расхода или остановлены» → в «Неактивные»). Показы/клики без расхода не
+// делают кампанию активной.
+const _campaignHasActivity = (c) => Number(c.cost || 0) > 0
 const activeCampaignSourceRows = computed(() => sortedCampaignSourceRows.value.filter(_campaignHasActivity))
 const inactiveCampaignSourceRows = computed(() => sortedCampaignSourceRows.value.filter((c) => !_campaignHasActivity(c)))
 
@@ -9218,6 +9247,12 @@ onMounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: copy;
+  /* ТЗ единого дашборда п.12: компактная строка — ID виден по ховеру/раскрытию */
+  display: none;
+}
+.campaign-row:hover .campaign-source-id,
+.campaign-row--popover-open .campaign-source-id {
+  display: inline-flex;
 }
 
 .campaign-source-id.copied {

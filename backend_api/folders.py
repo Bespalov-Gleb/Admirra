@@ -348,17 +348,35 @@ def folder_breakdown(
         c for c in db.query(models.Client).filter(models.Client.folder_id == folder.id).all()
         if c.id in accessible
     ]
+    def _with_combined_leads_cpl(client_ids):
+        """Лиды/CPL филиала — по той же формуле, что и KPI сводки (ТЗ единого
+        дашборда п.13): лиды = сумма по каналам (Яндекс — выбранные цели, VK —
+        лидовые действия, Авито — по UTM); CPL = сумма лидовых расходов ÷ лиды.
+        Базовый aggregate_summary(all) для смешанных Яндекс+VK отдаёт лиды только
+        Яндекса и CPL от всего расхода, поэтому пересобираем по каналам."""
+        summary = StatsService.aggregate_summary(db, client_ids, d_start, d_end)
+        total_leads = 0
+        lead_cost = 0.0
+        for plat in ("yandex", "vk", "avito"):
+            s = StatsService.aggregate_summary(db, client_ids, d_start, d_end, plat)
+            total_leads += int(s.get("leads") or 0)
+            lead_cost += float((s.get("lead_cost_by_platform") or {}).get(plat) or 0)
+        summary["leads"] = total_leads
+        summary["cpa"] = round(lead_cost / total_leads, 2) if total_leads > 0 else 0
+        summary["leads_available"] = True
+        summary["cpa_available"] = True
+        return summary
+
     items = []
     for c in members:
-        summary = StatsService.aggregate_summary(db, [c.id], d_start, d_end)
         items.append({
             "client_id": str(c.id),
             "name": c.name,
             "status": c.status.value.lower() if hasattr(c.status, "value") else str(c.status).lower(),
             "avatar_url": c.avatar_url,
-            "summary": summary,
+            "summary": _with_combined_leads_cpl([c.id]),
         })
-    total = StatsService.aggregate_summary(db, [c.id for c in members], d_start, d_end) if members else None
+    total = _with_combined_leads_cpl([c.id for c in members]) if members else None
     return {
         "folder": _folder_to_schema(folder, _folder_counts(db, [folder.id])).model_dump(mode="json"),
         "total": total,
