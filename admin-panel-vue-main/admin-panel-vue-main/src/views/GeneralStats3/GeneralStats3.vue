@@ -172,7 +172,7 @@
           <span>Папка: {{ folderMode.name }}</span>
           <button type="button" aria-label="Выйти из режима папки" @click="exitFolderMode">✕</button>
         </div>
-        <div class="filter-wrap custom-select dashboard-select" :class="{ open: openMenu === 'channels' }" v-click-outside="() => closeMenu('channels')">
+        <div v-if="connectedAdChannelKeys.length > 1" class="filter-wrap custom-select dashboard-select" :class="{ open: openMenu === 'channels' }" v-click-outside="() => closeMenu('channels')">
           <button class="filter-btn cs-head" type="button" @click="toggleMenu('channels')">
             <span class="cs-current">{{ selectedFilterChannelLabel }}</span>
             <span class="cs-arrow">
@@ -833,14 +833,29 @@
           v-for="group in goalChannelGroups"
           :key="group.key"
           class="goals-channel-block"
+          :class="{ 'goals-channel-block--compact': group.noSpend }"
           :style="{ '--goal-channel-color': group.color }"
         >
+          <!-- Подключён, но без расхода за период — одна свёрнутая строка (п.4) -->
+          <div v-if="group.noSpend" class="goals-channel-nospend">
+            <img :src="group.asset" :alt="group.name" class="goals-channel-icon" />
+            <strong class="goals-channel-name">{{ group.name }}</strong>
+            <span class="goals-channel-nospend__note">без расхода за период</span>
+          </div>
+          <template v-else>
           <div class="goals-channel-header">
             <img :src="group.asset" :alt="group.name" class="goals-channel-icon" />
             <span class="goals-channel-title">
               <strong class="goals-channel-name">{{ group.name }}</strong>
               <small>{{ group.source }}</small>
             </span>
+            <button
+              v-if="group.leadsConfigured === false"
+              type="button"
+              class="goals-channel-noleads"
+              title="Лиды по этому каналу не настроены — канал не входит в сводные Лиды/CPL. Открыть настройки интеграции."
+              @click="openProjectSettingsModal"
+            >лиды не настроены</button>
             <span class="goals-channel-expense">{{ group.expenses }}</span>
           </div>
           <div v-if="group.bars.length" class="goals-bar-list">
@@ -874,6 +889,7 @@
             </div>
             <!-- Строку «Итого расход» убрали: расход уже показан в шапке канала (goals-channel-expense) -->
           </div>
+          </template>
         </div>
         </div>
         <div v-if="dashboardSyncInProgress || allChannelsDataLoading" class="sync-panel-overlay">
@@ -3464,16 +3480,28 @@ const hasCompleteChannelBreakdown = computed(() =>
   dashboardChannelKeys.every((key) => Boolean(channelSummaries.value?.[key]))
 )
 
+// Подключённые рекламные каналы (dashboard/integrations возвращает ВСЕ площадки с
+// флагом is_connected — берём только реально подключённые). Неподключённый канал
+// (напр. Avito) не должен появляться нигде: ни в KPI-разбивке, ни в целях, ни в
+// легенде графика (ТЗ единого дашборда п.4).
+const connectedAdChannelKeys = computed(() => {
+  const set = new Set()
+  ;(integrations.value || []).forEach((item) => {
+    if (item?.is_connected === false) return
+    const key = normalizeDashboardPlatform(item.platform)
+    if (['yandex', 'vk', 'avito'].includes(key)) set.add(key)
+  })
+  return [...set]
+})
+
 const availableDashboardChannels = computed(() => {
   const campaignPlatforms = new Set(
     (campaigns.value || []).map((item) => normalizeDashboardPlatform(item.platform))
   )
-  const integrationPlatforms = new Set(
-    (integrations.value || []).map((item) => normalizeDashboardPlatform(item.platform))
-  )
+  const connected = new Set(connectedAdChannelKeys.value)
   return channelSummaryEntries.value.filter(({ key, summary: item }) => (
     campaignPlatforms.has(key)
-    || integrationPlatforms.has(key)
+    || connected.has(key)
     || Number(item.expenses || 0) > 0
     || Number(item.impressions || 0) > 0
     || Number(item.clicks || 0) > 0
@@ -4175,15 +4203,22 @@ const goalChannelGroups = computed(() => {
       const rawItems = reportGoalsByChannel.value?.[channel.key] || []
       const selectedItems = rawItems.filter((item) => item.summable !== false)
       const displayItems = channel.key === 'vk' ? rawItems : selectedItems
-      const expenses = channelAdjustedExpenses(channel.key, channel.summary)
-      const bars = buildGoalBars(displayItems, { channelColor: channel.color, channelHasSpend: expenses > 0 })
+      const rawExpenses = channelAdjustedExpenses(channel.key, channel.summary)
+      const bars = buildGoalBars(displayItems, { channelColor: channel.color, channelHasSpend: rawExpenses > 0 })
       const total = selectedItems.reduce((sum, item) => sum + Number(item.count || 0), 0)
       return {
         ...channel,
         source: channel.key === 'vk' ? 'Действия VK Ads' : 'Конверсии Яндекс Метрики',
         bars,
-        expenses: formatMoney(expenses),
-        cpl: total > 0 ? formatMoney(expenses / total) : '—',
+        rawExpenses,
+        // Подключённый канал без расхода за период — сворачиваем в одну строку,
+        // не рисуем пустую карточку целей (ТЗ единого дашборда п.4).
+        noSpend: rawExpenses <= 0,
+        // Канал подключён, но лиды не настроены — помечаем со ссылкой в настройки
+        // (ТЗ единого дашборда п.14). Для VK/Яндекса это отсутствие выбранных целей.
+        leadsConfigured: selectedItems.length > 0,
+        expenses: formatMoney(rawExpenses),
+        cpl: total > 0 ? formatMoney(rawExpenses / total) : '—',
         summaryLabel: channel.key === 'vk'
           ? (total > 0 ? 'Заявки · по выбранным действиям · общий CPL' : 'Выберите действия для расчёта CPL')
           : 'Все конверсии · общий CPL',
@@ -8384,6 +8419,33 @@ onMounted(() => {
   border-radius: 0.9rem;
   margin-bottom: 1.1rem;
 }
+
+.goals-channel-block--compact { align-self: start; }
+.goals-channel-nospend {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  background: #f8f9fb;
+  border: 1px dashed #dfe3ea;
+  border-radius: 0.9rem;
+  color: #8a93a6;
+}
+.goals-channel-nospend .goals-channel-name { color: #5b6579; }
+.goals-channel-nospend__note { font-size: 1.15rem; margin-left: auto; }
+.goals-channel-noleads {
+  border: 1px solid #f0d48a;
+  background: #fdf6e3;
+  color: #8a6a12;
+  font-size: 1.05rem;
+  font-weight: 600;
+  border-radius: 99rem;
+  padding: 0.2rem 0.7rem;
+  cursor: pointer;
+}
+.goals-channel-noleads:hover { background: #fbedcf; }
+.figma-dashboard.is-dark .goals-channel-nospend { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.12); }
+.figma-dashboard.is-dark .goals-channel-noleads { background: rgba(240,180,60,0.14); color: #e7c583; border-color: rgba(240,180,60,0.3); }
 
 .goals-channel-icon {
   width: 2rem;
