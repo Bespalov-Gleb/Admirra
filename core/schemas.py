@@ -655,9 +655,11 @@ class ReportDeliveryResponse(BaseModel):
 
 class ReportDeliveryApprove(BaseModel):
     comment: Optional[str] = None
-    # History can retry exactly one failed email without re-sending messenger
-    # routes or another recipient of the same report.
+    # History retries one exact failed route; successful recipients are never
+    # re-sent as a side effect of recovering another route.
     retry_email: Optional[EmailStr] = None
+    retry_channel: Optional[Literal["telegram", "max"]] = None
+    retry_chat_target_id: Optional[UUID] = None
 
 
 class ReportDeliveryTemplateUpdate(BaseModel):

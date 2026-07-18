@@ -151,6 +151,8 @@ async def generate_report(
         )
         text = response.content[0].text if response.content else ""
         result = _normalise_delivery_comment(text) if report_type == "comment" else text.strip()
+        if report_type == "comment" and not result:
+            raise ValueError("AI-комментарий должен содержать от 3 до 5 обычных предложений")
         logger.info("generate_report: Anthropic returned %d chars", len(result))
         return result
     except Exception as e:
@@ -159,17 +161,22 @@ async def generate_report(
 
 
 def _normalise_delivery_comment(text: str) -> str:
-    """Remove accidental Markdown/list formatting from the client message."""
+    """Keep a short client comment free from Markdown and table formatting."""
     import re
     clean_lines = []
     for line in str(text or "").splitlines():
         line = re.sub(r"^\s*(?:[-*•]|\d+[.)])\s*", "", line).strip()
         line = re.sub(r"^#{1,6}\s*", "", line)
+        line = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", line)
+        line = re.sub(r"(`{1,3}|\*{1,3}|_{1,3}|~~)", "", line)
+        line = line.replace("|", " ")
         if line:
             clean_lines.append(line)
     clean = re.sub(r"\s+", " ", " ".join(clean_lines)).strip()
     sentences = [part.strip() for part in re.split(r"(?<=[.!?])\s+", clean) if part.strip()]
-    return " ".join(sentences[:5]).strip()
+    if not 3 <= len(sentences) <= 5:
+        return ""
+    return " ".join(sentences).strip()
 
 
 def _build_context(

@@ -26,15 +26,6 @@
               </span>
             </div>
 
-            <label class="report-template-select">Шаблон
-              <select :value="preview.template || delivery?.platform || 'all'" :disabled="switchingTemplate || loadingPreview" @change="changeTemplate($event.target.value)">
-                <option value="all">Сводный</option>
-                <option value="yandex">Яндекс Директ</option>
-                <option value="vk">VK Реклама</option>
-                <option value="avito">Avito Ads</option>
-              </select>
-            </label>
-
             <div class="report-approval-kpi">
               <div class="report-approval-kpi__cell">
                 <span>Расходы</span>
@@ -106,6 +97,14 @@
               <pre v-else>{{ activeMessage.text || 'Сообщение будет сформировано после загрузки снимка.' }}</pre>
             </div>
 
+            <label class="report-template-select">Шаблон
+              <select :value="preview.template || delivery?.platform || 'all'" :disabled="switchingTemplate || loadingPreview" @change="changeTemplate($event.target.value)">
+                <option value="all">Сводный</option>
+                <option value="yandex">Яндекс Директ</option>
+                <option value="vk">VK Реклама</option>
+                <option value="avito">Avito Ads</option>
+              </select>
+            </label>
             <p class="report-approval-side__label">Куда уходит</p>
             <div class="report-approval-targets">
               <div v-for="t in deliveryTargets" :key="t.key" class="report-approval-target" :class="{ muted: !t.used }">
@@ -187,7 +186,7 @@ const channelTabs = computed(() => {
 
 const activeChannelHint = computed(() => {
   if (activeTab.value === 'email') return 'Письмо, которое получит клиент: текст отчёта и PDF-вложение.'
-  if (activeTab.value === 'max') return 'Сообщение в MAX: тот же текст отчёта и PDF-вложение.'
+  if (activeTab.value === 'max') return 'Сообщение в MAX: тот же текст отчёта, PNG-снимок и ссылка на полный отчёт.'
   return 'Сообщение в Telegram: текст отчёта, PNG-снимок и ссылка на PDF.'
 })
 
@@ -624,6 +623,8 @@ const approve = async () => {
 }
 
 .report-approval-chart__val {
+  flex: 0 0 8.3rem;
+  text-align: right;
   color: #8a93a3;
   white-space: nowrap;
 }

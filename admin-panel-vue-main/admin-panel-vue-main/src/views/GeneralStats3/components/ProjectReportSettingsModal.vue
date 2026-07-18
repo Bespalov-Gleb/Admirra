@@ -78,7 +78,6 @@
 
             <div class="rp-label-row">
               <label class="rp-label">Куда</label>
-              <button type="button" class="rp-mini-btn" @click="tab = 'channels'">Изменить получателей</button>
             </div>
             <p class="rp-sub">Отметьте адресные каналы, которые получат этот автоматический отчёт.</p>
             <div class="rp-list rp-auto-recipients">
@@ -159,7 +158,8 @@
                 :key="tag.value"
                 type="button"
                 class="rp-tag"
-                :class="{ on: isSectionOn(tag) }"
+                :class="{ on: isSectionOn(tag), disabled: tag.dynamics }"
+                :disabled="tag.dynamics"
                 @click="toggleSection(tag)"
               >{{ tag.label }}</button>
             </div>
@@ -385,10 +385,7 @@ const isSectionOn = (tag) => (
 )
 
 const toggleSection = (tag) => {
-  if (tag.dynamics) {
-    settings.include_dynamics = !settings.include_dynamics
-    return
-  }
+  if (tag.dynamics) return
   const list = Array.isArray(settings.sections) ? [...settings.sections] : []
   const idx = list.indexOf(tag.value)
   if (idx >= 0) list.splice(idx, 1)
@@ -411,7 +408,9 @@ const applySettings = (data = {}) => {
     send_time: data.send_time || '10:00',
     period_days: Number(data.period_days || 7),
     report_format: data.report_format || 'desktop',
-    include_dynamics: Boolean(data.include_dynamics),
+    // Блок «Динамика» пока показан только как будущая возможность и не
+    // включается в отправляемые отчёты.
+    include_dynamics: false,
     approval_required: data.approval_required !== false,
     include_ai_comment: data.include_ai_comment !== false,
     sections: data.sections || ['kpi', 'chart', 'channels', 'campaigns'],
@@ -442,7 +441,7 @@ const payload = () => ({
   send_time: settings.send_time,
   period_days: settings.period_days,
   report_format: settings.report_format,
-  include_dynamics: settings.include_dynamics,
+  include_dynamics: false,
   approval_required: settings.approval_required,
   include_ai_comment: settings.include_ai_comment,
   sections: settings.sections,
@@ -1220,6 +1219,15 @@ watch(() => [props.clientId, props.folderId], load, { immediate: true })
 }
 
 .rp-tag:hover { border-color: rgba(37, 99, 235, 0.4); }
+
+.rp-tag.disabled,
+.rp-tag:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+  border-color: rgba(15, 23, 42, 0.1);
+  background: #f8fafc;
+}
+.rp-tag.disabled:hover { border-color: rgba(15, 23, 42, 0.1); }
 
 .rp-tag.on {
   border-color: #2563eb;

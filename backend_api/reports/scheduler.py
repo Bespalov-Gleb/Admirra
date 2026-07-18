@@ -433,7 +433,9 @@ def create_pending_delivery_for_schedule(db: Session, rule, *, reason: str | Non
         email_recipients=getattr(rule, "email_recipients", None) or "[]",
         chat_targets=rule.chat_targets,
         report_format=rule.report_format or "desktop",
-        include_dynamics=bool(rule.include_dynamics),
+        # The composition tag is intentionally disabled in the UI.  Keep old
+        # schedules from silently bringing the experimental block back.
+        include_dynamics=False,
         include_ai_comment=bool(getattr(rule, "include_ai_comment", True)),
         sections=rule.sections,
         chart_metrics=rule.chart_metrics,
@@ -710,7 +712,7 @@ async def build_delivery_snapshot(db: Session, delivery, user) -> None:
                 start_date=start_str,
                 end_date=end_str,
                 comment=delivery.comment,
-                include_dynamics=bool(delivery.include_dynamics),
+                include_dynamics=False,
                 folder_id=folder_id,
                 platform=template,
                 layout=delivery.report_format or "desktop",
@@ -741,15 +743,37 @@ def _snapshot_caption(delivery) -> str:
     return ((delivery.snapshot_data or {}).get("delivery_messages") or {}).get("telegram", {}).get("text") or _delivery_message_text(delivery, delivery.snapshot_data or {})
 
 
-def _retry_channels(delivery, retry_failed_only: bool) -> tuple[list[str], list[str]]:
+def _retry_channels(
+    delivery,
+    retry_failed_only: bool,
+    *,
+    retry_email: str | None = None,
+    retry_channel: str | None = None,
+    retry_chat_target_id: str | None = None,
+) -> tuple[list[str], list[str]]:
+    """Return only routes intended for this attempt.
+
+    A retry from an individual history badge must be strictly scoped to that
+    recipient.  The generic retry path still retries every failed route, but
+    never successful ones.
+    """
     channels = _jlist(delivery.channels, [])
     targets = [str(value) for value in _jlist(delivery.chat_targets, [])]
-    if not retry_failed_only or not delivery.delivery_results:
-        return channels, targets
-    previous = delivery.delivery_results or {}
-    channels = [channel for channel in channels if previous.get(channel) is not True]
-    target_results = previous.get("targets") if isinstance(previous.get("targets"), dict) else {}
-    targets = [target_id for target_id in targets if (target_results.get(target_id) or {}).get("ok") is not True]
+    if retry_failed_only and delivery.delivery_results:
+        previous = delivery.delivery_results or {}
+        channels = [channel for channel in channels if previous.get(channel) is not True]
+        target_results = previous.get("targets") if isinstance(previous.get("targets"), dict) else {}
+        targets = [target_id for target_id in targets if (target_results.get(target_id) or {}).get("ok") is not True]
+
+    if retry_email:
+        channels = [channel for channel in channels if channel == "email"]
+        targets = []
+    elif retry_channel:
+        channels = [channel for channel in channels if channel == retry_channel]
+        targets = []
+    elif retry_chat_target_id:
+        channels = []
+        targets = [target_id for target_id in targets if target_id == str(retry_chat_target_id)]
     return channels, targets
 
 
@@ -802,11 +826,26 @@ async def _generate_automatic_comment_if_needed(db: Session, delivery, user) -> 
         logger.warning("Delivery %s automatic AI comment skipped: %s", delivery.id, exc)
 
 
-async def send_report_delivery(db: Session, delivery, user, *, retry_failed_only: bool = False, retry_email: str | None = None) -> dict:
+async def send_report_delivery(
+    db: Session,
+    delivery,
+    user,
+    *,
+    retry_failed_only: bool = False,
+    retry_email: str | None = None,
+    retry_channel: str | None = None,
+    retry_chat_target_id: str | None = None,
+) -> dict:
     """Отправляет строго сохранённый снимок; при retry — только упавшие маршруты."""
     await build_delivery_snapshot(db, delivery, user)
     await _generate_automatic_comment_if_needed(db, delivery, user)
-    channels, target_ids = _retry_channels(delivery, retry_failed_only)
+    channels, target_ids = _retry_channels(
+        delivery,
+        retry_failed_only,
+        retry_email=retry_email,
+        retry_channel=retry_channel,
+        retry_chat_target_id=retry_chat_target_id,
+    )
     previous = dict(delivery.delivery_results or {}) if retry_failed_only else {}
     results = {
         "telegram": previous.get("telegram"),
@@ -865,10 +904,13 @@ async def send_report_delivery(db: Session, delivery, user, *, retry_failed_only
         else:
             try:
                 from backend_api.services import max_reports_bot
+                attachment = delivery.png_snapshot or delivery.pdf_snapshot
+                filename = f"report_{delivery.start_date}_{delivery.end_date}.png" if delivery.png_snapshot else f"report_{delivery.start_date}_{delivery.end_date}.pdf"
                 results["max"] = await max_reports_bot.send_document(
-                    delivery.pdf_snapshot,
-                    f"report_{delivery.start_date}_{delivery.end_date}.pdf",
+                    attachment,
+                    filename,
                     caption=caption,
+                    content_type="image/png" if delivery.png_snapshot else "application/pdf",
                     chat_id=max_chat_id or None,
                     user_id=max_user_id or None,
                 )
@@ -974,10 +1016,13 @@ async def send_report_delivery(db: Session, delivery, user, *, retry_failed_only
                     elif target.kind == "max":
                         from backend_api.services import max_reports_bot
                         is_user_target = str(target.chat_id).startswith("user:")
+                        attachment = delivery.png_snapshot or delivery.pdf_snapshot
+                        filename = f"report_{delivery.start_date}_{delivery.end_date}.png" if delivery.png_snapshot else f"report_{delivery.start_date}_{delivery.end_date}.pdf"
                         ok = await max_reports_bot.send_document(
-                            delivery.pdf_snapshot,
-                            f"report_{delivery.start_date}_{delivery.end_date}.pdf",
+                            attachment,
+                            filename,
                             caption=caption,
+                            content_type="image/png" if delivery.png_snapshot else "application/pdf",
                             chat_id=None if is_user_target else target.chat_id,
                             user_id=str(target.chat_id).split(":", 1)[1] if is_user_target else None,
                         )
@@ -1042,7 +1087,7 @@ async def send_report_for_schedule(db: Session, rule, user) -> dict:
         start_date=start_str,
         end_date=end_str,
         comment=approved_comment,
-        include_dynamics=bool(rule.include_dynamics),
+        include_dynamics=False,
         folder_id=folder_id,
         platform=platform,
         layout=rule.report_format or "desktop",

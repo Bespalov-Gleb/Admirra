@@ -4,7 +4,7 @@
       <section class="snapshot-modal" :class="{ 'is-dark': isDarkMode }">
         <header>
           <div>
-            <p>Зафиксированный снимок</p>
+            <p>Отправленный отчёт · снимок</p>
             <h3>{{ delivery?.scope_label || 'Отчёт' }}</h3>
             <span>{{ formatDate(delivery?.start_date) }} — {{ formatDate(delivery?.end_date) }}</span>
           </div>
@@ -15,6 +15,7 @@
 
         <div class="snapshot-meta">
           <span>Утвердил: <b>{{ delivery?.approved_by_name || 'авто' }}</b></span>
+          <span>Отправлен: <b>{{ formatDateTime(delivery?.sent_at || delivery?.approved_at || delivery?.created_at) }}</b></span>
           <span>Шаблон: <b>{{ templateLabel(delivery?.platform) }}</b></span>
         </div>
 
@@ -105,13 +106,13 @@ const badges = computed(() => {
         out.push({ key: `email-${email}`, label: `Email · ${email}`, ok: row.ok, email })
       }
     } else {
-      out.push({ key: channel, label: channel === 'telegram' ? 'Telegram' : 'MAX', ok: results[channel] })
+      out.push({ key: channel, label: channel === 'telegram' ? 'Telegram · мне' : 'MAX · мне', retryChannel: channel, ok: results[channel] })
     }
   }
   for (const target of delivery.chat_target_details || []) {
     if (target.kind === 'email') continue
     const row = (results.targets || {})[target.id] || {}
-    out.push({ key: `target-${target.id}`, label: target.title || (target.kind === 'max' ? 'MAX' : 'Telegram'), ok: row.ok })
+    out.push({ key: `target-${target.id}`, label: target.title || (target.kind === 'max' ? 'MAX' : 'Telegram'), retryTargetId: String(target.id), ok: row.ok })
   }
   return out
 })
@@ -120,7 +121,11 @@ const retry = async (badge) => {
   if (!props.delivery?.id || badge.ok !== false) return
   retrying.value = true
   try {
-    const { data } = await api.post(`reports/deliveries/${props.delivery.id}/approve`, { comment: props.delivery.comment, ...(badge.email ? { retry_email: badge.email } : {}) })
+    const { data } = await api.post(`reports/deliveries/${props.delivery.id}/approve`, {
+      ...(badge.email ? { retry_email: badge.email } : {}),
+      ...(badge.retryChannel ? { retry_channel: badge.retryChannel } : {}),
+      ...(badge.retryTargetId ? { retry_chat_target_id: badge.retryTargetId } : {}),
+    })
     emit('retry', data)
     toaster.success('Неуспешный маршрут отправлен повторно')
   } catch (err) {
@@ -133,6 +138,11 @@ const retry = async (badge) => {
 const downloadPng = () => download('png', true)
 const downloadPdf = () => download('pdf', true)
 const formatDate = (value) => value ? new Date(value).toLocaleDateString('ru-RU') : '—'
+const formatDateTime = (value) => {
+  if (!value) return '—'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
 const templateLabel = (value) => ({ all: 'Сводный', yandex: 'Яндекс Директ', vk: 'VK Реклама', avito: 'Avito Ads' }[value] || 'Сводный')
 </script>
 

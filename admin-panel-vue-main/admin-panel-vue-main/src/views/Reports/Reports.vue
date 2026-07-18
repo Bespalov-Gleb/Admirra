@@ -21,13 +21,16 @@
           <span>{{ pending.length }}</span>
         </div>
         <div class="reports-list">
-          <button
+          <article
             v-for="item in pending"
             :key="item.id"
-            type="button"
             class="report-queue-card"
             :class="{ 'report-queue-card--detector': item.source === 'detector' }"
+            role="button"
+            tabindex="0"
             @click="activeDelivery = item"
+            @keydown.enter="activeDelivery = item"
+            @keydown.space.prevent="activeDelivery = item"
           >
             <span class="report-queue-card__top">
               <span class="report-queue-dot" :class="item.source === 'detector' ? 'report-queue-dot--red' : 'report-queue-dot--amber'"></span>
@@ -35,11 +38,12 @@
                 {{ item.source === 'detector' ? 'Детектор' : item.source === 'auto' ? 'Авто' : 'Вручную' }}
               </span>
               <span class="report-queue-card__check">Проверить</span>
+              <button type="button" class="report-queue-card__settings" title="Настройки отчётов проекта" @click.stop="openSettings(item)"><Cog6ToothIcon /></button>
             </span>
             <strong>{{ item.scope_label }}</strong>
             <small>{{ formatDate(item.start_date) }} — {{ formatDate(item.end_date) }}</small>
-            <em v-if="item.anomaly_reason">{{ item.anomaly_reason }}</em>
-          </button>
+            <em :title="queueReason(item)">{{ queueReason(item) }}</em>
+          </article>
         </div>
       </div>
 
@@ -72,7 +76,7 @@
                 :class="[ch.cls, { failed: ch.ok === false }]"
                 :title="ch.title"
                 :disabled="ch.ok !== false || retryingId === item.id"
-                @click.stop="retryDelivery(item, ch.email)"
+                @click.stop="retryDelivery(item, ch)"
               >{{ ch.label }} {{ ch.ok === true ? '✓' : ch.ok === false ? '✕ ⟳' : '—' }}</button>
               <span v-if="!channelBadges(item).length" class="history-channels-empty">—</span>
             </span>
@@ -161,11 +165,11 @@ const channelBadges = (item) => {
       for (const email of emails) {
         const target = emailResults[email] || {}
         const emailOk = target.ok == null ? ok : Boolean(target.ok)
-        out.push({ key: `email-${email}`, cls: meta.cls, label: `Email · ${email}`, email, ok: emailOk, title: `Email · ${email}${emailOk === false ? ` — ${target.error || error || 'ошибка'}` : ''}` })
+        out.push({ key: `email-${email}`, cls: meta.cls, label: `Email · ${email}`, retryEmail: email, ok: emailOk, title: `Email · ${email}${emailOk === false ? ` — ${target.error || error || 'ошибка'}` : ''}` })
       }
       continue
     }
-    out.push({ key: ch, cls: meta.cls, label: meta.label, ok, title: `${meta.label}${ok === false ? ` — ${error || 'ошибка'}` : ''}` })
+    out.push({ key: ch, cls: meta.cls, label: `${meta.label} · мне`, retryChannel: ch, ok, title: `${meta.label}${ok === false ? ` — ${error || 'ошибка'}` : ''}` })
   }
   const targetResults = res.targets || {}
   for (const targetId of (item.chat_targets || [])) {
@@ -175,6 +179,7 @@ const channelBadges = (item) => {
       key: `target-${targetId}`,
       cls: target.kind === 'max' ? 'mx' : 'tg',
       label: target.title || 'Получатель',
+      retryTargetId: String(targetId),
       ok,
       title: `${target.title || 'Получатель проекта'}${ok === false ? ` — ${target.error || 'ошибка'}` : ''}`,
     })
@@ -182,11 +187,15 @@ const channelBadges = (item) => {
   return out
 }
 
-const retryDelivery = async (item, retryEmail = null) => {
+const retryDelivery = async (item, route = {}) => {
   if (!item?.id || retryingId.value) return
   retryingId.value = item.id
   try {
-    const { data } = await api.post(`reports/deliveries/${item.id}/approve`, { comment: item.comment, ...(retryEmail ? { retry_email: retryEmail } : {}) })
+    const { data } = await api.post(`reports/deliveries/${item.id}/approve`, {
+      ...(route.retryEmail ? { retry_email: route.retryEmail } : {}),
+      ...(route.retryChannel ? { retry_channel: route.retryChannel } : {}),
+      ...(route.retryTargetId ? { retry_chat_target_id: route.retryTargetId } : {}),
+    })
     if (data?.status === 'sent') toaster.success('Неуспешные маршруты отправлены повторно')
     else if (data?.status === 'partial') toaster.warning('Часть маршрутов по-прежнему недоступна')
     else toaster.error('Повторная отправка не удалась. Проверьте каналы')
@@ -234,6 +243,13 @@ const formatDateTime = (value) => {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
+const queueReason = (item) => {
+  if (item?.anomaly_reason) return item.anomaly_reason
+  const source = item?.source === 'auto' ? 'Автоотправка по расписанию' : 'Отчёт подготовлен вручную'
+  const created = item?.created_at ? ` · ${formatDateTime(item.created_at)}` : ''
+  return `${source}${created}`
 }
 
 onMounted(load)
@@ -428,6 +444,22 @@ onMounted(load)
   font-weight: 700;
 }
 
+.report-queue-card__settings {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  margin-left: 0.2rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+}
+.report-queue-card__settings:hover { background: #eaf0ff; color: #2563eb; }
+.report-queue-card__settings svg { width: 1.12rem; height: 1.12rem; }
+
 .reports-page.is-dark .report-queue-card__check { color: #6f9bff; }
 
 .report-queue-dot {
@@ -455,6 +487,14 @@ onMounted(load)
   font-style: normal;
   font-size: 1.05rem;
   line-height: 1.35;
+}
+
+.report-queue-card em {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .reports-page.is-dark .report-queue-card small { color: rgba(255, 255, 255, 0.45); }
@@ -520,12 +560,10 @@ onMounted(load)
 .history-date { color: #5c6b84; font-size: 1.05rem; }
 .history-scope {
   min-width: 0;
-  overflow: hidden;
   color: #171717;
   font-size: 1.12rem;
   font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 .history-approver { color: #5c6b84; font-size: 1.05rem; }
 .reports-page.is-dark .history-date,

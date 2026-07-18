@@ -100,10 +100,11 @@ async def send_document(
     filename: str,
     *,
     caption: str = "",
+    content_type: str = "application/pdf",
     chat_id: Optional[str] = None,
     user_id: Optional[str] = None,
 ) -> bool:
-    """Отправляет файл (PDF-отчёт) в MAX: /uploads?type=file → multipart → token →
+    """Отправляет сохранённый файл отчёта в MAX: /uploads?type=file → multipart → token →
     /messages с attachment. При неудаче возвращает False (вызывающий может показать текст)."""
     if not MAX_REPORTS_BOT_TOKEN:
         logger.warning("MAX send_document skipped: token empty")
@@ -128,7 +129,7 @@ async def send_document(
 
             sent = await client.post(
                 upload_url,
-                files={"data": (filename, document, "application/pdf")},
+                files={"data": (filename, document, content_type)},
             )
             sent_data = sent.json() if sent.status_code < 400 else {}
             token = sent_data.get("token") or (sent_data.get("file") or {}).get("token")

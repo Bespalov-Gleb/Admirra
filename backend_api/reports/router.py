@@ -1153,8 +1153,9 @@ def save_project_report_settings(
         s.period_days = int(body.period_days)
     if body.report_format is not None:
         s.report_format = body.report_format
-    if body.include_dynamics is not None:
-        s.include_dynamics = bool(body.include_dynamics)
+    # «Динамика» пока не входит в состав отправляемого отчёта, including for
+    # schedules that were configured before the control became disabled.
+    s.include_dynamics = False
     if body.approval_required is not None:
         s.approval_required = bool(body.approval_required)
     if body.include_ai_comment is not None:
@@ -1656,6 +1657,8 @@ async def approve_report_delivery(
             db, d, current_user,
             retry_failed_only=retry_failed_only,
             retry_email=str(body.retry_email).lower() if body.retry_email else None,
+            retry_channel=body.retry_channel,
+            retry_chat_target_id=str(body.retry_chat_target_id) if body.retry_chat_target_id else None,
         )
         d.delivery_results = results
         d.status = delivery_status_from_results(results, _jlist(d.channels), _jlist(d.chat_targets))
@@ -1811,8 +1814,7 @@ def update_report_schedule(
         s.period_days = int(body.period_days)
     if body.report_format is not None:
         s.report_format = body.report_format
-    if body.include_dynamics is not None:
-        s.include_dynamics = bool(body.include_dynamics)
+    s.include_dynamics = False
     if body.approval_required is not None:
         s.approval_required = bool(body.approval_required)
     if body.include_ai_comment is not None:

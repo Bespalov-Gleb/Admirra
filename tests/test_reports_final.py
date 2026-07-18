@@ -59,6 +59,30 @@ def test_retry_only_selects_failed_routes():
     assert targets == ["b"]
 
 
+def test_retry_can_select_one_exact_failed_route():
+    delivery = SimpleNamespace(
+        channels='["telegram", "max", "email"]',
+        chat_targets='["a", "b"]',
+        delivery_results={
+            "telegram": False,
+            "max": False,
+            "email": False,
+            "targets": {"a": {"ok": False}, "b": {"ok": False}},
+        },
+    )
+    channels, targets = _retry_channels(delivery, True, retry_channel="max")
+    assert channels == ["max"]
+    assert targets == []
+
+    channels, targets = _retry_channels(delivery, True, retry_chat_target_id="b")
+    assert channels == []
+    assert targets == ["b"]
+
+    channels, targets = _retry_channels(delivery, True, retry_email="client@example.ru")
+    assert channels == ["email"]
+    assert targets == []
+
+
 def test_delivery_has_immutable_snapshot_fields():
     columns = ReportDelivery.__table__.columns
     assert {"snapshot_data", "pdf_snapshot", "png_snapshot", "snapshot_created_at"}.issubset(columns.keys())
@@ -141,6 +165,18 @@ async def test_partial_retry_does_not_duplicate_successful_channel(monkeypatch):
     results = await send_report_delivery(FakeDb(), delivery, user, retry_failed_only=True)
     telegram_send.assert_not_awaited()
     max_send.assert_awaited_once()
+    assert max_send.await_args.args[:2] == (b"png", "report_2026-07-01_2026-07-07.png")
+    assert max_send.await_args.kwargs["content_type"] == "image/png"
     assert results["telegram"] is True
     assert results["max"] is True
     assert delivery_status_from_results(results, ["telegram", "max"], []) == "sent"
+
+
+def test_delivery_comment_normaliser_rejects_markdown_and_short_result():
+    from ai.report_generator import _normalise_delivery_comment
+
+    value = _normalise_delivery_comment(
+        "**Первый вывод.** | Второй вывод. Третий [вывод](https://example.test)."
+    )
+    assert value == "Первый вывод. Второй вывод. Третий вывод."
+    assert _normalise_delivery_comment("Только один вывод.") == ""
