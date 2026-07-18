@@ -547,9 +547,9 @@
       </div>
     </section>
 
-    <!-- Блок целей — всегда на всю ширину (график сверху, цели снизу): в одноканальном
-         виде это одна карточка на всю ширину (ТЗ VK раздел 1, правило вырождения). -->
-    <section class="chart-goals-grid chart-goals-grid--stacked">
+    <!-- Раскладка как было: «Все каналы» — стек (график сверху, цели во всю ширину
+         снизу); обычный дашборд (выбран канал) — слева график, справа целевые. -->
+    <section class="chart-goals-grid" :class="{ 'chart-goals-grid--stacked': isAllChannelsMode }">
       <article
         class="panel chart-panel"
         :class="{
