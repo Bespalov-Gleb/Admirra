@@ -1328,6 +1328,15 @@ class StatsService:
                     disp_name = f"Кампания (ID: {ext_id})"
                 else:
                     disp_name = raw or "Без названия"
+                # Ключевое целевое действие кампании (ТЗ единого дашборда п.6): для VK —
+                # objective кампании. Каноническое русское имя по коду ЦД в приоритете
+                # (как в блоке целей), иначе сохранённое имя, иначе дефолт.
+                vk_code = (getattr(r, "vk_goal_action_id", None) or "")
+                vk_canonical = get_vk_goal_action_name_ru(vk_code) if vk_code else None
+                if vk_canonical and vk_canonical != vk_code:
+                    vk_target = vk_canonical
+                else:
+                    vk_target = (getattr(r, "vk_goal_action_name", None) or "").strip() or vk_code or "Действия VK"
                 campaigns.append({
                     "id": cid,
                     "platform": "vk",
@@ -1338,13 +1347,7 @@ class StatsService:
                     "has_children": bool(ext_id),
                     "conversions_attributed": True,
                     "name": f"[VK] {disp_name}",
-                    # Ключевое целевое действие кампании (ТЗ единого дашборда п.6):
-                    # для VK — objective кампании (lead-формы, подписки и т.п.).
-                    "target_action_name": (
-                        (getattr(r, "vk_goal_action_name", None) or "").strip()
-                        or (get_vk_goal_action_name_ru(getattr(r, "vk_goal_action_id", None)) if getattr(r, "vk_goal_action_id", None) else None)
-                        or "Действия VK"
-                    ),
+                    "target_action_name": vk_target,
                     "impressions": imps,
                     "clicks": clicks,
                     "cost": round(cost, 2),
