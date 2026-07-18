@@ -360,7 +360,11 @@ def _channels_block(channels: list, layout: str) -> str:
         expenses = _with_channel_vat(ch.get("expenses"), ch.get("code"))
         clicks = int(ch.get("clicks") or 0)
         leads = int(ch.get("leads") or 0)
-        cpl = expenses / leads if leads > 0 else 0
+        # CPL — от лидового расхода канала (ТЗ VK п.3/№10).
+        _lcbp = ch.get("lead_cost_by_platform") or {}
+        _lead_raw = _lcbp.get(str(ch.get("code")))
+        lead_expenses = _with_channel_vat(_lead_raw if _lead_raw is not None else ch.get("expenses"), ch.get("code"))
+        cpl = lead_expenses / leads if leads > 0 else 0
         rows += f"""<tr>
           <td class="ch-name">
             <span class="ch-chip" style="background:{meta['soft']};color:{meta['color']};">{meta['short']}</span>
@@ -397,11 +401,15 @@ def render_report_html(data: dict, layout: str = "desktop") -> str:
     summary_platform = _summary_platform(data, tc)
 
     expenses = _with_cost_breakdown_vat(s.get("expenses", 0), s.get("cost_by_platform"), summary_platform)
+    # CPL — от лидового расхода (ТЗ VK п.3/№10), не от всего расхода канала.
+    lead_expenses = _with_cost_breakdown_vat(
+        s.get("expenses", 0), s.get("lead_cost_by_platform") or s.get("cost_by_platform"), summary_platform
+    )
     impressions = int(s.get("impressions", 0))
     clicks = int(s.get("clicks", 0))
     leads = int(s.get("leads", 0))
     cpc = expenses / clicks if clicks > 0 else _with_channel_vat(s.get("cpc", 0), summary_platform)
-    cpa = expenses / leads if leads > 0 else _with_channel_vat(s.get("cpa", 0), summary_platform)
+    cpa = lead_expenses / leads if leads > 0 else _with_channel_vat(s.get("cpa", 0), summary_platform)
 
     cards = [
         _kpi_card("expenses", "Расходы", f"{_fmt(expenses)} ₽", "За период", trends),

@@ -1137,6 +1137,29 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                         goal_actions_synced += 1
                     campaigns_updated += 1
                 
+                # Автодефолт лидовых типов (ТЗ VK «дашборд канала», раздел 3): если
+                # состав лидов ещё не задавался (lead_action_types is None), при синке
+                # автоматически отмечаем лидовыми типы с однозначно лидовой семантикой
+                # (лид-формы и пр. — категория 'lead'). Если лидформенных кампаний в
+                # кабинете нет — автодефолт не применяется: остаётся None → состояние
+                # «лиды не настроены». Агентство может изменить состав в настройках.
+                if integration.lead_action_types is None:
+                    observed_objectives = {
+                        str(campaign.vk_goal_action_id)
+                        for campaign in campaign_catalog.values()
+                        if campaign.vk_goal_action_id
+                    }
+                    if observed_objectives:
+                        from automation.vk_goal_action_mapping import is_vk_lead_action
+                        lead_defaults = sorted({c for c in observed_objectives if is_vk_lead_action(c)})
+                        if lead_defaults:
+                            integration.lead_action_types = json.dumps(lead_defaults)
+                            integration.vk_known_lead_action_types = json.dumps(sorted(observed_objectives))
+                            logger.info(
+                                "VK lead_action_types autodefault for integration %s: %s",
+                                integration.id, lead_defaults,
+                            )
+
                 # A configured VK composition acknowledges the types that were
                 # present when it was saved. If a new campaign objective appears
                 # later, surface it once instead of silently mixing it into CPL.

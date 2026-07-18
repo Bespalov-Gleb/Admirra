@@ -468,9 +468,16 @@
                 <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01" stroke-linecap="round"/></svg>
               </span>
             </h3>
-            <strong>{{ metricsMap[key]?.value }}</strong>
+            <button
+              v-if="(key === 'leads' || key === 'cpa') && leadsNotConfigured"
+              type="button"
+              class="metric-not-configured"
+              title="Лиды не настроены в интеграции VK — отметьте лидовые действия, чтобы считать Лиды и CPL"
+              @click="openProjectSettingsModal"
+            >лиды не настроены → Настроить</button>
+            <strong v-else>{{ metricsMap[key]?.value }}</strong>
           </div>
-          <span v-if="metricsMap[key]?.trend" class="trend" :class="{ negative: metricsMap[key]?.negative }">
+          <span v-if="metricsMap[key]?.trend && !((key === 'leads' || key === 'cpa') && leadsNotConfigured)" class="trend" :class="{ negative: metricsMap[key]?.negative }">
             <ArrowTrendingUpIcon v-if="metricsMap[key]?.trendUp" class="trend-icon" />
             <ArrowTrendingDownIcon v-else class="trend-icon" />
             {{ metricsMap[key]?.trend }}
@@ -639,9 +646,11 @@
                 :key="chip.key"
                 type="button"
                 class="chart-chip"
-                :class="{ 'chart-chip--active': chartSelectedMetricKeys.includes(chip.key) }"
+                :class="{ 'chart-chip--active': chartSelectedMetricKeys.includes(chip.key), 'chart-chip--disabled': chartChipDisabled(chip.key) }"
                 :style="{ '--metric-color': chip.color, '--metric-soft': chip.soft }"
                 :aria-pressed="chartSelectedMetricKeys.includes(chip.key)"
+                :disabled="chartChipDisabled(chip.key)"
+                :title="chartChipDisabled(chip.key) ? 'Лиды не настроены в интеграции' : ''"
                 @click="toggleChartMetric(chip.key)"
               >
                 <span class="chart-chip__icon">
@@ -692,8 +701,10 @@
             :key="chip.key"
             type="button"
             class="chart-chip"
-            :class="{ 'chart-chip--active': chartSelectedMetricKeys.includes(chip.key) }"
+            :class="{ 'chart-chip--active': chartSelectedMetricKeys.includes(chip.key), 'chart-chip--disabled': chartChipDisabled(chip.key) }"
             :aria-pressed="chartSelectedMetricKeys.includes(chip.key)"
+            :disabled="chartChipDisabled(chip.key)"
+            :title="chartChipDisabled(chip.key) ? 'Лиды не настроены в интеграции' : ''"
             @click="toggleChartMetric(chip.key)"
           >
             <span class="chart-chip__dot" :style="{ background: chip.legacyColor }"></span>
@@ -898,7 +909,8 @@
           </div>
           <div v-else class="goals-bar-empty">Нет целей за период</div>
           <div class="goals-footer">
-            <div v-if="group.bars.length" class="goals-summary-row goals-summary-row--accent">
+            <!-- Сводная строка (CPL) скрыта, когда лиды не настроены (ТЗ VK раздел 4) -->
+            <div v-if="group.bars.length && group.leadsConfigured !== false" class="goals-summary-row goals-summary-row--accent">
               <span>{{ group.summaryLabel }}</span>
               <strong>{{ group.cpl }}</strong>
             </div>
@@ -950,10 +962,10 @@
               </td>
               <td>{{ formatNumber(item.summary?.impressions || 0) }}</td>
               <td>{{ formatNumber(item.summary?.clicks || 0) }}</td>
-              <td>{{ formatMoney(item.summary?.cpc || 0) }}</td>
-              <td>{{ formatMoney(item.summary?.expenses || 0) }}</td>
+              <td>{{ formatMoney(folderRowCpc(item.summary)) }}</td>
+              <td>{{ formatMoney(folderRowExpenses(item.summary)) }}</td>
               <td>{{ formatNumber(item.summary?.leads || 0) }}</td>
-              <td>{{ formatMoney(item.summary?.cpa || 0) }}</td>
+              <td>{{ formatMoney(folderRowCpl(item.summary)) }}</td>
               <td>
                 <button type="button" class="folder-branch-open" @click="openFolderBranch(item)">Открыть →</button>
               </td>
@@ -3586,6 +3598,23 @@ const availableDashboardChannels = computed(() => {
   ))
 })
 
+// Настроены ли лиды у канала: есть хотя бы один суммируемый (лидовый) тип действий
+// (VK — lead_action_types, Яндекс — выбранные цели Метрики). ТЗ VK раздел 4.
+const channelLeadsConfigured = (key) => {
+  const items = isAllChannelsMode.value ? (reportGoalsByChannel.value?.[key] || []) : (reportGoals.value || [])
+  return items.some((item) => item.summable !== false)
+}
+// Состояние «лиды не настроены»: ни один подключённый канал с расходом не имеет
+// настроенных лидовых действий. Тогда KPI «Лиды»/«CPL» показывают ссылку в
+// настройки, а не «0 шт.», и чипы графика Лиды/CPL задизейблены (ТЗ VK раздел 4).
+const leadsNotConfigured = computed(() => {
+  const chans = availableDashboardChannels.value
+  if (!chans.length) return false
+  const anySpend = chans.some((ch) => Number(ch.summary?.expenses || 0) > 0)
+  if (!anySpend) return false
+  return !chans.some((ch) => channelLeadsConfigured(ch.key))
+})
+
 const dashboardSummary = computed(() => {
   if (
     !isAllChannelsMode.value
@@ -3631,6 +3660,23 @@ const channelLeadExpenses = (key, data) => {
   const lead = data?.lead_cost_by_platform?.[key]
   const base = lead === undefined || lead === null ? Number(data?.expenses || 0) : Number(lead)
   return withVat(base, { platform: key })
+}
+
+// Строки «Проекты папки» — НДС применяется так же, как на дашборде (ТЗ VK п.А/№13):
+// расход/CPC — по разбивке каналов, CPL — от лидового расхода.
+const folderRowExpenses = (summary) =>
+  withCostBreakdownVat(Number(summary?.expenses || 0), summary?.cost_by_platform)
+const folderRowCpc = (summary) => {
+  const clicks = Number(summary?.clicks || 0)
+  return clicks > 0 ? folderRowExpenses(summary) / clicks : withVat(Number(summary?.cpc || 0))
+}
+const folderRowCpl = (summary) => {
+  const leads = Number(summary?.leads || 0)
+  const leadExpenses = withCostBreakdownVat(
+    Number(summary?.expenses || 0),
+    summary?.lead_cost_by_platform || summary?.cost_by_platform,
+  )
+  return leads > 0 ? leadExpenses / leads : withVat(Number(summary?.cpa || 0))
 }
 
 const channelMetricRawValue = (key, metricKey, data) => {
@@ -3770,7 +3816,11 @@ const activeChartMetricKeys = computed(() => {
   return selected.length ? selected : ['expenses']
 })
 
+// Чип «Лиды»/«CPL» на графике задизейблен, когда лиды не настроены (ТЗ VK раздел 4).
+const chartChipDisabled = (chipKey) => (chipKey === 'leads' || chipKey === 'cpa') && leadsNotConfigured.value
+
 const toggleChartMetric = (key) => {
+  if (chartChipDisabled(key)) return
   if (chartBreakdownMode.value === 'channels') {
     chartSelectedMetricKeys.value = [key]
     return
@@ -4315,7 +4365,13 @@ const goalBars = computed(() => {
   const key = normalizeDashboardPlatform(filters.channel) || 'yandex'
   const meta = dashboardChannelMeta[key] || dashboardChannelMeta.yandex
   const expenses = withCostBreakdownVat(dashboardSummary.value?.expenses || 0, dashboardSummary.value?.cost_by_platform, key)
-  return buildGoalBars(dashboardGoalItems.value, { channelColor: meta.color, channelHasSpend: expenses > 0 })
+  return buildGoalBars(dashboardGoalItems.value, {
+    channelColor: meta.color,
+    channelHasSpend: expenses > 0,
+    channelKey: key,
+    // Раскладка расхода по objective — для VK и в одноканальном виде (ТЗ VK п.5/№11).
+    showSpend: key === 'vk',
+  })
 })
 
 const goalsSummaryCpl = computed(() => {
@@ -4383,6 +4439,7 @@ const goalChannelGroups = computed(() => {
     asset: key === 'yandex' ? yandexMetrikaIcon : meta.asset,
     bars: goalBars.value,
     expenses: formatMoney(expenses),
+    leadsConfigured: channelLeadsConfigured(key),
     cpl: goalsSummaryCpl.value,
     summaryLabel: key === 'vk'
       ? (selectedDashboardGoalItems.value.length ? 'Заявки · по выбранным действиям · общий CPL' : 'Выберите действия для расчёта CPL')
@@ -8045,6 +8102,21 @@ onMounted(() => {
   white-space: nowrap;
 }
 .metric-hint svg { opacity: 0.75; }
+.metric-not-configured {
+  margin-top: 0.2rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #b7791f;
+  font-size: 1.15rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  line-height: 1.15;
+}
+.metric-not-configured:hover { text-decoration: underline; }
+.figma-dashboard.is-dark .metric-not-configured { color: #e7c583; }
+.chart-chip--disabled { opacity: 0.45; cursor: not-allowed; text-decoration: line-through; }
 
 .metric-card p {
   margin: 1.4rem 0 0;

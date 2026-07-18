@@ -151,8 +151,12 @@ def generate_report_docx(
     )
     summary_platform = _summary_platform(top_campaigns)
     summary_expenses = _with_cost_breakdown_vat(summary.get("expenses", 0), summary.get("cost_by_platform"), summary_platform)
+    # CPL — от лидового расхода (ТЗ VK п.3/№10), не от всего расхода канала.
+    summary_lead_expenses = _with_cost_breakdown_vat(
+        summary.get("expenses", 0), summary.get("lead_cost_by_platform") or summary.get("cost_by_platform"), summary_platform
+    )
     summary_cpc = summary_expenses / float(summary.get("clicks") or 0) if summary.get("clicks") else _with_channel_vat(summary.get("cpc", 0), summary_platform)
-    summary_cpa = summary_expenses / float(summary.get("leads") or 0) if summary.get("leads") else _with_channel_vat(summary.get("cpa", 0), summary_platform)
+    summary_cpa = summary_lead_expenses / float(summary.get("leads") or 0) if summary.get("leads") else _with_channel_vat(summary.get("cpa", 0), summary_platform)
     try:
         from docx import Document
         from docx.shared import Pt

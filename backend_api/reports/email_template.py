@@ -86,8 +86,12 @@ def render_report_email_html(data: dict) -> str:
     impressions = int(s.get("impressions", 0))
     clicks = int(s.get("clicks", 0))
     leads = int(s.get("leads", 0))
+    # CPL — от лидового расхода (ТЗ VK п.3/№10), не от всего расхода канала.
+    lead_expenses = _with_cost_breakdown_vat(
+        s.get("expenses", 0), s.get("lead_cost_by_platform") or s.get("cost_by_platform"), summary_platform
+    )
     cpc = expenses / clicks if clicks > 0 else _with_channel_vat(s.get("cpc", 0), summary_platform)
-    cpa = expenses / leads if leads > 0 else _with_channel_vat(s.get("cpa", 0), summary_platform)
+    cpa = lead_expenses / leads if leads > 0 else _with_channel_vat(s.get("cpa", 0), summary_platform)
 
     project_line = f'<div style="font-size:13px;opacity:0.85;margin-top:4px;">{_escape(client_name)}</div>' if client_name else ""
 
