@@ -396,7 +396,9 @@ class ReportEmailRecipient(Base):
     last_delivery_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    user = relationship("User", backref="report_email_recipients")
+    # Не `report_email_recipients`: это имя уже занято legacy JSON-полем User
+    # с выбранными адресами личной доставки. Разделяем хранимый список и ORM-строки.
+    user = relationship("User", backref="report_email_recipient_records")
 
     __table_args__ = (
         UniqueConstraint("user_id", "client_id", "folder_id", "email", name="uq_report_email_recipient_scope"),
