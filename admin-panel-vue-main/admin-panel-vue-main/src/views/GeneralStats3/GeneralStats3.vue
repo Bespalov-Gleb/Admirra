@@ -364,7 +364,22 @@
       draggable=".metric-card-item"
       @end="saveKpiConfig"
     >
-      <article v-for="key in visibleSlots" :key="key" class="metric-card metric-card-item" :data-metric="key" :class="metricAnomalyClass(key)">
+      <article v-for="key in visibleSlots" :key="key" class="metric-card metric-card-item" :class="metricAnomalyClass(key)">
+        <!-- У нижнего аналитического блока остаётся прежний флажок детектора:
+             dashboard v2 меняет только верхнюю сервисную зону. -->
+        <button
+          v-if="getMetricAnomaly(key)"
+          type="button"
+          class="kpi-flag"
+          :ref="(element) => setMetricFlagRef(key, element)"
+          @mouseenter="hoverDetectorMetric(key)"
+          @mouseleave="unhoverDetectorMetric()"
+          @click.stop="toggleDetectorMetricPopover(key)"
+        >
+          <span class="kpi-flag__badge" :class="`kpi-flag__badge--${getMetricAnomaly(key).severity}`">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5.5v8"/><circle cx="12" cy="18" r="1.6" fill="currentColor" stroke="none"/></svg>
+          </span>
+        </button>
         <div class="metric-head">
           <span class="metric-icon drag-handle" title="Перетащить">
             <component :is="metricsMap[key]?.icon" />
@@ -389,26 +404,10 @@
             >лиды не настроены → Настроить</button>
             <strong v-else>{{ metricsMap[key]?.value }}</strong>
           </div>
-          <span v-if="(metricsMap[key]?.trend || getMetricAnomaly(key)) && !((key === 'leads' || key === 'cpa') && leadsNotConfigured)" class="trend" :class="{ negative: metricsMap[key]?.negative }">
-            <template v-if="metricsMap[key]?.trend">
-              <ArrowTrendingUpIcon v-if="metricsMap[key]?.trendUp" class="trend-icon" />
-              <ArrowTrendingDownIcon v-else class="trend-icon" />
-              {{ metricsMap[key]?.trend }}
-            </template>
-            <!-- Точка сохраняет доступ к пояснению детектора, не перетягивая
-                 внимание с числа и дельты. -->
-            <button
-              v-if="getMetricAnomaly(key)"
-              type="button"
-              class="kpi-flag"
-              :ref="(element) => setMetricFlagRef(key, element)"
-              aria-label="Пояснение аномалии"
-              @mouseenter="hoverDetectorMetric(key)"
-              @mouseleave="unhoverDetectorMetric()"
-              @click.stop="toggleDetectorMetricPopover(key)"
-            >
-              <span class="kpi-flag__badge" :class="`kpi-flag__badge--${getMetricAnomaly(key).severity}`"></span>
-            </button>
+          <span v-if="metricsMap[key]?.trend && !((key === 'leads' || key === 'cpa') && leadsNotConfigured)" class="trend" :class="{ negative: metricsMap[key]?.negative }">
+            <ArrowTrendingUpIcon v-if="metricsMap[key]?.trendUp" class="trend-icon" />
+            <ArrowTrendingDownIcon v-else class="trend-icon" />
+            {{ metricsMap[key]?.trend }}
           </span>
           <button class="card-delete-btn" type="button" @click.stop="hideCard(key)" title="Скрыть">
             <XMarkIcon />
@@ -14732,8 +14731,7 @@ onMounted(() => {
   .detector-popover button { min-height: 44px; }
   .anomaly-dot { min-width: 18px; min-height: 18px; padding: 13px; background-clip: content-box; }
 }
-/* Dashboard v2: only content zone; global header/sidebar intentionally untouched. */
-.figma-dashboard { max-width: 1240px; margin: 0 auto; padding-top: 1.5rem; }
+/* Dashboard v2: только верхняя сервисная зона (до фильтров). */
 .dashboard-service-row { display:flex; align-items:center; gap:.75rem; min-height:3.5rem; padding:0 0 .9rem; border-bottom:1px solid #e9edf3; }
 .dashboard-service-sources { display:flex; align-items:center; flex-wrap:wrap; gap:.45rem; min-width:0; }
 .dashboard-source-chip,.dashboard-source-add { display:inline-flex; align-items:center; gap:.35rem; min-height:1.8rem; padding:.25rem .65rem; border:0; border-radius:999px; font-size:.75rem; font-weight:650; white-space:nowrap; }
@@ -14743,9 +14741,7 @@ onMounted(() => {
 .dashboard-pending-row { display:flex; align-items:center; width:100%; gap:.55rem; margin-top:.75rem; padding:.6rem .9rem; border:0; border-radius:.65rem; background:#fcf1dc; color:#9a6a12; text-align:left; cursor:pointer; }.dashboard-pending-row > span { color:#efa827; }.dashboard-pending-row strong { font-size:.78rem; font-weight:600; }.dashboard-pending-row em { margin-left:auto; color:#fff; border-radius:.4rem; background:#2f6bea; padding:.28rem .55rem; font-size:.72rem; font-style:normal; font-weight:700; }
 .dashboard-title-row--actions { display:flex; align-items:center; gap:.65rem; flex-wrap:wrap; margin-top:1.15rem; }.dashboard-title-row--actions h1 { margin:0; }.dashboard-title-row--actions .dashboard-view-tabs { margin-left:.1rem; }.dashboard-report-actions { margin-left:auto; display:flex; align-items:center; gap:.45rem; }.dashboard-report-actions .project-settings-btn { min-height:2.15rem; padding:.42rem .7rem; font-size:.76rem; }.dashboard-report-actions .project-settings-btn > svg { width:1rem; height:1rem; }.dashboard-send-split { display:flex; position:relative; overflow:visible; }.dashboard-send-main,.dashboard-send-caret { min-height:2.15rem; border:0; color:#fff; background:#2f6bea; cursor:pointer; font-size:.78rem; font-weight:700; }.dashboard-send-main { padding:0 .75rem; border-radius:.55rem 0 0 .55rem; }.dashboard-send-caret { padding:0 .42rem; border-left:1px solid rgba(255,255,255,.24); border-radius:0 .55rem .55rem 0; }.dashboard-send-caret svg { width:.9rem; }.dashboard-delivery-menu { right:0; left:auto; min-width:13rem; }
 .filters-row { align-items:center; }.sync-status-label { margin-left:auto; min-height:2rem; border:0; background:transparent; padding:.25rem .4rem; color:#98a2b6; font:inherit; font-size:.76rem; cursor:pointer; }.sync-status-label:hover:not(:disabled) { color:#2f6bea; }.filter-right-group { margin-left:0; position:relative; }.dashboard-options-menu { right:0; left:auto; min-width:11rem; padding:.55rem; }.dashboard-options-menu .nds-check-wrap { padding:.35rem; }.dashboard-options-menu .nds-label { font-size:.78rem; }
-/* KPI becomes a single compact strip. Existing drag and hide mechanics remain available. */
-.figma-dashboard .kpi-grid { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:0; margin-top:1.35rem; padding:.85rem .35rem; border:1px solid #e9edf3; border-radius:.85rem; background:#fff; box-shadow:none; }.figma-dashboard .metric-card { min-width:0; min-height:0; padding:.15rem .9rem; border:0; border-left:1px solid #e9edf3; border-radius:0; background:transparent; box-shadow:none; overflow:visible; }.figma-dashboard .metric-card:first-child { border-left:0; }.figma-dashboard .metric-card.metric-card--anomaly-warning,.figma-dashboard .metric-card.metric-card--anomaly-problem { border-top-color:transparent; border-right-color:transparent; border-bottom-color:transparent; border-left-color:#e9edf3; box-shadow:none; }.figma-dashboard .metric-head { display:block; }.figma-dashboard .metric-icon,.figma-dashboard .card-delete-btn { display:none; }.figma-dashboard .metric-text h3 { margin:0; color:#98a2b6; font-size:.72rem; font-weight:500; }.figma-dashboard .metric-text strong { display:block; margin-top:.18rem; color:#1b2437; font-size:1.35rem; line-height:1.15; white-space:nowrap; }.figma-dashboard .trend { display:flex; align-items:center; margin-top:.15rem; color:#5c6b84; font-size:.72rem; }.figma-dashboard .trend .trend-icon { display:none; }.figma-dashboard .metric-card[data-metric="clicks"] .trend,.figma-dashboard .metric-card[data-metric="cpc"] .trend,.figma-dashboard .metric-card[data-metric="leads"] .trend,.figma-dashboard .metric-card[data-metric="cpa"] .trend { color:#188a4c; }.figma-dashboard .metric-card[data-metric="clicks"] .trend.negative,.figma-dashboard .metric-card[data-metric="cpc"] .trend.negative,.figma-dashboard .metric-card[data-metric="leads"] .trend.negative,.figma-dashboard .metric-card[data-metric="cpa"] .trend.negative { color:#c23a3a; }.figma-dashboard .metric-card[data-metric="expenses"] .trend,.figma-dashboard .metric-card[data-metric="impressions"] .trend { color:#5c6b84; }.figma-dashboard .kpi-flag { position:relative; top:auto; right:auto; flex:0 0 1rem; width:1rem; height:1rem; margin-left:.16rem; padding:0; }.figma-dashboard .kpi-flag__badge { width:.42rem; height:.42rem; box-shadow:none; animation:none; }.figma-dashboard .kpi-flag__badge--warning,.figma-dashboard .kpi-flag__badge--problem { background:#f2b400; }.figma-dashboard .kpi-flag__badge svg { display:none; }.figma-dashboard .metric-channel-breakdown { display:none; }
-.figma-dashboard.is-dark .dashboard-source-add,.figma-dashboard.is-dark .kpi-grid { background:rgba(255,255,255,.04); border-color:rgba(255,255,255,.1); }.figma-dashboard.is-dark .metric-card { border-color:rgba(255,255,255,.1); }.figma-dashboard.is-dark .metric-text strong { color:#f8fafc; }.figma-dashboard.is-dark .dashboard-service-row { border-color:rgba(255,255,255,.1); }
-@media (max-width: 1000px) { .dashboard-service-row { align-items:flex-start; flex-direction:column; }.dashboard-delivery-status,.dashboard-delivery-empty { margin-left:0; text-align:left; }.dashboard-report-actions { width:100%; margin-left:0; }.figma-dashboard .kpi-grid { grid-template-columns:repeat(3,1fr); row-gap:.8rem; }.figma-dashboard .metric-card:nth-child(4) { border-left:0; } }
-@media (max-width: 620px) { .dashboard-title-row--actions .dashboard-view-tabs { order:4; }.dashboard-report-actions { flex-wrap:wrap; }.dashboard-report-actions .detector-status-chip { order:-1; }.filters-row .sync-status-label { margin-left:0; }.figma-dashboard .kpi-grid { grid-template-columns:repeat(2,1fr); }.figma-dashboard .metric-card:nth-child(odd) { border-left:0; }.dashboard-delivery-status { font-size:.7rem; }.dashboard-delivery-status > svg,.dashboard-delivery-prefix { display:none; } }
+.figma-dashboard.is-dark .dashboard-source-add { background:rgba(255,255,255,.04); border-color:rgba(255,255,255,.1); }.figma-dashboard.is-dark .dashboard-service-row { border-color:rgba(255,255,255,.1); }
+@media (max-width: 1000px) { .dashboard-service-row { align-items:flex-start; flex-direction:column; }.dashboard-delivery-status,.dashboard-delivery-empty { margin-left:0; text-align:left; }.dashboard-report-actions { width:100%; margin-left:0; } }
+@media (max-width: 620px) { .dashboard-title-row--actions .dashboard-view-tabs { order:4; }.dashboard-report-actions { flex-wrap:wrap; }.dashboard-report-actions .detector-status-chip { order:-1; }.filters-row .sync-status-label { margin-left:0; }.dashboard-delivery-status { font-size:.7rem; }.dashboard-delivery-status > svg,.dashboard-delivery-prefix { display:none; } }
 </style>
