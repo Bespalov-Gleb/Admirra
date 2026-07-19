@@ -120,7 +120,7 @@
             <p class="report-approval-side__label">Куда уходит</p>
             <div class="report-approval-targets">
               <div v-for="t in deliveryTargets" :key="t.key" class="report-approval-target" :class="{ muted: !t.used }">
-                <span class="report-approval-target__ic" :class="t.icon">{{ t.glyph }}</span>
+                <ChannelIcon class="report-approval-target__icon" :kind="t.channel" size="1.125rem" />
                 <span>{{ t.text }}</span>
               </div>
               <div v-if="!deliveryTargets.length" class="report-approval-target muted">Каналы не выбраны</div>
@@ -157,6 +157,7 @@ import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import api from '@/api/axios'
 import { useToaster } from '@/composables/useToaster'
 import { useTheme } from '@/composables/useTheme'
+import ChannelIcon from '@/components/ui/ChannelIcon.vue'
 
 const props = defineProps({
   delivery: { type: Object, default: null },
@@ -217,19 +218,18 @@ const deliveryTargets = computed(() => {
   const channels = Array.isArray(props.delivery?.channels) ? props.delivery.channels : []
   const targets = Array.isArray(props.delivery?.chat_target_details) ? props.delivery.chat_target_details : []
   const rows = []
-  if (channels.includes('telegram')) rows.push({ key: 'tg', icon: 'tg', glyph: 'T', text: 'Telegram — мне лично', used: true })
-  if (channels.includes('max')) rows.push({ key: 'mx', icon: 'mx', glyph: 'M', text: 'MAX — мне лично', used: true })
+  if (channels.includes('telegram')) rows.push({ key: 'tg', channel: 'telegram', text: 'Telegram — мне лично', used: true })
+  if (channels.includes('max')) rows.push({ key: 'mx', channel: 'max', text: 'MAX — мне лично', used: true })
   if (channels.includes('email')) {
     const emails = Array.isArray(props.delivery?.email_recipients) ? props.delivery.email_recipients : []
-    for (const email of (emails.length ? emails : ['Email проекта'])) rows.push({ key: `em-${email}`, icon: 'em', glyph: '@', text: email, used: true })
+    for (const email of (emails.length ? emails : ['Email проекта'])) rows.push({ key: `em-${email}`, channel: 'email', text: email, used: true })
   }
   for (const target of targets) {
     if (target.kind === 'email') continue
     const isMax = target.kind === 'max'
     rows.push({
       key: `target-${target.id}`,
-      icon: isMax ? 'mx' : 'tg',
-      glyph: isMax ? 'M' : 'T',
+      channel: isMax ? 'max' : 'telegram',
       text: target.title || (target.target_type === 'client' ? 'Личный чат клиента' : 'Группа проекта'),
       used: true,
     })
@@ -849,22 +849,11 @@ const approve = async () => {
 .report-approval-target.muted { color: #98a2b6; }
 .report-approval-modal.is-dark .report-approval-target.muted { color: rgba(255, 255, 255, 0.4); }
 
-.report-approval-target__ic {
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: 0.45rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.72rem;
-  font-weight: 750;
-  color: #fff;
+.report-approval-target__icon {
+  width: 1.125rem;
+  height: 1.125rem;
   flex-shrink: 0;
 }
-
-.report-approval-target__ic.tg { background: #2aa5e0; }
-.report-approval-target__ic.mx { background: #6c5ce7; }
-.report-approval-target__ic.em { background: #8896ac; }
 
 .report-approval-side__spacer {
   flex: 1;
