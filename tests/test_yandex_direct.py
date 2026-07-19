@@ -285,10 +285,39 @@ class TestYandexDirectAPIClients:
             assert len(clients) == 2
             assert clients[0]["Login"] == "user1"
             request = mock_client.return_value.__aenter__.return_value.post.await_args.kwargs["json"]
-            # Only the documented Clients.get fields are allowed in the request.
-            assert request["params"]["FieldNames"] == ["Login", "ClientInfo", "ClientId", "Type"]
+            assert request["params"]["FieldNames"] == [
+                "Login", "ClientInfo", "ClientId", "Type", "ManagedLogins"
+            ]
             assert request["params"]["OrganizationFieldNames"] == ["Name"]
             assert mock_client.return_value.__aenter__.return_value.post.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_get_clients_retries_without_managed_logins(self):
+        """An unsupported optional field must not break the personal profile."""
+        api = YandexDirectAPI("test_token")
+
+        invalid_field_response = Mock()
+        invalid_field_response.status_code = 200
+        invalid_field_response.json.return_value = {
+            "error": {"error_code": 8000, "error_string": "Invalid field"}
+        }
+
+        success_response = Mock()
+        success_response.status_code = 200
+        success_response.json.return_value = {"result": {"Clients": [{"Login": "user1"}]}}
+
+        with patch('httpx.AsyncClient') as mock_client:
+            post_mock = AsyncMock(side_effect=[invalid_field_response, success_response])
+            mock_client.return_value.__aenter__.return_value.post = post_mock
+
+            clients = await api.get_clients()
+
+            assert clients == [{"Login": "user1"}]
+            assert post_mock.await_count == 2
+            retry_payload = post_mock.await_args.kwargs["json"]
+            assert retry_payload["params"]["FieldNames"] == [
+                "Login", "ClientInfo", "ClientId", "Type"
+            ]
 
     @pytest.mark.asyncio
     async def test_get_clients_unauthorized(self):

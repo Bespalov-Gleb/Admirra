@@ -2223,10 +2223,11 @@ async def get_integration_profiles(
             profiles = []
             seen_logins = set()
 
-            # ARCHITECTURE: One Yandex account can have its own Direct cabinet
-            # and, if it is an agency, a list of agency clients. Passport
-            # organizations are represented by their own porg-* identity in
-            # Clients.get after the user chooses "Войти как сотрудник" in OAuth.
+            # One Yandex account can expose three independent cabinet sources:
+            # own Direct profile, agency clients, and delegated profiles listed
+            # by Yandex as ManagedLogins.  Organization OAuth remains a
+            # separate flow; this third source is needed for regular personal
+            # OAuth users who were granted access to someone else's cabinet.
 
             # 1. Always include the personal account itself
             # Get personal advertising account login via Clients.get API
@@ -2285,6 +2286,57 @@ async def get_integration_profiles(
                         logger.warning(f"⚠️ Skipped agency client (duplicate or empty login): {login}")
             except Exception as agency_err:
                 logger.warning(f"No agency clients found or error: {agency_err}")
+
+            # 3. Delegated personal-access cabinets. ManagedLogins is an
+            # optional Yandex response field, so the Direct client asks for it
+            # optimistically and safely falls back to documented fields when
+            # Yandex rejects it.  A profile lookup is only used to improve the
+            # name; the login itself is already confirmed by Clients.get.
+            try:
+                managed_logins_to_fetch = []
+                for client_info in clients_info:
+                    managed_logins = client_info.get("ManagedLogins") or []
+                    if isinstance(managed_logins, str):
+                        managed_logins = [managed_logins]
+                    if not isinstance(managed_logins, (list, tuple, set)):
+                        logger.warning("Ignoring malformed ManagedLogins from Yandex Clients.get")
+                        continue
+
+                    for raw_login in managed_logins:
+                        login = str(raw_login or "").strip()
+                        normalized_login = login.lower()
+                        if login and normalized_login not in seen_logins:
+                            managed_logins_to_fetch.append(login)
+                            seen_logins.add(normalized_login)
+
+                # Some users have dozens of delegated cabinets. Fetch display
+                # names concurrently but cap requests to avoid API bursts.
+                semaphore = asyncio.Semaphore(5)
+
+                async def fetch_profile(login: str):
+                    async with semaphore:
+                        return login, await direct_api.get_cabinet_profile_for_login(login)
+
+                fetched_profiles = await asyncio.gather(
+                    *(fetch_profile(login) for login in managed_logins_to_fetch),
+                    return_exceptions=True,
+                )
+                for item in fetched_profiles:
+                    if isinstance(item, Exception):
+                        logger.warning(f"Could not enrich delegated Yandex cabinet: {item}")
+                        continue
+                    login, profile_info = item
+                    organization_name = (profile_info or {}).get("organization_name", "").strip()
+                    profiles.append({
+                        "login": login,
+                        "name": organization_name or f"Кабинет ({login})",
+                        "type": "managed",
+                    })
+                    logger.info(f"Added delegated Yandex cabinet: {login}")
+            except Exception as managed_err:
+                # The personal and agency sources remain usable even if the
+                # optional delegated-cabinet enrichment has an API error.
+                logger.warning(f"Could not load delegated Yandex cabinets: {managed_err}")
 
             # Fallback if nothing found
             if not profiles:
