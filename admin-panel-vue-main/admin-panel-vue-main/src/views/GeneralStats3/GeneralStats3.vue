@@ -5,7 +5,7 @@
       <div class="dashboard-service-sources">
         <span v-for="channel in serviceChannelItems" :key="channel.key" class="dashboard-source-chip" :class="`dashboard-source-chip--${channel.key}`">
           <img :src="channel.asset" alt="" />
-          {{ channel.name }} · {{ channel.balance }}
+          <template v-if="channel.displayName">{{ channel.displayName }} · </template>{{ channel.balance }}
         </span>
         <button type="button" class="dashboard-source-add" @click="goToIntegrations">+ Подключить</button>
       </div>
@@ -16,13 +16,13 @@
         <template v-if="projectRecipientCount === 1">
           <span class="dashboard-delivery-separator">·</span>
           <span class="dashboard-delivery-single">
-            <span class="dashboard-delivery-kind" :class="`dashboard-delivery-kind--${projectReportRecipients[0]?.kind}`">{{ projectReportRecipients[0]?.kind === 'telegram' ? 'T' : projectReportRecipients[0]?.kind === 'max' ? 'M' : '@' }}</span>
+            <span class="dashboard-delivery-ic report-mask-icon" :class="deliveryKindIcon(projectReportRecipients[0]?.kind)"></span>
             {{ projectReportRecipients[0]?.title }}
           </span>
         </template>
         <template v-else>
           <span class="dashboard-delivery-separator">·</span>
-          <span v-for="kind in serviceDeliveryKinds" :key="kind" class="dashboard-delivery-kind" :class="`dashboard-delivery-kind--${kind}`">{{ kind === 'telegram' ? 'T' : kind === 'max' ? 'M' : '@' }}</span>
+          <span v-for="kind in serviceDeliveryKinds" :key="kind" class="dashboard-delivery-ic report-mask-icon" :class="deliveryKindIcon(kind)"></span>
           {{ projectRecipientCount }} {{ recipientCountLabel }}
         </template>
       </button>
@@ -34,14 +34,11 @@
     </button>
 
     <section class="heading-section">
+      <!-- Бейдж «Организация» убран с дашборда (перенесён в раздел «Интеграции»). -->
       <div
-        v-if="isOrganizationDashboardProject || (filters.client_id && detectorSummary)"
+        v-if="filters.client_id && detectorSummary"
         class="dashboard-project-meta"
       >
-        <span v-if="isOrganizationDashboardProject" class="org-badge" title="Кабинет Яндекса подключён как организация">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/><path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01"/></svg>
-          <span>Организация</span>
-        </span>
         <span
           v-if="filters.client_id && detectorSummary"
           class="detector-status-chip detector-status-chip--inline"
@@ -3510,7 +3507,7 @@ const dashboardTitle = computed(() => {
   }
   if (filters.client_id) {
     const client = clients.value.find((item) => item.id === filters.client_id)
-    return client ? `Отчет по проекту: ${client.name}` : 'Отчет по проекту'
+    return client ? `Отчет: ${client.name}` : 'Отчет'
   }
   if (filters.channel !== 'all') return `Отчет: ${selectedFilterChannelLabel.value}`
   return 'Отчет по всем проектам'
@@ -3575,13 +3572,23 @@ const availableDashboardChannels = computed(() => {
   ))
 })
 
-const serviceChannelItems = computed(() => channelBalances.value.slice(0, 3).map((channel) => ({
-  ...channel,
+// Название источника в верхней строке: у Яндекса показываем «Yandex Direct»,
+// у VK и Авито — только логотип + баланс (по правкам владельца).
+const SERVICE_CHANNEL_NAME = { yandex: 'Yandex Direct' }
+const serviceChannelItems = computed(() => channelBalances.value.slice(0, 3).map((channel) => {
   // У балансов другие технические имена платформ, чем у KPI; CSS-ключи приводим
   // к трём рекламным источникам, которые показывает макет.
-  key: normalizeDashboardPlatform(channel.id),
-  balance: channel.value,
-})))
+  const key = normalizeDashboardPlatform(channel.id)
+  return {
+    ...channel,
+    key,
+    balance: channel.value,
+    displayName: SERVICE_CHANNEL_NAME[key] || null,
+  }
+}))
+
+// Иконка канала доставки отчёта (mask-иконки) вместо временных букв T/M/@.
+const deliveryKindIcon = (kind) => (kind === 'telegram' ? 'telegram-icon' : kind === 'max' ? 'max-icon' : 'email-icon')
 
 // Состояние «лиды не настроены» определяется КОНФИГУРАЦИЕЙ интеграции
 // (leads_configured с бэка), а не данными периода и не наличием расхода (ТЗ VK
@@ -14756,6 +14763,10 @@ onMounted(() => {
 .dashboard-source-chip { background:#fcf1dc; color:#9a6a12; }.dashboard-source-chip img { width:1.296rem; height:1.296rem; object-fit:contain; }.dashboard-source-chip--vk { background:#edf4ff; color:#2563eb; }.dashboard-source-chip--avito { background:#eef8f2; color:#16834a; }
 .dashboard-source-add { border:1px dashed #d9e0ea; background:#fff; color:#98a2b6; cursor:pointer; }
 .dashboard-delivery-status,.dashboard-delivery-empty { display:inline-flex; align-items:center; gap:.504rem; margin-left:auto; border:0; background:transparent; color:#5c6b84; font-size:1.032rem; text-align:right; cursor:pointer; }.dashboard-delivery-status:hover,.dashboard-delivery-empty:hover { color:#2f6bea; }.dashboard-delivery-status svg { width:1.296rem; height:1.296rem; }.dashboard-delivery-single { display:inline-flex; align-items:center; gap:.3rem; min-width:0; }.dashboard-delivery-kind { display:grid; place-items:center; width:1.368rem; height:1.368rem; border-radius:.336rem; background:#2aa5e0; color:#fff; font-size:.792rem; font-weight:800; }.dashboard-delivery-kind--max { background:#6c5ce7; }.dashboard-delivery-kind--email { background:#8896ac; }.dashboard-delivery-empty b { margin-left:.3rem; color:#2f6bea; }
+.dashboard-delivery-ic { width:1.25rem !important; height:1.25rem !important; transform:none !important; }
+.dashboard-delivery-ic.telegram-icon { background:#2aa5e0; }
+.dashboard-delivery-ic.max-icon { background:#6c5ce7; }
+.dashboard-delivery-ic.email-icon { background:#8896ac; }
 .dashboard-pending-row { display:flex; align-items:center; width:100%; gap:.55rem; margin-top:.75rem; padding:.6rem .9rem; border:0; border-radius:.65rem; background:#fcf1dc; color:#9a6a12; text-align:left; cursor:pointer; }.dashboard-pending-row > span { color:#efa827; }.dashboard-pending-row strong { font-size:.78rem; font-weight:600; }.dashboard-pending-row em { margin-left:auto; color:#fff; border-radius:.4rem; background:#2f6bea; padding:.28rem .55rem; font-size:.72rem; font-style:normal; font-weight:700; }
 .dashboard-project-meta { display:flex; align-items:center; gap:.45rem; min-height:1.9rem; }.dashboard-project-meta .org-badge,.dashboard-project-meta .detector-status-chip--inline { min-height:1.9rem; margin:0; padding:.32rem .66rem; font-size:.78rem; line-height:1; }.dashboard-project-meta .org-badge { gap:.34rem; }.dashboard-project-meta .org-badge svg { width:.76rem; height:.76rem; }.dashboard-project-meta .detector-status-chip--inline { gap:.36rem; }
 .dashboard-title-row--actions { display:flex; align-items:center; gap:.65rem; flex-wrap:wrap; margin-top:1.15rem; margin-bottom:1.05rem; }.dashboard-project-meta + .dashboard-title-row--actions { margin-top:.55rem; }.dashboard-title-row--actions h1 { margin:0; }.dashboard-title-row--actions .dashboard-view-tabs { margin-left:.1rem; }.dashboard-report-actions { margin-left:auto; display:flex; align-items:center; gap:.45rem; }.dashboard-report-actions .project-settings-btn { min-height:2.15rem; padding:.42rem .7rem; font-size:.76rem; }.dashboard-report-actions .project-settings-btn > svg { width:1rem; height:1rem; }.dashboard-report-actions .report-export-select .cs-list { width:16rem; min-width:16rem; }.dashboard-send-split { display:flex; position:relative; overflow:visible; }.dashboard-send-main,.dashboard-send-caret { min-height:2.15rem; border:0; color:#fff; background:#2f6bea; cursor:pointer; font-size:.78rem; font-weight:700; }.dashboard-send-main { padding:0 .75rem; border-radius:.55rem 0 0 .55rem; }.dashboard-send-caret { padding:0 .42rem; border-left:1px solid rgba(255,255,255,.24); border-radius:0 .55rem .55rem 0; }.dashboard-send-caret svg { width:.9rem; }.dashboard-delivery-menu { right:0; left:auto; min-width:13rem; }
