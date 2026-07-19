@@ -14819,7 +14819,9 @@ onMounted(() => {
 .toolbar-refresh-btn svg.spinning { animation:dashboard-spin 1s linear infinite; }
 
 /* Отправить отчёт — основная (синяя), но той же высоты и радиуса. */
-.dashboard-send-split { display:flex; position:relative; overflow:visible; }
+/* Сплит-кнопка «Отправить отчёт»: строго в ряд (родитель .custom-select задаёт
+   column — сбрасываем), обе части одной высоты. */
+.dashboard-send-split { display:flex; flex-direction:row; align-items:stretch; position:relative; overflow:visible; }
 .dashboard-send-main.toolbar-btn, .dashboard-send-caret.toolbar-btn { height:3.1944rem; border:0; color:#fff; background:#2563eb; font-weight:700; }
 .dashboard-send-main.toolbar-btn { border-radius:.8333rem 0 0 .8333rem; padding:0 1.0417rem; }
 .dashboard-send-caret.toolbar-btn { border-radius:0 .8333rem .8333rem 0; padding:0 .5556rem; border-left:1px solid rgba(255,255,255,.24); gap:0; }
