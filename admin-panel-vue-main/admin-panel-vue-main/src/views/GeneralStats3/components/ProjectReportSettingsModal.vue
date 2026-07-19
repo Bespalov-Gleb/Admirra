@@ -24,15 +24,17 @@
                 <label class="rp-label">Получатели проекта</label>
                 <p class="rp-sub">Они доступны только для этого проекта. Выбор автоотправки — на соседней вкладке.</p>
               </div>
-              <div class="rp-recipient-menu">
-                <button type="button" class="rp-mini-btn" @click="recipientMenuOpen = !recipientMenuOpen">+ Добавить получателя</button>
-                <div v-if="recipientMenuOpen" class="rp-recipient-menu__list">
-                  <button type="button" :disabled="linkLoading" @click="startLink('telegram', 'group')">Группа Telegram</button>
-                  <button type="button" :disabled="linkLoading" @click="startLink('max', 'group')">Группа MAX</button>
-                  <button type="button" :disabled="linkLoading" @click="startLink('telegram', 'client')">Личный чат клиента · TG</button>
-                  <button type="button" :disabled="linkLoading" @click="startLink('max', 'client')">Личный чат клиента · MAX</button>
-                  <button type="button" @click="showEmailInput = true; recipientMenuOpen = false">Email</button>
-                </div>
+              <div class="rp-recipient-menu" data-recipient-menu>
+                <button type="button" class="rp-mini-btn" @click="toggleRecipientMenu($event)">+ Добавить получателя</button>
+                <Teleport to="body">
+                  <div v-if="recipientMenuOpen" class="rp-recipient-menu__list rp-recipient-menu__list--float" :class="{ 'is-dark': isDarkMode }" :style="recipientMenuStyle" data-recipient-menu>
+                    <button type="button" :disabled="linkLoading" @click="startLink('telegram', 'group')">Группа Telegram</button>
+                    <button type="button" :disabled="linkLoading" @click="startLink('max', 'group')">Группа MAX</button>
+                    <button type="button" :disabled="linkLoading" @click="startLink('telegram', 'client')">Личный чат клиента · TG</button>
+                    <button type="button" :disabled="linkLoading" @click="startLink('max', 'client')">Личный чат клиента · MAX</button>
+                    <button type="button" @click="showEmailInput = true; recipientMenuOpen = false">Email</button>
+                  </div>
+                </Teleport>
               </div>
             </div>
 
@@ -313,13 +315,30 @@ const pick = (field, value) => {
   openSelect.value = null
 }
 
+// Меню «Добавить получателя» — тоже телепортом в body (fixed), выравнивание по
+// правому краю кнопки, иначе внутри модалки распирало скролл.
+const recipientMenuStyle = ref({})
+const toggleRecipientMenu = (ev) => {
+  if (recipientMenuOpen.value) {
+    recipientMenuOpen.value = false
+    return
+  }
+  const r = ev.currentTarget.getBoundingClientRect()
+  recipientMenuStyle.value = {
+    position: 'fixed',
+    top: `${r.bottom + 4}px`,
+    right: `${Math.max(8, window.innerWidth - r.right)}px`,
+  }
+  recipientMenuOpen.value = true
+}
+
 const handleDocClick = (e) => {
-  if (!openSelect.value) return
-  if (!e.target.closest('[data-rp-select]')) openSelect.value = null
+  if (openSelect.value && !e.target.closest('[data-rp-select]')) openSelect.value = null
+  if (recipientMenuOpen.value && !e.target.closest('[data-recipient-menu]')) recipientMenuOpen.value = false
 }
 
 // При прокрутке/ресайзе fixed-дропдаун разъедется с кнопкой — просто закрываем.
-const closeOpenSelect = () => { if (openSelect.value) openSelect.value = null }
+const closeOpenSelect = () => { openSelect.value = null; recipientMenuOpen.value = false }
 
 onMounted(() => {
   document.addEventListener('mousedown', handleDocClick)
@@ -587,7 +606,7 @@ watch(() => [props.clientId, props.folderId], load, { immediate: true })
 
 .rp-modal {
   position: relative;
-  width: min(46rem, 94vw);
+  width: min(51rem, 94vw);
   max-height: 90vh;
   overflow-y: auto;
   background: #fff;
@@ -803,6 +822,13 @@ watch(() => [props.clientId, props.folderId], load, { immediate: true })
 .rp-modal.is-dark .rp-recipient-menu__list { background: #303445; border-color: rgba(255,255,255,0.12); }
 .rp-modal.is-dark .rp-recipient-menu__list button { color: rgba(255,255,255,0.85); }
 .rp-modal.is-dark .rp-recipient-menu__list button:hover { background: rgba(255,255,255,0.08); }
+
+/* Плавающее меню получателей (телепорт в body): fixed-позиция инлайном,
+   z-index выше модалки. */
+.rp-recipient-menu__list--float { z-index: 1300; }
+.rp-recipient-menu__list--float.is-dark { background: #303445; border-color: rgba(255,255,255,0.12); }
+.rp-recipient-menu__list--float.is-dark button { color: rgba(255,255,255,0.85); }
+.rp-recipient-menu__list--float.is-dark button:hover { background: rgba(255,255,255,0.08); }
 
 /* Фирменные mask-иконки каналов (как на дашборде) */
 .rp-mask {
