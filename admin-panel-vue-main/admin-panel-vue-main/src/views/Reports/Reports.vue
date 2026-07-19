@@ -77,7 +77,7 @@
                 :title="ch.title"
                 :disabled="ch.ok !== false || retryingId === item.id"
                 @click.stop="retryDelivery(item, ch)"
-              >{{ ch.label }} {{ ch.ok === true ? '✓' : ch.ok === false ? '✕ ⟳' : '—' }}</button>
+              ><ChannelIcon :kind="ch.kind" size="0.86rem" class="history-channel-ic" />{{ ch.label }} {{ ch.ok === true ? '✓' : ch.ok === false ? '✕ ⟳' : '—' }}</button>
               <span v-if="!channelBadges(item).length" class="history-channels-empty">—</span>
             </span>
             <button type="button" class="history-settings" title="Настройки отчётов проекта" @click.stop="openSettings(item)"><Cog6ToothIcon /></button>
@@ -114,6 +114,7 @@ import { useTheme } from '@/composables/useTheme'
 import { refreshReportsQueue } from '@/composables/useReportsQueue'
 import ReportApprovalModal from '../GeneralStats3/components/ReportApprovalModal.vue'
 import ProjectReportSettingsModal from '../GeneralStats3/components/ProjectReportSettingsModal.vue'
+import ChannelIcon from '@/components/ui/ChannelIcon.vue'
 import ReportSnapshotModal from './ReportSnapshotModal.vue'
 
 const { isDarkMode } = useTheme()
@@ -165,11 +166,11 @@ const channelBadges = (item) => {
       for (const email of emails) {
         const target = emailResults[email] || {}
         const emailOk = target.ok == null ? ok : Boolean(target.ok)
-        out.push({ key: `email-${email}`, cls: meta.cls, label: `Email · ${email}`, retryEmail: email, ok: emailOk, title: `Email · ${email}${emailOk === false ? ` — ${target.error || error || 'ошибка'}` : ''}` })
+        out.push({ key: `email-${email}`, cls: meta.cls, kind: 'email', label: `Email · ${email}`, retryEmail: email, ok: emailOk, title: `Email · ${email}${emailOk === false ? ` — ${target.error || error || 'ошибка'}` : ''}` })
       }
       continue
     }
-    out.push({ key: ch, cls: meta.cls, label: `${meta.label} · мне`, retryChannel: ch, ok, title: `${meta.label}${ok === false ? ` — ${error || 'ошибка'}` : ''}` })
+    out.push({ key: ch, cls: meta.cls, kind: ch, label: `${meta.label} · мне`, retryChannel: ch, ok, title: `${meta.label}${ok === false ? ` — ${error || 'ошибка'}` : ''}` })
   }
   const targetResults = res.targets || {}
   for (const targetId of (item.chat_targets || [])) {
@@ -178,6 +179,7 @@ const channelBadges = (item) => {
     out.push({
       key: `target-${targetId}`,
       cls: target.kind === 'max' ? 'mx' : 'tg',
+      kind: target.kind === 'max' ? 'max' : 'telegram',
       label: target.title || 'Получатель',
       retryTargetId: String(targetId),
       ok,
@@ -571,7 +573,8 @@ onMounted(load)
 .reports-page.is-dark .history-scope { color: #e6ebf3; }
 
 .history-channels { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; }
-.history-channel-badge { border: 0; border-radius: .5rem; padding: .36rem .48rem; background: #eef4ff; color: #2659bf; font: inherit; font-size: .76rem; line-height: 1; white-space: nowrap; cursor: default; }
+.history-channel-badge { display: inline-flex; align-items: center; gap: .3rem; border: 0; border-radius: .5rem; padding: .36rem .48rem; background: #eef4ff; color: #2659bf; font: inherit; font-size: .76rem; line-height: 1; white-space: nowrap; cursor: default; }
+.history-channel-ic { flex: 0 0 auto; }
 .history-channel-badge.mx { background: #f1ebff; color: #7148cc; }.history-channel-badge.em { background: #edf1f5; color: #526275; }
 .history-channel-badge.failed { background: #fff0f0; color: #c24141; cursor: pointer; }.history-channel-badge:disabled:not(.failed) { opacity: 1; }
 .history-settings { display:grid; place-items:center; width:2rem; height:2rem; border:0; border-radius:.55rem; background:transparent; color:#64748b; cursor:pointer; }.history-settings:hover { background:#eaf0ff; color:#2563eb; }.history-settings svg { width:1.15rem; height:1.15rem; }
