@@ -7,6 +7,8 @@ import json
 import os
 from typing import List, Optional
 
+from automation.vk_goal_action_mapping import get_vk_goal_action_name_ru
+
 class StatsService:
     @staticmethod
     def get_vk_lead_action_scope(
