@@ -3580,7 +3580,9 @@ const availableDashboardChannels = computed(() => {
 
 // Название источника в верхней строке: у Яндекса показываем «Yandex Direct»,
 // у VK и Авито — только логотип + баланс (по правкам владельца).
-const SERVICE_CHANNEL_NAME = { yandex: 'Yandex Direct' }
+// Верхний блок кабинетов: показываем только логотип + баланс, без текстового
+// названия сервиса (в т.ч. Yandex Direct) — по правке пользователя.
+const SERVICE_CHANNEL_NAME = {}
 const serviceChannelItems = computed(() => channelBalances.value.slice(0, 3).map((channel) => {
   // У балансов другие технические имена платформ, чем у KPI; CSS-ключи приводим
   // к трём рекламным источникам, которые показывает макет.
@@ -14781,43 +14783,44 @@ onMounted(() => {
 .dashboard-delivery-ic.email-icon { background:#8896ac; }
 .dashboard-pending-row { display:flex; align-items:center; width:100%; gap:.55rem; margin-top:.75rem; padding:.6rem .9rem; border:0; border-radius:.65rem; background:#fcf1dc; color:#9a6a12; text-align:left; cursor:pointer; }.dashboard-pending-row > span { color:#efa827; }.dashboard-pending-row strong { font-size:.78rem; font-weight:600; }.dashboard-pending-row em { margin-left:auto; color:#fff; border-radius:.4rem; background:#2f6bea; padding:.28rem .55rem; font-size:.72rem; font-style:normal; font-weight:700; }
 .dashboard-project-meta { display:flex; align-items:center; gap:.45rem; min-height:1.9rem; }.dashboard-project-meta .org-badge,.dashboard-project-meta .detector-status-chip--inline { min-height:1.9rem; margin:0; padding:.32rem .66rem; font-size:.78rem; line-height:1; }.dashboard-project-meta .org-badge { gap:.34rem; }.dashboard-project-meta .org-badge svg { width:.76rem; height:.76rem; }.dashboard-project-meta .detector-status-chip--inline { gap:.36rem; }
-/* Тулбар: единый стиль капсул (за основу — фильтры Филиалы/Кампании/период). */
-.dashboard-title-row--actions { display:flex; align-items:center; gap:.9rem; flex-wrap:wrap; margin-top:1.15rem; margin-bottom:1.05rem; }
+/* Тулбар: единый стиль капсул (за основу — фильтры Филиалы/Кампании/период,
+   реальные размеры: высота 3.1944rem, радиус 0.8333rem, шрифт 0.9028rem). */
+.dashboard-title-row--actions { display:flex; align-items:center; gap:.6944rem; flex-wrap:wrap; margin-top:1.15rem; margin-bottom:1.05rem; }
 .dashboard-project-meta + .dashboard-title-row--actions { margin-top:.55rem; }
 .dashboard-title-row--actions h1 { margin:0; }
 .dashboard-title-row--actions .dashboard-view-tabs { margin-left:.4rem; }
 
-/* Правая часть заголовка: инфо о синхроне (простой текст) + НДС */
-.dashboard-title-meta { margin-left:auto; display:flex; align-items:center; gap:1.3rem; flex-wrap:wrap; justify-content:flex-end; }
-.dashboard-sync-text { display:inline-flex; align-items:center; gap:.5rem; color:#98a2b6; font-size:1.15rem; font-weight:500; white-space:nowrap; }
-.dashboard-sync-text svg { width:1.45rem; height:1.45rem; flex:0 0 auto; }
+/* Правая часть заголовка: инфо о синхроне (простой текст) + НДС. */
+.dashboard-title-meta { margin-left:auto; display:flex; align-items:center; gap:1.1111rem; flex-wrap:wrap; justify-content:flex-end; }
+.dashboard-sync-text { display:inline-flex; align-items:center; gap:.4167rem; color:#98a2b6; font-size:.9028rem; font-weight:500; white-space:nowrap; }
+.dashboard-sync-text svg { width:.9722rem; height:.9722rem; flex:0 0 auto; }
 .dashboard-sync-text svg.spinning { animation:dashboard-spin 1s linear infinite; }
-.dashboard-nds-control { gap:.55rem; padding:0; }
-.dashboard-nds-control .nds-checkbox { width:1.35rem; height:1.35rem; border-width:1.5px; }
-.dashboard-nds-control .nds-label { font-size:1.15rem; font-weight:600; color:#778195; }
+.dashboard-nds-control { gap:.4167rem; padding:0; }
+.dashboard-nds-control .nds-checkbox { width:1rem; height:1rem; border-width:1.5px; }
+.dashboard-nds-control .nds-label { font-size:.9028rem; font-weight:600; color:#778195; }
 
 /* Табы Отчёт/Динамика — единый стиль с капсулами, остаются в шапке. */
-.dashboard-view-tabs { padding:.35rem; border-radius:1.2rem; }
-.dashboard-view-tab { min-height:3.9rem; padding:0 1.9rem; font-size:1.25rem; border-radius:.85rem; }
-.dashboard-view-tab--active { border-radius:.85rem; }
+.dashboard-view-tabs { padding:.2778rem; border-radius:.8333rem; }
+.dashboard-view-tab { min-height:2.6389rem; padding:0 1.1111rem; font-size:.9028rem; border-radius:.5556rem; }
+.dashboard-view-tab--active { border-radius:.5556rem; }
 
 /* Ряд фильтров + действия справа. */
 .filters-row { align-items:center; }
-.filters-row__actions.dashboard-report-actions { margin-left:auto; display:flex; align-items:center; gap:.7rem; }
+.filters-row__actions.dashboard-report-actions { margin-left:auto; display:flex; align-items:center; gap:.6944rem; }
 
 /* Единая капсула-кнопка тулбара (Обновить данные, Настройки проекта, Экспорт). */
-.toolbar-btn { display:inline-flex; align-items:center; justify-content:center; gap:.7rem; height:4.6rem; padding:0 1.6rem; border:1px solid #ebebeb; border-radius:1.2rem; background:#fff; color:#171717; font-size:1.3rem; font-weight:500; cursor:pointer; white-space:nowrap; transition:border-color .2s, box-shadow .2s, background-color .2s, color .2s; }
-.toolbar-btn:hover:not(:disabled) { border-color:#c9d3e6; box-shadow:0 .3rem .9rem rgba(37,99,235,.1); }
+.toolbar-btn { display:inline-flex; align-items:center; justify-content:center; gap:.8333rem; height:3.1944rem; padding:0 1.0417rem; border:1px solid #ebebeb; border-radius:.8333rem; background:#fff; color:#171717; font-size:.9028rem; font-weight:500; cursor:pointer; white-space:nowrap; transition:border-color .2s, box-shadow .2s, background-color .2s, color .2s; }
+.toolbar-btn:hover:not(:disabled) { border-color:#c9d3e6; box-shadow:0 .2rem .7rem rgba(37,99,235,.1); }
 .toolbar-btn:disabled { opacity:.55; cursor:default; }
-.toolbar-btn svg { width:1.6rem; height:1.6rem; flex:0 0 auto; }
+.toolbar-btn svg { width:1.1111rem; height:1.1111rem; flex:0 0 auto; }
 .toolbar-refresh-btn svg.spinning { animation:dashboard-spin 1s linear infinite; }
 
 /* Отправить отчёт — основная (синяя), но той же высоты и радиуса. */
 .dashboard-send-split { display:flex; position:relative; overflow:visible; }
-.dashboard-send-main.toolbar-btn, .dashboard-send-caret.toolbar-btn { height:4.6rem; border:0; color:#fff; background:#2f6bea; font-weight:700; }
-.dashboard-send-main.toolbar-btn { border-radius:1.2rem 0 0 1.2rem; padding:0 1.4rem; }
-.dashboard-send-caret.toolbar-btn { border-radius:0 1.2rem 1.2rem 0; padding:0 .85rem; border-left:1px solid rgba(255,255,255,.24); gap:0; }
-.dashboard-send-caret.toolbar-btn svg { width:1.2rem; height:1.2rem; }
+.dashboard-send-main.toolbar-btn, .dashboard-send-caret.toolbar-btn { height:3.1944rem; border:0; color:#fff; background:#2f6bea; font-weight:700; }
+.dashboard-send-main.toolbar-btn { border-radius:.8333rem 0 0 .8333rem; padding:0 1.0417rem; }
+.dashboard-send-caret.toolbar-btn { border-radius:0 .8333rem .8333rem 0; padding:0 .5556rem; border-left:1px solid rgba(255,255,255,.24); gap:0; }
+.dashboard-send-caret.toolbar-btn svg { width:.9028rem; height:.9028rem; }
 .dashboard-send-main.toolbar-btn:hover:not(:disabled), .dashboard-send-caret.toolbar-btn:hover:not(:disabled) { background:#255fdc; box-shadow:none; }
 .dashboard-report-actions .report-export-select .cs-list { width:16rem; min-width:16rem; }
 .dashboard-delivery-menu { right:0; left:auto; min-width:13rem; }
