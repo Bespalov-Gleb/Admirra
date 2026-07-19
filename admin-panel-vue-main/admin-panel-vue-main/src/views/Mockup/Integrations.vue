@@ -102,14 +102,6 @@
                     {{ integrationStatusLabel(item) }}
                   </span>
                   <span
-                    v-if="isOrgIntegration(item)"
-                    class="org-int-badge"
-                    title="Кабинет Яндекса подключён как организация (аккаунт сотрудника организации)"
-                  >
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/><path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01"/></svg>
-                    Организация
-                  </span>
-                  <span
                     v-if="isAvitoIntegration(item)"
                     class="metrika-source-badge"
                     title="Лиды и цели Avito берутся из выбранного счётчика Яндекс Метрики"

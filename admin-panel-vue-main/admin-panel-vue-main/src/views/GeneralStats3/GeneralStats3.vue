@@ -70,34 +70,15 @@
             @click="activeView = 'dynamics'"
           >Динамика</button>
         </div>
-        <div class="dashboard-view-row__actions dashboard-report-actions">
-          <!-- Настройки проекта: единственная точка входа к плану и детектору. -->
-          <button
-            v-if="filters.client_id && !folderMode"
-            type="button"
-            class="project-settings-btn"
-            title="Настройки проекта"
-            @click="openProjectSettingsModal"
-          >
-            <Cog6ToothIcon />
-            <span>Настройки проекта</span>
-          </button>
-          <div class="custom-select report-export-select" :class="{ open: openMenu === 'export' }" v-click-outside="() => closeMenu('export')">
-            <button class="project-settings-btn" type="button" @click="toggleMenu('export')"><DocumentArrowDownIcon /><span>{{ sendingExport ? 'Экспорт...' : 'Экспорт отчёта' }}</span><ChevronDownIcon /></button>
-            <div class="cs-list dropdown-panel export">
-              <button type="button" class="cs-option" @click="handleExportAction('pdf')"><DocumentArrowDownIcon /> Скачать PDF</button>
-              <button type="button" class="cs-option" @click="handleExportAction('png')"><PhotoIcon /> Скачать PNG</button>
-              <button type="button" class="cs-option" @click="handleExportAction('link')"><LinkIcon /> Ссылка для клиента</button>
-            </div>
-          </div>
-          <div v-if="!reportsBlockEmpty" class="custom-select dashboard-send-split" :class="{ open: openMenu === 'delivery-actions' }" v-click-outside="() => closeMenu('delivery-actions')">
-            <button type="button" class="dashboard-send-main" :disabled="sendingTg || sendingEmail || sendingMax" @click="handleSendSelectedReport">{{ sendingTg || sendingEmail || sendingMax ? 'Подготовка...' : 'Отправить отчёт' }}</button>
-            <button type="button" class="dashboard-send-caret" @click="toggleMenu('delivery-actions')"><ChevronDownIcon /></button>
-            <div class="cs-list dropdown-panel dashboard-delivery-menu">
-              <button type="button" class="cs-option" @click="openProjectReportSettings"><Cog6ToothIcon /> Настройки доставки</button>
-              <button type="button" class="cs-option" @click="router.push({ name: 'Reports' })"><ArrowPathRoundedSquareIcon /> История отправок</button>
-            </div>
-          </div>
+        <div class="dashboard-title-meta">
+          <span class="dashboard-sync-text" :title="syncStatusLabel">
+            <ArrowPathIcon :class="{ spinning: dashboardSyncInProgress }" />
+            {{ syncStatusLabel }}
+          </span>
+          <label class="nds-check-wrap dashboard-nds-control">
+            <input v-model="includeVat" type="checkbox" class="nds-checkbox" />
+            <span class="nds-label">НДС 22%</span>
+          </label>
         </div>
       </div>
       <div class="filters-row">
@@ -260,15 +241,40 @@
           </Teleport>
         </div>
 
-        <label class="nds-check-wrap dashboard-nds-control">
-          <input v-model="includeVat" type="checkbox" class="nds-checkbox" />
-          <span class="nds-label">НДС 22%</span>
-        </label>
-
-        <button type="button" class="sync-status-label" :class="{ active: dashboardSyncInProgress }" :disabled="dashboardSyncInProgress" @click="handleSyncIntegrations">
+        <button type="button" class="toolbar-btn toolbar-refresh-btn" :disabled="dashboardSyncInProgress" @click="handleSyncIntegrations">
           <ArrowPathIcon :class="{ spinning: dashboardSyncInProgress }" />
-          {{ syncStatusLabel }}
+          <span>Обновить данные</span>
         </button>
+
+        <div class="filters-row__actions dashboard-report-actions">
+          <!-- Настройки проекта: единственная точка входа к плану и детектору. -->
+          <button
+            v-if="filters.client_id && !folderMode"
+            type="button"
+            class="toolbar-btn"
+            title="Настройки проекта"
+            @click="openProjectSettingsModal"
+          >
+            <Cog6ToothIcon />
+            <span>Настройки проекта</span>
+          </button>
+          <div v-if="!reportsBlockEmpty" class="custom-select dashboard-send-split" :class="{ open: openMenu === 'delivery-actions' }" v-click-outside="() => closeMenu('delivery-actions')">
+            <button type="button" class="toolbar-btn dashboard-send-main" :disabled="sendingTg || sendingEmail || sendingMax" @click="handleSendSelectedReport">{{ sendingTg || sendingEmail || sendingMax ? 'Подготовка...' : 'Отправить отчёт' }}</button>
+            <button type="button" class="toolbar-btn dashboard-send-caret" @click="toggleMenu('delivery-actions')"><ChevronDownIcon /></button>
+            <div class="cs-list dropdown-panel dashboard-delivery-menu">
+              <button type="button" class="cs-option" @click="openProjectReportSettings"><Cog6ToothIcon /> Настройки доставки</button>
+              <button type="button" class="cs-option" @click="router.push({ name: 'Reports' })"><ArrowPathRoundedSquareIcon /> История отправок</button>
+            </div>
+          </div>
+          <div class="custom-select report-export-select" :class="{ open: openMenu === 'export' }" v-click-outside="() => closeMenu('export')">
+            <button class="toolbar-btn" type="button" @click="toggleMenu('export')"><DocumentArrowDownIcon /><span>{{ sendingExport ? 'Экспорт...' : 'Экспорт отчёта' }}</span><ChevronDownIcon /></button>
+            <div class="cs-list dropdown-panel export">
+              <button type="button" class="cs-option" @click="handleExportAction('pdf')"><DocumentArrowDownIcon /> Скачать PDF</button>
+              <button type="button" class="cs-option" @click="handleExportAction('png')"><PhotoIcon /> Скачать PNG</button>
+              <button type="button" class="cs-option" @click="handleExportAction('link')"><LinkIcon /> Ссылка для клиента</button>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -12046,6 +12052,12 @@ onMounted(() => {
   color: #fff;
 }
 
+/* Тёмная тема тулбара: капсулы, инфо о синхроне, НДС. */
+.figma-dashboard.is-dark .toolbar-btn { border-color: rgba(255,255,255,.1); background: rgba(255,255,255,.06); color: rgba(255,255,255,.72); }
+.figma-dashboard.is-dark .toolbar-btn:hover:not(:disabled) { border-color: rgba(255,255,255,.18); box-shadow: 0 8px 18px rgba(0,0,0,.12); }
+.figma-dashboard.is-dark .dashboard-sync-text { color: rgba(255,255,255,.5); }
+.figma-dashboard.is-dark .dashboard-nds-control .nds-label { color: rgba(255,255,255,.62); }
+
 .figma-dashboard.is-dark .primary-report:hover {
   background: #1d4ed8;
   box-shadow: 0 12px 24px rgba(37, 99, 235, 0.28);
@@ -14769,8 +14781,46 @@ onMounted(() => {
 .dashboard-delivery-ic.email-icon { background:#8896ac; }
 .dashboard-pending-row { display:flex; align-items:center; width:100%; gap:.55rem; margin-top:.75rem; padding:.6rem .9rem; border:0; border-radius:.65rem; background:#fcf1dc; color:#9a6a12; text-align:left; cursor:pointer; }.dashboard-pending-row > span { color:#efa827; }.dashboard-pending-row strong { font-size:.78rem; font-weight:600; }.dashboard-pending-row em { margin-left:auto; color:#fff; border-radius:.4rem; background:#2f6bea; padding:.28rem .55rem; font-size:.72rem; font-style:normal; font-weight:700; }
 .dashboard-project-meta { display:flex; align-items:center; gap:.45rem; min-height:1.9rem; }.dashboard-project-meta .org-badge,.dashboard-project-meta .detector-status-chip--inline { min-height:1.9rem; margin:0; padding:.32rem .66rem; font-size:.78rem; line-height:1; }.dashboard-project-meta .org-badge { gap:.34rem; }.dashboard-project-meta .org-badge svg { width:.76rem; height:.76rem; }.dashboard-project-meta .detector-status-chip--inline { gap:.36rem; }
-.dashboard-title-row--actions { display:flex; align-items:center; gap:.65rem; flex-wrap:wrap; margin-top:1.15rem; margin-bottom:1.05rem; }.dashboard-project-meta + .dashboard-title-row--actions { margin-top:.55rem; }.dashboard-title-row--actions h1 { margin:0; }.dashboard-title-row--actions .dashboard-view-tabs { margin-left:.1rem; }.dashboard-report-actions { margin-left:auto; display:flex; align-items:center; gap:.45rem; }.dashboard-report-actions .project-settings-btn { min-height:2.15rem; padding:.42rem .7rem; font-size:.76rem; }.dashboard-report-actions .project-settings-btn > svg { width:1rem; height:1rem; }.dashboard-report-actions .report-export-select .cs-list { width:16rem; min-width:16rem; }.dashboard-send-split { display:flex; position:relative; overflow:visible; }.dashboard-send-main,.dashboard-send-caret { min-height:2.15rem; border:0; color:#fff; background:#2f6bea; cursor:pointer; font-size:.78rem; font-weight:700; }.dashboard-send-main { padding:0 .75rem; border-radius:.55rem 0 0 .55rem; }.dashboard-send-caret { padding:0 .42rem; border-left:1px solid rgba(255,255,255,.24); border-radius:0 .55rem .55rem 0; }.dashboard-send-caret svg { width:.9rem; }.dashboard-delivery-menu { right:0; left:auto; min-width:13rem; }
-.filters-row { align-items:center; }.dashboard-nds-control { gap:.42rem; padding:.2rem .15rem; }.dashboard-nds-control .nds-checkbox { width:1rem; height:1rem; border-width:1.5px; }.dashboard-nds-control .nds-label { font-size:.82rem; font-weight:600; color:#778195; }.sync-status-label { margin-left:auto; min-height:2rem; border:0; background:transparent; padding:.25rem .4rem; color:#98a2b6; font:inherit; font-size:.76rem; cursor:pointer; }.sync-status-label:hover:not(:disabled) { color:#2f6bea; }
+/* Тулбар: единый стиль капсул (за основу — фильтры Филиалы/Кампании/период). */
+.dashboard-title-row--actions { display:flex; align-items:center; gap:.9rem; flex-wrap:wrap; margin-top:1.15rem; margin-bottom:1.05rem; }
+.dashboard-project-meta + .dashboard-title-row--actions { margin-top:.55rem; }
+.dashboard-title-row--actions h1 { margin:0; }
+.dashboard-title-row--actions .dashboard-view-tabs { margin-left:.4rem; }
+
+/* Правая часть заголовка: инфо о синхроне (простой текст) + НДС */
+.dashboard-title-meta { margin-left:auto; display:flex; align-items:center; gap:1.3rem; flex-wrap:wrap; justify-content:flex-end; }
+.dashboard-sync-text { display:inline-flex; align-items:center; gap:.5rem; color:#98a2b6; font-size:1.15rem; font-weight:500; white-space:nowrap; }
+.dashboard-sync-text svg { width:1.45rem; height:1.45rem; flex:0 0 auto; }
+.dashboard-sync-text svg.spinning { animation:dashboard-spin 1s linear infinite; }
+.dashboard-nds-control { gap:.55rem; padding:0; }
+.dashboard-nds-control .nds-checkbox { width:1.35rem; height:1.35rem; border-width:1.5px; }
+.dashboard-nds-control .nds-label { font-size:1.15rem; font-weight:600; color:#778195; }
+
+/* Табы Отчёт/Динамика — единый стиль с капсулами, остаются в шапке. */
+.dashboard-view-tabs { padding:.35rem; border-radius:1.2rem; }
+.dashboard-view-tab { min-height:3.9rem; padding:0 1.9rem; font-size:1.25rem; border-radius:.85rem; }
+.dashboard-view-tab--active { border-radius:.85rem; }
+
+/* Ряд фильтров + действия справа. */
+.filters-row { align-items:center; }
+.filters-row__actions.dashboard-report-actions { margin-left:auto; display:flex; align-items:center; gap:.7rem; }
+
+/* Единая капсула-кнопка тулбара (Обновить данные, Настройки проекта, Экспорт). */
+.toolbar-btn { display:inline-flex; align-items:center; justify-content:center; gap:.7rem; height:4.6rem; padding:0 1.6rem; border:1px solid #ebebeb; border-radius:1.2rem; background:#fff; color:#171717; font-size:1.3rem; font-weight:500; cursor:pointer; white-space:nowrap; transition:border-color .2s, box-shadow .2s, background-color .2s, color .2s; }
+.toolbar-btn:hover:not(:disabled) { border-color:#c9d3e6; box-shadow:0 .3rem .9rem rgba(37,99,235,.1); }
+.toolbar-btn:disabled { opacity:.55; cursor:default; }
+.toolbar-btn svg { width:1.6rem; height:1.6rem; flex:0 0 auto; }
+.toolbar-refresh-btn svg.spinning { animation:dashboard-spin 1s linear infinite; }
+
+/* Отправить отчёт — основная (синяя), но той же высоты и радиуса. */
+.dashboard-send-split { display:flex; position:relative; overflow:visible; }
+.dashboard-send-main.toolbar-btn, .dashboard-send-caret.toolbar-btn { height:4.6rem; border:0; color:#fff; background:#2f6bea; font-weight:700; }
+.dashboard-send-main.toolbar-btn { border-radius:1.2rem 0 0 1.2rem; padding:0 1.4rem; }
+.dashboard-send-caret.toolbar-btn { border-radius:0 1.2rem 1.2rem 0; padding:0 .85rem; border-left:1px solid rgba(255,255,255,.24); gap:0; }
+.dashboard-send-caret.toolbar-btn svg { width:1.2rem; height:1.2rem; }
+.dashboard-send-main.toolbar-btn:hover:not(:disabled), .dashboard-send-caret.toolbar-btn:hover:not(:disabled) { background:#255fdc; box-shadow:none; }
+.dashboard-report-actions .report-export-select .cs-list { width:16rem; min-width:16rem; }
+.dashboard-delivery-menu { right:0; left:auto; min-width:13rem; }
 .figma-dashboard.is-dark .dashboard-source-add { background:rgba(255,255,255,.04); border-color:rgba(255,255,255,.1); }.figma-dashboard.is-dark .dashboard-service-row { border-color:rgba(255,255,255,.1); }
 @media (max-width: 1000px) { .dashboard-service-row { align-items:flex-start; flex-direction:column; }.dashboard-delivery-status,.dashboard-delivery-empty { margin-left:0; text-align:left; }.dashboard-report-actions { width:100%; margin-left:0; } }
 @media (max-width: 620px) { .dashboard-title-row--actions .dashboard-view-tabs { order:4; }.dashboard-report-actions { flex-wrap:wrap; }.dashboard-report-actions .detector-status-chip { order:-1; }.filters-row .sync-status-label { margin-left:0; }.dashboard-delivery-status { font-size:.84rem; }.dashboard-delivery-status > svg,.dashboard-delivery-prefix { display:none; } }
