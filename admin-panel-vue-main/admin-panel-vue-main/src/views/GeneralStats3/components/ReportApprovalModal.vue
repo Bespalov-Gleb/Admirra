@@ -44,7 +44,19 @@
             <div class="report-approval-chart">
               <span v-if="loadingPreview">Загружаем данные отчёта…</span>
               <template v-else>
-                <img v-if="snapshotImageUrl" class="report-approval-snapshot" :src="snapshotImageUrl" alt="Снимок отчёта с графиками и разбивкой" />
+                <button
+                  v-if="snapshotImageUrl"
+                  type="button"
+                  class="report-approval-snapshot-btn"
+                  title="Открыть превью на весь экран"
+                  @click="previewFullscreen = true"
+                >
+                  <img class="report-approval-snapshot" :src="snapshotImageUrl" alt="Снимок отчёта с графиками и разбивкой" />
+                  <span class="report-approval-snapshot-zoom" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+                    На весь экран
+                  </span>
+                </button>
                 <span v-else class="report-approval-chart__icon">📊</span>
                 <span v-if="!snapshotImageUrl">Снимок отчёта пока недоступен</span>
                 <ul v-if="preview.top_campaigns.length" class="report-approval-chart__list">
@@ -130,6 +142,14 @@
       </section>
     </div>
   </Teleport>
+
+  <!-- Полноэкранное превью будущего отчёта: клик по снимку разворачивает его. -->
+  <Teleport to="body">
+    <div v-if="previewFullscreen && snapshotImageUrl" class="report-preview-fs" @click="previewFullscreen = false">
+      <button type="button" class="report-preview-fs__close" aria-label="Закрыть" @click.stop="previewFullscreen = false">×</button>
+      <img class="report-preview-fs__img" :src="snapshotImageUrl" alt="Превью отчёта на весь экран" @click.stop />
+    </div>
+  </Teleport>
 </template>
 
 <script setup>
@@ -157,6 +177,7 @@ const switchingTemplate = ref(false)
 const commentStatus = ref('none') // none | draft | edited | approved
 const activeTab = ref('telegram')
 const snapshotImageUrl = ref('')
+const previewFullscreen = ref(false)
 
 const preview = reactive({
   kpi: { cost: 0, leads: 0, cpl: 0, impressions: 0, clicks: 0 },
@@ -583,7 +604,20 @@ const approve = async () => {
   font-size: 0.86rem;
 }
 
-.report-approval-snapshot { display: block; width: 100%; max-height: 15rem; margin-bottom: 0.8rem; object-fit: cover; object-position: top; border: 1px solid rgba(15,23,42,.08); border-radius: 0.65rem; background: #fff; }
+.report-approval-snapshot { display: block; width: 100%; max-height: 15rem; object-fit: cover; object-position: top; border: 1px solid rgba(15,23,42,.08); border-radius: 0.65rem; background: #fff; }
+
+/* Снимок — кнопка: клик раскрывает превью на весь экран. */
+.report-approval-snapshot-btn { position: relative; display: block; width: 100%; padding: 0; margin-bottom: 0.8rem; border: 0; background: none; cursor: zoom-in; border-radius: 0.65rem; }
+.report-approval-snapshot-btn:hover .report-approval-snapshot { border-color: rgba(37,99,235,.5); }
+.report-approval-snapshot-zoom { position: absolute; top: 0.5rem; right: 0.5rem; display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.3rem 0.5rem; border-radius: 0.5rem; background: rgba(15,23,42,.72); color: #fff; font-size: 0.72rem; font-weight: 600; opacity: 0; transition: opacity 0.16s ease; pointer-events: none; }
+.report-approval-snapshot-zoom svg { width: 0.9rem; height: 0.9rem; }
+.report-approval-snapshot-btn:hover .report-approval-snapshot-zoom { opacity: 1; }
+
+/* Полноэкранное превью отчёта. */
+.report-preview-fs { position: fixed; inset: 0; z-index: 1400; display: grid; place-items: center; padding: 2.5rem; background: rgba(6,12,28,.9); cursor: zoom-out; }
+.report-preview-fs__img { max-width: 96vw; max-height: 92vh; object-fit: contain; border-radius: 0.6rem; box-shadow: 0 2rem 5rem rgba(0,0,0,.5); background: #fff; cursor: default; }
+.report-preview-fs__close { position: fixed; top: 1.1rem; right: 1.4rem; width: 2.6rem; height: 2.6rem; border: 0; border-radius: 50%; background: rgba(255,255,255,.14); color: #fff; font-size: 1.7rem; line-height: 1; cursor: pointer; }
+.report-preview-fs__close:hover { background: rgba(255,255,255,.26); }
 .report-approval-message { min-height: 10rem; max-height: 19rem; overflow: auto; margin: 0.6rem 0 1rem; border: 1px solid rgba(15,23,42,.08); border-radius: 0.75rem; background: #f8fafc; color: #334155; font-size: .78rem; line-height: 1.45; }
 .report-approval-message pre { margin: 0; padding: .8rem; white-space: pre-wrap; font: inherit; }
 .report-approval-message.email > div { padding: .7rem; }

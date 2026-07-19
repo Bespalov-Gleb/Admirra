@@ -103,13 +103,15 @@
               <div class="rp-field">
                 <label class="rp-label">День</label>
                 <div class="rp-select" :class="{ open: openSelect === 'day' }" data-rp-select>
-                  <button type="button" class="rp-select__head" @click="toggleSelect('day')">
+                  <button type="button" class="rp-select__head" @click="toggleSelect('day', $event)">
                     <span>{{ optionLabel(dayOptions, settings.day) }}</span>
                     <span class="rp-select__arrow"><svg viewBox="0 0 10 6" fill="none"><path d="m1 1 4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
                   </button>
-                  <div class="rp-select__list">
-                    <button v-for="o in dayOptions" :key="o.value" type="button" :class="{ sel: settings.day === o.value }" @click="pick('day', o.value)">{{ o.label }}</button>
-                  </div>
+                  <Teleport to="body">
+                    <div v-if="openSelect === 'day'" class="rp-select__list rp-select__list--float" :class="{ 'is-dark': isDarkMode }" :style="selectStyle" data-rp-select>
+                      <button v-for="o in dayOptions" :key="o.value" type="button" :class="{ sel: settings.day === o.value }" @click="pick('day', o.value)">{{ o.label }}</button>
+                    </div>
+                  </Teleport>
                 </div>
               </div>
 
@@ -121,26 +123,30 @@
               <div class="rp-field">
                 <label class="rp-label">Период данных</label>
                 <div class="rp-select" :class="{ open: openSelect === 'period' }" data-rp-select>
-                  <button type="button" class="rp-select__head" @click="toggleSelect('period')">
+                  <button type="button" class="rp-select__head" @click="toggleSelect('period', $event)">
                     <span>{{ optionLabel(periodOptions, settings.period_days) }}</span>
                     <span class="rp-select__arrow"><svg viewBox="0 0 10 6" fill="none"><path d="m1 1 4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
                   </button>
-                  <div class="rp-select__list">
-                    <button v-for="o in periodOptions" :key="o.value" type="button" :class="{ sel: settings.period_days === o.value }" @click="pick('period_days', o.value)">{{ o.label }}</button>
-                  </div>
+                  <Teleport to="body">
+                    <div v-if="openSelect === 'period'" class="rp-select__list rp-select__list--float" :class="{ 'is-dark': isDarkMode }" :style="selectStyle" data-rp-select>
+                      <button v-for="o in periodOptions" :key="o.value" type="button" :class="{ sel: settings.period_days === o.value }" @click="pick('period_days', o.value)">{{ o.label }}</button>
+                    </div>
+                  </Teleport>
                 </div>
               </div>
 
               <div class="rp-field">
                 <label class="rp-label">Шаблон</label>
                 <div class="rp-select" :class="{ open: openSelect === 'platform' }" data-rp-select>
-                  <button type="button" class="rp-select__head" @click="toggleSelect('platform')">
+                  <button type="button" class="rp-select__head" @click="toggleSelect('platform', $event)">
                     <span>{{ optionLabel(platformOptions, settings.platform) }}</span>
                     <span class="rp-select__arrow"><svg viewBox="0 0 10 6" fill="none"><path d="m1 1 4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
                   </button>
-                  <div class="rp-select__list">
-                    <button v-for="o in platformOptions" :key="o.value" type="button" :class="{ sel: settings.platform === o.value }" @click="pick('platform', o.value)">{{ o.label }}</button>
-                  </div>
+                  <Teleport to="body">
+                    <div v-if="openSelect === 'platform'" class="rp-select__list rp-select__list--float" :class="{ 'is-dark': isDarkMode }" :style="selectStyle" data-rp-select>
+                      <button v-for="o in platformOptions" :key="o.value" type="button" :class="{ sel: settings.platform === o.value }" @click="pick('platform', o.value)">{{ o.label }}</button>
+                    </div>
+                  </Teleport>
                 </div>
               </div>
             </div>
@@ -278,8 +284,28 @@ const platformOptions = [
 
 const optionLabel = (options, value) => options.find((o) => o.value === value)?.label || String(value ?? '')
 
-const toggleSelect = (key) => {
-  openSelect.value = openSelect.value === key ? null : key
+// Список опций рендерим телепортом в body с fixed-позицией: внутри модалки
+// с overflow-y:auto абсолютный дропдаун распирал прокрутку и создавал
+// неудобный скролл. Позицию берём из прямоугольника кнопки-заголовка.
+const selectStyle = ref({})
+
+const positionSelect = (headEl) => {
+  const r = headEl.getBoundingClientRect()
+  selectStyle.value = {
+    position: 'fixed',
+    top: `${r.bottom + 4}px`,
+    left: `${r.left}px`,
+    width: `${r.width}px`,
+  }
+}
+
+const toggleSelect = (key, ev) => {
+  if (openSelect.value === key) {
+    openSelect.value = null
+    return
+  }
+  if (ev?.currentTarget) positionSelect(ev.currentTarget)
+  openSelect.value = key
 }
 
 const pick = (field, value) => {
@@ -292,9 +318,18 @@ const handleDocClick = (e) => {
   if (!e.target.closest('[data-rp-select]')) openSelect.value = null
 }
 
-onMounted(() => document.addEventListener('mousedown', handleDocClick))
+// При прокрутке/ресайзе fixed-дропдаун разъедется с кнопкой — просто закрываем.
+const closeOpenSelect = () => { if (openSelect.value) openSelect.value = null }
+
+onMounted(() => {
+  document.addEventListener('mousedown', handleDocClick)
+  window.addEventListener('scroll', closeOpenSelect, true)
+  window.addEventListener('resize', closeOpenSelect)
+})
 onBeforeUnmount(() => {
   document.removeEventListener('mousedown', handleDocClick)
+  window.removeEventListener('scroll', closeOpenSelect, true)
+  window.removeEventListener('resize', closeOpenSelect)
   if (invitePollTimer) clearInterval(invitePollTimer)
 })
 
@@ -1142,6 +1177,25 @@ watch(() => [props.clientId, props.folderId], load, { immediate: true })
   background: #2c2f42;
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 12px 32px rgba(0, 0, 0, 0.45);
 }
+
+/* Плавающий список (телепорт в body): fixed-позиция задаётся инлайн-стилем,
+   видимость — сразу (рендерится по v-if), скролл только внутри самого списка. */
+.rp-select__list--float {
+  right: auto;
+  z-index: 1300;
+  max-height: 15rem;
+  overflow-y: auto;
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+}
+.rp-select__list--float.is-dark {
+  background: #2c2f42;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+.rp-select__list--float.is-dark button { color: rgba(255, 255, 255, 0.78); }
+.rp-select__list--float.is-dark button:hover { background: rgba(255, 255, 255, 0.07); }
+.rp-select__list--float.is-dark button.sel { color: #8fb0ff; }
 
 .rp-select__list button {
   border: 0;

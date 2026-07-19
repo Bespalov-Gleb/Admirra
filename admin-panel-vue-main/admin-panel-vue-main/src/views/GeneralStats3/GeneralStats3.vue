@@ -427,10 +427,9 @@
             <span class="metric-channel-row__name">
               <img v-if="channel.asset" :src="channel.asset" alt="" class="metric-channel-row__icon" />
               <i v-else :style="{ background: channel.color }"></i>
-              {{ channel.shortName }}
+              {{ channel.shortName }}<span v-if="channel.share !== null" class="metric-channel-row__share"> · {{ channel.share }}%</span>
             </span>
             <strong>{{ channel.value }}</strong>
-            <span v-if="channel.share !== null" class="metric-channel-row__share">{{ channel.share }}%</span>
           </div>
         </div>
       </article>
@@ -13501,19 +13500,20 @@ onMounted(() => {
 }
 
 .kpi-grid--channel-details {
-  grid-auto-rows: 8.15rem;
+  grid-auto-rows: auto;
 }
 
+/* Разбивка по каналам — снизу карточки (не справа): карточка стопкой. */
 .kpi-grid--channel-details .metric-card {
+  flex-direction: column;
   align-items: stretch;
-  gap: 0.8rem;
-  padding-top: 1rem;
-  padding-bottom: 1rem;
+  justify-content: flex-start;
+  gap: 0;
 }
 
 .kpi-grid--channel-details .metric-head {
   min-width: 0;
-  flex: 1 1 55%;
+  flex: 0 0 auto;
   gap: 0.75rem;
 }
 
@@ -13531,12 +13531,12 @@ onMounted(() => {
 }
 
 .kpi-grid--channel-details .metric-card h3 {
-  font-size: 1.05rem;
+  font-size: 1.2rem;
 }
 
 .kpi-grid--channel-details .metric-text strong {
-  margin-top: 0.4rem;
-  font-size: 1.55rem;
+  margin-top: 0.5rem;
+  font-size: 2.1rem;
   white-space: nowrap;
 }
 
@@ -13548,22 +13548,21 @@ onMounted(() => {
 }
 
 .kpi-grid--channel-details .metric-channel-breakdown {
-  min-width: 8.8rem;
-  flex: 1 1 45%;
-  margin-top: 0;
-  padding-top: 0;
-  padding-left: 0.8rem;
-  border-top: 0;
-  border-left: 1px solid #edf0f4;
+  flex: 0 0 auto;
+  margin-top: 0.9rem;
+  padding-top: 0.85rem;
+  padding-left: 0;
+  border-top: 1px solid #edf0f4;
+  border-left: 0;
 }
 
 .metric-channel-row {
   display: grid;
-  grid-template-columns: minmax(3.6rem, 1fr) auto 2.4rem;
+  grid-template-columns: 1fr auto;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.8rem;
   color: #8b93a1;
-  font-size: 0.74rem;
+  font-size: 0.92rem;
 }
 
 .metric-channel-row__name {
@@ -13592,21 +13591,17 @@ onMounted(() => {
 
 .metric-channel-row strong {
   color: #4b5565;
-  font-size: 0.85rem;
+  font-size: 1.02rem;
   font-weight: 700;
   text-align: right;
   white-space: nowrap;
 }
 
+/* Доля канала — инлайн после названия («Яндекс · 33%»). */
 .metric-channel-row__share {
-  text-align: right;
   color: #aeb6c2;
-  font-size: 0.7rem;
-  font-weight: 600;
-}
-
-.metric-channel-row > span:last-child {
-  text-align: right;
+  font-size: 0.92rem;
+  font-weight: 500;
 }
 
 .chart-breakdown-switch {
@@ -14653,22 +14648,29 @@ onMounted(() => {
 }
 .folder-mode-chip button:hover { opacity: 1; }
 
+/* Блок «Проекты папки» — свои внутренние отступы (как у панели кампаний),
+   иначе контент прилипает к краям панели. */
+.folder-branches-panel {
+  margin-top: 1.6rem;
+  padding: 2.4rem;
+}
+
 .folder-branches-count {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 1.6rem;
-  height: 1.6rem;
-  padding: 0 0.4rem;
+  min-width: 1.9rem;
+  height: 1.9rem;
+  padding: 0 0.55rem;
   border-radius: 99rem;
   background: rgba(37, 99, 235, 0.1);
   color: #2563eb;
-  font-size: 0.8rem;
+  font-size: 0.92rem;
   font-weight: 800;
 }
 
 .folder-branches-empty { padding: 1.4rem 0; color: rgba(105,105,105,0.6); font-size: 0.9rem; }
-.folder-branches-table-wrap { overflow-x: auto; }
+.folder-branches-table-wrap { margin-top: 1.6rem; overflow-x: auto; }
 
 .folder-branches-table { width: 100%; border-collapse: collapse; }
 .folder-branches-table th {
