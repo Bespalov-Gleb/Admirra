@@ -258,20 +258,21 @@
             <Cog6ToothIcon />
             <span>Настройки проекта</span>
           </button>
-          <div v-if="!reportsBlockEmpty" class="custom-select dashboard-send-split" :class="{ open: openMenu === 'delivery-actions' }" v-click-outside="() => closeMenu('delivery-actions')">
-            <button type="button" class="toolbar-btn dashboard-send-main" :disabled="sendingTg || sendingEmail || sendingMax" @click="handleSendSelectedReport">{{ sendingTg || sendingEmail || sendingMax ? 'Подготовка...' : 'Отправить отчёт' }}</button>
-            <button type="button" class="toolbar-btn dashboard-send-caret" @click="toggleMenu('delivery-actions')"><ChevronDownIcon /></button>
-            <div class="cs-list dropdown-panel dashboard-delivery-menu">
-              <button type="button" class="cs-option" @click="openProjectReportSettings"><Cog6ToothIcon /> Настройки доставки</button>
-              <button type="button" class="cs-option" @click="router.push({ name: 'Reports' })"><ArrowPathRoundedSquareIcon /> История отправок</button>
-            </div>
-          </div>
           <div class="custom-select report-export-select" :class="{ open: openMenu === 'export' }" v-click-outside="() => closeMenu('export')">
             <button class="toolbar-btn" type="button" @click="toggleMenu('export')"><DocumentArrowDownIcon /><span>{{ sendingExport ? 'Экспорт...' : 'Экспорт отчёта' }}</span><ChevronDownIcon /></button>
             <div class="cs-list dropdown-panel export">
               <button type="button" class="cs-option" @click="handleExportAction('pdf')"><DocumentArrowDownIcon /> Скачать PDF</button>
               <button type="button" class="cs-option" @click="handleExportAction('png')"><PhotoIcon /> Скачать PNG</button>
               <button type="button" class="cs-option" @click="handleExportAction('link')"><LinkIcon /> Ссылка для клиента</button>
+            </div>
+          </div>
+          <!-- «Отправить отчёт» — всегда видима и крайняя справа в тулбаре. -->
+          <div class="custom-select dashboard-send-split" :class="{ open: openMenu === 'delivery-actions' }" v-click-outside="() => closeMenu('delivery-actions')">
+            <button type="button" class="toolbar-btn dashboard-send-main" :disabled="sendingTg || sendingEmail || sendingMax" @click="handleSendSelectedReport">{{ sendingTg || sendingEmail || sendingMax ? 'Подготовка...' : 'Отправить отчёт' }}</button>
+            <button type="button" class="toolbar-btn dashboard-send-caret" @click="toggleMenu('delivery-actions')"><ChevronDownIcon /></button>
+            <div class="cs-list dropdown-panel dashboard-delivery-menu">
+              <button type="button" class="cs-option" @click="openProjectReportSettings"><Cog6ToothIcon /> Настройки доставки</button>
+              <button type="button" class="cs-option" @click="router.push({ name: 'Reports' })"><ArrowPathRoundedSquareIcon /> История отправок</button>
             </div>
           </div>
         </div>
@@ -14819,11 +14820,11 @@ onMounted(() => {
 
 /* Отправить отчёт — основная (синяя), но той же высоты и радиуса. */
 .dashboard-send-split { display:flex; position:relative; overflow:visible; }
-.dashboard-send-main.toolbar-btn, .dashboard-send-caret.toolbar-btn { height:3.1944rem; border:0; color:#fff; background:#2f6bea; font-weight:700; }
+.dashboard-send-main.toolbar-btn, .dashboard-send-caret.toolbar-btn { height:3.1944rem; border:0; color:#fff; background:#2563eb; font-weight:700; }
 .dashboard-send-main.toolbar-btn { border-radius:.8333rem 0 0 .8333rem; padding:0 1.0417rem; }
 .dashboard-send-caret.toolbar-btn { border-radius:0 .8333rem .8333rem 0; padding:0 .5556rem; border-left:1px solid rgba(255,255,255,.24); gap:0; }
 .dashboard-send-caret.toolbar-btn svg { width:.9028rem; height:.9028rem; }
-.dashboard-send-main.toolbar-btn:hover:not(:disabled), .dashboard-send-caret.toolbar-btn:hover:not(:disabled) { background:#255fdc; box-shadow:none; }
+.dashboard-send-main.toolbar-btn:hover:not(:disabled), .dashboard-send-caret.toolbar-btn:hover:not(:disabled) { background:#1d4ed8; box-shadow:none; }
 .dashboard-report-actions .report-export-select .cs-list { width:16rem; min-width:16rem; }
 .dashboard-delivery-menu { right:0; left:auto; min-width:13rem; }
 .figma-dashboard.is-dark .dashboard-source-add { background:rgba(255,255,255,.04); border-color:rgba(255,255,255,.1); }.figma-dashboard.is-dark .dashboard-service-row { border-color:rgba(255,255,255,.1); }
