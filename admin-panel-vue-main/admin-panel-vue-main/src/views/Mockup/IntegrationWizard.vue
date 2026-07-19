@@ -103,15 +103,8 @@
               <span>Создать новый проект</span>
             </label>
 
-            <label v-if="form.platform === 'YANDEX_DIRECT'" class="switch-row dark:!text-white/70">
-              <input v-model="connectAsOrg" type="checkbox" />
-              <span class="switch-row__control dark:!bg-white/10"></span>
-              <span>Кабинет принадлежит организации</span>
-            </label>
-            <p v-if="form.platform === 'YANDEX_DIRECT' && connectAsOrg" class="org-hint dark:!text-white/50">
-              На экране Яндекса войдите аккаунтом, который добавлен в организацию (кнопка «Выбрать аккаунт»), затем выберите «Войти как сотрудник». Если этой кнопки нет, аккаунт не добавлен в организацию Яндекс ID; личный вход не будет сохранён как подключение организации.
-            </p>
-
+            <!-- Способ подключения Яндекса (обычный / организация) перенесён в
+                 блок справа двумя опциями, по подобию VK. -->
             <input
               v-if="isNewProject"
               v-model="form.client_name"
@@ -131,7 +124,42 @@
             </button>
           </div>
 
-          <div v-if="form.platform !== 'VK_ADS'" class="channel-card">
+          <!-- Яндекс: выбор способа подключения (обычный / организация) —
+               двумя опциями справа, по подобию VK. -->
+          <div v-if="form.platform === 'YANDEX_DIRECT'" class="channel-card channel-card--vk-link">
+            <div class="channel-card__icon">
+              <img :src="platformIcon" :alt="platformName" />
+            </div>
+            <h4>Интеграция с Яндекс Директ</h4>
+            <p>Выберите способ подключения рекламного кабинета.</p>
+
+            <div class="vk-link-modes">
+              <button
+                type="button"
+                class="vk-link-mode"
+                :class="{ 'vk-link-mode--selected': yandexConnectionMode === 'self' }"
+                @click="yandexConnectionMode = 'self'"
+              >
+                <span class="vk-link-mode__radio"></span>
+                <span><b>Авторизоваться самому</b><small>Кабинеты, доступные вашему аккаунту Яндекса.</small></span>
+              </button>
+              <button
+                type="button"
+                class="vk-link-mode"
+                :class="{ 'vk-link-mode--selected': yandexConnectionMode === 'org' }"
+                @click="yandexConnectionMode = 'org'"
+              >
+                <span class="vk-link-mode__radio"></span>
+                <span><b>Кабинет организации</b><small>Вход аккаунтом сотрудника организации Яндекс ID («Войти как сотрудник»).</small></span>
+              </button>
+            </div>
+
+            <p v-if="yandexConnectionMode === 'org'" class="org-hint dark:!text-white/50">
+              На экране Яндекса войдите аккаунтом, добавленным в организацию (кнопка «Выбрать аккаунт»), затем выберите «Войти как сотрудник». Если этой кнопки нет — аккаунт не добавлен в организацию Яндекс ID, и подключение как организация не сохранится.
+            </p>
+          </div>
+
+          <div v-else-if="form.platform !== 'VK_ADS'" class="channel-card">
             <div class="channel-card__icon">
               <img :src="platformIcon" :alt="platformName" />
             </div>
@@ -772,9 +800,11 @@ const {
 const step = ref(1)
 const stepRefs = ref({})
 const isNewProject = ref(false)
-// Яндекс: кабинет паспортной организации — OAuth идёт через приложение
-// «AdMirra — для организаций» (вход «как сотрудник»)
-const connectAsOrg = ref(false)
+// Яндекс: способ подключения — обычный аккаунт или кабинет организации (OAuth
+// через приложение «AdMirra — для организаций», вход «как сотрудник»). Две опции
+// справа, по подобию VK. connectAsOrg вычисляется из выбранного режима.
+const yandexConnectionMode = ref('self') // 'self' | 'org'
+const connectAsOrg = computed(() => yandexConnectionMode.value === 'org')
 const loadingAuth = ref(false)
 const loadingMetrikaAuth = ref(false)
 const vkConnectionMode = ref('self')
