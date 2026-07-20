@@ -3812,7 +3812,10 @@ const chartChipDisabled = (chipKey) => (chipKey === 'leads' || chipKey === 'cpa'
 
 const toggleChartMetric = (key) => {
   if (chartChipDisabled(key)) return
-  if (chartBreakdownMode.value === 'channels') {
+  // Одиночный выбор показателя — только когда график реально разбит по каналам
+  // (режим «Все каналы»): там линия одна на канал. В одноканальном режиме
+  // разрешаем выбирать несколько показателей сразу (Расход + Лиды + CPL…).
+  if (isAllChannelsMode.value && chartBreakdownMode.value === 'channels') {
     chartSelectedMetricKeys.value = [key]
     return
   }
