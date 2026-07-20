@@ -152,8 +152,9 @@
           </div>
         </div>
 
-        <!-- Капсула кампаний/«Сначала проект» не нужна в VK (в т.ч. в папках). -->
-        <div v-if="filters.channel !== 'vk'" class="filter-wrap custom-select dashboard-select" :class="{ open: openMenu === 'campaigns' }" v-click-outside="closeCampaignMenu">
+        <!-- В VK скрываем только состояние «Сначала проект» (режим папки/без проекта);
+             в одиночном VK-проекте капсула «Кампании» остаётся. -->
+        <div v-if="!(filters.channel === 'vk' && !filters.client_id)" class="filter-wrap custom-select dashboard-select" :class="{ open: openMenu === 'campaigns' }" v-click-outside="closeCampaignMenu">
           <button class="filter-btn cs-head" type="button" :class="{ 'cs-head--active': filters.campaign_ids.length > 0, 'cs-head--placeholder': filters.campaign_ids.length === 0 }" @click="openCampaignMenu">
             <span class="cs-current">{{ selectedCampaignLabel }}</span>
             <span class="cs-arrow">
