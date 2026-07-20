@@ -52,7 +52,20 @@
       </div>
       <div class="dashboard-title-row dashboard-title-row--actions">
         <h1>{{ dashboardTitle }}</h1>
-        <div class="dashboard-view-tabs" role="tablist" aria-label="Режим экрана">
+        <div class="dashboard-title-meta">
+          <span class="dashboard-sync-text" :title="syncStatusLabel">
+            <ArrowPathIcon :class="{ spinning: dashboardSyncInProgress }" />
+            {{ syncStatusLabel }}
+          </span>
+          <label class="nds-check-wrap dashboard-nds-control">
+            <input v-model="includeVat" type="checkbox" class="nds-checkbox" />
+            <span class="nds-label">НДС 22%</span>
+          </label>
+        </div>
+      </div>
+      <div class="filters-row filters-row--blocks">
+        <!-- Визуальный блок 1: режим экрана (в самом начале тулбара). -->
+        <div class="dashboard-view-tabs toolbar-block-tabs" role="tablist" aria-label="Режим экрана">
           <button
             type="button"
             class="dashboard-view-tab"
@@ -70,18 +83,6 @@
             @click="activeView = 'dynamics'"
           >Динамика</button>
         </div>
-        <div class="dashboard-title-meta">
-          <span class="dashboard-sync-text" :title="syncStatusLabel">
-            <ArrowPathIcon :class="{ spinning: dashboardSyncInProgress }" />
-            {{ syncStatusLabel }}
-          </span>
-          <label class="nds-check-wrap dashboard-nds-control">
-            <input v-model="includeVat" type="checkbox" class="nds-checkbox" />
-            <span class="nds-label">НДС 22%</span>
-          </label>
-        </div>
-      </div>
-      <div class="filters-row">
         <!-- Режим «Аналитика папки»: сводка по проектам в папке -->
         <div v-if="folderMode" class="folder-mode-chip" :title="`Сводная аналитика по папке «${folderMode.name}»`">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.6c.7 0 1.36.3 1.83.81l1.04 1.13c.28.31.69.49 1.11.49h5.42A2.5 2.5 0 0 1 21 9.93v6.57A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5v-9Z"/></svg>
@@ -14812,9 +14813,12 @@ onMounted(() => {
 .dashboard-view-tab { min-height:2.6389rem; padding:0 1.1111rem; font-size:.9028rem; border-radius:.5556rem; }
 .dashboard-view-tab--active { border-radius:.5556rem; }
 
-/* Ряд фильтров + действия справа. */
+/* Тулбар в один ряд: 3 визуальных блока (режим · фильтры · действия).
+   Внутри блока зазор обычный (.filters-row gap ~0.69rem), между блоками — шире
+   за счёт доп. margin у крайних элементов блоков. */
 .filters-row { align-items:center; }
-.filters-row__actions.dashboard-report-actions { margin-left:auto; display:flex; align-items:center; gap:.6944rem; }
+.filters-row--blocks .toolbar-block-tabs { margin-right:1rem; }
+.filters-row__actions.dashboard-report-actions { margin-left:1rem; display:flex; align-items:center; gap:.6944rem; }
 
 /* Единая капсула-кнопка тулбара (Обновить данные, Настройки проекта, Экспорт). */
 .toolbar-btn { display:inline-flex; align-items:center; justify-content:center; gap:.8333rem; height:3.1944rem; padding:0 1.0417rem; border:1px solid #ebebeb; border-radius:.8333rem; background:#fff; color:#171717; font-size:.9028rem; font-weight:500; cursor:pointer; white-space:nowrap; transition:border-color .2s, box-shadow .2s, background-color .2s, color .2s; }
