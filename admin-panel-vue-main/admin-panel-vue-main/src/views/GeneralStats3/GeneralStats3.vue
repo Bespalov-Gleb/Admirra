@@ -152,7 +152,8 @@
           </div>
         </div>
 
-        <div class="filter-wrap custom-select dashboard-select" :class="{ open: openMenu === 'campaigns' }" v-click-outside="closeCampaignMenu">
+        <!-- Капсула кампаний/«Сначала проект» не нужна в VK (в т.ч. в папках). -->
+        <div v-if="filters.channel !== 'vk'" class="filter-wrap custom-select dashboard-select" :class="{ open: openMenu === 'campaigns' }" v-click-outside="closeCampaignMenu">
           <button class="filter-btn cs-head" type="button" :class="{ 'cs-head--active': filters.campaign_ids.length > 0, 'cs-head--placeholder': filters.campaign_ids.length === 0 }" @click="openCampaignMenu">
             <span class="cs-current">{{ selectedCampaignLabel }}</span>
             <span class="cs-arrow">
@@ -3508,6 +3509,10 @@ const dashboardTitle = computed(() => {
   if (filters.campaign_ids?.length) {
     const campaign = allCampaigns.value.find((item) => item.id === filters.campaign_ids[0])
     return campaign ? `Отчет по кампании: ${campaign.name}` : `Отчет по кампаниям (${filters.campaign_ids.length})`
+  }
+  // Режим папки: в заголовке — название папки, а не канала/«все проекты».
+  if (folderMode.value) {
+    return `Отчет: ${folderMode.value.name}`
   }
   if (filters.client_id) {
     const client = clients.value.find((item) => item.id === filters.client_id)
