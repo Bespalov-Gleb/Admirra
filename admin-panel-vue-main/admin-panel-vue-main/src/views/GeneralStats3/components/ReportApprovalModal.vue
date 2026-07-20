@@ -143,13 +143,12 @@
     </div>
   </Teleport>
 
-  <!-- Полноэкранное превью будущего отчёта: клик по снимку разворачивает его. -->
-  <Teleport to="body">
-    <div v-if="previewFullscreen && snapshotImageUrl" class="report-preview-fs" @click="previewFullscreen = false">
-      <button type="button" class="report-preview-fs__close" aria-label="Закрыть" @click.stop="previewFullscreen = false">×</button>
-      <img class="report-preview-fs__img" :src="snapshotImageUrl" alt="Превью отчёта на весь экран" @click.stop />
-    </div>
-  </Teleport>
+  <!-- Полноэкранное превью будущего отчёта с зумом. -->
+  <FullscreenImageViewer
+    v-if="previewFullscreen && snapshotImageUrl"
+    :src="snapshotImageUrl"
+    @close="previewFullscreen = false"
+  />
 </template>
 
 <script setup>
@@ -158,6 +157,7 @@ import api from '@/api/axios'
 import { useToaster } from '@/composables/useToaster'
 import { useTheme } from '@/composables/useTheme'
 import ChannelIcon from '@/components/ui/ChannelIcon.vue'
+import FullscreenImageViewer from '@/components/ui/FullscreenImageViewer.vue'
 
 const props = defineProps({
   delivery: { type: Object, default: null },
@@ -613,11 +613,6 @@ const approve = async () => {
 .report-approval-snapshot-zoom svg { width: 0.9rem; height: 0.9rem; }
 .report-approval-snapshot-btn:hover .report-approval-snapshot-zoom { opacity: 1; }
 
-/* Полноэкранное превью отчёта. */
-.report-preview-fs { position: fixed; inset: 0; z-index: 1400; display: grid; place-items: center; padding: 2.5rem; background: rgba(6,12,28,.9); cursor: zoom-out; }
-.report-preview-fs__img { max-width: 96vw; max-height: 92vh; object-fit: contain; border-radius: 0.6rem; box-shadow: 0 2rem 5rem rgba(0,0,0,.5); background: #fff; cursor: default; }
-.report-preview-fs__close { position: fixed; top: 1.1rem; right: 1.4rem; width: 2.6rem; height: 2.6rem; border: 0; border-radius: 50%; background: rgba(255,255,255,.14); color: #fff; font-size: 1.7rem; line-height: 1; cursor: pointer; }
-.report-preview-fs__close:hover { background: rgba(255,255,255,.26); }
 .report-approval-message { min-height: 10rem; max-height: 19rem; overflow: auto; margin: 0.6rem 0 1rem; border: 1px solid rgba(15,23,42,.08); border-radius: 0.75rem; background: #f8fafc; color: #334155; font-size: .78rem; line-height: 1.45; }
 .report-approval-message pre { margin: 0; padding: .8rem; white-space: pre-wrap; font: inherit; }
 .report-approval-message.email > div { padding: .7rem; }

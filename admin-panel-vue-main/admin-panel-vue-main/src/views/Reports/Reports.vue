@@ -5,24 +5,31 @@
         <h1>Отчёты</h1>
         <p>Проверка, подтверждение и история отправок по проектам.</p>
       </div>
-      <button type="button" class="reports-refresh" :disabled="loading" @click="load">
-        <ArrowPathIcon :class="{ spinning: loading }" />
-        <span>{{ loading ? 'Обновляем...' : 'Обновить' }}</span>
-      </button>
+      <div class="reports-head__actions">
+        <label class="reports-search">
+          <MagnifyingGlassIcon class="reports-search__icon" />
+          <input v-model="searchQuery" type="search" placeholder="Поиск по проекту" />
+          <button v-if="searchQuery" type="button" class="reports-search__clear" aria-label="Очистить" @click="searchQuery = ''">×</button>
+        </label>
+        <button type="button" class="reports-refresh" :disabled="loading" @click="load">
+          <ArrowPathIcon :class="{ spinning: loading }" />
+          <span>{{ loading ? 'Обновляем...' : 'Обновить' }}</span>
+        </button>
+      </div>
     </header>
 
     <section class="reports-layout">
-      <div v-if="pending.length" class="reports-panel reports-panel--queue">
+      <div v-if="filteredPending.length" class="reports-panel reports-panel--queue">
         <div class="reports-panel-head">
           <div>
             <h2>Ожидают проверки</h2>
             <p>Автоотправка с проверкой и отчёты, остановленные детектором.</p>
           </div>
-          <span>{{ pending.length }}</span>
+          <span>{{ filteredPending.length }}</span>
         </div>
         <div class="reports-list">
           <article
-            v-for="item in pending"
+            v-for="item in filteredPending"
             :key="item.id"
             class="report-queue-card"
             :class="{ 'report-queue-card--detector': item.source === 'detector' }"
@@ -53,7 +60,7 @@
             <h2>История отправок</h2>
             <p>Последние отправленные и неуспешные отчёты.</p>
           </div>
-          <span>{{ history.length }}</span>
+          <span>{{ filteredHistory.length }}</span>
         </div>
         <div class="reports-table">
           <div class="reports-table-row reports-table-row--head">
@@ -63,7 +70,7 @@
             <span>Каналы</span>
             <span aria-label="Настройки"></span>
           </div>
-          <div v-for="item in history" :key="item.id" class="reports-table-row reports-table-row--item" role="button" tabindex="0" @click="historyDelivery = item" @keydown.enter="historyDelivery = item">
+          <div v-for="item in filteredHistory" :key="item.id" class="reports-table-row reports-table-row--item" role="button" tabindex="0" @click="historyDelivery = item" @keydown.enter="historyDelivery = item">
             <span class="history-date">{{ formatDateTime(item.sent_at || item.approved_at || item.created_at) }}</span>
             <span class="history-scope"><template v-if="item.status === 'cancelled'"><b class="history-cancelled">Отменён</b> · </template>{{ item.scope_label }} · {{ formatDate(item.start_date) }} — {{ formatDate(item.end_date) }}</span>
             <span class="history-approver">{{ item.approved_by_name || 'авто' }}</span>
@@ -82,7 +89,7 @@
             </span>
             <button type="button" class="history-settings" title="Настройки отчётов проекта" @click.stop="openSettings(item)"><Cog6ToothIcon /></button>
           </div>
-          <div v-if="!history.length" class="reports-empty">Истории пока нет</div>
+          <div v-if="!filteredHistory.length" class="reports-empty">{{ history.length ? 'Ничего не найдено по этому проекту' : 'Истории пока нет' }}</div>
         </div>
       </div>
     </section>
@@ -106,8 +113,8 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
-import { ArrowPathIcon, Cog6ToothIcon } from '@heroicons/vue/24/outline'
+import { computed, onMounted, ref } from 'vue'
+import { ArrowPathIcon, Cog6ToothIcon, MagnifyingGlassIcon } from '@heroicons/vue/24/outline'
 import api from '@/api/axios'
 import { useToaster } from '@/composables/useToaster'
 import { useTheme } from '@/composables/useTheme'
@@ -126,6 +133,16 @@ const activeDelivery = ref(null)
 const historyDelivery = ref(null)
 const settingsScope = ref(null)
 const retryingId = ref(null)
+const searchQuery = ref('')
+
+// Поиск по названию проекта (scope_label) — фильтрует обе секции.
+const matchesSearch = (item) => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return true
+  return String(item?.scope_label || '').toLowerCase().includes(q)
+}
+const filteredPending = computed(() => pending.value.filter(matchesSearch))
+const filteredHistory = computed(() => history.value.filter(matchesSearch))
 
 const load = async () => {
   loading.value = true
@@ -272,6 +289,68 @@ onMounted(load)
   gap: 1.6rem;
   margin-bottom: 2rem;
 }
+
+.reports-head__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.reports-search {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 3.6rem;
+}
+.reports-search__icon {
+  position: absolute;
+  left: 0.95rem;
+  width: 1.35rem;
+  height: 1.35rem;
+  color: #94a3b8;
+  pointer-events: none;
+}
+.reports-search input {
+  width: 20rem;
+  max-width: 46vw;
+  height: 100%;
+  padding: 0 2.4rem 0 2.9rem;
+  border: 1px solid rgba(105, 105, 105, 0.14);
+  border-radius: 0.95rem;
+  background: #fff;
+  color: #171717;
+  font-size: 1.12rem;
+  outline: none;
+  transition: border-color 0.18s;
+}
+.reports-search input::placeholder { color: #9aa3b2; }
+.reports-search input:focus { border-color: rgba(37, 99, 235, 0.4); }
+.reports-search input::-webkit-search-cancel-button { display: none; }
+.reports-search__clear {
+  position: absolute;
+  right: 0.6rem;
+  width: 1.8rem;
+  height: 1.8rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: #eef1f5;
+  color: #64748b;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.reports-search__clear:hover { background: #e2e8f0; }
+.reports-page.is-dark .reports-search input {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #f1f5f9;
+}
+.reports-page.is-dark .reports-search__clear { background: rgba(255, 255, 255, 0.12); color: rgba(255, 255, 255, 0.75); }
 
 .reports-head h1 {
   margin: 0;

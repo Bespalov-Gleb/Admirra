@@ -492,7 +492,7 @@
     </Teleport>
 
     <section
-      v-if="directionsEnabled && filters.channel !== 'vk' && !selectedDirectionId && directionStats.items.length"
+      v-if="directionsEnabled && !selectedDirectionId && directionStats.items.length"
       class="directions-panel panel"
       :class="{ 'panel--syncing': dashboardSyncInProgress }"
     >
@@ -12728,14 +12728,14 @@ onMounted(() => {
 .campaign-filter-banner {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.55rem 1.2rem;
+  gap: 0.7rem;
+  padding: 0.85rem 1.3rem;
   background: #eff6ff;
   border: 1px solid #bfdbfe;
-  border-radius: 0.5rem;
-  font-size: 0.88rem;
+  border-radius: 0.8rem;
+  font-size: 0.95rem;
   color: #1e40af;
-  margin-bottom: 0.5rem;
+  margin: 0.35rem 0 1.35rem;
 }
 .campaign-filter-banner__reset {
   background: none;
