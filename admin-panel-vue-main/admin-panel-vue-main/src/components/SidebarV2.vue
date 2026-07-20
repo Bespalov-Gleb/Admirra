@@ -290,7 +290,9 @@ const menuItems = computed(() => [
 ])
 
 const bottomLinks = computed(() => [
-  { name: 'Что допилить?', path: '/contact', icon: LightBulbIcon },
+  // Пока форму «Что допилить?» заменили на закрытый чат в Telegram —
+  // функционал обсуждаем с пользователями там.
+  { name: 'Что допилить?', icon: LightBulbIcon, action: () => window.open('https://t.me/+AoZ2hLbwrHA3N2Ni', '_blank', 'noopener,noreferrer') },
   { name: 'Поддержка', path: '/support', icon: ComputerDesktopIcon },
 ])
 

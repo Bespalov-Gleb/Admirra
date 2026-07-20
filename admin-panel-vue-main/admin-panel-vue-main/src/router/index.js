@@ -176,12 +176,6 @@ const routes = [
     component: () => import('../views/Help/Help.vue')
   },
   {
-    path: '/contact',
-    name: 'Contact',
-    component: () => import('../views/Contact/Contact.vue'),
-    meta: { layout: 'mockup' }
-  },
-  {
     path: '/dashboard/general-3',
     name: 'GeneralStats3',
     component: () => import('../views/GeneralStats3/GeneralStats3.vue'),

@@ -695,7 +695,8 @@ function onContactWl() {
     router.push('/settings?tab=brand')
     return
   }
-  router.push('/contact')
+  // Страницу «Что допилить?» убрали — ведём в закрытый чат Telegram.
+  window.open('https://t.me/+AoZ2hLbwrHA3N2Ni', '_blank', 'noopener,noreferrer')
 }
 </script>
 
