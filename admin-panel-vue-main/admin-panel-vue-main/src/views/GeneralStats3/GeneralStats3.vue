@@ -152,9 +152,9 @@
           </div>
         </div>
 
-        <!-- В VK скрываем только состояние «Сначала проект» (режим папки/без проекта);
-             в одиночном VK-проекте капсула «Кампании» остаётся. -->
-        <div v-if="!(filters.channel === 'vk' && !filters.client_id)" class="filter-wrap custom-select dashboard-select" :class="{ open: openMenu === 'campaigns' }" v-click-outside="closeCampaignMenu">
+        <!-- Капсула кампаний нужна только в одиночном проекте. В папке / «все проекты»
+             (состояние «Сначала проект») её скрываем — там выбор кампаний недоступен. -->
+        <div v-if="filters.client_id" class="filter-wrap custom-select dashboard-select" :class="{ open: openMenu === 'campaigns' }" v-click-outside="closeCampaignMenu">
           <button class="filter-btn cs-head" type="button" :class="{ 'cs-head--active': filters.campaign_ids.length > 0, 'cs-head--placeholder': filters.campaign_ids.length === 0 }" @click="openCampaignMenu">
             <span class="cs-current">{{ selectedCampaignLabel }}</span>
             <span class="cs-arrow">
@@ -14302,7 +14302,7 @@ onMounted(() => {
   grid-template-columns: 3rem minmax(0, 1fr) auto;
   align-items: center;
   gap: 1rem;
-  margin-bottom: 1.2rem;
+  margin: 1.35rem 0 1.2rem;
   padding: 1rem 1.15rem;
   border: 1px solid #cfdcfb;
   border-radius: 0.9rem;
