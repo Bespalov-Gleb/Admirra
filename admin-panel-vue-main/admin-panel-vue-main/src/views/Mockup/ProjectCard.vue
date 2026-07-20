@@ -580,6 +580,19 @@
           <input v-model="folderForm.name" type="text" class="folder-modal__input" placeholder="Например: Лайк Стор" maxlength="80" />
 
           <label class="folder-modal__label">Цвет</label>
+          <div class="folder-color-field" v-click-outside="() => { folderColorOpen = false }">
+            <button
+              type="button"
+              class="folder-color-trigger"
+              :class="{ open: folderColorOpen }"
+              @click="folderColorOpen = !folderColorOpen"
+            >
+              <span class="folder-color-trigger__swatch" :style="{ background: safeFolderColor }"></span>
+              <span class="folder-color-trigger__text">Настройка цвета</span>
+              <span class="folder-color-trigger__value">{{ safeFolderColor.toUpperCase() }}</span>
+              <svg class="folder-color-trigger__chevron" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="m1 1 4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <div v-if="folderColorOpen" class="folder-color-popover">
           <div
             class="folder-color-picker"
             :style="{
@@ -652,6 +665,8 @@
                 <span>B</span>
                 <input :value="folderRgb.b" inputmode="numeric" maxlength="3" @input="setFolderRgbChannel('b', $event.target.value)" />
               </label>
+            </div>
+          </div>
             </div>
           </div>
 
@@ -793,6 +808,7 @@ const PROJECT_INSIGHT_CONCURRENCY = 3
 const folders = ref([])
 const expandedFolders = ref({})
 const folderModal = ref(null) // { mode: 'create' | 'edit', folder? }
+const folderColorOpen = ref(false) // поповер выбора цвета папки
 const folderDeleteTarget = ref(null)
 const moveMenuProjectId = ref(null)
 const movingProjectId = ref(null)
@@ -1140,12 +1156,14 @@ async function resumeProject(project) {
 function openCreateFolder() {
   folderForm.value = { name: '', color: DEFAULT_FOLDER_COLOR, project_ids: [] }
   syncFolderColorState(DEFAULT_FOLDER_COLOR)
+  folderColorOpen.value = false
   folderModal.value = { mode: 'create' }
 }
 
 function openEditFolder(folder) {
   folderForm.value = { name: folder.name, color: normalizeFolderHex(folder.color || DEFAULT_FOLDER_COLOR), project_ids: [] }
   syncFolderColorState(folderForm.value.color)
+  folderColorOpen.value = false
   folderModal.value = { mode: 'edit', folder }
 }
 
@@ -4438,6 +4456,63 @@ onMounted(async () => {
 }
 .folder-modal__input::placeholder { font-weight: 500; color: #b3bcc9; }
 .folder-modal__input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.12); }
+
+/* Компактная плашка «Настройка цвета»: превью-свотч + значение, по клику
+   рядом (поповером) открывается полный пикер — чтобы не отвлекал в форме. */
+.folder-color-field { position: relative; }
+.folder-color-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 0.7rem;
+  background: #fff;
+  color: #333;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+.folder-color-trigger:hover,
+.folder-color-trigger.open { border-color: rgba(37, 99, 235, 0.4); }
+.folder-color-trigger__swatch {
+  width: 1.4rem;
+  height: 1.4rem;
+  flex: 0 0 auto;
+  border-radius: 0.4rem;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.14);
+}
+.folder-color-trigger__text { flex: 1 1 auto; text-align: left; }
+.folder-color-trigger__value { color: #8b93a1; font-weight: 700; font-variant-numeric: tabular-nums; }
+.folder-color-trigger__chevron { width: 0.72rem; height: 0.72rem; flex: 0 0 auto; color: #9aa3b2; transition: transform 0.18s; }
+.folder-color-trigger.open .folder-color-trigger__chevron { transform: rotate(180deg); }
+.folder-color-popover {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 0.4rem);
+  left: 0;
+  right: 0;
+  padding: 0.6rem;
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: 0 1.2rem 3rem rgba(15, 23, 42, 0.22), 0 0 0 1px rgba(15, 23, 42, 0.08);
+}
+.folder-color-popover .folder-color-picker { border: 0; background: transparent; padding: 0; }
+:global(.dark) .folder-color-trigger,
+:global(.darkmode) .folder-color-trigger {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.9);
+}
+:global(.dark) .folder-color-trigger__value,
+:global(.darkmode) .folder-color-trigger__value { color: rgba(255, 255, 255, 0.5); }
+:global(.dark) .folder-color-popover,
+:global(.darkmode) .folder-color-popover {
+  background: #262a3a;
+  box-shadow: 0 1.2rem 3rem rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
 
 .folder-color-picker {
   display: grid;

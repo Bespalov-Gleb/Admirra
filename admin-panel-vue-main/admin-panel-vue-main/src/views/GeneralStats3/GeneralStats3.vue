@@ -9325,7 +9325,8 @@ onMounted(() => {
   font-size: 1.04rem;
   font-weight: 700;
   white-space: nowrap;
-  cursor: copy;
+  /* pointer, а не copy: у copy браузер рисует зелёный «плюсик» у курсора. */
+  cursor: pointer;
   /* ТЗ единого дашборда п.12: компактная строка — ID виден по ховеру/раскрытию */
   display: none;
 }
