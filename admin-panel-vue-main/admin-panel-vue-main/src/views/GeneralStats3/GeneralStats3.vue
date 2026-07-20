@@ -12735,7 +12735,9 @@ onMounted(() => {
   border-radius: 0.8rem;
   font-size: 0.95rem;
   color: #1e40af;
-  margin: 0.35rem 0 1.35rem;
+  /* Нижний зазор гасим: у следующего блока (.kpi-grid) свой margin-top ~1.74rem,
+     иначе снизу образуется двойной отступ. Верх и низ так выравниваются. */
+  margin: 1.2rem 0 -0.5rem;
 }
 .campaign-filter-banner__reset {
   background: none;
