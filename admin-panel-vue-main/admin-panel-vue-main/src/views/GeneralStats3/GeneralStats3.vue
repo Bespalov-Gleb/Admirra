@@ -242,12 +242,11 @@
           </Teleport>
         </div>
 
-        <button type="button" class="toolbar-btn toolbar-refresh-btn" :disabled="dashboardSyncInProgress" @click="handleSyncIntegrations">
-          <ArrowPathIcon :class="{ spinning: dashboardSyncInProgress }" />
-          <span>Обновить данные</span>
-        </button>
-
         <div class="filters-row__actions dashboard-report-actions">
+          <button type="button" class="toolbar-btn toolbar-refresh-btn" :disabled="dashboardSyncInProgress" @click="handleSyncIntegrations">
+            <ArrowPathIcon :class="{ spinning: dashboardSyncInProgress }" />
+            <span>Обновить данные</span>
+          </button>
           <!-- Настройки проекта: единственная точка входа к плану и детектору. -->
           <button
             v-if="filters.client_id && !folderMode"
@@ -14817,8 +14816,9 @@ onMounted(() => {
    Внутри блока зазор обычный (.filters-row gap ~0.69rem), между блоками — шире
    за счёт доп. margin у крайних элементов блоков. */
 .filters-row { align-items:center; }
-.filters-row--blocks .toolbar-block-tabs { margin-right:1rem; }
-.filters-row__actions.dashboard-report-actions { margin-left:1rem; display:flex; align-items:center; gap:.6944rem; }
+.filters-row--blocks .toolbar-block-tabs { margin-right:1.15rem; }
+/* Блок действий (Обновить · Настройки · Экспорт · Отправить) — к правому краю. */
+.filters-row__actions.dashboard-report-actions { margin-left:auto; display:flex; align-items:center; gap:.6944rem; }
 
 /* Единая капсула-кнопка тулбара (Обновить данные, Настройки проекта, Экспорт). */
 .toolbar-btn { display:inline-flex; align-items:center; justify-content:center; gap:.8333rem; height:3.1944rem; padding:0 1.0417rem; border:1px solid #ebebeb; border-radius:.8333rem; background:#fff; color:#171717; font-size:.9028rem; font-weight:500; cursor:pointer; white-space:nowrap; transition:border-color .2s, box-shadow .2s, background-color .2s, color .2s; }
