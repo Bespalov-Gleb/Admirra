@@ -142,8 +142,40 @@
         <h4 class="tm-title dark:!text-white">Доступ к проектам</h4>
         <p class="tm-sub dark:!text-white/55">{{ grantModal.member?.name }} — выберите проекты</p>
         <div v-if="availableProjects.length" class="tm-checklist">
+          <!-- Папки: доступ ко всей папке (все её проекты) или к отдельному проекту -->
+          <div v-for="folder in availableGroups.folders" :key="folder.id" class="tm-folder-group">
+            <label
+              class="tm-check-item tm-folder-head dark:!border-white/8 dark:hover:!bg-white/5"
+              :class="{ 'tm-check-item--selected dark:!bg-[#2563eb]/15 dark:!border-[#2563eb]/40': folderSelState(folder.projects) === 'all' }"
+            >
+              <input type="checkbox" class="sr-only" :checked="folderSelState(folder.projects) === 'all'" @change="toggleFolderSelection(folder.projects)" />
+              <span class="tm-check-icon" :class="{ 'tm-check-icon--on': folderSelState(folder.projects) !== 'none' }">
+                <svg v-if="folderSelState(folder.projects) === 'all'" width="10" height="10" viewBox="0 0 12 12" fill="none">
+                  <path d="M2 6l3 3 5-5" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span v-else-if="folderSelState(folder.projects) === 'partial'" class="tm-check-dash"></span>
+              </span>
+              <span class="tm-folder-swatch" :style="{ background: folder.color }"></span>
+              <span class="tm-check-label dark:!text-white/80"><b>{{ folder.name }}</b> <small class="tm-folder-count">папка · {{ folder.projects.length }}</small></span>
+            </label>
+            <label
+              v-for="project in folder.projects"
+              :key="project.id"
+              class="tm-check-item tm-folder-child dark:!border-white/8 dark:hover:!bg-white/5"
+              :class="{ 'tm-check-item--selected dark:!bg-[#2563eb]/15 dark:!border-[#2563eb]/40': grantModal.selectedIds.has(project.id) }"
+            >
+              <input type="checkbox" :value="project.id" :checked="grantModal.selectedIds.has(project.id)" @change="toggleProjectSelection(project.id)" class="sr-only" />
+              <span class="tm-check-icon" :class="{ 'tm-check-icon--on': grantModal.selectedIds.has(project.id) }">
+                <svg v-if="grantModal.selectedIds.has(project.id)" width="10" height="10" viewBox="0 0 12 12" fill="none">
+                  <path d="M2 6l3 3 5-5" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+              <span class="tm-check-label dark:!text-white/80">{{ project.name }}</span>
+            </label>
+          </div>
+          <!-- Проекты вне папок -->
           <label
-            v-for="project in availableProjects"
+            v-for="project in availableGroups.standalone"
             :key="project.id"
             class="tm-check-item dark:!border-white/8 dark:hover:!bg-white/5"
             :class="{ 'tm-check-item--selected dark:!bg-[#2563eb]/15 dark:!border-[#2563eb]/40': grantModal.selectedIds.has(project.id) }"
@@ -271,6 +303,39 @@ const availableProjects = computed(() => {
   const assignedIds = new Set(grantModal.value.member.projects.map(p => p.id))
   return teamProjects.value.filter(p => !assignedIds.has(p.id))
 })
+
+// Группировка доступных проектов по папкам: можно выдать доступ ко всей папке
+// (все её проекты) или к отдельному проекту из папки.
+const availableGroups = computed(() => {
+  const folders = new Map()
+  const standalone = []
+  for (const p of availableProjects.value) {
+    if (p.folder_id) {
+      if (!folders.has(p.folder_id)) {
+        folders.set(p.folder_id, { id: p.folder_id, name: p.folder_name || 'Папка', color: p.folder_color || '#2563eb', projects: [] })
+      }
+      folders.get(p.folder_id).projects.push(p)
+    } else {
+      standalone.push(p)
+    }
+  }
+  return { folders: [...folders.values()], standalone }
+})
+
+function folderSelState(folderProjects) {
+  const ids = folderProjects.map(p => p.id)
+  const sel = ids.filter(id => grantModal.value.selectedIds.has(id)).length
+  if (sel === 0) return 'none'
+  return sel === ids.length ? 'all' : 'partial'
+}
+
+function toggleFolderSelection(folderProjects) {
+  const ids = new Set(grantModal.value.selectedIds)
+  const projIds = folderProjects.map(p => p.id)
+  const allSel = projIds.every(id => ids.has(id))
+  projIds.forEach(id => (allSel ? ids.delete(id) : ids.add(id)))
+  grantModal.value.selectedIds = ids
+}
 
 async function openGrantModal(member) {
   if (!teamProjects.value.length) await fetchTeamProjects()
@@ -843,6 +908,35 @@ onMounted(() => Promise.all([fetchMembers(), fetchTeamProjects()]))
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.tm-folder-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.35rem;
+  border: 1px solid #eef1f6;
+  border-radius: 0.8rem;
+  background: #fbfcfe;
+}
+.tm-folder-head { border-color: transparent; background: transparent; font-weight: 700; }
+.tm-folder-head .tm-check-label b { font-weight: 800; }
+.tm-folder-count { color: #98a2b6; font-weight: 600; font-size: 0.82rem; }
+.tm-folder-child { margin-left: 1.6rem; }
+.tm-folder-swatch {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex: 0 0 auto;
+  border-radius: 0.35rem;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.14);
+}
+.tm-check-dash {
+  width: 0.6rem;
+  height: 2px;
+  border-radius: 2px;
+  background: #2563eb;
+}
+:global(.dark) .tm-folder-group,
+:global(.darkmode) .tm-folder-group { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.08); }
+
 .tm-actions {
   display: flex;
   gap: 0.6944rem;

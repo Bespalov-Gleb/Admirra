@@ -224,6 +224,9 @@ class OAuthIdentityStatus(BaseModel):
 class TeamProjectRef(BaseModel):
     id: UUID
     name: str
+    folder_id: Optional[UUID] = None
+    folder_name: Optional[str] = None
+    folder_color: Optional[str] = None
 
 
 class TeamMemberResponse(BaseModel):

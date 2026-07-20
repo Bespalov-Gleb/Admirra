@@ -498,7 +498,7 @@ def get_team_projects(
     db: Session = Depends(get_db),
 ):
     account_id = _ensure_owner(current_user, db)
-    owner_projects = db.query(models.Client.id, models.Client.name).filter(models.Client.owner_id == account_id).all()
+    owner_projects = db.query(models.Client.id, models.Client.name, models.Client.folder_id).filter(models.Client.owner_id == account_id).all()
     member_user_ids = [
         r[0]
         for r in (
@@ -514,10 +514,19 @@ def get_team_projects(
     ]
     member_projects = []
     if member_user_ids:
-        member_projects = db.query(models.Client.id, models.Client.name).filter(models.Client.owner_id.in_(member_user_ids)).all()
+        member_projects = db.query(models.Client.id, models.Client.name, models.Client.folder_id).filter(models.Client.owner_id.in_(member_user_ids)).all()
+    # Папки для группировки в модалке выдачи доступа (по папке / по проекту).
+    folder_map = {f.id: f for f in db.query(models.Folder).filter(models.Folder.account_id == account_id).all()}
     uniq = {}
-    for pid, name in list(owner_projects) + list(member_projects):
-        uniq[str(pid)] = schemas.TeamProjectRef(id=pid, name=name)
+    for pid, name, folder_id in list(owner_projects) + list(member_projects):
+        fol = folder_map.get(folder_id) if folder_id else None
+        uniq[str(pid)] = schemas.TeamProjectRef(
+            id=pid,
+            name=name,
+            folder_id=folder_id,
+            folder_name=(fol.name if fol else None),
+            folder_color=(fol.color if fol else None),
+        )
     return list(uniq.values())
 
 

@@ -587,7 +587,9 @@
               :class="{ open: folderColorOpen }"
               @click="folderColorOpen = !folderColorOpen"
             >
-              <span class="folder-color-trigger__swatch" :style="{ background: safeFolderColor }"></span>
+              <svg class="folder-color-trigger__drop" viewBox="0 0 24 24" :style="{ color: safeFolderColor }" aria-hidden="true">
+                <path d="M12 2.6c.28 0 .54.13.71.35 1.03 1.28 5.79 7.4 5.79 11.3a6.5 6.5 0 0 1-13 0c0-3.9 4.76-10.02 5.79-11.3.17-.22.43-.35.71-.35Z" fill="currentColor" stroke="rgba(15,23,42,0.22)" stroke-width="1"/>
+              </svg>
               <span class="folder-color-trigger__text">Настройка цвета</span>
               <span class="folder-color-trigger__value">{{ safeFolderColor.toUpperCase() }}</span>
               <svg class="folder-color-trigger__chevron" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="m1 1 4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -4477,12 +4479,10 @@ onMounted(async () => {
 }
 .folder-color-trigger:hover,
 .folder-color-trigger.open { border-color: rgba(37, 99, 235, 0.4); }
-.folder-color-trigger__swatch {
-  width: 1.4rem;
-  height: 1.4rem;
+.folder-color-trigger__drop {
+  width: 1.45rem;
+  height: 1.45rem;
   flex: 0 0 auto;
-  border-radius: 0.4rem;
-  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.14);
 }
 .folder-color-trigger__text { flex: 1 1 auto; text-align: left; }
 .folder-color-trigger__value { color: #8b93a1; font-weight: 700; font-variant-numeric: tabular-nums; }

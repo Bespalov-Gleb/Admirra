@@ -102,6 +102,23 @@ def list_folders(
         .order_by(models.Folder.sort_order, models.Folder.created_at)
         .all()
     )
+    # Сотрудник/клиент видит только папки, где есть хотя бы один доступный ему
+    # проект — иначе папки владельца «протекали» в чужой аккаунт.
+    if not ctx.is_owner:
+        accessible = set(get_accessible_client_ids(db, current_user))
+        folder_ids_with_access = set()
+        if accessible:
+            folder_ids_with_access = {
+                row[0]
+                for row in db.query(models.Client.folder_id)
+                .filter(
+                    models.Client.folder_id.isnot(None),
+                    models.Client.id.in_(accessible),
+                )
+                .distinct()
+                .all()
+            }
+        folders = [f for f in folders if f.id in folder_ids_with_access]
     counts = _folder_counts(db, [f.id for f in folders])
     return [_folder_to_schema(f, counts) for f in folders]
 
