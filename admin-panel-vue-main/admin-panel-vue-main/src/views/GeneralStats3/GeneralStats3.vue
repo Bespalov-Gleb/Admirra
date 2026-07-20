@@ -35,24 +35,20 @@
 
     <section class="heading-section">
       <!-- Бейдж «Организация» убран с дашборда (перенесён в раздел «Интеграции»). -->
-      <div
-        v-if="filters.client_id && detectorSummary"
-        class="dashboard-project-meta"
-      >
-        <span
-          v-if="filters.client_id && detectorSummary"
-          class="detector-status-chip detector-status-chip--inline"
-          :class="`detector-status-chip--${detectorStatusChip.kind}`"
-          :title="detectorStatusChip.hint"
-          role="status"
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.8-3 8.6-7 10-4-1.4-7-5.2-7-10V6l7-3z"/></svg>
-          <span>{{ detectorStatusChip.label }}</span>
-        </span>
-      </div>
       <div class="dashboard-title-row dashboard-title-row--actions">
         <h1>{{ dashboardTitle }}</h1>
         <div class="dashboard-title-meta">
+          <!-- Статус детектора — слева от информации о синхронизации. -->
+          <span
+            v-if="filters.client_id && detectorSummary"
+            class="detector-status-chip detector-status-chip--inline"
+            :class="`detector-status-chip--${detectorStatusChip.kind}`"
+            :title="detectorStatusChip.hint"
+            role="status"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.8-3 8.6-7 10-4-1.4-7-5.2-7-10V6l7-3z"/></svg>
+            <span>{{ detectorStatusChip.label }}</span>
+          </span>
           <span class="dashboard-sync-text" :title="syncStatusLabel">
             <ArrowPathIcon :class="{ spinning: dashboardSyncInProgress }" />
             {{ syncStatusLabel }}
@@ -10059,7 +10055,7 @@ onMounted(() => {
 }
 
 .filters-row {
-  gap: 0.6944rem;
+  gap: 0.85rem;
 }
 
 .filters-row .filter-btn {
@@ -14816,6 +14812,7 @@ onMounted(() => {
 
 /* Правая часть заголовка: инфо о синхроне (простой текст) + НДС. */
 .dashboard-title-meta { margin-left:auto; display:flex; align-items:center; gap:1.1111rem; flex-wrap:wrap; justify-content:flex-end; }
+.dashboard-title-meta .detector-status-chip--inline { min-height:1.9rem; margin:0; padding:.32rem .7rem; font-size:.88rem; line-height:1; gap:.36rem; }
 .dashboard-sync-text { display:inline-flex; align-items:center; gap:.4167rem; color:#98a2b6; font-size:.9028rem; font-weight:500; white-space:nowrap; }
 .dashboard-sync-text svg { width:.9722rem; height:.9722rem; flex:0 0 auto; }
 .dashboard-sync-text svg.spinning { animation:dashboard-spin 1s linear infinite; }
