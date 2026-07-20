@@ -1048,10 +1048,12 @@
                   type="button"
                   class="campaign-source-id"
                   :class="{ copied: copiedCampaignSourceId === campaign.sourceId }"
-                  title="Скопировать ID"
+                  :title="`Скопировать ID: ${campaign.sourceId}`"
                   @click.stop="copyCampaignSourceId(campaign.sourceId)"
                 >
-                  {{ campaign.sourceLabel }}
+                  <svg v-if="copiedCampaignSourceId === campaign.sourceId" class="campaign-copy-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+                  <svg v-else class="campaign-copy-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+                  <span class="campaign-source-id__label">{{ campaign.sourceLabel }}</span>
                 </button>
                 <span
                   v-if="campaign.hierarchyUnavailable"
@@ -9123,8 +9125,9 @@ onMounted(() => {
   pointer-events: none;
 }
 
+/* Синюю вертикальную полосу у строки кампании убрали по правке пользователя. */
 .campaign-row--campaign::before {
-  background: rgba(37, 99, 235, 0.22);
+  display: none;
 }
 
 .campaign-row--campaign + .campaign-row--campaign {
@@ -9312,6 +9315,8 @@ onMounted(() => {
 
 .campaign-source-id {
   flex: 0 1 auto;
+  align-items: center;
+  gap: 0.35rem;
   max-width: 18rem;
   padding: 0;
   border: 0;
@@ -9319,8 +9324,6 @@ onMounted(() => {
   color: #9aa3b2;
   font-size: 1.04rem;
   font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
   cursor: copy;
   /* ТЗ единого дашборда п.12: компактная строка — ID виден по ховеру/раскрытию */
@@ -9330,6 +9333,17 @@ onMounted(() => {
 .campaign-row--popover-open .campaign-source-id {
   display: inline-flex;
 }
+.campaign-copy-ic {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: 0 0 auto;
+}
+.campaign-source-id__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.campaign-source-id:hover { color: #2563eb; }
 
 .campaign-source-id.copied {
   color: #22a85a;
@@ -14793,8 +14807,9 @@ onMounted(() => {
 .dashboard-project-meta { display:flex; align-items:center; gap:.45rem; min-height:1.9rem; }.dashboard-project-meta .org-badge,.dashboard-project-meta .detector-status-chip--inline { min-height:1.9rem; margin:0; padding:.32rem .66rem; font-size:.78rem; line-height:1; }.dashboard-project-meta .org-badge { gap:.34rem; }.dashboard-project-meta .org-badge svg { width:.76rem; height:.76rem; }.dashboard-project-meta .detector-status-chip--inline { gap:.36rem; }
 /* Тулбар: единый стиль капсул (за основу — фильтры Филиалы/Кампании/период,
    реальные размеры: высота 3.1944rem, радиус 0.8333rem, шрифт 0.9028rem). */
-.dashboard-title-row--actions { display:flex; align-items:center; gap:.6944rem; flex-wrap:wrap; margin-top:1.15rem; margin-bottom:1.05rem; }
-.dashboard-project-meta + .dashboard-title-row--actions { margin-top:.55rem; }
+.dashboard-title-row--actions { display:flex; align-items:center; gap:.6944rem; flex-wrap:wrap; margin-top:1.15rem; margin-bottom:1.2rem; }
+/* Равные отступы вокруг заголовка: бейдж детектора → «Отчёт» → тулбар. */
+.dashboard-project-meta + .dashboard-title-row--actions { margin-top:1.2rem; }
 .dashboard-title-row--actions h1 { margin:0; }
 .dashboard-title-row--actions .dashboard-view-tabs { margin-left:.4rem; }
 

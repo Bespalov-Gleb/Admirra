@@ -67,119 +67,6 @@
             </div>
           </section>
 
-          <!-- ===== Block 2: Подключённые каналы ===== -->
-          <section class="psm-card">
-            <div class="psm-card__header">
-              <h3 class="psm-card__title">Подключённые каналы</h3>
-              <button type="button" class="psm-btn-accent" @click="$emit('add-channel')">
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-                Добавить канал
-              </button>
-            </div>
-
-            <div class="psm-card__body">
-              <div v-if="projectChannels.length === 0" class="psm-empty">
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(105,105,105,0.3)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" class="mb-2">
-                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-                </svg>
-                Нет подключённых рекламных кабинетов
-              </div>
-              <div v-else class="space-y-2">
-                <div v-for="ch in projectChannels" :key="ch.id" class="psm-channel-row">
-                  <div class="flex items-center gap-3 min-w-0">
-                    <PlatformIcon :platform="ch.platform" size="md" />
-                    <div class="min-w-0">
-                      <div class="psm-channel-name">{{ ch.name }}</div>
-                      <div class="psm-channel-status">
-                        <span class="psm-channel-dot" :class="ch.statusClass"></span>
-                        {{ ch.statusText }}
-                      </div>
-                    </div>
-                  </div>
-                  <div class="flex items-center gap-2 shrink-0">
-                    <button type="button" class="psm-btn-outline-sm" @click="$emit('configure-channel', ch)">Настроить</button>
-                    <button type="button" class="psm-btn-outline-sm psm-btn-outline-sm--warn" @click="confirmDeleteChannel(ch)">Удалить</button>
-                  </div>
-                </div>
-                <p class="psm-hint mt-1">«Настроить» — состав счётчиков и целей (визард). «Удалить» — отключить канал, с подтверждением.</p>
-              </div>
-            </div>
-          </section>
-
-          <!-- ===== Block 3: Сайт проекта ===== -->
-          <section class="psm-card">
-            <div class="psm-card__header">
-              <h3 class="psm-card__title">Сайт проекта</h3>
-            </div>
-            <div class="psm-card__body">
-              <p class="psm-hint mb-3">Используется для AI-аудита — оценка скорости, мобильной версии, посадочных.</p>
-              <input v-model="form.site_url" type="url" class="psm-input" placeholder="https://example.com" @blur="validateUrl" />
-              <p v-if="urlError" class="psm-field-error mt-1">{{ urlError }}</p>
-            </div>
-          </section>
-
-          <!-- ===== Block 4: Google Sheets ===== -->
-          <section class="psm-card">
-            <div class="psm-card__header">
-              <h3 class="psm-card__title">
-                Google Sheets
-                <span class="psm-optional-tag">отчёты</span>
-              </h3>
-            </div>
-            <div class="psm-card__body">
-              <p class="psm-hint mb-3">Таблица проекта для выгрузки сырых данных, недельных и месячных отчётов, а также целей Метрики.</p>
-
-              <div class="psm-sheets-card">
-                <div class="psm-sheets-card__icon">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                    <path d="M7 2h7l5 5v15H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z" fill="#1e8e3e"/>
-                    <path d="M14 2v5h5" fill="#9ad6aa"/>
-                    <path d="M8.5 10h7M8.5 13h7M8.5 16h7M10.5 10v6M13.5 10v6" stroke="#fff" stroke-width="1.1" stroke-linecap="round"/>
-                  </svg>
-                </div>
-                <div class="psm-sheets-card__content">
-                  <label class="psm-label">Ссылка или ID Google таблицы</label>
-                  <input
-                    v-model="form.spreadsheet_id"
-                    type="text"
-                    class="psm-input"
-                    placeholder="https://docs.google.com/spreadsheets/d/..."
-                  />
-                  <p class="psm-hint mt-2">
-                    Листы создаются автоматически: Raw Data, Weekly Reports, Monthly Report, Goals.
-                  </p>
-                </div>
-              </div>
-
-              <div class="psm-sheets-instruction">
-                <span class="psm-sheets-instruction__label">Доступ</span>
-                <span v-if="sheetsServiceEmail" class="psm-code-pill">{{ sheetsServiceEmail }}</span>
-                <span v-else class="psm-hint">service account не настроен на сервере</span>
-                <span class="psm-hint">Расшарьте таблицу на этот email с правом «Редактор».</span>
-              </div>
-
-              <div
-                class="psm-sheets-status"
-                :class="{ 'psm-sheets-status--ok': sheetsConnected, 'psm-sheets-status--warn': !sheetsConnected }"
-              >
-                <span class="psm-channel-dot" :class="sheetsConnected ? 'psm-channel-dot--active' : 'psm-channel-dot--sync'"></span>
-                {{ sheetsStatusText }}
-              </div>
-
-              <div class="psm-sheets-actions">
-                <button type="button" class="psm-btn-accent" :disabled="sheetsBusy" @click="connectGoogleSheets">
-                  {{ sheetsChecking ? 'Проверяем...' : sheetsConnected ? 'Проверить доступ' : 'Проверить и подключить' }}
-                </button>
-                <button type="button" class="psm-btn-outline" :disabled="sheetsBusy || !sheetsConnected" @click="exportGoogleSheetsNow">
-                  {{ sheetsExporting ? 'Выгружаем...' : 'Выгрузить сейчас' }}
-                </button>
-                <button type="button" class="psm-btn-outline psm-btn-outline--warn" :disabled="sheetsBusy || !sheetsConnected" @click="disconnectGoogleSheets">
-                  {{ sheetsDisconnecting ? 'Отключаем...' : 'Отключить' }}
-                </button>
-              </div>
-            </div>
-          </section>
-
           <!-- ===== Block 4: Детектор и цели ===== -->
           <section class="psm-card">
             <div class="psm-card__header">
@@ -356,6 +243,119 @@
                     <p v-if="hasVkChannels" class="psm-hint mt-2">ВК: типы кампаний разнородны — сводной строки «общий CPL» нет, только по каждой цели.</p>
                   </div>
                 </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ===== Block 2: Подключённые каналы ===== -->
+          <section class="psm-card">
+            <div class="psm-card__header">
+              <h3 class="psm-card__title">Подключённые каналы</h3>
+              <button type="button" class="psm-btn-accent" @click="$emit('add-channel')">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                Добавить канал
+              </button>
+            </div>
+
+            <div class="psm-card__body">
+              <div v-if="projectChannels.length === 0" class="psm-empty">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(105,105,105,0.3)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" class="mb-2">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                </svg>
+                Нет подключённых рекламных кабинетов
+              </div>
+              <div v-else class="space-y-2">
+                <div v-for="ch in projectChannels" :key="ch.id" class="psm-channel-row">
+                  <div class="flex items-center gap-3 min-w-0">
+                    <PlatformIcon :platform="ch.platform" size="md" />
+                    <div class="min-w-0">
+                      <div class="psm-channel-name">{{ ch.name }}</div>
+                      <div class="psm-channel-status">
+                        <span class="psm-channel-dot" :class="ch.statusClass"></span>
+                        {{ ch.statusText }}
+                      </div>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2 shrink-0">
+                    <button type="button" class="psm-btn-outline-sm" @click="$emit('configure-channel', ch)">Настроить</button>
+                    <button type="button" class="psm-btn-outline-sm psm-btn-outline-sm--warn" @click="confirmDeleteChannel(ch)">Удалить</button>
+                  </div>
+                </div>
+                <p class="psm-hint mt-1">«Настроить» — состав счётчиков и целей (визард). «Удалить» — отключить канал, с подтверждением.</p>
+              </div>
+            </div>
+          </section>
+
+          <!-- ===== Block 3: Сайт проекта ===== -->
+          <section class="psm-card">
+            <div class="psm-card__header">
+              <h3 class="psm-card__title">Сайт проекта</h3>
+            </div>
+            <div class="psm-card__body">
+              <p class="psm-hint mb-3">Используется для AI-аудита — оценка скорости, мобильной версии, посадочных.</p>
+              <input v-model="form.site_url" type="url" class="psm-input" placeholder="https://example.com" @blur="validateUrl" />
+              <p v-if="urlError" class="psm-field-error mt-1">{{ urlError }}</p>
+            </div>
+          </section>
+
+          <!-- ===== Block 4: Google Sheets ===== -->
+          <section class="psm-card">
+            <div class="psm-card__header">
+              <h3 class="psm-card__title">
+                Google Sheets
+                <span class="psm-optional-tag">отчёты</span>
+              </h3>
+            </div>
+            <div class="psm-card__body">
+              <p class="psm-hint mb-3">Таблица проекта для выгрузки сырых данных, недельных и месячных отчётов, а также целей Метрики.</p>
+
+              <div class="psm-sheets-card">
+                <div class="psm-sheets-card__icon">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                    <path d="M7 2h7l5 5v15H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z" fill="#1e8e3e"/>
+                    <path d="M14 2v5h5" fill="#9ad6aa"/>
+                    <path d="M8.5 10h7M8.5 13h7M8.5 16h7M10.5 10v6M13.5 10v6" stroke="#fff" stroke-width="1.1" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <div class="psm-sheets-card__content">
+                  <label class="psm-label">Ссылка или ID Google таблицы</label>
+                  <input
+                    v-model="form.spreadsheet_id"
+                    type="text"
+                    class="psm-input"
+                    placeholder="https://docs.google.com/spreadsheets/d/..."
+                  />
+                  <p class="psm-hint mt-2">
+                    Листы создаются автоматически: Raw Data, Weekly Reports, Monthly Report, Goals.
+                  </p>
+                </div>
+              </div>
+
+              <div class="psm-sheets-instruction">
+                <span class="psm-sheets-instruction__label">Доступ</span>
+                <span v-if="sheetsServiceEmail" class="psm-code-pill">{{ sheetsServiceEmail }}</span>
+                <span v-else class="psm-hint">service account не настроен на сервере</span>
+                <span class="psm-hint">Расшарьте таблицу на этот email с правом «Редактор».</span>
+              </div>
+
+              <div
+                class="psm-sheets-status"
+                :class="{ 'psm-sheets-status--ok': sheetsConnected, 'psm-sheets-status--warn': !sheetsConnected }"
+              >
+                <span class="psm-channel-dot" :class="sheetsConnected ? 'psm-channel-dot--active' : 'psm-channel-dot--sync'"></span>
+                {{ sheetsStatusText }}
+              </div>
+
+              <div class="psm-sheets-actions">
+                <button type="button" class="psm-btn-accent" :disabled="sheetsBusy" @click="connectGoogleSheets">
+                  {{ sheetsChecking ? 'Проверяем...' : sheetsConnected ? 'Проверить доступ' : 'Проверить и подключить' }}
+                </button>
+                <button type="button" class="psm-btn-outline" :disabled="sheetsBusy || !sheetsConnected" @click="exportGoogleSheetsNow">
+                  {{ sheetsExporting ? 'Выгружаем...' : 'Выгрузить сейчас' }}
+                </button>
+                <button type="button" class="psm-btn-outline psm-btn-outline--warn" :disabled="sheetsBusy || !sheetsConnected" @click="disconnectGoogleSheets">
+                  {{ sheetsDisconnecting ? 'Отключаем...' : 'Отключить' }}
+                </button>
               </div>
             </div>
           </section>

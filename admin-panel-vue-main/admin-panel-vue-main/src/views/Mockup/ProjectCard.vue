@@ -95,7 +95,7 @@
           <svg :class="{ spinning: projectsSyncing }" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 5v4h4M4 13a8.1 8.1 0 0 0 15.5 2M20 19v-4h-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          {{ projectsSyncing ? 'Синхронизация...' : 'Синхронизировать' }}
+          {{ projectsSyncing ? 'Обновление...' : 'Обновить данные' }}
         </button>
 
         <div class="flex">
@@ -2368,22 +2368,23 @@ onMounted(async () => {
   line-height: 1;
 }
 
+/* «Обновить данные» — как капсула на дашборде (белая, с рамкой). */
 .tile-sync-btn {
-  gap: 0.4rem;
-  padding: 0.5556rem 0.8rem;
-  border: none;
-  border-radius: 1.0417rem;
-  background: transparent;
-  color: rgba(105, 105, 105, 0.62);
+  gap: 0.6rem;
+  padding: 0 1.0417rem;
+  border: 1px solid #ebebeb;
+  border-radius: 0.8333rem;
+  background: #fff;
+  color: #171717;
   cursor: pointer;
   font-size: 0.9028rem;
   font-weight: 500;
-  transition: background 0.2s, color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s, color 0.2s;
 }
 
 .tile-sync-btn:hover:not(:disabled) {
-  background: rgba(37, 99, 235, 0.04);
-  color: rgba(105, 105, 105, 0.82);
+  border-color: #c9d3e6;
+  box-shadow: 0 0.2rem 0.7rem rgba(37, 99, 235, 0.1);
 }
 
 .tile-sync-btn:disabled {
@@ -3711,14 +3712,16 @@ onMounted(async () => {
 
 :global(.dark) .tile-sync-btn,
 :global(.darkmode) .tile-sync-btn {
-  color: rgba(255, 255, 255, 0.45);
-  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 :global(.dark) .tile-sync-btn:hover:not(:disabled),
 :global(.darkmode) .tile-sync-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.65);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 :global(.dark) .filters-bar,
