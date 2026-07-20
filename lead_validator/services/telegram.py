@@ -4,6 +4,7 @@ Telegram Bot для отправки уведомлений о новых лид
 """
 
 import logging
+from contextvars import ContextVar
 from datetime import datetime
 import httpx
 from typing import Optional, Any
@@ -11,6 +12,41 @@ from lead_validator.config import settings
 from lead_validator.schemas import LeadInput
 
 logger = logging.getLogger("lead_validator.telegram")
+_last_delivery_error: ContextVar[Optional[str]] = ContextVar("telegram_delivery_error", default=None)
+
+
+def _set_delivery_error(value: Optional[str]) -> None:
+    _last_delivery_error.set(value)
+
+
+def get_last_delivery_error() -> Optional[str]:
+    """Причина последней доставки в текущей async-задаче без chat_id и токена."""
+    return _last_delivery_error.get()
+
+
+def _telegram_response_error(method: str, response: httpx.Response) -> str:
+    detail = ""
+    try:
+        data = response.json()
+        if isinstance(data, dict):
+            detail = str(data.get("description") or data.get("error_code") or "").strip()
+    except Exception:
+        detail = ""
+    if not detail:
+        detail = f"HTTP {response.status_code}"
+    return f"Telegram: {method} — {detail[:300]}"
+
+
+def _telegram_request_error(method: str, exc: Exception) -> str:
+    if isinstance(exc, httpx.TimeoutException):
+        detail = "тайм-аут API"
+    elif isinstance(exc, httpx.ConnectError):
+        detail = "не удалось подключиться к API"
+    elif isinstance(exc, httpx.RequestError):
+        detail = "ошибка сетевого запроса"
+    else:
+        detail = type(exc).__name__
+    return f"Telegram: {method} — {detail}"
 
 
 class TelegramNotifier:
@@ -221,10 +257,13 @@ class TelegramNotifier:
         Отправка документа (PDF) в Telegram.
         chat_id — ID чата (может отличаться от дефолтного self.chat_id).
         """
+        _set_delivery_error(None)
         if not self.token:
+            _set_delivery_error("Telegram: токен бота для отчётов не настроен")
             logger.error("Telegram token not configured")
             return False
         if not chat_id:
+            _set_delivery_error("Telegram: получатель не привязан")
             logger.error("chat_id required for send_document")
             return False
         try:
@@ -240,11 +279,13 @@ class TelegramNotifier:
                     if result.get("ok"):
                         logger.info(f"Document sent to {chat_id}")
                         return True
-                    logger.error(f"Telegram sendDocument error: {result}")
-                else:
-                    logger.error(f"sendDocument failed: {response.status_code} - {response.text}")
-        except Exception as e:
-            logger.error(f"send_document error: {e}")
+                error = _telegram_response_error("отправка PDF", response)
+                _set_delivery_error(error)
+                logger.warning("sendDocument failed: %s", error)
+        except Exception as exc:
+            error = _telegram_request_error("отправка PDF", exc)
+            _set_delivery_error(error)
+            logger.warning("send_document failed: %s", error)
         return False
 
     async def send_photo(
@@ -254,8 +295,14 @@ class TelegramNotifier:
         caption: Optional[str] = None,
     ) -> bool:
         """Отправляет PNG-превью отчёта с текстом и ссылкой на PDF."""
-        if not self.token or not chat_id:
-            logger.error("Telegram token/chat_id required for send_photo")
+        _set_delivery_error(None)
+        if not self.token:
+            _set_delivery_error("Telegram: токен бота для отчётов не настроен")
+            logger.error("Telegram token not configured")
+            return False
+        if not chat_id:
+            _set_delivery_error("Telegram: получатель не привязан")
+            logger.error("chat_id required for send_photo")
             return False
         try:
             verify = (__import__("os").getenv("TELEGRAM_API_VERIFY") or "true").strip().lower() not in ("false", "0", "no")
@@ -267,9 +314,13 @@ class TelegramNotifier:
                 )
                 if response.status_code == 200 and (response.json() or {}).get("ok"):
                     return True
-                logger.error("sendPhoto failed: %s - %s", response.status_code, response.text)
-        except Exception as e:
-            logger.error("send_photo error: %s", e)
+                error = _telegram_response_error("отправка PNG", response)
+                _set_delivery_error(error)
+                logger.warning("sendPhoto failed: %s", error)
+        except Exception as exc:
+            error = _telegram_request_error("отправка PNG", exc)
+            _set_delivery_error(error)
+            logger.warning("send_photo failed: %s", error)
         return False
 
     async def send_message(self, text: str, parse_mode: str = "Markdown", chat_id: Optional[str] = None) -> bool:

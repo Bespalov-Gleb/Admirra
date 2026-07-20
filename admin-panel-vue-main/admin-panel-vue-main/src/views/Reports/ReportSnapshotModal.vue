@@ -20,7 +20,7 @@
         </div>
 
         <div v-if="badges.length" class="snapshot-badges">
-          <button v-for="badge in badges" :key="badge.key" type="button" :class="{ failed: badge.ok === false }" :disabled="badge.ok !== false || retrying" @click.stop="retry(badge)">
+          <button v-for="badge in badges" :key="badge.key" type="button" :title="badge.title || ''" :class="{ failed: badge.ok === false }" :disabled="badge.ok !== false || retrying" @click.stop="retry(badge)">
             {{ badge.label }} {{ badge.ok === true ? '✓' : badge.ok === false ? '✕ ⟳' : '—' }}
           </button>
         </div>
@@ -119,16 +119,18 @@ const badges = computed(() => {
       const emails = delivery.email_recipients || []
       for (const email of emails) {
         const row = targets[email] || {}
-        out.push({ key: `email-${email}`, label: `Email · ${email}`, ok: row.ok, email })
+        const error = row.error || results.errors?.email
+        out.push({ key: `email-${email}`, label: `Email · ${email}`, ok: row.ok, email, title: row.ok === false ? error : '' })
       }
     } else {
-      out.push({ key: channel, label: channel === 'telegram' ? 'Telegram · мне' : 'MAX · мне', retryChannel: channel, ok: results[channel] })
+      const error = results.errors?.[channel]
+      out.push({ key: channel, label: channel === 'telegram' ? 'Telegram · мне' : 'MAX · мне', retryChannel: channel, ok: results[channel], title: results[channel] === false ? error : '' })
     }
   }
   for (const target of delivery.chat_target_details || []) {
     if (target.kind === 'email') continue
     const row = (results.targets || {})[target.id] || {}
-    out.push({ key: `target-${target.id}`, label: target.title || (target.kind === 'max' ? 'MAX' : 'Telegram'), retryTargetId: String(target.id), ok: row.ok })
+    out.push({ key: `target-${target.id}`, label: target.title || (target.kind === 'max' ? 'MAX' : 'Telegram'), retryTargetId: String(target.id), ok: row.ok, title: row.ok === false ? row.error : '' })
   }
   return out
 })

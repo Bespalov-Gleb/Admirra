@@ -7,7 +7,10 @@ import pytest
 
 from backend_api.reports.scheduler import (
     _delivery_succeeded,
+    _recipient_is_permanently_unavailable,
     _retry_channels,
+    _send_max_report_attachment,
+    _send_telegram_report_attachment,
     delivery_status_from_results,
     send_report_delivery,
 )
@@ -127,6 +130,57 @@ def test_frontend_does_not_call_sent_delivered():
     assert "sent: 'Отправлен'" in source
     assert "partial: 'Частично отправлен'" in source
     assert "Доставлен" not in source
+
+
+def test_temporary_provider_errors_do_not_disable_a_recipient():
+    assert _recipient_is_permanently_unavailable("MAX: отправка вложения — attachment.not.ready") is False
+    assert _recipient_is_permanently_unavailable("Telegram: отправка PNG — тайм-аут API") is False
+    assert _recipient_is_permanently_unavailable("Telegram: отправка PNG — Forbidden: bot was blocked by the user") is True
+
+
+@pytest.mark.asyncio
+async def test_telegram_preview_falls_back_to_pdf(monkeypatch):
+    from lead_validator.services.telegram import telegram_notifier
+
+    photo_send = AsyncMock(return_value=False)
+    pdf_send = AsyncMock(return_value=True)
+    monkeypatch.setattr(telegram_notifier, "send_photo", photo_send)
+    monkeypatch.setattr(telegram_notifier, "send_document", pdf_send)
+
+    ok, error = await _send_telegram_report_attachment(
+        chat_id="tg",
+        png_snapshot=b"png",
+        pdf_snapshot=b"pdf",
+        filename_stem="report_2026-07-01_2026-07-07",
+        caption="Отчёт",
+    )
+    assert ok is True
+    assert error is None
+    photo_send.assert_awaited_once()
+    pdf_send.assert_awaited_once()
+    assert pdf_send.await_args.kwargs["filename"].endswith(".pdf")
+
+
+@pytest.mark.asyncio
+async def test_max_preview_falls_back_to_pdf(monkeypatch):
+    from backend_api.services import max_reports_bot
+
+    document_send = AsyncMock(side_effect=[False, True])
+    monkeypatch.setattr(max_reports_bot, "send_document", document_send)
+
+    ok, error = await _send_max_report_attachment(
+        chat_id="mx",
+        user_id=None,
+        png_snapshot=b"png",
+        pdf_snapshot=b"pdf",
+        filename_stem="report_2026-07-01_2026-07-07",
+        caption="Отчёт",
+    )
+    assert ok is True
+    assert error is None
+    assert document_send.await_count == 2
+    assert document_send.await_args_list[0].kwargs["content_type"] == "image/png"
+    assert document_send.await_args_list[1].kwargs["content_type"] == "application/pdf"
 
 
 @pytest.mark.asyncio

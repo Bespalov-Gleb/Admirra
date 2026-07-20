@@ -238,6 +238,12 @@ def _env(name: str, default: str = "") -> str:
     return (getenv(name) or default).strip()
 
 
+def _max_api_base() -> str:
+    """Нормализует снятый с эксплуатации endpoint MAX без ломки кастомного proxy."""
+    value = (_env("MAX_API_BASE", "https://platform-api2.max.ru") or "https://platform-api2.max.ru").rstrip("/")
+    return "https://platform-api2.max.ru" if value == "https://platform-api.max.ru" else value
+
+
 @lru_cache(maxsize=1)
 def get_config() -> Config:
     project_root = Path(__file__).resolve().parent.parent
@@ -275,7 +281,10 @@ def get_config() -> Config:
             max_reports_bot_token=_env("MAX_REPORTS_BOT_TOKEN"),
             max_reports_bot_name=_env("MAX_REPORTS_BOT_NAME"),
             max_reports_webhook_secret=_env("MAX_REPORTS_WEBHOOK_SECRET"),
-            max_api_base=(_env("MAX_API_BASE", "https://platform-api.max.ru") or "https://platform-api.max.ru").rstrip("/"),
+            # MAX API migrated to platform-api2.max.ru on 19.07.2026. A
+            # custom endpoint remains supported, while the retired old domain
+            # is transparently upgraded for existing production .env files.
+            max_api_base=_max_api_base(),
             max_login_ttl_seconds=int(_env("MAX_LOGIN_TTL_SECONDS", "300")),
             max_poll_interval_ms=int(_env("MAX_POLL_INTERVAL_MS", "2000")),
             mytarget_client_id=_env("MYTARGET_CLIENT_ID"),

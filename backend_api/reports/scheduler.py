@@ -826,6 +826,106 @@ async def _generate_automatic_comment_if_needed(db: Session, delivery, user) -> 
         logger.warning("Delivery %s automatic AI comment skipped: %s", delivery.id, exc)
 
 
+async def _send_telegram_report_attachment(
+    *,
+    chat_id: str,
+    png_snapshot: bytes | None,
+    pdf_snapshot: bytes,
+    filename_stem: str,
+    caption: str,
+) -> tuple[bool, str | None]:
+    """Предпочитаем компактный PNG, но не теряем отчёт при ошибке preview."""
+    from lead_validator.services.telegram import telegram_notifier, get_last_delivery_error
+
+    pdf_filename = f"{filename_stem}.pdf"
+    if png_snapshot:
+        ok = await telegram_notifier.send_photo(chat_id=chat_id, photo=png_snapshot, caption=caption)
+        if ok:
+            return True, None
+        preview_error = get_last_delivery_error() or "Telegram не подтвердил отправку PNG"
+        if pdf_snapshot:
+            ok = await telegram_notifier.send_document(
+                chat_id=chat_id, document=pdf_snapshot, filename=pdf_filename, caption=caption,
+            )
+            if ok:
+                logger.info("Telegram report PNG failed, PDF fallback succeeded")
+                return True, None
+            pdf_error = get_last_delivery_error() or "Telegram не подтвердил отправку PDF"
+            return False, f"{preview_error}; повтор с PDF: {pdf_error}"
+        return False, preview_error
+
+    ok = await telegram_notifier.send_document(
+        chat_id=chat_id, document=pdf_snapshot, filename=pdf_filename, caption=caption,
+    )
+    return ok, None if ok else (get_last_delivery_error() or "Telegram не подтвердил отправку PDF")
+
+
+async def _send_max_report_attachment(
+    *,
+    chat_id: str | None,
+    user_id: str | None,
+    png_snapshot: bytes | None,
+    pdf_snapshot: bytes,
+    filename_stem: str,
+    caption: str,
+) -> tuple[bool, str | None]:
+    """MAX принимает PNG как image; при проблеме с ним отправляем PDF-файл."""
+    from backend_api.services import max_reports_bot
+
+    if png_snapshot:
+        ok = await max_reports_bot.send_document(
+            png_snapshot,
+            f"{filename_stem}.png",
+            caption=caption,
+            content_type="image/png",
+            chat_id=chat_id,
+            user_id=user_id,
+        )
+        if ok:
+            return True, None
+        preview_error = max_reports_bot.get_last_delivery_error() or "MAX не подтвердил отправку PNG"
+        if pdf_snapshot:
+            ok = await max_reports_bot.send_document(
+                pdf_snapshot,
+                f"{filename_stem}.pdf",
+                caption=caption,
+                content_type="application/pdf",
+                chat_id=chat_id,
+                user_id=user_id,
+            )
+            if ok:
+                logger.info("MAX report PNG failed, PDF fallback succeeded")
+                return True, None
+            pdf_error = max_reports_bot.get_last_delivery_error() or "MAX не подтвердил отправку PDF"
+            return False, f"{preview_error}; повтор с PDF: {pdf_error}"
+        return False, preview_error
+
+    ok = await max_reports_bot.send_document(
+        pdf_snapshot,
+        f"{filename_stem}.pdf",
+        caption=caption,
+        content_type="application/pdf",
+        chat_id=chat_id,
+        user_id=user_id,
+    )
+    return ok, None if ok else (max_reports_bot.get_last_delivery_error() or "MAX не подтвердил отправку PDF")
+
+
+def _recipient_is_permanently_unavailable(error: str | None) -> bool:
+    """Не отключаем получателя из-за временного сбоя API или вложения."""
+    text = str(error or "").lower()
+    return any(marker in text for marker in (
+        "chat not found",
+        "recipient not found",
+        "bot was blocked",
+        "user is deactivated",
+        "forbidden: bot",
+        "получатель не найден",
+        "бот заблокирован",
+        "пользователь деактивирован",
+    ))
+
+
 async def send_report_delivery(
     db: Session,
     delivery,
@@ -875,20 +975,15 @@ async def send_report_delivery(
             results["errors"]["telegram"] = "Telegram не привязан"
         else:
             try:
-                from lead_validator.services.telegram import telegram_notifier
-                if delivery.png_snapshot:
-                    results["telegram"] = await telegram_notifier.send_photo(
-                        chat_id=chat_id,
-                        photo=delivery.png_snapshot,
-                        caption=caption,
-                    )
-                else:
-                    results["telegram"] = await telegram_notifier.send_document(
-                        chat_id=chat_id, document=delivery.pdf_snapshot,
-                        filename=f"report_{delivery.start_date}_{delivery.end_date}.pdf", caption=caption,
-                    )
-                if results["telegram"] is not True:
-                    results["errors"]["telegram"] = "Telegram не подтвердил отправку"
+                results["telegram"], error = await _send_telegram_report_attachment(
+                    chat_id=chat_id,
+                    png_snapshot=delivery.png_snapshot,
+                    pdf_snapshot=delivery.pdf_snapshot,
+                    filename_stem=f"report_{delivery.start_date}_{delivery.end_date}",
+                    caption=caption,
+                )
+                if error:
+                    results["errors"]["telegram"] = error
             except Exception as exc:
                 results["telegram"] = False
                 results["errors"]["telegram"] = str(exc)
@@ -903,19 +998,16 @@ async def send_report_delivery(
             results["errors"]["max"] = "MAX не привязан"
         else:
             try:
-                from backend_api.services import max_reports_bot
-                attachment = delivery.png_snapshot or delivery.pdf_snapshot
-                filename = f"report_{delivery.start_date}_{delivery.end_date}.png" if delivery.png_snapshot else f"report_{delivery.start_date}_{delivery.end_date}.pdf"
-                results["max"] = await max_reports_bot.send_document(
-                    attachment,
-                    filename,
-                    caption=caption,
-                    content_type="image/png" if delivery.png_snapshot else "application/pdf",
+                results["max"], error = await _send_max_report_attachment(
                     chat_id=max_chat_id or None,
                     user_id=max_user_id or None,
+                    png_snapshot=delivery.png_snapshot,
+                    pdf_snapshot=delivery.pdf_snapshot,
+                    filename_stem=f"report_{delivery.start_date}_{delivery.end_date}",
+                    caption=caption,
                 )
-                if results["max"] is not True:
-                    results["errors"]["max"] = "MAX не подтвердил отправку"
+                if error:
+                    results["errors"]["max"] = error
             except Exception as exc:
                 results["max"] = False
                 results["errors"]["max"] = str(exc)
@@ -1001,31 +1093,25 @@ async def send_report_delivery(
             else:
                 try:
                     if target.kind == "telegram":
-                        from lead_validator.services.telegram import telegram_notifier
-                        if delivery.png_snapshot:
-                            ok = await telegram_notifier.send_photo(
-                                chat_id=target.chat_id,
-                                photo=delivery.png_snapshot,
-                                caption=caption,
-                            )
-                        else:
-                            ok = await telegram_notifier.send_document(
-                                chat_id=target.chat_id, document=delivery.pdf_snapshot,
-                                filename=f"report_{delivery.start_date}_{delivery.end_date}.pdf", caption=caption,
-                            )
-                    elif target.kind == "max":
-                        from backend_api.services import max_reports_bot
-                        is_user_target = str(target.chat_id).startswith("user:")
-                        attachment = delivery.png_snapshot or delivery.pdf_snapshot
-                        filename = f"report_{delivery.start_date}_{delivery.end_date}.png" if delivery.png_snapshot else f"report_{delivery.start_date}_{delivery.end_date}.pdf"
-                        ok = await max_reports_bot.send_document(
-                            attachment,
-                            filename,
+                        ok, error = await _send_telegram_report_attachment(
+                            chat_id=target.chat_id,
+                            png_snapshot=delivery.png_snapshot,
+                            pdf_snapshot=delivery.pdf_snapshot,
+                            filename_stem=f"report_{delivery.start_date}_{delivery.end_date}",
                             caption=caption,
-                            content_type="image/png" if delivery.png_snapshot else "application/pdf",
+                        )
+                    elif target.kind == "max":
+                        is_user_target = str(target.chat_id).startswith("user:")
+                        ok, error = await _send_max_report_attachment(
                             chat_id=None if is_user_target else target.chat_id,
                             user_id=str(target.chat_id).split(":", 1)[1] if is_user_target else None,
+                            png_snapshot=delivery.png_snapshot,
+                            pdf_snapshot=delivery.pdf_snapshot,
+                            filename_stem=f"report_{delivery.start_date}_{delivery.end_date}",
+                            caption=caption,
                         )
+                    else:
+                        error = "Неподдерживаемый канал получателя"
                     if not ok and not error:
                         error = "Провайдер не подтвердил отправку"
                 except Exception as exc:
@@ -1037,7 +1123,13 @@ async def send_report_delivery(
                 **({"error": error} if error else {}),
             }
             if target:
-                target.status = "active" if ok else "unavailable"
+                # Сетевой сбой MAX/Telegram не делает чат невалидным. Иначе
+                # один временный ответ API блокировал получателя в настройках
+                # и мешал повторить отправку после восстановления сервиса.
+                if ok:
+                    target.status = "active"
+                elif _recipient_is_permanently_unavailable(error):
+                    target.status = "unavailable"
                 target.last_error = error
                 target.last_delivery_at = datetime.now(MSK)
             checkpoint()
