@@ -182,7 +182,7 @@
                 @click="selectVkConnectionMode('self')"
               >
                 <span class="vk-link-mode__radio"></span>
-                <span><b>Авторизоваться самому</b><small>Кабинеты, доступные вашему аккаунту VK.</small></span>
+                <span><b>Авторизоваться самому</b><small>{{ vkConnectionMode === 'self' ? 'Войдёте в VK под своим аккаунтом — подтянутся все кабинеты, к которым у вас есть доступ: агентские с клиентами внутри, а также кабинеты, созданные через Click.ru, Vitamin.tools, eLama и другие сервисы.' : 'Кабинеты, доступные под вашим аккаунтом VK' }}</small></span>
               </button>
               <button
                 type="button"
@@ -191,9 +191,10 @@
                 @click="selectVkConnectionMode('client')"
               >
                 <span class="vk-link-mode__radio"></span>
-                <span><b>Личный кабинет клиента <em>НОВОЕ</em></b><small>Клиент авторизуется по ссылке, без входа в AdMirra.</small></span>
+                <span><b>Личный кабинет клиента — авторизация по ссылке <em>НОВОЕ</em></b><small>{{ vkConnectionMode === 'client' ? 'Кабинет зарегистрирован на личный аккаунт клиента. Клиент перейдёт по ссылке, войдёт в VK под собой и выдаст доступ к статистике — без входа в AdMirra.' : 'Кабинет зарегистрирован на личный аккаунт клиента' }}</small></span>
               </button>
             </div>
+            <p class="vk-link-hint">Не уверены? Попробуйте первый вариант — если кабинета нет в списке, вернитесь и отправьте ссылку клиенту.</p>
 
             <template v-if="isVkClientLink">
               <p v-if="!form.client_id" class="vk-link-project-hint">Выберите существующий проект слева — ссылка создаётся для конкретного проекта.</p>
@@ -415,11 +416,19 @@
             </div>
           </div>
 
-          <div v-if="loadingVkLeadActions || vkLeadActionsSyncing" class="empty-line dark:!text-white/55">
-            Загружаем данные, действия появятся после синхронизации.
+          <div v-if="loadingVkLeadActions" class="empty-line dark:!text-white/55">
+            Загружаем данные…
           </div>
-          <div v-else-if="vkLeadActions.length === 0" class="empty-line dark:!text-white/55">
-            В этом кабинете пока нет результатов кампаний. Этот шаг можно пропустить и настроить позже.
+          <!-- Правка 5: пустое состояние — с кнопкой подтянуть по требованию. -->
+          <div v-else-if="vkLeadActions.length === 0" class="empty-line vk-empty-actions dark:!text-white/55">
+            <p>Действия появятся после первой синхронизации — вернитесь и отметьте их в настройках интеграции. Или попробуйте подтянуть сейчас:</p>
+            <button
+              type="button"
+              class="primary-btn primary-btn--inline"
+              :disabled="pullingVkActions"
+              @click="pullVkLeadActions"
+            >{{ pullingVkActions ? 'Подтягиваем…' : 'Подтянуть действия' }}</button>
+            <p v-if="pullVkActionsError" class="vk-pull-error">{{ pullVkActionsError }}</p>
           </div>
           <div v-else class="cards-grid">
             <label
@@ -443,13 +452,8 @@
           </div>
         </div>
 
-        <div v-else-if="form.platform !== 'AVITO_ADS'" class="wizard-panel soft-panel dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
-          <div>
-            <h4 class="dark:!text-white/90">Рекламные кампании</h4>
-            <p class="dark:!text-white/55">Выбор РК отключен: система автоматически использует все кампании выбранного кабинета.</p>
-          </div>
-          <div class="status-pill dark:!bg-white/5 dark:!text-white/70">{{ loadingStates.campaigns ? 'Загрузка...' : `Найдено кампаний: ${campaigns.length}` }}</div>
-          </div>
+        <!-- Правка 2: блок «Рекламные кампании» убран. Подгрузка кампаний остаётся
+             в фоне (loadingStates.campaigns), но на шаге не отображается. -->
 
         <div v-if="form.platform === 'AVITO_ADS'" class="wizard-panel dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
           <div class="panel-head">
@@ -546,10 +550,8 @@
           </div>
         </div>
 
-        <div v-if="usesMetrikaWizard" class="disclaimer-banner disclaimer-banner--orange mt-[1.3889rem]">
-          <span class="disclaimer-banner__icon">ℹ</span>
-          <span>Не отмечайте пересекающиеся цели: если одна уже включает другую, одно действие засчитается дважды и цифры будут выше реальных.</span>
-        </div>
+        <!-- Правка 3: верхняя дублирующая плашка о пересекающихся целях убрана,
+             осталась одна развёрнутая — под списком целей. -->
 
         <div v-if="usesMetrikaWizard" class="wizard-panel mt-[1.3889rem] dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
           <div class="panel-head">
@@ -669,10 +671,13 @@
               <span class="summary-card__label dark:!text-white/50">Платформа</span>
               <strong class="dark:!text-white/85">{{ platformName }}</strong>
             </div>
+            <!-- Правки 6 и 8: вместо «Кампании» (константа системы) показываем
+                 «Кабинет» — то, что пользователь реально выбирал. -->
             <div class="summary-card summary-card--green dark:!bg-white/5">
-              <span class="summary-card__icon dark:!bg-white/10">↻</span>
-              <span class="summary-card__label dark:!text-white/50">Кампании</span>
-              <strong class="dark:!text-white/85">{{ allFromProfile ? 'Все кампании' : `Выбрано: ${selectedCampaignIds.length}` }}</strong>
+              <span class="summary-card__icon dark:!bg-white/10">🗄</span>
+              <span class="summary-card__label dark:!text-white/50">Кабинет</span>
+              <strong class="dark:!text-white/85">{{ form.account_name || ('Кабинет ' + (summaryCabinetId || '')) }}</strong>
+              <ul v-if="summaryCabinetId"><li>ID: {{ summaryCabinetId }}</li></ul>
             </div>
             <div v-if="isVk" class="summary-card summary-card--cyan dark:!bg-white/5">
               <span class="summary-card__icon dark:!bg-white/10">VK</span>
@@ -715,10 +720,6 @@
               <span></span>
               Включить автосинхронизацию
             </label>
-          </div>
-          <div class="ready-badge">
-            <span></span>
-            ГОТОВНОСТЬ 100%
           </div>
         </div>
 
@@ -912,6 +913,11 @@ const goalBulkLabel = computed(() => {
 const avitoAccessReady = computed(() =>
   Boolean(String(form.avito_account_id || '').trim() && form.avito_client_id && form.avito_client_secret)
 )
+// ID кабинета для сводки (правки 6/8): Avito — введённый id, VK/Яндекс — login.
+const summaryCabinetId = computed(() =>
+  String(form.account_id || form.avito_account_id || '').trim()
+)
+
 // Кабинет реально подключён и подтверждён (вернулось название)
 const avitoConnected = computed(() => {
   if (!lastIntegrationId.value || form.platform !== 'AVITO_ADS') return false
@@ -1119,6 +1125,32 @@ const loadVkLeadActions = async (integrationId) => {
     vkLeadActionsSyncing.value = false
   } finally {
     loadingVkLeadActions.value = false
+  }
+}
+
+// Правка 5: подтянуть целевые действия VK по требованию — запускаем синк
+// интеграции и поллим список, пока действия не появятся (или таймаут).
+const pullingVkActions = ref(false)
+const pullVkActionsError = ref('')
+const pullVkLeadActions = async () => {
+  const id = lastIntegrationId.value
+  if (!id || pullingVkActions.value) return
+  pullingVkActions.value = true
+  pullVkActionsError.value = ''
+  try {
+    await api.post(`integrations/${id}/sync`)
+    for (let i = 0; i < 12; i++) {
+      await new Promise((r) => setTimeout(r, 2500))
+      await loadVkLeadActions(id)
+      if (vkLeadActions.value.length > 0) break
+    }
+    if (vkLeadActions.value.length === 0) {
+      pullVkActionsError.value = 'Пока пусто — действия появятся после первой синхронизации. Можно продолжить и отметить их позже.'
+    }
+  } catch (err) {
+    pullVkActionsError.value = 'Не удалось получить данные, попробуйте ещё раз'
+  } finally {
+    pullingVkActions.value = false
   }
 }
 
