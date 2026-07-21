@@ -268,7 +268,7 @@
           </div>
           <!-- «Отправить отчёт» — всегда видима и крайняя справа в тулбаре. -->
           <div class="custom-select dashboard-send-split" :class="{ open: openMenu === 'delivery-actions' }" v-click-outside="() => closeMenu('delivery-actions')">
-            <button type="button" class="toolbar-btn dashboard-send-main" :disabled="sendingTg || sendingEmail || sendingMax" @click="handleSendSelectedReport"><span class="dashboard-send-txt">{{ sendingTg || sendingEmail || sendingMax ? 'Подготовка...' : 'Отправить отчёт' }}</span></button>
+            <button type="button" class="toolbar-btn dashboard-send-main" :disabled="preparingReport || sendingTg || sendingEmail || sendingMax" @click="handleSendSelectedReport"><span class="dashboard-send-txt">{{ preparingReport || sendingTg || sendingEmail || sendingMax ? 'Формируем отчёт…' : 'Отправить отчёт' }}</span></button>
             <button type="button" class="toolbar-btn dashboard-send-caret" @click="toggleMenu('delivery-actions')"><ChevronDownIcon /></button>
             <div class="cs-list dropdown-panel dashboard-delivery-menu">
               <button type="button" class="cs-option" @click="openProjectReportSettings"><Cog6ToothIcon /> Настройки доставки</button>
@@ -1814,6 +1814,10 @@ const sendingExport = ref(false)
 const sendingTg = ref(false)
 const sendingEmail = ref(false)
 const sendingMax = ref(false)
+// Общий флаг подготовки отчёта: срабатывает даже когда доставка идёт только в
+// chat-target (тогда sendingTg/Max/Email = false). Даёт мгновенную блокировку
+// кнопки и защиту от двойного клика.
+const preparingReport = ref(false)
 const reportLinkChannel = ref('')
 const reportLinkOpening = ref(false)
 const reportLinkChecking = ref(false)
@@ -5094,6 +5098,8 @@ const captureDashboardScreenshot = async () => {
 }
 
 const executeReportSend = async () => {
+  // Защита от повторных кликов, пока отчёт готовится (без неё уходило два отчёта).
+  if (preparingReport.value) return
   const savedSettings = projectReportSettings.value
   const channels = (
     Array.isArray(savedSettings?.channels) ? savedSettings.channels : reportDeliveryChannels.value
@@ -5120,6 +5126,10 @@ const executeReportSend = async () => {
     return
   }
 
+  // Мгновенная обратная связь: блокируем кнопку и показываем тост ещё до
+  // генерации AI-комментария (она занимает пару секунд).
+  preparingReport.value = true
+  toaster.info('Формируем отчёт…')
   sendingTg.value = channels.includes('telegram')
   sendingMax.value = channels.includes('max')
   sendingEmail.value = channels.includes('email')
@@ -5152,6 +5162,7 @@ const executeReportSend = async () => {
     sendingTg.value = false
     sendingMax.value = false
     sendingEmail.value = false
+    preparingReport.value = false
   }
 }
 
