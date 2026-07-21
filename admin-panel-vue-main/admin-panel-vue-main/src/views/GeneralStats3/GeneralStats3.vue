@@ -266,7 +266,7 @@
           </div>
           <!-- «Отправить отчёт» — всегда видима и крайняя справа в тулбаре. -->
           <div class="custom-select dashboard-send-split" :class="{ open: openMenu === 'delivery-actions' }" v-click-outside="() => closeMenu('delivery-actions')">
-            <button type="button" class="toolbar-btn dashboard-send-main" :disabled="sendingTg || sendingEmail || sendingMax" @click="handleSendSelectedReport">{{ sendingTg || sendingEmail || sendingMax ? 'Подготовка...' : 'Отправить отчёт' }}</button>
+            <button type="button" class="toolbar-btn dashboard-send-main" :disabled="sendingTg || sendingEmail || sendingMax" @click="handleSendSelectedReport"><span class="dashboard-send-txt">{{ sendingTg || sendingEmail || sendingMax ? 'Подготовка...' : 'Отправить отчёт' }}</span></button>
             <button type="button" class="toolbar-btn dashboard-send-caret" @click="toggleMenu('delivery-actions')"><ChevronDownIcon /></button>
             <div class="cs-list dropdown-panel dashboard-delivery-menu">
               <button type="button" class="cs-option" @click="openProjectReportSettings"><Cog6ToothIcon /> Настройки доставки</button>
@@ -14658,8 +14658,8 @@ onMounted(() => {
   border-radius: 0.8333rem;
   background: rgba(37, 99, 235, 0.1);
   color: #2563eb;
-  font-size: 0.9028rem;
-  font-weight: 700;
+  font-size: 0.88rem;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -14853,12 +14853,18 @@ onMounted(() => {
 /* Отправить отчёт — основная (синяя), но той же высоты и радиуса. */
 /* Сплит-кнопка «Отправить отчёт»: строго в ряд (родитель .custom-select задаёт
    column — сбрасываем), обе части одной высоты. */
-.dashboard-send-split { display:flex; flex-direction:row; align-items:stretch; position:relative; overflow:visible; border-radius:.8333rem; background:linear-gradient(135deg, #5b95ff 0%, #2f6bff 46%, #2152e6 100%); box-shadow:0 .35rem 1rem rgba(37,99,235,.28); }
-.dashboard-send-main.toolbar-btn, .dashboard-send-caret.toolbar-btn { height:3.1944rem; border:0; color:#fff; background:transparent; font-weight:700; transition:background .18s ease; }
+/* Синий градиент как у «Добавить проект» в хедере: базовый 270°-градиент +
+   светлый overlay (::after), плавно проявляющийся на ховере. */
+.dashboard-send-split { display:flex; flex-direction:row; align-items:stretch; position:relative; overflow:visible; border-radius:.8333rem; box-shadow:0 .35rem 1rem rgba(37,99,235,.3); }
+.dashboard-send-main.toolbar-btn, .dashboard-send-caret.toolbar-btn { position:relative; overflow:hidden; height:3.1944rem; border:0; color:#fff; font-weight:700; background:linear-gradient(270deg, #3d8bff 0%, #2f6bff 48%, #1f52e6 100%); transition:all .3s ease; }
+.dashboard-send-main.toolbar-btn::after, .dashboard-send-caret.toolbar-btn::after { content:''; position:absolute; inset:0; background:linear-gradient(270deg, #6aa8ff 0%, #4f86ff 48%, #3a63ee 100%); opacity:0; transition:opacity .6s ease; }
+.dashboard-send-main.toolbar-btn:hover:not(:disabled)::after, .dashboard-send-caret.toolbar-btn:hover:not(:disabled)::after { opacity:1; }
+.dashboard-send-main.toolbar-btn:active:not(:disabled), .dashboard-send-caret.toolbar-btn:active:not(:disabled) { transform:scale(.98); }
+.dashboard-send-txt { position:relative; z-index:1; }
 .dashboard-send-main.toolbar-btn { border-radius:.8333rem 0 0 .8333rem; padding:0 1.0417rem; }
 .dashboard-send-caret.toolbar-btn { border-radius:0 .8333rem .8333rem 0; padding:0 .5556rem; border-left:1px solid rgba(255,255,255,.28); gap:0; }
-.dashboard-send-caret.toolbar-btn svg { width:.9028rem; height:.9028rem; }
-.dashboard-send-main.toolbar-btn:hover:not(:disabled), .dashboard-send-caret.toolbar-btn:hover:not(:disabled) { background:rgba(255,255,255,.13); box-shadow:none; }
+.dashboard-send-caret.toolbar-btn svg { position:relative; z-index:1; width:.9028rem; height:.9028rem; }
+.dashboard-send-main.toolbar-btn:hover, .dashboard-send-caret.toolbar-btn:hover { box-shadow:none; }
 .dashboard-report-actions .report-export-select .cs-list { width:16rem; min-width:16rem; }
 .dashboard-delivery-menu { right:.8333rem; left:auto; width:17rem; min-width:17rem; }
 .figma-dashboard.is-dark .dashboard-source-add { background:rgba(255,255,255,.04); border-color:rgba(255,255,255,.1); }.figma-dashboard.is-dark .dashboard-service-row { border-color:rgba(255,255,255,.1); }
