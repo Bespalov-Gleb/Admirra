@@ -14648,26 +14648,30 @@ onMounted(() => {
 }
 
 /* ══ Папки: бейдж режима и таблица проектов папки ══ */
+/* Капсула папки — той же высоты и скругления, что соседние фильтр-капсулы. */
 .folder-mode-chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.45rem 0.8rem;
-  border-radius: 0.6rem;
+  gap: 0.5rem;
+  height: 3.1944rem;
+  padding: 0 1.0417rem;
+  border-radius: 0.8333rem;
   background: rgba(37, 99, 235, 0.1);
   color: #2563eb;
-  font-size: 0.85rem;
+  font-size: 0.9028rem;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .folder-mode-chip button {
   border: none;
   background: none;
   color: inherit;
-  font-size: 0.8rem;
+  font-size: 0.95rem;
+  line-height: 1;
   cursor: pointer;
   opacity: 0.7;
-  padding: 0 0 0 0.2rem;
+  padding: 0 0 0 0.25rem;
 }
 .folder-mode-chip button:hover { opacity: 1; }
 
@@ -14849,12 +14853,12 @@ onMounted(() => {
 /* Отправить отчёт — основная (синяя), но той же высоты и радиуса. */
 /* Сплит-кнопка «Отправить отчёт»: строго в ряд (родитель .custom-select задаёт
    column — сбрасываем), обе части одной высоты. */
-.dashboard-send-split { display:flex; flex-direction:row; align-items:stretch; position:relative; overflow:visible; }
-.dashboard-send-main.toolbar-btn, .dashboard-send-caret.toolbar-btn { height:3.1944rem; border:0; color:#fff; background:#2563eb; font-weight:700; }
+.dashboard-send-split { display:flex; flex-direction:row; align-items:stretch; position:relative; overflow:visible; border-radius:.8333rem; background:linear-gradient(135deg, #5b95ff 0%, #2f6bff 46%, #2152e6 100%); box-shadow:0 .35rem 1rem rgba(37,99,235,.28); }
+.dashboard-send-main.toolbar-btn, .dashboard-send-caret.toolbar-btn { height:3.1944rem; border:0; color:#fff; background:transparent; font-weight:700; transition:background .18s ease; }
 .dashboard-send-main.toolbar-btn { border-radius:.8333rem 0 0 .8333rem; padding:0 1.0417rem; }
-.dashboard-send-caret.toolbar-btn { border-radius:0 .8333rem .8333rem 0; padding:0 .5556rem; border-left:1px solid rgba(255,255,255,.24); gap:0; }
+.dashboard-send-caret.toolbar-btn { border-radius:0 .8333rem .8333rem 0; padding:0 .5556rem; border-left:1px solid rgba(255,255,255,.28); gap:0; }
 .dashboard-send-caret.toolbar-btn svg { width:.9028rem; height:.9028rem; }
-.dashboard-send-main.toolbar-btn:hover:not(:disabled), .dashboard-send-caret.toolbar-btn:hover:not(:disabled) { background:#1d4ed8; box-shadow:none; }
+.dashboard-send-main.toolbar-btn:hover:not(:disabled), .dashboard-send-caret.toolbar-btn:hover:not(:disabled) { background:rgba(255,255,255,.13); box-shadow:none; }
 .dashboard-report-actions .report-export-select .cs-list { width:16rem; min-width:16rem; }
 .dashboard-delivery-menu { right:.8333rem; left:auto; width:17rem; min-width:17rem; }
 .figma-dashboard.is-dark .dashboard-source-add { background:rgba(255,255,255,.04); border-color:rgba(255,255,255,.1); }.figma-dashboard.is-dark .dashboard-service-row { border-color:rgba(255,255,255,.1); }
