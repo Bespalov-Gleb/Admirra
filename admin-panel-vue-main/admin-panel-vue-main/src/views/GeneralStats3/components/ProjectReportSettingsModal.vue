@@ -50,16 +50,16 @@
             <p v-if="inviteInstruction" class="rp-sub rp-invite-instruction">{{ inviteInstruction }}</p>
 
             <div class="rp-list rp-recipient-list">
-              <div v-for="target in settings.available_chat_targets" :key="target.id" class="rp-check on" :class="{ 'rp-check--unavailable': target.status === 'unavailable' }">
-                <span class="rp-capsule__ic" :class="`rp-capsule__ic--${target.kind}`">{{ target.kind === 'max' ? 'M' : 'T' }}</span>
+              <div v-for="target in settings.available_chat_targets" :key="target.id" class="rp-check rp-recipient on" :class="{ 'rp-check--unavailable': target.status === 'unavailable' }">
+                <span class="rp-capsule__ic" :class="`rp-capsule__ic--${target.kind}`"><ChannelIcon :kind="target.kind" size="1.15rem" style="color:#fff" /></span>
                 <span class="rp-check__name">{{ target.title || target.chat_id }}<small>{{ target.kind === 'max' ? 'MAX' : 'Telegram' }} · {{ target.target_type === 'client' ? 'личный чат клиента' : 'группа' }}</small></span>
-                <span class="rp-recipient-status">{{ target.status === 'unavailable' ? 'Временно недоступен' : 'Активен' }}</span>
+                <span class="rp-recipient-status" :class="{ 'rp-recipient-status--warn': target.status === 'unavailable' }"><i class="rp-status-dot"></i>{{ target.status === 'unavailable' ? 'Недоступен' : 'Активен' }}</span>
                 <button type="button" class="rp-target-unlink" @click="unlinkTarget(target)">Отвязать</button>
               </div>
-              <div v-for="email in settings.available_email_recipients" :key="email.id" class="rp-check on" :class="{ 'rp-check--unavailable': email.status === 'unavailable' }">
-                <span class="rp-capsule__ic rp-capsule__ic--email">@</span>
+              <div v-for="email in settings.available_email_recipients" :key="email.id" class="rp-check rp-recipient on" :class="{ 'rp-check--unavailable': email.status === 'unavailable' }">
+                <span class="rp-capsule__ic rp-capsule__ic--email"><ChannelIcon kind="email" size="1.1rem" style="color:#fff" /></span>
                 <span class="rp-check__name">{{ email.title || email.email }}<small>{{ email.email }}</small></span>
-                <span class="rp-recipient-status">{{ email.status === 'unavailable' ? 'Временно недоступен' : 'Активен' }}</span>
+                <span class="rp-recipient-status" :class="{ 'rp-recipient-status--warn': email.status === 'unavailable' }"><i class="rp-status-dot"></i>{{ email.status === 'unavailable' ? 'Недоступен' : 'Активен' }}</span>
                 <button type="button" class="rp-target-unlink" @click="removeEmail(email)">Отвязать</button>
               </div>
               <div v-if="!settings.available_chat_targets?.length && !settings.available_email_recipients?.length" class="rp-empty">Получатели ещё не добавлены</div>
@@ -217,6 +217,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import api from '@/api/axios'
 import { useToaster } from '@/composables/useToaster'
 import { useTheme } from '@/composables/useTheme'
+import ChannelIcon from '@/components/ui/ChannelIcon.vue'
 
 const { isDarkMode } = useTheme()
 
@@ -818,6 +819,28 @@ watch(() => [props.clientId, props.folderId], load, { immediate: true })
 .rp-check--unavailable { opacity: 0.6; }
 .rp-check--unavailable .rp-recipient-status { color: #b45309; }
 .rp-check__name small { display: block; margin-top: 0.12rem; color: rgba(105, 105, 105, 0.62); font-size: 0.74rem; font-weight: 500; }
+
+/* Список получателей — сетка с выровненными колонками (иконка · имя · статус · отвязать),
+   отступы между строками и от строки ссылки. */
+.rp-recipient-list { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1rem; }
+.rp-recipient-list .rp-recipient {
+  display: grid;
+  grid-template-columns: 2.3rem minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.7rem 1.1rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid #eef1f6;
+  border-radius: 0.8rem;
+  background: #fbfcfe;
+  cursor: default;
+}
+.rp-recipient-list .rp-recipient:hover,
+.rp-recipient-list .rp-recipient.on { background: #fbfcfe; }
+.rp-recipient-list .rp-recipient-status { margin-left: 0; display: inline-flex; align-items: center; gap: 0.4rem; }
+.rp-recipient-list .rp-target-unlink { margin-left: 0; }
+.rp-status-dot { width: 0.46rem; height: 0.46rem; border-radius: 50%; background: #22a85a; flex: 0 0 auto; }
+.rp-recipient-status--warn .rp-status-dot { background: #d97706; }
+.rp-modal.is-dark .rp-recipient-list .rp-recipient { background: rgba(255, 255, 255, 0.03); border-color: rgba(255, 255, 255, 0.08); }
 .rp-auto-recipients { margin-bottom: 0.9rem; }
 .rp-modal.is-dark .rp-recipient-menu__list { background: #303445; border-color: rgba(255,255,255,0.12); }
 .rp-modal.is-dark .rp-recipient-menu__list button { color: rgba(255,255,255,0.85); }
@@ -996,8 +1019,8 @@ watch(() => [props.clientId, props.folderId], load, { immediate: true })
   display: flex;
   align-items: center;
   gap: 0.7rem;
-  margin: 0 0 0.55rem;
-  padding: 0.55rem 0.75rem;
+  margin: 1rem 0 0.35rem;
+  padding: 0.7rem 0.85rem;
   border-radius: 0.7rem;
   background: rgba(37, 99, 235, 0.07);
   color: #1d4ed8;
