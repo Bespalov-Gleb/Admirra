@@ -73,7 +73,7 @@
                 <input v-model="settings.enabled" type="checkbox" />
               </span>
               <span class="rp-switch-row__txt">
-                <strong>Автоотправка включена</strong>
+                <strong>{{ settings.enabled ? 'Автоотправка включена' : 'Автоотправка выключена' }}</strong>
                 <small>Отчёт формируется и отправляется по расписанию</small>
               </span>
             </label>

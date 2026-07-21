@@ -184,8 +184,8 @@
               <th>Клики</th>
               <th>CTR</th>
               <th>CPC</th>
-              <th v-if="hasYandexSummary" class="dyn-th-group">Лиды Я</th>
-              <th v-if="hasYandexSummary">CPL Я</th>
+              <th v-if="hasLeadsData" class="dyn-th-group">Лиды</th>
+              <th v-if="hasLeadsData">CPL</th>
               <template v-for="g in goals" :key="g.id">
                 <th class="dyn-th-goal">{{ g.name }}</th>
               </template>
@@ -202,8 +202,8 @@
               <td v-html="cell(p.clicks, p.deltas.clicks, 'volume', 'int')"></td>
               <td v-html="cell(p.ctr, p.deltas.ctr, 'conv', 'pct')"></td>
               <td v-html="cell(adjCpc(p), p.deltas.cpc, 'rate', 'money')"></td>
-              <td v-if="hasYandexSummary" v-html="cell(p.yandex_summary && p.yandex_summary.conversions, deltaOf(p,'ys_conv'), 'conv', 'int')"></td>
-              <td v-if="hasYandexSummary" v-html="cell(adjCpl(p), deltaOf(p,'ys_cpl'), 'rate', 'money')"></td>
+              <td v-if="hasLeadsData" v-html="cell(leadsOf(p), leadsDelta(p), 'conv', 'int')"></td>
+              <td v-if="hasLeadsData" v-html="cell(leadsOf(p) > 0 ? adjOverallCpl(p) : null, cplDelta(p), 'rate', 'money')"></td>
               <template v-for="g in goals" :key="g.id">
                 <td class="dyn-td-goal" v-html="goalCountCell(p, g.id)"></td>
               </template>
@@ -263,6 +263,18 @@ const activeColor = computed(() => (metrics.find((m) => m.key === metric.value) 
 const activeMetricLabel = computed(() => (metrics.find((m) => m.key === metric.value) || metrics[0]).label)
 const hatchId = 'dyn-hatch'
 const hasYandexSummary = computed(() => periods.value.some((p) => p.yandex_summary))
+// Колонка «Лиды/CPL» — общая по всем каналам (в т.ч. VK), а не только Яндекс.
+const hasLeadsData = computed(() => periods.value.some((p) => Number(p.leads || 0) > 0) || hasYandexSummary.value)
+const leadsOf = (p) => Number(p.leads || 0)
+const periodDelta = (p, getter) => {
+  const idx = periods.value.indexOf(p)
+  if (idx <= 0) return null
+  const b = getter(periods.value[idx - 1])
+  if (!b) return null
+  return Math.round((getter(p) - b) / b * 1000) / 10
+}
+const leadsDelta = (p) => periodDelta(p, leadsOf)
+const cplDelta = (p) => periodDelta(p, (x) => (leadsOf(x) > 0 ? adjOverallCpl(x) : 0))
 // В ТАБЛИЦЕ показываем периоды в обратном порядке — текущий (последний) сверху.
 // График при этом остаётся хронологическим (слева направо). Дельты считаются по
 // исходному массиву periods, поэтому от разворота строк они не ломаются.
