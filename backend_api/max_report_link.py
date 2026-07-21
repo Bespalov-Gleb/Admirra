@@ -127,6 +127,12 @@ async def max_reports_webhook(request: Request, db: Session = Depends(get_db)):
 
     body = await request.json()
 
+    # ВРЕМЕННЫЙ ДИАГНОСТ-ЛОГ: смотрим, что MAX присылает по групповым сообщениям.
+    try:
+        logger.info("MAX webhook raw update_type=%s body=%s", body.get("update_type"), json.dumps(body, ensure_ascii=False)[:1200])
+    except Exception:
+        logger.info("MAX webhook raw (unserializable) keys=%s", list(body.keys()) if isinstance(body, dict) else type(body))
+
     # /link <код> в чате/группе MAX — подключение группового чата для отчётов
     if body.get("update_type") == "message_created":
         msg = body.get("message") or {}
