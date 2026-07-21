@@ -258,6 +258,55 @@ def _client_or_404(db: Session, current_user: models.User, client_id: uuid.UUID)
     return assert_project_access(db, current_user, client_id, write=False, allow_client_ai=True)
 
 
+def _comment_cache_key(start_date, end_date) -> tuple[str, bool]:
+    """(ключ кэша, стандартный_ли_период) для диапазона AI-комментария.
+
+    Стандартные периоды (эта неделя / этот месяц / последние 7 дней) кэшируются
+    по своим ключам; любой другой диапазон делит единственный слот ``custom``.
+    """
+    from ai.comment_periods import period_key_for
+    key = period_key_for(start_date, end_date) if (start_date and end_date) else None
+    if key:
+        return key, True
+    return "custom", False
+
+
+def _get_cached_comment(db: Session, client_id: uuid.UUID, start_date, end_date) -> Optional[dict]:
+    client = db.query(models.Client).filter(models.Client.id == client_id).first()
+    if not client:
+        return None
+    cache = client.ai_comment_cache or {}
+    key, is_standard = _comment_cache_key(start_date, end_date)
+    entry = cache.get(key)
+    if not entry:
+        return None
+    # У произвольного слота проверяем совпадение диапазона — иначе это чужой период.
+    if not is_standard and (str(entry.get("start")) != str(start_date) or str(entry.get("end")) != str(end_date)):
+        return None
+    return entry
+
+
+def _save_comment_cache(db: Session, client_id: uuid.UUID, start_date, end_date, text: str) -> None:
+    client = db.query(models.Client).filter(models.Client.id == client_id).first()
+    if not client:
+        return
+    key, _is_standard = _comment_cache_key(start_date, end_date)
+    cache = dict(client.ai_comment_cache or {})
+    cache[key] = {
+        "text": text,
+        "generated_at": datetime.utcnow().isoformat(),
+        "start": str(start_date) if start_date else None,
+        "end": str(end_date) if end_date else None,
+    }
+    client.ai_comment_cache = cache
+    # Обратная совместимость: последний сгенерированный комментарий.
+    client.last_ai_comment = text
+    client.last_ai_comment_at = datetime.utcnow()
+    # JSON-поле требует пометки как изменённого для гарантированного flush.
+    from sqlalchemy.orm.attributes import flag_modified
+    flag_modified(client, "ai_comment_cache")
+
+
 def _alert_to_dict(alert: models.DetectorAlert) -> dict[str, Any]:
     channel = alert.channel.value if getattr(alert, "channel", None) and hasattr(alert.channel, "value") else None
     return {
@@ -611,6 +660,17 @@ async def generate_report(
     # он формируется автоматически и по кнопке «Обновить» без списания квоты.
     is_dashboard_comment = (body.report_type or "full") == "dashboard_comment"
     try:
+        # Троттлинг ручного пересчёта: не чаще 1 раза в 10 минут на период (ТЗ §12).
+        if is_dashboard_comment and client_id:
+            cached = _get_cached_comment(db, client_id, body.start_date, body.end_date)
+            if cached and cached.get("text"):
+                gen_at = cached.get("generated_at")
+                try:
+                    gen_dt = datetime.fromisoformat(gen_at) if isinstance(gen_at, str) else gen_at
+                except (ValueError, TypeError):
+                    gen_dt = None
+                if gen_dt and (datetime.utcnow() - gen_dt) < timedelta(minutes=10):
+                    return GenerateReportResponse(text=cached["text"])
         if not is_dashboard_comment:
             SubscriptionService.ensure_can_use_ai(db, current_user, requested=1)
         text = await do_generate(
@@ -621,6 +681,8 @@ async def generate_report(
             end_date=body.end_date,
             report_type=body.report_type or "full",
         )
+        if is_dashboard_comment and client_id:
+            _save_comment_cache(db, client_id, body.start_date, body.end_date, text)
         if not is_dashboard_comment:
             SubscriptionService.increment_ai_usage(db, current_user, requested=1)
         log_history_event(
@@ -645,10 +707,17 @@ async def generate_report(
 @router.get("/comment")
 async def get_ai_comment(
     client_id: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Return last saved AI comment for a client."""
+    """Кэшированный AI-комментарий клиента за период.
+
+    Для стандартного периода отдаём кэш (``standard=true``); для произвольного
+    диапазона без кэша — ``standard=false`` и ``text=None`` (фронт покажет
+    кнопку «Рассчитать»). Без дат — обратная совместимость: последний комментарий.
+    """
     if not client_id:
         return {"text": None}
     cid = _parse_uuid(client_id, "client_id")
@@ -656,7 +725,19 @@ async def get_ai_comment(
     client = db.query(models.Client).filter(models.Client.id == cid).first()
     if not client:
         return {"text": None}
-    return {"text": client.last_ai_comment, "generated_at": client.last_ai_comment_at}
+
+    if start_date and end_date:
+        _key, is_standard = _comment_cache_key(start_date, end_date)
+        entry = _get_cached_comment(db, cid, start_date, end_date)
+        if entry:
+            return {
+                "text": entry.get("text"),
+                "generated_at": entry.get("generated_at"),
+                "standard": is_standard,
+            }
+        return {"text": None, "generated_at": None, "standard": is_standard}
+
+    return {"text": client.last_ai_comment, "generated_at": client.last_ai_comment_at, "standard": None}
 
 
 @router.post("/comment")

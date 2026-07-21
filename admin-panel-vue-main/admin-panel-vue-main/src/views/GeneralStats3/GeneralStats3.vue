@@ -944,7 +944,21 @@
           <div class="ai-skeleton-line ai-skeleton-line--medium"></div>
         </div>
 
-        <!-- Комментарий ещё не сформирован -->
+        <!-- Произвольный период — комментарий не рассчитан (ТЗ раздел 6) -->
+        <div v-else-if="!aiComment && aiCommentStandard === false" class="ai-comment__empty ai-comment__empty--custom">
+          <p>Комментарий за произвольный период не рассчитан.</p>
+          <button
+            class="ai-comment__calc"
+            type="button"
+            :disabled="loadingAiComment || dashboardSyncInProgress"
+            @click="triggerAiComment"
+          >
+            <SparklesIcon />
+            Рассчитать
+          </button>
+        </div>
+
+        <!-- Стандартный период — комментарий ещё не сформирован -->
         <div v-else-if="!aiComment" class="ai-comment__empty">
           <p>Комментарий появится автоматически после ближайшего обновления данных. Можно сформировать сразу — кнопка «Обновить».</p>
         </div>
@@ -1967,14 +1981,22 @@ const reportComment = ref('')
 const loadingAiComment = ref(false)
 const loadingInitialComment = ref(false)
 const aiCommentGeneratedAt = ref(null)
+// null — период не определён; true — стандартный (кэш); false — произвольный (нужна кнопка «Рассчитать»)
+const aiCommentStandard = ref(null)
 
 const loadSavedComment = async () => {
   if (!filters.client_id) return
   loadingInitialComment.value = true
+  reportComment.value = ''
+  aiCommentGeneratedAt.value = null
   try {
-    const { data } = await api.get(`ai/comment?client_id=${filters.client_id}`)
+    const params = new URLSearchParams({ client_id: filters.client_id })
+    if (filters.start_date) params.set('start_date', filters.start_date)
+    if (filters.end_date) params.set('end_date', filters.end_date)
+    const { data } = await api.get(`ai/comment?${params.toString()}`)
     if (data?.text) reportComment.value = data.text
     aiCommentGeneratedAt.value = data?.generated_at || null
+    aiCommentStandard.value = data?.standard ?? null
   } catch {
     // не критично — просто не показываем сохранённый
   } finally {
@@ -5001,10 +5023,10 @@ const triggerAiComment = async () => {
   if (loadingAiComment.value) return
   loadingAiComment.value = true
   try {
+    // Бэк кэширует dashboard_comment по периоду сам (ТЗ §12) — отдельный POST не нужен.
     await handleGenerateReport()
-    if (reportComment.value && filters.client_id) {
-      await api.post('ai/comment', { client_id: filters.client_id, text: reportComment.value }).catch(() => {})
-    }
+    // После ручного «Рассчитать» произвольный период считается посчитанным.
+    if (reportComment.value) aiCommentStandard.value = aiCommentStandard.value ?? false
   } finally {
     loadingAiComment.value = false
   }
@@ -5808,10 +5830,10 @@ const openAssistantForCampaignHighlight = (campaign) => {
   })
 }
 
-watch(() => filters.client_id, () => {
+watch(() => [filters.client_id, filters.start_date, filters.end_date], () => {
   reportComment.value = ''
   loadSavedComment()
-})
+}, { deep: true })
 
 watch(
   () => [filters.client_id, filters.folder_id],
@@ -15032,6 +15054,29 @@ onMounted(() => {
   line-height: 1.6;
   color: #6b7280;
 }
+.ai-comment__empty--custom {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.8rem;
+}
+.ai-comment__calc {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  border: 0;
+  border-radius: 0.6rem;
+  background: linear-gradient(270deg, #3d8bff 0%, #2f6bff 48%, #1f52e6 100%);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.ai-comment__calc svg { width: 0.95rem; height: 0.95rem; }
+.ai-comment__calc:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+.ai-comment__calc:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 .ai-comment__skeleton {
   display: flex;
   flex-direction: column;

@@ -52,6 +52,9 @@ def init_db_with_retry(max_retries=10, retry_delay=2):
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_users_username ON users (username)"))
                 conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS direction_label VARCHAR(32) NOT NULL DEFAULT 'directions'"))
                 conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS folder_id UUID REFERENCES folders(id) ON DELETE SET NULL"))
+                conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS last_ai_comment TEXT"))
+                conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS last_ai_comment_at TIMESTAMP"))
+                conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS ai_comment_cache JSONB"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_clients_folder_id ON clients (folder_id)"))
                 conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS platform_status VARCHAR"))
                 conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS platform_state VARCHAR"))
@@ -206,6 +209,21 @@ async def startup_event():
         id="vk_client_link_maintenance",
         replace_existing=True,
     )
+    # Автогенерация коротких AI-комментариев к дашборду по стандартным периодам
+    # (ТЗ §12). После ночного окна синка (3:00) и отчётов (5:00) — в 6:00 МСК.
+    try:
+        from ai.dashboard_comment_job import generate_dashboard_comments
+        lead_scheduler.add_job(
+            generate_dashboard_comments,
+            "cron",
+            hour=6,
+            minute=0,
+            id="dashboard_ai_comments",
+            replace_existing=True,
+            timezone="Europe/Moscow",
+        )
+    except Exception as e:
+        logger.warning(f"Dashboard AI-comment autogen not scheduled: {e}")
     if lead_scheduler.get_jobs():
         lead_scheduler.start()
         logger.info("✅ Scheduler started (leads + reports)")

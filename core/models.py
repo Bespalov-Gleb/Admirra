@@ -453,6 +453,9 @@ class Client(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     last_ai_comment = Column(Text, nullable=True)
     last_ai_comment_at = Column(DateTime, nullable=True)
+    # Кэш AI-комментариев по стандартным периодам (ТЗ §12, раздел 6):
+    # {period_key: {"text": str, "generated_at": iso, "start": date, "end": date}}
+    ai_comment_cache = Column(JSON, nullable=True)
 
     owner = relationship("User", back_populates="clients")
     folder = relationship("Folder", back_populates="clients")
