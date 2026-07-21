@@ -631,7 +631,10 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
         and getattr(integration, "connection_status", "active") != "active"
     ):
         raise ValueError("VK Ads ещё не завершил подключение: требуется авторизация клиента и выбор кабинета")
-    if not integration.access_token:
+    # Avito авторизуется по client_id/client_secret (client_credentials), токен
+    # получается на лету при каждом синке — поэтому у него access_token пустой.
+    # Проверку наличия access_token применяем только к каналам, которые его хранят.
+    if integration.platform != models.IntegrationPlatform.AVITO_ADS and not integration.access_token:
         raise ValueError("У интеграции отсутствует токен доступа")
     from backend_api.services.project_settings import is_project_paused, update_actual_start_date
     if is_project_paused(integration.client):
