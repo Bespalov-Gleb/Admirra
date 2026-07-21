@@ -56,6 +56,13 @@ def _hidden_filter(now: datetime):
     )
 
 
+def _user_display_name(user) -> str:
+    """Имя автора скрытия для payload (правка 2 ТЗ детектора)."""
+    parts = [getattr(user, "first_name", None), getattr(user, "last_name", None)]
+    name = " ".join(p for p in parts if p).strip()
+    return name or getattr(user, "username", None) or getattr(user, "email", None) or "коллега"
+
+
 def _alert_to_response(alert: models.DetectorAlert, now: datetime | None = None) -> dict:
     now = now or _now()
     hidden_reason = None
@@ -87,6 +94,9 @@ def _alert_to_response(alert: models.DetectorAlert, now: datetime | None = None)
         "dismissed_at": alert.dismissed_at,
         "snoozed_until": getattr(alert, "snoozed_until", None),
         "not_problem_at": getattr(alert, "not_problem_at", None),
+        # Автор скрытия для списка скрытых (правка 2): «кто и когда скрыл».
+        "snoozed_by_name": (getattr(alert, "snooze_source", None) or {}).get("user_name"),
+        "dismissed_by_name": (alert.meta or {}).get("not_problem_by_name"),
         "hidden": hidden,
         "hidden_reason": hidden_reason,
         "meta": alert.meta,
@@ -337,6 +347,7 @@ def snooze_alert(
     alert.snoozed_until = now + timedelta(days=days)
     alert.snooze_source = {
         "user_id": str(current_user.id),
+        "user_name": _user_display_name(current_user),
         "days": days,
         "at": now.isoformat(),
     }
@@ -364,7 +375,7 @@ def mark_alert_not_problem(
     alert.not_problem_at = now
     alert.snoozed_until = None
     alert.snooze_source = None
-    alert.meta = {**(alert.meta or {}), "not_problem_by": str(current_user.id)}
+    alert.meta = {**(alert.meta or {}), "not_problem_by": str(current_user.id), "not_problem_by_name": _user_display_name(current_user)}
     db.commit()
     db.refresh(alert)
     return _alert_to_response(alert)

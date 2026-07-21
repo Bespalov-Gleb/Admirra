@@ -527,10 +527,33 @@ def _plan_base_label(period_start: date, period_end: date) -> str:
     return f"с начала периода {period_start.strftime('%d.%m')}–{period_end.strftime('%d.%m')}"
 
 
-def _times_ru(ratio: float) -> str:
-    """«в 2 раза дороже» вместо «+117%» — правило текстов итерации 2."""
-    value = f"{ratio:.1f}".rstrip("0").rstrip(".").replace(".", ",")
+def _times_ru(ratio: float, level_threshold: float | None = None) -> str:
+    """«в 2 раза дороже» вместо «+117%» — правило текстов итерации 2.
+
+    §3 (усечение на границе уровня): если стандартное округление до 0,1
+    перепрыгивает порог уровня (напр. 1,756 при жёлтом → 1,8 как у красного),
+    усечём вниз, чтобы число не спорило с цветом плашки → «в 1,7 раза»."""
+    if level_threshold is not None and ratio < level_threshold and round(ratio, 1) >= level_threshold:
+        shown = math.floor(ratio * 10) / 10
+    else:
+        shown = round(ratio, 1)
+    value = f"{shown:.1f}".rstrip("0").rstrip(".").replace(".", ",")
     return f"в {value} раза дороже"
+
+
+def _seven_day_cpl_phrase(cpl_period: float, cpl_7d: float, spend_7d: float, leads_7d: int, threshold: float) -> str:
+    """7-дневная фраза P-2 — показываем ВСЕГДА, три окончания по расхождению
+    с накопительным CPL (§3)."""
+    if not leads_7d and spend_7d > 0:
+        return f"За последние 7 дней заявок нет (потрачено {_money(spend_7d)})."
+    if not (math.isfinite(cpl_period) and math.isfinite(cpl_7d) and cpl_period > 0 and leads_7d):
+        return ""
+    diff = (cpl_7d - cpl_period) / cpl_period
+    if diff > threshold:
+        return f"За последние 7 дней — {_money(cpl_7d)}, ситуация ухудшается."
+    if diff < -threshold:
+        return f"За последние 7 дней — {_money(cpl_7d)}, ситуация улучшается."
+    return f"За последние 7 дней — примерно на том же уровне ({_money(cpl_7d)})."
 
 
 def _make_plan_cpl(
@@ -584,12 +607,6 @@ def _make_plan_cpl(
     label = target.goal_name or ("Все конверсии" if target.is_summary else f"цели {target.goal_id}")
     base_label = _plan_base_label(target.period_start, target.period_end)
 
-    # Вторая цифра — только при заметном расхождении баз (§3), с направлением.
-    divergence = None
-    if math.isfinite(cpl_period) and math.isfinite(cpl_7d) and cpl_period > 0 and leads and leads_7d:
-        if abs(cpl_7d - cpl_period) / cpl_period > cfg.plan_cpl_divergence_threshold:
-            divergence = "улучшается" if cpl_7d < cpl_period else "ухудшается"
-
     if lead == "period":
         if not leads:
             text = (
@@ -599,10 +616,12 @@ def _make_plan_cpl(
         else:
             text = (
                 f"Стоимость заявки выше цели по «{label}»: {base_label} — {_money(cpl_period)} "
-                f"при целевом CPL {_money(target_cpl)} ({_times_ru(ratio_period)})."
+                f"при целевом CPL {_money(target_cpl)} ({_times_ru(ratio_period, cfg.plan_cpl_problem_ratio)})."
             )
-            if divergence:
-                text += f" За последние 7 дней — {_money(cpl_7d)}, ситуация {divergence}."
+            # §3: 7-дневная фраза — всегда, три окончания по расхождению.
+            seven = _seven_day_cpl_phrase(cpl_period, cpl_7d, spend_7d, leads_7d, cfg.plan_cpl_divergence_threshold)
+            if seven:
+                text += " " + seven
             text += " Суммы с НДС."
         ratio_lead, cpl_lead = ratio_period, cpl_period
     else:
@@ -613,7 +632,7 @@ def _make_plan_cpl(
         )
         text = (
             f"Заявки резко подорожали по «{label}»: за последние 7 дней — {_money(cpl_7d)} "
-            f"при целевом CPL {_money(target_cpl)} ({_times_ru(ratio_7d)}). "
+            f"при целевом CPL {_money(target_cpl)} ({_times_ru(ratio_7d, cfg.plan_cpl_problem_ratio)}). "
             f"{period_part} — успейте скорректировать, пока неделя не испортила месяц. Суммы с НДС."
         )
         ratio_lead, cpl_lead = ratio_7d, cpl_7d

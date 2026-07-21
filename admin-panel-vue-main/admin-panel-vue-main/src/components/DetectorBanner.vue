@@ -1,131 +1,112 @@
 <template>
   <transition name="detector-banner">
-    <section v-if="visible" class="detector-banner" :class="bannerClass">
-      <div class="detector-banner__top">
-        <div class="detector-banner__icon" aria-hidden="true">
-          <svg v-if="severity === 'problem'" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="7.8" x2="12" y2="12.2"/><line x1="12" y1="16.2" x2="12.01" y2="16.2"/>
-          </svg>
-          <svg v-else width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M10.3 4.1 2.1 18.1A2 2 0 0 0 3.8 21h16.4a2 2 0 0 0 1.7-2.9L13.7 4.1a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-          </svg>
-        </div>
-        <div class="detector-banner__text">
-          <span class="detector-banner__title">{{ title }}</span>
-          <!-- Один алерт (в т.ч. составной P-1+P-2+P-3) — показываем полностью
-               все пункты прямо в баннере: это и есть общий алерт на дашборде. -->
-          <div
-            v-if="bannerSections"
-            class="detector-banner__hypothesis"
-            :class="{ 'detector-banner__hypothesis--sectioned': bannerSections.length > 1 }"
-          >
-            <p v-for="(section, index) in bannerSections" :key="`banner-section-${index}`">{{ section }}</p>
-            <span v-if="hiddenCount" class="detector-banner__hidden-note">Скрыто ещё {{ hiddenCount }}</span>
-          </div>
-          <span v-else-if="subtitle" class="detector-banner__hypothesis">{{ subtitle }}</span>
-        </div>
-        <button
-          v-if="hasExpandableDetails"
-          type="button"
-          class="detector-banner__action"
-          @click="expanded = !expanded"
-        >
-          {{ expanded ? 'Скрыть детали' : 'Смотреть все' }}
-        </button>
-        <button
-          v-if="primaryAlert"
-          type="button"
-          class="detector-banner__action detector-banner__action--ai"
-          @click="$emit('ask-ai', primaryAlert)"
-        >
-          Спросить AI
-        </button>
-        <!-- Один алерт: детали не разворачиваются (текст уже в баннере),
-             поэтому «Скрыть» и «Не проблема» живут прямо в шапке -->
-        <template v-if="singleAlert">
-          <span class="detector-banner__snooze" :class="{ open: openSnoozeId === singleAlert.id }">
-            <button type="button" class="detector-banner__action" @click.stop="openSnoozeId = openSnoozeId === singleAlert.id ? null : singleAlert.id">Скрыть</button>
-            <span class="detector-banner__snooze-menu">
-              <button type="button" @click="snooze(singleAlert, 1)">На 1 день</button>
-              <button type="button" @click="snooze(singleAlert, 3)">На 3 дня</button>
-              <button type="button" @click="snooze(singleAlert, 7)">На 7 дней</button>
-            </span>
-          </span>
-          <button
-            type="button"
-            class="detector-banner__action detector-banner__action--soft"
-            title="Скроется до конца отклонения, поможет настроить детектор"
-            @click="$emit('not-problem', singleAlert)"
-          >Не проблема</button>
-        </template>
-        <button type="button" class="detector-banner__close" title="Свернуть баннер" @click="$emit('collapse')">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3.5 3.5 12.5 12.5M12.5 3.5 3.5 12.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-        </button>
+    <!-- ЖИВАЯ ПЛАШКА: контейнер блоков-эпизодов (правка 1) -->
+    <section v-if="activeAlerts.length" class="detector-banner" :class="`detector-banner--${bannerSeverity}`">
+      <div class="detector-banner__head">
+        <span class="detector-banner__head-ic" aria-hidden="true">
+          <svg v-if="bannerSeverity === 'problem'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="7.8" x2="12" y2="12.2"/><line x1="12" y1="16.2" x2="12.01" y2="16.2"/></svg>
+          <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 4.1 2.1 18.1A2 2 0 0 0 3.8 21h16.4a2 2 0 0 0 1.7-2.9L13.7 4.1a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </span>
+        <span class="detector-banner__title">{{ title }}</span>
       </div>
 
-      <div v-if="expanded && hasExpandableDetails" class="detector-banner__details">
+      <div class="detector-blocks">
         <article
-          v-for="alert in alerts"
+          v-for="alert in activeAlerts"
           :key="alert.id"
-          class="detector-alert-row"
-          :class="`detector-alert-row--${alert.severity || 'warning'}`"
+          class="detector-block"
+          :class="`detector-block--${alert.severity || 'warning'}`"
         >
-          <span class="detector-alert-row__dot"></span>
-          <div class="detector-alert-row__body">
-            <div
-              class="detector-alert-row__message"
-              :class="{ 'detector-alert-row__message--sectioned': alertSections(alert).length > 1 }"
-            >
-              <p v-for="(section, index) in alertSections(alert)" :key="`${alert.id}-section-${index}`">{{ section }}</p>
+          <span class="detector-block__dot"></span>
+          <div class="detector-block__body">
+            <p class="detector-block__lead">{{ leadPhrase(alert) }}</p>
+            <p v-if="relatedShort(alert)" class="detector-block__related">
+              <span class="detector-block__related-label">Связано:</span>
+              <span class="detector-block__related-text">{{ relatedShort(alert) }}</span>
+              <button
+                v-if="hasDetails(alert)"
+                type="button"
+                class="detector-block__more-link"
+                @click="toggleExpand(alert.id)"
+              >Подробнее {{ expandedId === alert.id ? '▴' : '▾' }}</button>
+            </p>
+            <div v-if="expandedId === alert.id" class="detector-block__details">
+              <p v-for="(section, index) in relatedSections(alert)" :key="`${alert.id}-rel-${index}`">{{ section }}</p>
+              <p v-if="alert.meta && alert.meta.diagnosis" class="detector-block__diag">{{ alert.meta.diagnosis }}</p>
             </div>
-            <small>{{ alertMeta(alert) }}</small>
           </div>
-          <div class="detector-alert-row__actions">
-            <button type="button" class="detector-alert-row__ai" @click="$emit('ask-ai', alert)">Спросить AI</button>
-            <span class="detector-alert-row__snooze" :class="{ open: openSnoozeId === alert.id }">
-              <button type="button" @click.stop="openSnoozeId = openSnoozeId === alert.id ? null : alert.id">Скрыть</button>
-              <span class="detector-alert-row__snooze-menu">
+
+          <div class="detector-block__actions">
+            <button type="button" class="detector-block__ai" @click="$emit('ask-ai', alert)">Спросить AI</button>
+            <span class="detector-block__snooze" :class="{ open: openSnoozeId === alert.id }">
+              <button type="button" @click.stop="toggleSnooze(alert.id)">Скрыть…</button>
+              <span class="detector-block__menu">
                 <button type="button" @click="snooze(alert, 1)">На 1 день</button>
                 <button type="button" @click="snooze(alert, 3)">На 3 дня</button>
                 <button type="button" @click="snooze(alert, 7)">На 7 дней</button>
               </span>
             </span>
-            <span class="detector-alert-row__divider" aria-hidden="true"></span>
-            <button
-              type="button"
-              class="detector-alert-row__soft"
-              title="Скроется до конца отклонения, поможет настроить детектор"
-              @click="$emit('not-problem', alert)"
-            >Не проблема</button>
-          </div>
-        </article>
-
-        <article
-          v-for="alert in hiddenAlerts"
-          :key="`hidden-${alert.id}`"
-          class="detector-alert-row detector-alert-row--hidden"
-        >
-          <span class="detector-alert-row__dot"></span>
-          <div class="detector-alert-row__body">
-            <div
-              class="detector-alert-row__message"
-              :class="{ 'detector-alert-row__message--sectioned': alertSections(alert).length > 1 }"
-            >
-              <p v-for="(section, index) in alertSections(alert)" :key="`${alert.id}-hidden-section-${index}`">{{ section }}</p>
-            </div>
-            <small>{{ hiddenMeta(alert) }}</small>
-          </div>
-          <div class="detector-alert-row__actions">
-            <button type="button" @click="$emit('restore', alert)">Вернуть</button>
+            <span class="detector-block__dots" :class="{ open: openMoreId === alert.id }">
+              <button type="button" class="detector-block__dots-btn" aria-label="Ещё" @click.stop="toggleMore(alert.id)">⋯</button>
+              <span class="detector-block__menu detector-block__menu--right">
+                <button
+                  type="button"
+                  title="Скроется до конца отклонения, поможет настроить детектор"
+                  @click="notProblem(alert)"
+                >Не проблема</button>
+              </span>
+            </span>
           </div>
         </article>
       </div>
+
+      <!-- Состояние 2 (правка 2): футер скрытых внутри живой плашки -->
+      <div v-if="hiddenAlerts.length" class="detector-banner__hidden-foot">
+        <button type="button" class="detector-hidden-link" @click="hiddenListOpen = !hiddenListOpen">
+          Скрыто ещё: {{ hiddenAlerts.length }}{{ nearestHiddenDate ? ` до ${nearestHiddenDate}` : '' }} · Показать
+        </button>
+        <div v-if="hiddenListOpen" class="detector-hidden-list">
+          <div v-for="alert in hiddenAlerts" :key="`hf-${alert.id}`" class="detector-hidden-item">
+            <span class="detector-hidden-item__text">{{ leadPhrase(alert) }}</span>
+            <span class="detector-hidden-item__meta">{{ hiddenAuthorMeta(alert) }}</span>
+            <button type="button" @click="$emit('restore', alert)">Показать сейчас</button>
+          </div>
+        </div>
+      </div>
     </section>
+
+    <!-- Нейтральные статусы: прогрев / нет данных синхронизации -->
+    <section v-else-if="warmupStatus === 'warming_up' || syncIssues.length" class="detector-banner" :class="bannerClass">
+      <div class="detector-banner__head">
+        <span class="detector-banner__head-ic" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        </span>
+        <div class="detector-banner__text">
+          <span class="detector-banner__title">{{ neutralTitle }}</span>
+          <span class="detector-banner__hypothesis">{{ neutralSubtitle }}</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Состояние 1 (правка 2): все алерты скрыты — серый чип на позиции плашки -->
+    <div v-else-if="hiddenAlerts.length" class="detector-hidden-chip-wrap">
+      <button type="button" class="detector-hidden-chip" @click="hiddenListOpen = !hiddenListOpen">
+        <span class="detector-hidden-chip__dot"></span>
+        Скрыто: {{ hiddenAlerts.length }} {{ hiddenWord }}{{ nearestHiddenDate ? ` до ${nearestHiddenDate}` : '' }} · Показать
+      </button>
+      <div v-if="hiddenListOpen" class="detector-hidden-list detector-hidden-list--chip">
+        <div v-for="alert in hiddenAlerts" :key="`hc-${alert.id}`" class="detector-hidden-item">
+          <span class="detector-hidden-item__text">{{ leadPhrase(alert) }}</span>
+          <span class="detector-hidden-item__meta">{{ hiddenAuthorMeta(alert) }}</span>
+          <button type="button" @click="$emit('restore', alert)">Показать сейчас</button>
+        </div>
+      </div>
+    </div>
   </transition>
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 
 const props = defineProps({
   warningCount: { type: Number, default: 0 },
@@ -140,78 +121,52 @@ const props = defineProps({
   syncIssues: { type: Array, default: () => [] },
 })
 
-const emit = defineEmits(['collapse', 'ask-ai', 'snooze', 'not-problem', 'restore'])
+// collapse больше не эмитим — плашки-крестика нет (правка 1).
+const emit = defineEmits(['ask-ai', 'snooze', 'not-problem', 'restore'])
 
-const expanded = ref(false)
-// «Скрыть…» — дропдаун 1/3/7 дней на строке алерта
+const expandedId = ref(null)
 const openSnoozeId = ref(null)
+const openMoreId = ref(null)
+const hiddenListOpen = ref(false)
 
-const snooze = (alert, days) => {
-  openSnoozeId.value = null
-  emit('snooze', alert, days)
-}
+const activeAlerts = computed(() => props.alerts || [])
+const hiddenAlerts = computed(() => props.hiddenAlerts || [])
 
-watch(() => [props.warningCount, props.problemCount, props.hiddenCount], () => {
-  if (!props.warningCount && !props.problemCount) expanded.value = false
-})
+const bannerSeverity = computed(() =>
+  activeAlerts.value.some((a) => a.severity === 'problem') ? 'problem' : 'warning'
+)
 
-const visible = computed(() => {
-  if (props.syncIssues.length) return true
-  if (props.warmupStatus === 'warming_up') return true
-  return props.warningCount > 0 || props.problemCount > 0 || props.hiddenCount > 0
-})
+const declOtklon = (n) => (n === 1 ? 'отклонение' : n > 1 && n < 5 ? 'отклонения' : 'отклонений')
 
-const hasAlertRows = computed(() => props.alerts.length > 0 || props.hiddenAlerts.length > 0)
-// For one alert the full diagnosis is already shown in the banner itself.
-// A second identical row below only wastes space and makes it look like two
-// different alerts. Details are useful when there are several items or hidden
-// items to manage.
-const hasExpandableDetails = computed(() => props.alerts.length + props.hiddenAlerts.length > 1)
-const primaryAlert = computed(() => props.alerts[0] || null)
-// Ровно один видимый алерт и нечего разворачивать — действия переезжают в шапку
-const singleAlert = computed(() => (!hasExpandableDetails.value ? primaryAlert.value : null))
-
-// Составной алерт (один эпизод, несколько проверок) выводим на дашборд
-// целиком — все пункты. При нескольких алертах шапка остаётся короткой,
-// а полный список раскрывается по «Смотреть все».
-const bannerSections = computed(() => {
-  if (!props.warningCount && !props.problemCount) return null
-  if (!singleAlert.value) return null
-  return alertSections(singleAlert.value)
-})
-
+// Заголовок: N = число блоков (правка 1).
 const title = computed(() => {
-  if (!props.warningCount && !props.problemCount && props.syncIssues.length) return 'Нет свежих данных по подключению'
-  if (!props.warningCount && !props.problemCount && props.warmupStatus === 'warming_up') {
+  const n = activeAlerts.value.length
+  return `Обнаружено ${n} ${declOtklon(n)}`
+})
+
+const hiddenWord = computed(() => declOtklon(hiddenAlerts.value.length))
+
+const bannerClass = computed(() => {
+  if (props.warmupStatus === 'warming_up') return 'detector-banner--warmup'
+  if (props.syncIssues.length) return 'detector-banner--sync'
+  return `detector-banner--${bannerSeverity.value}`
+})
+
+const neutralTitle = computed(() => {
+  if (props.warmupStatus === 'warming_up') {
     const days = props.warmupDaysLeft ?? '?'
     return `Детектор накапливает данные, заработает через ${days} дн.`
   }
-  const total = props.warningCount + props.problemCount
-  const word = total === 1 ? 'отклонение' : total > 1 && total < 5 ? 'отклонения' : 'отклонений'
-  if (total === 0 && props.hiddenCount > 0) return `Скрыто ${props.hiddenCount} отклонений`
-  return `Обнаружено ${total} ${word}`
+  return 'Нет свежих данных по подключению'
+})
+const neutralSubtitle = computed(() => {
+  if (props.warmupStatus === 'warming_up') return 'Сначала нужна история по проекту. Это нейтральный статус, не алерт.'
+  return props.syncIssues.map((issue) => issue.text).join(' ')
 })
 
-const subtitle = computed(() => {
-  if (!props.warningCount && !props.problemCount && props.syncIssues.length) return props.syncIssues.map(issue => issue.text).join(' ')
-  if (!props.warningCount && !props.problemCount && props.warmupStatus === 'warming_up') return 'Сначала нужна история по проекту. Это нейтральный статус, не алерт.'
-  const hidden = props.hiddenCount ? ` · скрыто ${props.hiddenCount}` : ''
-  return `${props.hypothesis || 'Проверьте динамику проекта и кампаний.'}${hidden}`
-})
-
-const bannerClass = computed(() => {
-  if (!props.warningCount && !props.problemCount && props.syncIssues.length) return 'detector-banner--sync'
-  if (!props.warningCount && !props.problemCount && props.warmupStatus === 'warming_up') return 'detector-banner--warmup'
-  if (props.severity === 'problem') return 'detector-banner--problem'
-  return 'detector-banner--warning'
-})
-
-const alertTitle = (alert) => alert?.hypothesis_text || 'Отклонение в показателях'
-
-// Составной P-алерт — одна сущность с несколькими проверками, разделёнными
-// маркером «•». Рендерим их отдельными абзацами, а не одной простынёй текста.
+// Составной алерт: hypothesis_text = ведущая фраза + «\n• …» связанные проверки.
 const alertSections = (alert) => {
-  const text = alertTitle(alert).replace(/\r/g, '').trim()
+  const text = String(alert?.hypothesis_text || '').replace(/\r/g, '').trim()
   if (!text) return ['Отклонение в показателях']
   const sections = text
     .split(/\n\s*•\s*/)
@@ -220,386 +175,278 @@ const alertSections = (alert) => {
   return sections.length ? sections : [text]
 }
 
-const alertMeta = (alert) => {
-  const days = alert?.consecutive_days ? `${alert.consecutive_days} дн. подряд` : 'по истории проекта'
-  const source = alert?.detection_level === 'campaign' ? 'кампания' : 'проект'
-  return `${source} · ${days}`
+const leadPhrase = (alert) => alertSections(alert)[0]
+const relatedSections = (alert) => alertSections(alert).slice(1)
+// Одна приглушённая строка «Связано: …» — связанные проверки через « · ».
+const relatedShort = (alert) => relatedSections(alert).join(' · ')
+const hasDetails = (alert) =>
+  relatedSections(alert).length > 0 || Boolean(alert?.meta && alert.meta.diagnosis)
+
+const nearestHiddenDate = computed(() => {
+  const dates = hiddenAlerts.value
+    .map((a) => (a?.snoozed_until ? new Date(a.snoozed_until) : null))
+    .filter((d) => d && !Number.isNaN(d.getTime()))
+  if (!dates.length) return ''
+  const min = new Date(Math.min(...dates.map((d) => d.getTime())))
+  return min.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })
+})
+
+const hiddenAuthorMeta = (alert) => {
+  const who = alert?.snoozed_by_name || alert?.dismissed_by_name || alert?.hidden_by_name || ''
+  if (alert?.not_problem_at || alert?.dismissed_at) {
+    return who ? `${who} · не проблема` : 'не проблема'
+  }
+  if (alert?.snoozed_until) {
+    const date = new Date(alert.snoozed_until).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })
+    return who ? `${who} · до ${date}` : `до ${date}`
+  }
+  return who || 'скрыто'
 }
 
-const hiddenMeta = (alert) => {
-  if (alert?.snoozed_until) {
-    return `отложено до ${new Date(alert.snoozed_until).toLocaleDateString('ru-RU')}`
-  }
-  if (alert?.not_problem_at || alert?.dismissed_at) return 'помечено как не проблема'
-  return 'скрыто'
-}
+const toggleExpand = (id) => { expandedId.value = expandedId.value === id ? null : id }
+const toggleSnooze = (id) => { openMoreId.value = null; openSnoozeId.value = openSnoozeId.value === id ? null : id }
+const toggleMore = (id) => { openSnoozeId.value = null; openMoreId.value = openMoreId.value === id ? null : id }
+
+const snooze = (alert, days) => { openSnoozeId.value = null; emit('snooze', alert, days) }
+const notProblem = (alert) => { openMoreId.value = null; emit('not-problem', alert) }
 </script>
 
 <style scoped>
 .detector-banner {
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
-  padding: 0.9rem 1.05rem;
+  gap: 0.75rem;
+  padding: 0.95rem 1.1rem;
   border-radius: 1.05rem;
   font-family: Inter, sans-serif;
   transition: all 0.25s ease;
 }
 
-.detector-banner__top {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  min-width: 0;
-}
+.detector-banner--warning { background: #fff8e8; border: 1px solid #f6d996; color: #8a5217; }
+.detector-banner--problem { background: #fff1f1; border: 1px solid #ffb9b9; color: #9c2323; }
+.detector-banner--warmup { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+.detector-banner--sync { background: #f4f6f9; border: 1px solid #dce3ed; color: #69758a; }
 
-.detector-banner--warning {
-  background: #fff8e8;
-  border: 1px solid #f6d996;
-  color: #8a5217;
-}
-
-.detector-banner--problem {
-  background: #fff1f1;
-  border: 1px solid #ffb9b9;
-  color: #9c2323;
-}
-
-.detector-banner--warmup {
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  color: #1e40af;
-}
-.detector-banner--sync { background:#f4f6f9;border:1px solid #dce3ed;color:#69758a; }
-
-.detector-banner__icon {
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: 0.8rem;
-  background: rgba(255, 255, 255, 0.72);
-}
-
-.detector-banner__text {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 0.18rem;
-  min-width: 0;
-}
-
-.detector-banner__title {
-  color: #1f2937;
-  font-size: 0.98rem;
-  font-weight: 900;
-  line-height: 1.25;
-}
-
-.detector-banner__hypothesis {
-  color: currentColor;
-  font-size: 0.84rem;
-  font-weight: 650;
-  line-height: 1.35;
-  opacity: 0.8;
-  overflow-wrap: anywhere;
-}
-
-.detector-banner__hypothesis p { margin: 0; }
-.detector-banner__hypothesis--sectioned {
-  display: grid;
-  gap: 0.28rem;
-}
-.detector-banner__hypothesis--sectioned p {
-  position: relative;
-  padding-left: 0.95rem;
-}
-.detector-banner__hypothesis--sectioned p::before {
-  position: absolute;
-  top: 0;
-  left: 0.15rem;
-  content: '•';
-}
-.detector-banner__hidden-note {
-  font-size: 0.78rem;
-  font-weight: 650;
-  opacity: 0.7;
-}
-
-.detector-banner__action {
-  flex-shrink: 0;
-  border: 1px solid rgba(255, 255, 255, 0.65);
-  border-radius: 999px;
-  padding: 0.55rem 0.78rem;
-  background: rgba(255, 255, 255, 0.72);
-  color: currentColor;
-  font-size: 0.8rem;
-  font-weight: 900;
-  cursor: pointer;
-}
-
-.detector-banner__action:hover {
-  background: #fff;
-}
-
-.detector-banner__action--ai {
-  color: #2563eb;
-}
-
-.detector-banner__close {
+.detector-banner__head { display: flex; align-items: center; gap: 0.6rem; }
+.detector-banner__head-ic {
   flex-shrink: 0;
   display: grid;
   place-items: center;
   width: 2rem;
   height: 2rem;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: currentColor;
-  cursor: pointer;
-  opacity: 0.55;
+  border-radius: 0.7rem;
+  background: rgba(255, 255, 255, 0.72);
 }
+.detector-banner__title { color: #1f2937; font-size: 0.98rem; font-weight: 900; line-height: 1.25; }
+.detector-banner__text { display: flex; flex-direction: column; gap: 0.15rem; }
+.detector-banner__hypothesis { color: currentColor; font-size: 0.84rem; font-weight: 650; opacity: 0.82; line-height: 1.35; }
 
-.detector-banner__close:hover {
-  background: rgba(255, 255, 255, 0.55);
-  opacity: 1;
-}
-
-.detector-banner__details {
-  display: grid;
-  gap: 0.55rem;
-}
-
-.detector-alert-row {
+/* ───── Блок-эпизод ───── */
+.detector-blocks { display: flex; flex-direction: column; gap: 0.55rem; }
+.detector-block {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.65rem;
-  padding: 0.65rem 0.75rem;
+  padding: 0.75rem 0.85rem;
   border-radius: 0.85rem;
   background: rgba(255, 255, 255, 0.72);
 }
-
-.detector-alert-row__dot {
-  width: 0.58rem;
-  height: 0.58rem;
+.detector-block--problem { --block-accent: #ef4444; }
+.detector-block--warning { --block-accent: #f59e0b; }
+.detector-block__dot {
+  margin-top: 0.42rem;
+  width: 0.55rem;
+  height: 0.55rem;
   border-radius: 999px;
-  background: currentColor;
-  box-shadow: 0 0 0 0.24rem color-mix(in srgb, currentColor 14%, transparent);
+  background: var(--block-accent, #f59e0b);
+  box-shadow: 0 0 0 0.22rem color-mix(in srgb, var(--block-accent, #f59e0b) 16%, transparent);
+  flex-shrink: 0;
 }
-
-.detector-alert-row__body {
-  display: flex;
-  flex-direction: column;
-  gap: 0.16rem;
-  min-width: 0;
-}
-
-.detector-alert-row__message {
-  display: grid;
-  gap: 0.38rem;
+.detector-block__body { min-width: 0; display: flex; flex-direction: column; gap: 0.28rem; }
+.detector-block__lead {
+  margin: 0;
   color: #1f2937;
-  font-size: 0.86rem;
+  font-size: 0.88rem;
   font-weight: 850;
-  line-height: 1.38;
+  line-height: 1.4;
   overflow-wrap: anywhere;
 }
-
-.detector-alert-row__message p {
+.detector-block__related {
   margin: 0;
-}
-
-.detector-alert-row__message--sectioned p {
-  position: relative;
-  padding-left: 0.95rem;
-}
-
-.detector-alert-row__message--sectioned p::before {
-  position: absolute;
-  top: 0;
-  left: 0.18rem;
-  color: currentColor;
-  content: '•';
-}
-
-.detector-alert-row__body small {
   color: #6b7280;
-  font-size: 0.75rem;
-  font-weight: 650;
-}
-
-.detector-alert-row__actions {
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.4;
   display: flex;
-  align-items: center;
-  gap: 0.35rem;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.3rem;
 }
+.detector-block__related-label { font-weight: 800; }
+.detector-block__related-text {
+  min-width: 0;
+  flex: 1 1 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.detector-block__more-link {
+  flex-shrink: 0;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: #2563eb;
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.detector-block__more-link:hover { text-decoration: underline; }
+.detector-block__details {
+  display: grid;
+  gap: 0.3rem;
+  margin-top: 0.15rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 0.6rem;
+  background: rgba(15, 23, 42, 0.04);
+  color: #374151;
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1.42;
+}
+.detector-block__details p { margin: 0; position: relative; padding-left: 0.9rem; }
+.detector-block__details p::before { content: '•'; position: absolute; left: 0.1rem; top: 0; color: #9ca3af; }
+.detector-block__diag { color: #6b7280; font-weight: 650; }
 
-.detector-alert-row__actions button {
+/* ───── Действия на блоке ───── */
+.detector-block__actions { display: flex; align-items: center; gap: 0.35rem; }
+.detector-block__actions button {
   border: 1px solid #e5e7eb;
   border-radius: 999px;
-  min-height: 2.45rem;
-  padding: 0.58rem 0.85rem;
+  min-height: 2.35rem;
+  padding: 0.5rem 0.8rem;
   background: #fff;
   color: #374151;
   font-size: 0.8rem;
   font-weight: 850;
   cursor: pointer;
+  white-space: nowrap;
 }
+.detector-block__actions button:hover { border-color: #bfdbfe; color: #2563eb; }
+.detector-block__ai { color: #2563eb !important; }
+.detector-block__dots-btn { min-width: 2.35rem; padding: 0.5rem 0.6rem !important; line-height: 0.5; }
 
-.detector-alert-row__actions button:hover {
-  border-color: #bfdbfe;
-  color: #2563eb;
-}
-
-.detector-alert-row__actions .detector-alert-row__soft {
-  color: #6b7280;
-}
-
-.detector-alert-row--problem {
-  color: #ef4444;
-}
-
-.detector-alert-row--warning {
-  color: #f59e0b;
-}
-
-.detector-alert-row--hidden {
-  color: #9ca3af;
-  opacity: 0.72;
-}
-
-.detector-banner-enter-active,
-.detector-banner-leave-active {
-  transition: all 0.25s ease;
-}
-.detector-banner-enter-from,
-.detector-banner-leave-to {
-  opacity: 0;
-  transform: translateY(-0.35rem);
-}
-
-@media (max-width: 760px) {
-  .detector-banner {
-    border-radius: 1.1rem;
-  }
-  .detector-banner__top,
-  .detector-alert-row {
-    align-items: flex-start;
-  }
-  .detector-banner__top,
-  .detector-alert-row__actions {
-    flex-wrap: wrap;
-  }
-  .detector-alert-row {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-  .detector-alert-row__actions {
-    grid-column: 2;
-  }
-  .detector-banner__hypothesis { white-space: normal; }
-}
-
-:root.dark .detector-banner--warning,
-.dark .detector-banner--warning,
-.darkmode .detector-banner--warning { background: rgba(251, 191, 36, 0.12); border-color: rgba(251, 191, 36, 0.28); color: #fbbf24; }
-:root.dark .detector-banner--problem,
-.dark .detector-banner--problem,
-.darkmode .detector-banner--problem { background: rgba(239, 68, 68, 0.12); border-color: rgba(239, 68, 68, 0.28); color: #f87171; }
-:root.dark .detector-banner--warmup,
-.dark .detector-banner--warmup,
-.darkmode .detector-banner--warmup { background: rgba(59, 130, 246, 0.12); border-color: rgba(59, 130, 246, 0.28); color: #60a5fa; }
-
-/* Дропдаун «Скрыть…» в шапке баннера (кейс одного алерта) */
-.detector-banner__snooze { position: relative; display: inline-flex; flex-shrink: 0; }
-
-.detector-banner__snooze-menu {
+.detector-block__snooze, .detector-block__dots { position: relative; }
+.detector-block__menu {
   position: absolute;
   top: calc(100% + 0.3rem);
-  right: 0;
-  z-index: 6;
+  left: 0;
+  z-index: 5;
   display: none;
   flex-direction: column;
-  min-width: 10.5rem;
-  padding: 0.42rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 0.7rem;
+  min-width: 8.5rem;
+  padding: 0.3rem;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 0.6rem;
   background: #fff;
-  box-shadow: 0 0.8rem 2rem rgba(15, 23, 42, 0.16);
+  box-shadow: 0 0.7rem 1.8rem rgba(15, 23, 42, 0.16);
 }
-
-.detector-banner__snooze.open .detector-banner__snooze-menu { display: flex; }
-
-.detector-banner__snooze-menu button {
-  border: 0;
-  min-height: 2.55rem;
-  padding: 0.6rem 0.8rem;
-  border-radius: 0.5rem;
-  background: transparent;
-  color: #374151;
-  font-size: 0.8rem;
-  font-weight: 800;
+.detector-block__menu--right { left: auto; right: 0; }
+.detector-block__snooze.open .detector-block__menu,
+.detector-block__dots.open .detector-block__menu { display: flex; }
+.detector-block__menu button {
+  min-height: auto !important;
+  border: 0 !important;
+  border-radius: 0.4rem !important;
+  padding: 0.5rem 0.6rem !important;
+  background: transparent !important;
+  color: #334155 !important;
   text-align: left;
-  white-space: nowrap;
+  font-weight: 700;
+}
+.detector-block__menu button:hover { background: #f1f5f9 !important; }
+
+/* ───── Скрытые: чип (состояние 1) и футер (состояние 2) ───── */
+.detector-hidden-chip-wrap { position: relative; align-self: flex-start; }
+.detector-hidden-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.5rem 0.85rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #f6f7f9;
+  color: #6b7280;
+  font-size: 0.82rem;
+  font-weight: 700;
   cursor: pointer;
 }
+.detector-hidden-chip:hover { background: #eef0f3; color: #374151; }
+.detector-hidden-chip__dot { width: 0.5rem; height: 0.5rem; border-radius: 999px; background: #9ca3af; }
 
-.detector-banner__snooze-menu button:hover { background: #f3f6fc; color: #2563eb; }
+.detector-banner__hidden-foot { margin-top: 0.1rem; padding-top: 0.55rem; border-top: 1px solid rgba(15, 23, 42, 0.08); }
+.detector-hidden-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: #6b7280;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.detector-hidden-link:hover { color: #374151; text-decoration: underline; }
 
-.detector-banner__action--soft { opacity: 0.75; }
-.detector-banner__action--soft:hover { opacity: 1; }
-
-/* Дропдаун «Скрыть…» на строке алерта */
-.detector-alert-row__snooze { position: relative; display: inline-flex; }
-
-.detector-alert-row__snooze-menu {
-  position: absolute;
-  top: calc(100% + 0.3rem);
-  right: 0;
-  z-index: 6;
-  display: none;
+.detector-hidden-list {
+  display: flex;
   flex-direction: column;
-  min-width: 10.5rem;
-  padding: 0.42rem;
-  border: 1px solid #e5e7eb;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+.detector-hidden-list--chip {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  left: 0;
+  z-index: 6;
+  min-width: 22rem;
+  max-width: 32rem;
+  padding: 0.55rem;
+  border: 1px solid rgba(15, 23, 42, 0.12);
   border-radius: 0.7rem;
   background: #fff;
   box-shadow: 0 0.8rem 2rem rgba(15, 23, 42, 0.16);
 }
-
-.detector-alert-row__snooze.open .detector-alert-row__snooze-menu { display: flex; }
-
-.detector-alert-row__snooze-menu button {
-  border: 0 !important;
-  min-height: 2.55rem;
-  padding: 0.6rem 0.8rem !important;
-  text-align: left;
+.detector-hidden-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.5rem 0.9rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 0.55rem;
+  background: rgba(15, 23, 42, 0.03);
+  font-size: 0.8rem;
+}
+.detector-hidden-item__text { color: #374151; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.detector-hidden-item__meta { color: #9ca3af; font-weight: 650; white-space: nowrap; }
+.detector-hidden-item button {
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  padding: 0.4rem 0.7rem;
+  background: #fff;
+  color: #2563eb;
+  font-size: 0.76rem;
+  font-weight: 800;
+  cursor: pointer;
   white-space: nowrap;
 }
+.detector-hidden-item button:hover { border-color: #bfdbfe; }
 
-.detector-alert-row__ai {
-  color: #2563eb !important;
-  border-color: rgba(37, 99, 235, 0.35) !important;
-}
-.detector-alert-row__divider {
-  width: 1px;
-  align-self: stretch;
-  background: rgba(15, 23, 42, 0.12);
-  margin: 0 0.35rem;
-}
-/* ТЗ ит.2 п.1.8: мобильная версия — баннер компактный, действия вертикально, тап ≥44px */
-@media (max-width: 767px) {
-  .detector-banner__head { flex-wrap: wrap; gap: 0.5rem; }
-  .detector-alert-row { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
-  .detector-alert-row__actions {
-    flex-direction: column;
-    align-items: stretch;
-    width: 100%;
-    gap: 0.4rem;
-  }
-  .detector-alert-row__actions button { min-height: 44px; }
-  .detector-alert-row__snoozes { display: flex; }
-  .detector-alert-row__snoozes button { flex: 1; }
-  .detector-alert-row__divider { width: 100%; height: 1px; margin: 0.2rem 0; }
+.detector-banner-enter-active, .detector-banner-leave-active { transition: all 0.25s ease; }
+.detector-banner-enter-from, .detector-banner-leave-to { opacity: 0; transform: translateY(-0.35rem); }
+
+@media (max-width: 760px) {
+  .detector-block { grid-template-columns: auto minmax(0, 1fr); }
+  .detector-block__actions { grid-column: 1 / -1; margin-top: 0.4rem; flex-wrap: wrap; }
+  .detector-hidden-list--chip { min-width: min(90vw, 22rem); }
+  .detector-hidden-item { grid-template-columns: 1fr; gap: 0.25rem; }
 }
 </style>
