@@ -22,18 +22,17 @@
             <p class="detector-block__lead">{{ leadPhrase(alert) }}</p>
             <p v-if="relatedShort(alert)" class="detector-block__related">
               <span class="detector-block__related-label">Связано:</span>
-              <span class="detector-block__related-text">{{ relatedShort(alert) }}</span>
+              <span
+                class="detector-block__related-text"
+                :class="{ 'detector-block__related-text--full': expandedId === alert.id }"
+              >{{ expandedId === alert.id ? relatedFull(alert) : relatedShort(alert) }}</span>
               <button
                 v-if="hasDetails(alert)"
                 type="button"
                 class="detector-block__more-link"
                 @click="toggleExpand(alert.id)"
-              >Подробнее {{ expandedId === alert.id ? '▴' : '▾' }}</button>
+              >{{ expandedId === alert.id ? 'Свернуть ▴' : 'Подробнее ▾' }}</button>
             </p>
-            <div v-if="expandedId === alert.id" class="detector-block__details">
-              <p v-for="(section, index) in relatedSections(alert)" :key="`${alert.id}-rel-${index}`">{{ section }}</p>
-              <p v-if="alert.meta && alert.meta.diagnosis" class="detector-block__diag">{{ alert.meta.diagnosis }}</p>
-            </div>
           </div>
 
           <div class="detector-block__actions">
@@ -179,6 +178,13 @@ const leadPhrase = (alert) => alertSections(alert)[0]
 const relatedSections = (alert) => alertSections(alert).slice(1)
 // Одна приглушённая строка «Связано: …» — связанные проверки через « · ».
 const relatedShort = (alert) => relatedSections(alert).join(' · ')
+// Полный текст по «Подробнее» — те же связанные фразы целиком + диагностика,
+// разворачивается ИНЛАЙНОМ (не отдельным блоком).
+const relatedFull = (alert) => {
+  const parts = relatedSections(alert)
+  const diag = alert?.meta && alert.meta.diagnosis ? String(alert.meta.diagnosis).trim() : ''
+  return [...parts, diag].filter(Boolean).join(' · ')
+}
 const hasDetails = (alert) =>
   relatedSections(alert).length > 0 || Boolean(alert?.meta && alert.meta.diagnosis)
 
@@ -291,6 +297,13 @@ const notProblem = (alert) => { openMoreId.value = null; emit('not-problem', ale
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Развёрнуто по «Подробнее»: текст течёт инлайном на всю ширину, без обрезки. */
+.detector-block__related-text--full {
+  flex: 1 1 100%;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
 .detector-block__more-link {
   flex-shrink: 0;
   border: 0;
@@ -302,21 +315,6 @@ const notProblem = (alert) => { openMoreId.value = null; emit('not-problem', ale
   cursor: pointer;
 }
 .detector-block__more-link:hover { text-decoration: underline; }
-.detector-block__details {
-  display: grid;
-  gap: 0.3rem;
-  margin-top: 0.15rem;
-  padding: 0.5rem 0.65rem;
-  border-radius: 0.6rem;
-  background: rgba(15, 23, 42, 0.04);
-  color: #374151;
-  font-size: 0.82rem;
-  font-weight: 600;
-  line-height: 1.42;
-}
-.detector-block__details p { margin: 0; position: relative; padding-left: 0.9rem; }
-.detector-block__details p::before { content: '•'; position: absolute; left: 0.1rem; top: 0; color: #9ca3af; }
-.detector-block__diag { color: #6b7280; font-weight: 650; }
 
 /* ───── Действия на блоке ───── */
 .detector-block__actions { display: flex; align-items: center; gap: 0.35rem; }
