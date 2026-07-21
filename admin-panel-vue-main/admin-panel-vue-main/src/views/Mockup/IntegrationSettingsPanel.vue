@@ -179,10 +179,7 @@
 
           <!-- Goals heading -->
           <h4 class="ip-section-title mb-[0.4167rem]">Цели и конверсии</h4>
-          <p class="ip-goals-hint">
-            <span class="ip-star-hint">★</span>
-            Звезда — основная цель. Галочка — что отслеживать.
-          </p>
+          <p class="ip-goals-hint">Отметьте галочкой цели, которые нужно отслеживать.</p>
 
           <!-- Goals list -->
           <div v-if="loadingGoals" class="ip-goals-loading">Загрузка целей…</div>
@@ -225,19 +222,9 @@
                 <span class="ip-goal__meta" v-else> · ID {{ goal.id }}</span>
               </div>
 
-              <!-- Right: star / badge / error text -->
+              <!-- Right: badge / error text (звёзды/основную цель убрали — правка 7) -->
               <div class="ip-goal__right flex-shrink-0">
-                <svg
-                  v-if="isGoalSelected(goal.id)"
-                  class="ip-goal-star"
-                  :class="{ 'ip-goal-star--active': String(goal.id) === String(primaryGoalId) }"
-                  @click.stop="selectPrimaryGoal(goal.id)"
-                  width="18" height="18" viewBox="0 0 24 24"
-                  :fill="String(goal.id) === String(primaryGoalId) ? '#8a7a54' : '#bfb08a'"
-                >
-                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                </svg>
-                <span v-else-if="goal.state === 'new'" class="ip-new-badge">Новая</span>
+                <span v-if="goal.state === 'new'" class="ip-new-badge">Новая</span>
                 <span v-else-if="goal.state === 'error'" class="ip-error-text">не приходит из Метрики</span>
               </div>
             </div>
@@ -431,7 +418,9 @@ const hiddenAvailableCounterCount = computed(() => Math.max(filteredAvailableCou
 // ── New-goal notice ───────────────────────────────────────────────────────────
 
 const hasNewGoals = computed(() => goals.value.some(g => g.state === 'new'))
-const canSave = computed(() => isVkIntegration.value || (selectedGoalIds.value.length > 0 && Boolean(primaryGoalId.value)))
+// Все цели равнозначны (правка 7): для сохранения достаточно выбрать ≥1 цель,
+// «основная цель» больше не требуется.
+const canSave = computed(() => isVkIntegration.value || selectedGoalIds.value.length > 0)
 const deleteConfirmPhrase = computed(() => channelName.value)
 
 const isGoalSelected = (goalId) => selectedGoalIds.value.includes(String(goalId))

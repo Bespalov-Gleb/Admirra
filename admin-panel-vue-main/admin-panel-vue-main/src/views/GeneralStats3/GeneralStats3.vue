@@ -38,17 +38,19 @@
       <div class="dashboard-title-row dashboard-title-row--actions">
         <h1>{{ dashboardTitle }}</h1>
         <div class="dashboard-title-meta">
-          <!-- Статус детектора — слева от информации о синхронизации. -->
-          <span
-            v-if="filters.client_id && detectorSummary"
-            class="detector-status-chip detector-status-chip--inline"
+          <!-- Статус детектора — слева от информации о синхронизации.
+               Когда выключен/на паузе — клик ведёт в настройки детектора. -->
+          <button
+            v-if="filters.client_id && detectorSummary && !folderMode"
+            type="button"
+            class="detector-status-chip detector-status-chip--inline detector-status-chip--btn"
             :class="`detector-status-chip--${detectorStatusChip.kind}`"
-            :title="detectorStatusChip.hint"
-            role="status"
+            :title="detectorStatusChip.kind === 'off' ? 'Открыть настройки детектора' : detectorStatusChip.hint"
+            @click="openProjectSettingsModal"
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.8-3 8.6-7 10-4-1.4-7-5.2-7-10V6l7-3z"/></svg>
             <span>{{ detectorStatusChip.label }}</span>
-          </span>
+          </button>
           <span class="dashboard-sync-text" :title="syncStatusLabel">
             <ArrowPathIcon :class="{ spinning: dashboardSyncInProgress }" />
             {{ syncStatusLabel }}
@@ -14823,6 +14825,8 @@ onMounted(() => {
 /* Правая часть заголовка: инфо о синхроне (простой текст) + НДС. */
 .dashboard-title-meta { margin-left:auto; display:flex; align-items:center; gap:1.1111rem; flex-wrap:wrap; justify-content:flex-end; }
 .dashboard-title-meta .detector-status-chip--inline { min-height:1.9rem; margin:0; padding:.32rem .7rem; font-size:.88rem; line-height:1; gap:.36rem; }
+.detector-status-chip--btn { border:0; font:inherit; cursor:pointer; transition:filter .15s ease, box-shadow .15s ease; }
+.detector-status-chip--btn:hover { filter:brightness(.97); box-shadow:inset 0 0 0 1px rgba(0,0,0,.06); }
 .dashboard-sync-text { display:inline-flex; align-items:center; gap:.4167rem; color:#98a2b6; font-size:.9028rem; font-weight:500; white-space:nowrap; }
 .dashboard-sync-text svg { width:.9722rem; height:.9722rem; flex:0 0 auto; }
 .dashboard-sync-text svg.spinning { animation:dashboard-spin 1s linear infinite; }

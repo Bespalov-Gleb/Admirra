@@ -555,7 +555,7 @@
           <div class="panel-head">
             <div>
               <h4 class="dark:!text-white/90">Цели и конверсии</h4>
-              <p class="dark:!text-white/55">Выберите основную цель и дополнительные цели</p>
+              <p class="dark:!text-white/55">Выберите цели для отслеживания</p>
             </div>
             <div class="flex items-center gap-[0.6944rem]">
               <div class="search-wrap">
@@ -615,15 +615,6 @@
                   <span class="select-tile__meta dark:!text-white/50">ID: {{ goal.id }}</span>
                   <span class="select-tile__footer">
                     <span class="select-tile__caption dark:!bg-white/10 dark:!text-white/55">{{ goal.type || 'Цель' }}</span>
-                    <button
-                      type="button"
-                      class="favorite-btn dark:!bg-white/10 dark:!text-white/45"
-                      :class="{ 'favorite-btn--active': form.primary_goal_id === goal.id }"
-                      :title="form.primary_goal_id === goal.id ? 'Снять основную цель' : 'Сделать основной'"
-                      @click.stop.prevent="selectPrimaryGoal(goal.id)"
-                    >
-                      ★
-                    </button>
                   </span>
                 </label>
               </div>
@@ -699,11 +690,6 @@
                 <li v-for="(line, i) in summaryCounterLines" :key="i">{{ line }}</li>
               </ul>
             </div>
-            <div v-if="usesMetrikaWizard && form.primary_goal_id" class="summary-card summary-card--cyan dark:!bg-white/5">
-              <span class="summary-card__icon dark:!bg-white/10">★</span>
-              <span class="summary-card__label dark:!text-white/50">Основная цель</span>
-              <strong class="dark:!text-white/85">{{ goals.find(g => g.id === form.primary_goal_id)?.name || form.primary_goal_id }}</strong>
-            </div>
             <div v-if="form.platform === 'AVITO_ADS'" class="summary-card summary-card--green dark:!bg-white/5">
               <span class="summary-card__icon dark:!bg-white/10">UTM</span>
               <span class="summary-card__label dark:!text-white/50">Источник лидов</span>
@@ -711,8 +697,8 @@
             </div>
             <div v-if="usesMetrikaWizard" class="summary-card summary-card--violet dark:!bg-white/5">
               <span class="summary-card__icon dark:!bg-white/10">+</span>
-              <span class="summary-card__label dark:!text-white/50">Дополнительные цели</span>
-              <strong class="dark:!text-white/85">Отмечено: {{ summaryAdditionalGoalLines.length }}</strong>
+              <span class="summary-card__label dark:!text-white/50">Цели</span>
+              <strong class="dark:!text-white/85">Выбрано: {{ summaryAdditionalGoalLines.length }}</strong>
               <ul v-if="summaryAdditionalGoalLines.length">
                 <li v-for="(name, i) in summaryAdditionalGoalLines" :key="i">{{ name }}</li>
               </ul>
@@ -968,12 +954,10 @@ const summaryCounterLines = computed(() =>
     .map((c) => `${c.name || 'Счётчик'} · ID ${c.id}`)
 )
 
-const summaryAdditionalGoalLines = computed(() => {
-  const primary = form.primary_goal_id
-  return selectedGoalIds.value
-    .filter((id) => id !== primary)
-    .map((id) => goals.value.find((g) => g.id === id)?.name || String(id))
-})
+// Все цели равнозначны (правка 7): в сводке показываем все выбранные, без деления.
+const summaryAdditionalGoalLines = computed(() =>
+  selectedGoalIds.value.map((id) => goals.value.find((g) => g.id === id)?.name || String(id))
+)
 
 const stopVkClientLinkPolling = () => {
   if (vkLinkPollTimer) {
