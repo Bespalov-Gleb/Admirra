@@ -393,10 +393,10 @@ async def chat(
     if not settings.OPENAI_API_KEY:
         raise ValueError("OPENAI_API_KEY не настроен")
 
-    if folder_id and not client_id:
-        effective_client_ids = StatsService.resolve_folder_client_ids(db, user_id, folder_id)
-    else:
-        effective_client_ids = StatsService.get_effective_client_ids(db, user_id, client_id)
+    # Чат ассистента всегда привязан к конкретному проекту (роутер требует
+    # client_id). Ветки по folder_id в chat() нет — из-за неё падал NameError
+    # (folder_id не определён) → все запросы к ассистенту отдавали 503.
+    effective_client_ids = StatsService.get_effective_client_ids(db, user_id, client_id)
     if not effective_client_ids:
         return "Нет доступа к данным проектов."
 
