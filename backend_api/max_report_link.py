@@ -134,7 +134,19 @@ async def max_reports_webhook(request: Request, db: Session = Depends(get_db)):
         text = str(msg_body.get("text") or "").strip()
         recipient = msg.get("recipient") or {}
         group_chat_id = str(recipient.get("chat_id") or "").strip()
+        chat_type = str(recipient.get("chat_type") or "").strip().lower()
         if text.startswith("/link") and group_chat_id:
+            # Групповой /link принимаем ТОЛЬКО из настоящей группы/канала. В личном
+            # диалоге (chat_type=dialog) chat_id совпадает с личным чатом пользователя —
+            # раньше это создавало «группу», указывающую на личку, и отчёт в реальную
+            # группу не уходил (дублировался в личный чат).
+            if chat_type == "dialog":
+                await max_reports_bot.send_message(
+                    "Эту команду нужно отправить внутри группы, а не в личном чате с ботом. "
+                    "Добавьте бота в группу и отправьте там «/link <код>».",
+                    chat_id=group_chat_id,
+                )
+                return {"ok": True}
             code = text.split(maxsplit=1)[1].strip() if len(text.split(maxsplit=1)) > 1 else ""
             if code and len(code) <= 64:
                 row = (
