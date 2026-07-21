@@ -14,8 +14,8 @@ from automation.mytarget import MyTargetAPI
 from automation.avito_ads import AvitoAdsAPI
 from automation.avito_integration_helpers import (
     build_avito_api_from_integration as _build_avito_api_from_integration,
-    get_metrika_integration_for_client as _get_metrika_integration_for_client,
-    metrika_profile_login as _metrika_profile_login,
+    avito_metrika_access_token as _avito_metrika_access_token,
+    avito_metrika_profile_login as _avito_metrika_profile_login,
 )
 from typing import List, Optional
 import uuid
@@ -1181,6 +1181,7 @@ async def exchange_yandex_token(
             db.flush()
 
     resume_integration_id = attempt.resume_integration_id
+    avito_integration: Optional[models.Integration] = None
     if attempt.flow == "avito_metrika":
         if not resume_integration_id:
             raise HTTPException(status_code=400, detail="Не найдена интеграция Avito для продолжения")
@@ -1260,12 +1261,6 @@ async def exchange_yandex_token(
             # personal Passport login.
             yandex_login = organization_login
 
-        # 3. Save integration for the server-bound project.
-        db_integration = db.query(models.Integration).filter(
-            models.Integration.client_id == project.id,
-            models.Integration.platform == target_platform
-        ).first()
-
         encrypted_access = security.encrypt_token(access_token)
         encrypted_refresh = security.encrypt_token(refresh_token) if refresh_token else None
 
@@ -1274,14 +1269,38 @@ async def exchange_yandex_token(
         # Store User ID as platform_client_id (optional, but good for reference)
         encrypted_platform_id = security.encrypt_token(yandex_user_id) if yandex_user_id else None
 
-        if db_integration:
+        # Avito intentionally owns a dedicated Metrika grant.  Do not create
+        # or overwrite a project-level YANDEX_METRIKA integration here: it may
+        # belong to the Direct channel and have a completely different set of
+        # counters/goals.
+        if attempt.flow == "avito_metrika":
+            if not avito_integration:
+                raise HTTPException(status_code=409, detail="Не найдена интеграция Avito для сохранения Метрики")
+            avito_integration.metrika_access_token = encrypted_access
+            avito_integration.metrika_refresh_token = encrypted_refresh
+            avito_integration.metrika_account_id = final_account_id
+            # A fresh OAuth grant can point to another Metrika account, so old
+            # IDs must never survive and be applied to unrelated counters.
+            avito_integration.selected_counters = None
+            avito_integration.selected_goals = None
+            avito_integration.primary_goal_id = None
+            avito_integration.error_message = None
+            db_integration = avito_integration
+        else:
+            # 3. Save the normal Yandex Direct integration for the project.
+            db_integration = db.query(models.Integration).filter(
+                models.Integration.client_id == project.id,
+                models.Integration.platform == target_platform,
+            ).first()
+
+        if attempt.flow != "avito_metrika" and db_integration:
             db_integration.access_token = encrypted_access
             db_integration.refresh_token = encrypted_refresh
             db_integration.account_id = final_account_id
             db_integration.platform_client_id = encrypted_platform_id
             db_integration.oauth_app = "org" if is_org_flow else None
             db_integration.sync_status = models.IntegrationSyncStatus.NEVER
-        else:
+        elif attempt.flow != "avito_metrika":
             SubscriptionService.ensure_can_create_cabinet(db, current_user)
             db_integration = models.Integration(
                 client_id=project.id,
@@ -1299,14 +1318,16 @@ async def exchange_yandex_token(
         db.refresh(db_integration)
         
         # SILENT AUTOMATION: Removed auto_discover_agency_bg to allow user selection
-        # Instead, we check if it's an agency account and return it
+        # Instead, we check if it's an agency account and return it.  Avito's
+        # Metrika-only OAuth does not need a Direct agency probe.
         is_agency = False
-        try:
-             agency_clients = await get_agency_clients(access_token)
-             if agency_clients:
-                 is_agency = True
-        except:
-             pass
+        if attempt.flow != "avito_metrika":
+            try:
+                 agency_clients = await get_agency_clients(access_token)
+                 if agency_clients:
+                     is_agency = True
+            except Exception:
+                 pass
 
         return {
             "status": "success",
@@ -2448,7 +2469,11 @@ async def get_integration_counters(
     """
     integration = _integration_for_project_access(db, current_user, integration_id)
     
-    access_token = security.decrypt_token(integration.access_token)
+    access_token = (
+        None
+        if integration.platform == models.IntegrationPlatform.AVITO_ADS
+        else security.decrypt_token(integration.access_token)
+    )
     
     # Determine target_account for profile filtering
     if account_id:
@@ -2465,13 +2490,13 @@ async def get_integration_counters(
         logger.info(f"ℹ️ VK Ads integration - Metrika counters are not applicable. Returning empty list.")
         return {"counters": []}
 
-    # Avito Ads: counters come from a linked YANDEX_METRIKA integration
+    # Avito Ads: counters come only from the OAuth grant attached to this
+    # particular Avito integration, never from another channel in the project.
     if integration.platform == models.IntegrationPlatform.AVITO_ADS:
-        metrika_src = _get_metrika_integration_for_client(db, integration.client_id)
-        if not metrika_src:
+        access_token = _avito_metrika_access_token(integration)
+        if not access_token:
             return {"counters": [], "warning": "Подключите Яндекс Метрику (OAuth) для выбора счётчиков лидов"}
-        access_token = security.decrypt_token(metrika_src.access_token)
-        target_account = _metrika_profile_login(metrika_src)
+        target_account = _avito_metrika_profile_login(integration)
     target_account = _clean_metrika_target_account(target_account)
 
     if integration.platform in (
@@ -2755,8 +2780,13 @@ async def get_integration_goals(
     # This is important because the profile might have been updated just before this call
     db.refresh(integration)
 
-    # Use the token from integration
-    access_token = security.decrypt_token(integration.access_token)
+    # Avito keeps a separate Metrika OAuth token. Its platform token is not a
+    # Yandex token and must never be passed to the Metrika API.
+    access_token = (
+        None
+        if integration.platform == models.IntegrationPlatform.AVITO_ADS
+        else security.decrypt_token(integration.access_token)
+    )
     # Флаг, надо ли вообще считать конверсии (DB + Metrika API).
     include_stats = bool(date_from and date_to and with_stats)
     
@@ -2765,13 +2795,12 @@ async def get_integration_goals(
         logger.info(f"ℹ️ VK Ads integration - Yandex Metrika goals are not applicable. Returning empty list.")
         return []
 
-    # Avito Ads: goals come from a linked YANDEX_METRIKA integration
+    # Avito Ads: goals come only from its dedicated Metrika OAuth grant.
     if integration.platform == models.IntegrationPlatform.AVITO_ADS:
-        metrika_src = _get_metrika_integration_for_client(db, integration.client_id)
-        if not metrika_src:
+        access_token = _avito_metrika_access_token(integration)
+        if not access_token:
             return []
-        access_token = security.decrypt_token(metrika_src.access_token)
-        target_account = _metrika_profile_login(metrika_src)
+        target_account = _avito_metrika_profile_login(integration)
     else:
         # Determine target_account for profile filtering (used in both paths)
         if account_id:

@@ -158,9 +158,6 @@ onMounted(async () => {
 
     if (response.data.flow === 'avito_metrika') {
       const avitoIntegrationId = response.data.resume_integration_id
-      if (response.data.integration_id) {
-        localStorage.setItem('metrika_integration_id', response.data.integration_id)
-      }
       toaster.success('Яндекс Метрика подключена для лидов Avito')
       router.push({
         path: '/integrations/wizard',

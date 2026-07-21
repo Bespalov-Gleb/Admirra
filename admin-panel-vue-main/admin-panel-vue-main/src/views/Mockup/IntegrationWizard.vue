@@ -117,10 +117,10 @@
               type="button"
               class="primary-btn mt-auto"
               :class="{ 'primary-btn--vk': form.platform === 'VK_ADS', 'primary-btn--avito': form.platform === 'AVITO_ADS' }"
-              :disabled="loadingAuth || (isVkClientLink && !form.client_id)"
-              @click="handleConnectClick"
-            >
-              <span>{{ loadingAuth ? 'Перенаправление...' : connectButtonText }}</span>
+            :disabled="loadingAuth || (isVkClientLink && !form.client_id) || (form.platform === 'AVITO_ADS' && !avitoAccessReady)"
+            @click="handleConnectClick"
+          >
+              <span>{{ loadingAuth ? (form.platform === 'AVITO_ADS' ? 'Подключение…' : 'Перенаправление…') : connectButtonText }}</span>
             </button>
           </div>
 
@@ -155,16 +155,29 @@
             </div>
           </div>
 
-          <div v-else-if="form.platform !== 'VK_ADS'" class="channel-card">
+          <!-- Правка 9: данные доступа Avito живут в правой панели шага 1
+               (симметрично панели способа подключения VK). Отдельного шага
+               «Данные доступа» больше нет. -->
+          <div v-else-if="form.platform === 'AVITO_ADS'" class="channel-card channel-card--vk-link">
             <div class="channel-card__icon">
               <img :src="platformIcon" :alt="platformName" />
             </div>
-            <h4>{{ platformTitle }}</h4>
-            <p>Автоматический сбор кампаний, ключевых слов и статистики</p>
-            <div class="channel-card__status">
-              <span></span>
-              API: СОЕДИНЕНО
+            <h4>Интеграция с Avito Ads</h4>
+            <p>Введите данные рекламного кабинета. Профиль выбирать не нужно: по этим ключам доступен один кабинет.</p>
+
+            <div class="field-block">
+              <div class="field-label dark:!text-white/65">ID аккаунта Avito</div>
+              <input v-model="form.avito_account_id" class="wizard-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40" type="text" inputmode="numeric" placeholder="ID рекламного аккаунта" />
             </div>
+            <div class="field-block">
+              <div class="field-label dark:!text-white/65">Client ID</div>
+              <input v-model="form.avito_client_id" class="wizard-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40" type="text" autocomplete="off" placeholder="Avito Client ID" />
+            </div>
+            <div class="field-block">
+              <div class="field-label dark:!text-white/65">Client Secret</div>
+              <input v-model="form.avito_client_secret" class="wizard-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40" type="password" autocomplete="new-password" placeholder="Avito Client Secret" />
+            </div>
+            <a href="https://developers.avito.ru/api-catalog/" target="_blank" rel="noopener noreferrer" class="avito-keys-hint">Где взять ключи?</a>
           </div>
 
           <div v-else class="channel-card channel-card--vk-link">
@@ -225,7 +238,8 @@
         </Transition>
       </section>
 
-      <section :ref="(el) => setStepRef(2, el)" class="wizard-step-section" :class="{ 'wizard-step-section--active': step === 2, 'wizard-step-section--done': step > 2 }">
+      <!-- Правка 9: для Avito шаг «Данные доступа» удалён (данные — на шаге 1). -->
+      <section v-if="form.platform !== 'AVITO_ADS'" :ref="(el) => setStepRef(2, el)" class="wizard-step-section" :class="{ 'wizard-step-section--active': step === 2, 'wizard-step-section--done': step > 2 }">
         <button
           type="button"
           class="wizard-step dark:!bg-[#2C2F3D] dark:!text-white/75 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]"
@@ -371,8 +385,8 @@
                 <span class="select-tile__check dark:!bg-white/10">✓</span>
               </span>
               <span class="select-tile__title dark:!text-white/85">{{ cabinet.name || cabinet.login }}</span>
-              <span class="select-tile__meta dark:!text-white/50">{{ cabinet.login }}</span>
-              <span class="select-tile__caption dark:!bg-white/10 dark:!text-white/55">{{ cabinet.type || 'Рекламный кабинет' }}</span>
+              <span class="select-tile__meta dark:!text-white/50">ID: {{ cabinet.login }}</span>
+              <span class="select-tile__caption dark:!bg-white/10 dark:!text-white/55">{{ cabinetTypeLabel(cabinet.type) }}</span>
             </label>
           </div>
 
@@ -402,7 +416,7 @@
           :class="{ 'wizard-step--active': step === 3, 'wizard-step--done': step > 3 }"
           @click="goToVisibleStep(3)"
         >
-          <span class="wizard-step__number dark:!bg-white/10 dark:!text-white/65">3</span>
+          <span class="wizard-step__number dark:!bg-white/10 dark:!text-white/65">{{ displayStepNo(3) }}</span>
           <span class="wizard-step__label">{{ isVk ? 'Целевые действия' : 'Счетчики и цели' }}</span>
         </button>
 
@@ -459,6 +473,7 @@
           <div class="panel-head">
             <div>
               <h4 class="dark:!text-white/90">Яндекс Метрика (лиды)</h4>
+              <p class="dark:!text-white/55">Лиды Авито считаются по визитам из Метрики с указанным UTM source. Подключите Метрику, чтобы выбрать счётчики и цели.</p>
             </div>
           </div>
           <div v-if="metrikaIntegrationId" class="status-pill dark:!bg-emerald-500/10 dark:!text-emerald-300">
@@ -475,21 +490,7 @@
           </button>
         </div>
 
-        <div v-if="form.platform === 'AVITO_ADS'" class="wizard-panel avito-utm-panel mt-[1.3889rem] dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
-          <div>
-            <h4 class="dark:!text-white/90">UTM source</h4>
-            <p class="dark:!text-white/55">По этому source считаются лиды из Метрики; измените, если у клиента нестандартный source.</p>
-          </div>
-          <input
-            v-model.trim="form.utm_source"
-            type="text"
-            class="wizard-input avito-utm-input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
-            placeholder="avito-ads"
-            autocomplete="off"
-          />
-        </div>
-
-        <div v-if="usesMetrikaWizard" class="wizard-panel mt-[1.3889rem] dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
+        <div v-if="metrikaWizardReady" class="wizard-panel mt-[1.3889rem] dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
           <div class="panel-head">
             <div>
               <h4 class="dark:!text-white/90">Счетчики метрики</h4>
@@ -548,12 +549,25 @@
           <div v-if="hiddenCounterCount > 0" class="large-list-hint dark:!text-white/55">
             Показано {{ visibleCounters.length }} из {{ filteredCounters.length }}. Уточните поиск, чтобы быстрее выбрать нужный счётчик.
           </div>
+
+          <div v-if="form.platform === 'AVITO_ADS'" class="avito-utm-row dark:!border-white/10">
+            <label for="avito-utm-source" class="avito-utm-row__label dark:!text-white/75">UTM source</label>
+            <input
+              id="avito-utm-source"
+              v-model.trim="form.utm_source"
+              type="text"
+              class="wizard-input avito-utm-row__input dark:!bg-[#2C2F3D] dark:!text-white/90 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] dark:placeholder:!text-white/40"
+              placeholder="avito-ads"
+              autocomplete="off"
+            />
+            <span class="avito-utm-row__hint dark:!text-white/45">По этому source считаются лиды из Метрики. Измените, если у клиента нестандартный source.</span>
+          </div>
         </div>
 
         <!-- Правка 3: верхняя дублирующая плашка о пересекающихся целях убрана,
              осталась одна развёрнутая — под списком целей. -->
 
-        <div v-if="usesMetrikaWizard" class="wizard-panel mt-[1.3889rem] dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
+        <div v-if="metrikaWizardReady" class="wizard-panel mt-[1.3889rem] dark:!bg-[#2C2F3D] dark:!border dark:!border-white/10">
           <div class="panel-head">
             <div>
               <h4 class="dark:!text-white/90">Цели и конверсии</h4>
@@ -628,13 +642,13 @@
           </template>
         </div>
 
-        <div v-if="usesMetrikaWizard" class="disclaimer-banner disclaimer-banner--yellow mt-[1.3889rem]">
+        <div v-if="metrikaWizardReady" class="disclaimer-banner disclaimer-banner--yellow mt-[1.3889rem]">
           <span class="disclaimer-banner__icon">ℹ</span>
           <span>Проверьте, не пересекаются ли выбранные цели. Если одна уже включает другую (например, «Заявка / Все формы» содержит «Заявку с 1-го экрана») — оставьте только более широкую, иначе одно действие засчитается дважды и цифры будут выше реальных.</span>
         </div>
 
         <div class="wizard-actions mt-[1.3889rem]">
-          <button type="button" class="secondary-btn dark:!bg-white/5 dark:!text-white/70 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]" @click="step = 2">Назад</button>
+          <button type="button" class="secondary-btn dark:!bg-white/5 dark:!text-white/70 dark:!shadow-[inset_0_0_0_1px_rgba(255,255,255,0.12)]" @click="step = form.platform === 'AVITO_ADS' ? 1 : 2">Назад</button>
           <div class="wizard-actions__right">
             <button type="button" class="ghost-btn dark:!bg-white/5 dark:!text-white/70" @click="handleCancel">Отмена</button>
             <button type="button" class="primary-btn" @click="goToStep4">Далее</button>
@@ -651,7 +665,7 @@
           :class="{ 'wizard-step--active': step === 4 }"
           @click="goToVisibleStep(4)"
         >
-          <span class="wizard-step__number dark:!bg-white/10 dark:!text-white/65">4</span>
+          <span class="wizard-step__number dark:!bg-white/10 dark:!text-white/65">{{ displayStepNo(4) }}</span>
           <span class="wizard-step__label">Сводка</span>
         </button>
 
@@ -865,7 +879,7 @@ const platformIcon = computed(() => {
 })
 const connectButtonText = computed(() => {
   if (form.platform === 'YANDEX_DIRECT') return 'Подключить Яндекс Директ'
-  if (form.platform === 'AVITO_ADS') return 'Далее'
+  if (form.platform === 'AVITO_ADS') return 'Подключить Avito Ads'
   if (isVkClientLink.value) return 'Проверить подключение'
   return 'Подключить VK Ads'
 })
@@ -883,6 +897,11 @@ const vkLeadActionLabels = computed(() =>
 
 const usesMetrikaWizard = computed(() =>
   form.platform === 'YANDEX_DIRECT' || form.platform === 'AVITO_ADS'
+)
+// Для Avito причина всегда предшествует следствию: до завершения отдельного
+// OAuth Метрики не рисуем пустые счётчики, цели и UTM-настройку.
+const metrikaWizardReady = computed(() =>
+  form.platform === 'YANDEX_DIRECT' || Boolean(metrikaIntegrationId.value)
 )
 const projectSelectLabel = computed(() => {
   if (!form.client_id) return 'Выберите проект'
@@ -1207,19 +1226,10 @@ onMounted(async () => {
     isNewProject.value = false
   }
 
-  // resumeId / metrikaConnected уже определены выше.
-  // Привязку Метрики восстанавливаем ТОЛЬКО при возобновлении флоу.
-  // Для нового визарда чистим залежавшийся metrika_integration_id от прошлой
-  // (отменённой/брошенной) попытки — иначе на шаге 3 Avito ложно показывает
-  // «Метрика подключена», но счётчики/цели пустые.
-  if (resumeId) {
-    if (localStorage.getItem('metrika_integration_id')) {
-      metrikaIntegrationId.value = localStorage.getItem('metrika_integration_id')
-    }
-  } else {
-    try { localStorage.removeItem('metrika_integration_id') } catch (e) {}
-    metrikaIntegrationId.value = null
-  }
+  // Исторический ключ больше не используем: OAuth-токен Метрики хранится на
+  // конкретной Avito-интеграции, а не в общей для проекта записи Яндекса.
+  try { localStorage.removeItem('metrika_integration_id') } catch (e) {}
+  metrikaIntegrationId.value = null
 
   if (resumeId) {
     lastIntegrationId.value = resumeId
@@ -1245,7 +1255,7 @@ onMounted(async () => {
         vkConnectionMode.value = 'client'
       }
     }
-    await resolveMetrikaIntegrationId()
+    await resolveMetrikaIntegrationId(resumedIntegration)
 
     if (s >= 3) {
       step.value = 3
@@ -1253,7 +1263,7 @@ onMounted(async () => {
       if (resumedIntegration?.platform === 'VK_ADS') {
         await loadVkLeadActions(resumeId)
       }
-      if (usesMetrikaWizard.value && (metrikaIntegrationId.value || metrikaConnected)) {
+      if (metrikaWizardReady.value || metrikaConnected) {
         await fetchCounters(resumeId)
         // Цели грузим только если счётчики авто-выбраны (мало). При большом числе
         // счётчиков пользователь выбирает сам — цели подтянет вотчер.
@@ -1306,6 +1316,12 @@ const selectProject = (id) => {
 }
 
 const isStepVisible = (idx) => step.value >= idx
+// Правка 9: у Avito шаг 2 отсутствует — визуально нумеруем 1·2·3 (шаги 3/4 → 2/3).
+const displayStepNo = (n) => (form.platform === 'AVITO_ADS' && n > 2 ? n - 1 : n)
+const cabinetTypeLabel = (type) => {
+  if (type === 'agency_client' || type === 'manager_client') return 'agency'
+  return type || 'personal'
+}
 
 const selectProfile = (cabinet) => {
   const isDelegatedVkProfile = ['agency_client', 'manager_client'].includes(cabinet.type)
@@ -1551,32 +1567,24 @@ const doFinish = async () => {
   }
 }
 
-const resolveMetrikaIntegrationId = async () => {
+const resolveMetrikaIntegrationId = async (knownIntegration = null) => {
+  if (form.platform === 'AVITO_ADS') {
+    const integration = knownIntegration || (lastIntegrationId.value
+      ? await api.get(`/integrations/${lastIntegrationId.value}`).then(({ data }) => data)
+      : null)
+    metrikaIntegrationId.value = integration?.metrika_connected ? String(integration.id || lastIntegrationId.value) : null
+    return
+  }
   if (metrikaIntegrationId.value) return
   try {
     const { data } = await api.get('integrations/')
-    const stored = localStorage.getItem('metrika_integration_id')
-    // Доверяем сохранённому id ТОЛЬКО если эта Метрика реально принадлежит
-    // текущему проекту — иначе Метрика от другого (например Яндекс) проекта
-    // ложно показалась бы подключённой в Avito-флоу.
-    const storedBelongsToClient = stored && data.some(
-      (i) => String(i.id) === String(stored)
-        && i.platform === 'YANDEX_METRIKA'
-        && String(i.client_id) === String(form.client_id)
-    )
-    if (storedBelongsToClient) {
-      metrikaIntegrationId.value = stored
-      return
-    }
     const metrika = data.find(
       (i) => i.platform === 'YANDEX_METRIKA' && String(i.client_id) === String(form.client_id)
     )
     if (metrika) {
       metrikaIntegrationId.value = metrika.id
-      localStorage.setItem('metrika_integration_id', metrika.id)
     } else {
-      // У этого проекта Метрики нет — убираем возможный чужой/залежавшийся id
-      try { localStorage.removeItem('metrika_integration_id') } catch (e) {}
+      // У этого проекта Метрики нет.
       metrikaIntegrationId.value = null
     }
   } catch (e) {
@@ -1667,9 +1675,10 @@ const handleConnectClick = async () => {
   if (form.platform === 'YANDEX_DIRECT') {
     await initYandexAuth()
   } else if (form.platform === 'AVITO_ADS') {
+    // Правка 9: подключаем прямо со шага 1 (данные доступа в правой панели),
+    // при успехе connectAvito уводит на «Счётчики и цели» (шаг 3).
     error.value = null
-    step.value = 2
-    scrollToStep(2)
+    await connectAvito()
   } else {
     if (isVkClientLink.value) await checkVkClientLink()
     else await initVKAuth()
@@ -1722,8 +1731,9 @@ const connectAvito = async () => {
       await fetchCounters(data.integration_id)
       if (selectedCounterIds.value.length) await fetchGoals(data.integration_id)
     }
-    // Не перескакиваем сразу на шаг 3 — показываем подтверждённый кабинет
-    // (название «ИП …») в превью справа, пользователь жмёт «Далее».
+    // Правка 9: сразу переходим к «Счётчики и цели» (шаг 3), шаг «Данные доступа» убран.
+    step.value = 3
+    scrollToStep(3)
   } catch (err) {
     const msg = err?.response?.data?.detail || err.message || 'Ошибка подключения Avito'
     error.value = msg
@@ -1895,23 +1905,27 @@ const toggleGoalSelection = (id) => {
 .avito-access-input {
   max-width: 22.2222rem;
 }
-.avito-utm-panel {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(13.8889rem, 19.4444rem);
+.avito-utm-row {
+  display: flex;
   align-items: center;
-  gap: 1.3889rem;
+  gap: 0.6944rem;
+  margin-top: 1.1111rem;
+  padding-top: 1.1111rem;
+  border-top: 0.0694rem solid #e2e8f0;
 }
-.avito-utm-input {
-  width: 100%;
-  max-width: 19.4444rem;
+.avito-utm-row__label { flex: 0 0 auto; font-size: 0.8333rem; font-weight: 700; }
+.avito-utm-row__input {
+  width: 9.7222rem;
+  min-height: 2.3611rem;
+  padding: 0.4861rem 0.625rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.8333rem;
 }
+.avito-utm-row__hint { font-size: 0.7639rem; line-height: 1.35; }
 @media (max-width: 48rem) {
-  .avito-utm-panel {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .avito-utm-input {
-    max-width: none;
-  }
+  .avito-utm-row { align-items: flex-start; flex-wrap: wrap; }
+  .avito-utm-row__input { flex: 1 1 9.7222rem; }
+  .avito-utm-row__hint { flex-basis: 100%; }
 }
 .avito-cabinet-preview {
   display: flex;
@@ -2350,6 +2364,24 @@ const toggleGoalSelection = (id) => {
 .channel-card--vk-link {
   min-height: 22.9167rem;
 }
+/* Правки 1/9: подсказка под карточками VK и «Где взять ключи?» у Avito. */
+.vk-link-hint {
+  margin-top: 0.9rem;
+  color: #64748b;
+  font-size: 0.8333rem;
+  line-height: 1.4;
+}
+.channel-card--vk-link .field-block { width: 100%; margin-top: 0.75rem; }
+.channel-card--vk-link .field-block:first-of-type { margin-top: 1rem; }
+.channel-card--vk-link .wizard-input { width: 100%; }
+.avito-keys-hint {
+  display: inline-block;
+  margin-top: 0.7rem;
+  color: #2563eb;
+  font-size: 0.8333rem;
+  text-decoration: none;
+}
+.avito-keys-hint:hover { text-decoration: underline; }
 .vk-link-modes {
   display: grid;
   gap: 0.625rem;

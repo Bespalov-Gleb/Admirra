@@ -177,9 +177,9 @@ export function useIntegrationWizard() {
       // (например Avito с сотней счётчиков) НЕ грузим тысячи целей сразу: пользователь
       // сам выбирает счётчик, и под него подгружаются цели (каскад, как в Яндексе).
       const AUTO_SELECT_COUNTER_LIMIT = 5
-      if (counters.value.length <= AUTO_SELECT_COUNTER_LIMIT) {
+      if (counters.value.length <= AUTO_SELECT_COUNTER_LIMIT && selectedCounterIds.value.length === 0) {
         selectedCounterIds.value = counters.value.map(c => c.id)
-      } else {
+      } else if (counters.value.length > AUTO_SELECT_COUNTER_LIMIT) {
         selectedCounterIds.value = []
       }
     } catch (err) {
@@ -258,6 +258,12 @@ export function useIntegrationWizard() {
       form.account_id = integration.account_id
       form.account_name = integration.account_name || ''
       form.utm_source = integration.utm_source || 'avito-ads'
+      selectedCounterIds.value = Array.isArray(integration.selected_counters)
+        ? integration.selected_counters.map(String)
+        : []
+      selectedGoalIds.value = Array.isArray(integration.selected_goals)
+        ? integration.selected_goals.map(String)
+        : []
       // CRITICAL: agency_client_login is separate from account_id
       // It's set when user selects a profile on step 2
       form.agency_client_login = integration.agency_client_login || integration.account_id

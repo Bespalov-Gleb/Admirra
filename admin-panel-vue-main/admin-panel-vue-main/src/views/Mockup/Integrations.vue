@@ -146,7 +146,8 @@
                 </div>
 
                 <div v-if="!isVkLinkDraft(item)" class="integration-id-row">
-                  <span>{{ integrationIdLabel(item) }}: {{ integrationDisplayId(item) }}</span>
+                  <span v-if="isVkIntegration(item) && item.account_name">Кабинет: {{ item.account_name }} · ID: {{ integrationDisplayId(item) }}</span>
+                  <span v-else>{{ integrationIdLabel(item) }}: {{ integrationDisplayId(item) }}</span>
                   <button
                     type="button"
                     class="copy-id-btn"

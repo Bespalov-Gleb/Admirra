@@ -586,14 +586,13 @@ def sync_metrika_goals_background(
             filters = None
             if integration.platform == models.IntegrationPlatform.AVITO_ADS:
                 from automation.avito_integration_helpers import (
-                    get_metrika_integration_for_client,
-                    metrika_profile_login,
+                    avito_metrika_access_token,
+                    avito_metrika_profile_login,
                 )
-                metrika_integration = get_metrika_integration_for_client(db, integration.client_id)
-                if not metrika_integration:
+                access_token = avito_metrika_access_token(integration)
+                if not access_token:
                     return
-                access_token = security.decrypt_token(metrika_integration.access_token)
-                selected_profile = metrika_profile_login(metrika_integration)
+                selected_profile = avito_metrika_profile_login(integration)
                 filters = _metrika_utm_source_filter(_avito_utm_source(integration))
             else:
                 access_token = security.decrypt_token(integration.access_token)
@@ -1465,7 +1464,8 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
         elif integration.platform == models.IntegrationPlatform.AVITO_ADS:
             from automation.avito_integration_helpers import (
                 build_avito_api_from_integration,
-                get_metrika_integration_for_client,
+                avito_metrika_access_token,
+                avito_metrika_profile_login,
             )
 
             api = build_avito_api_from_integration(integration)
@@ -1573,12 +1573,10 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             )
             db.commit()
 
-            metrika_integration = get_metrika_integration_for_client(db, integration.client_id)
-            if metrika_integration:
+            metrika_token = avito_metrika_access_token(integration)
+            if metrika_token:
                 try:
-                    from automation.avito_integration_helpers import metrika_profile_login
-                    metrika_token = security.decrypt_token(metrika_integration.access_token)
-                    selected_profile = metrika_profile_login(metrika_integration)
+                    selected_profile = avito_metrika_profile_login(integration)
                     await _sync_metrika_goals_for_direct(
                         db,
                         integration,

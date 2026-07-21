@@ -1564,7 +1564,7 @@ class VKAdsAPI:
                                 account_id = match.group(1)
                         
                         if account_id:
-                            account_name = item.get("name", f"Аккаунт {account_id}")
+                            account_name = item.get("name", f"Кабинет {account_id}")
                             account_status = item.get("status", "active")
                             
                             accounts.append({
@@ -1577,6 +1577,7 @@ class VKAdsAPI:
                     
                     if accounts:
                         logger.info(f"✅ Successfully retrieved {len(accounts)} VK account(s) via fallback method")
+                        await self._enrich_accounts_with_names(accounts)
                         return accounts
         except Exception as e:
             logger.debug(f"Fallback method failed: {e}")
@@ -1586,6 +1587,7 @@ class VKAdsAPI:
             accounts = await self._get_accounts_from_statistics()
             if accounts:
                 logger.info(f"✅ Found {len(accounts)} account(s) via statistics extraction method")
+                await self._enrich_accounts_with_names(accounts)
                 return accounts
         except Exception as e:
             logger.debug(f"Statistics extraction method failed: {e}")
@@ -1601,7 +1603,7 @@ class VKAdsAPI:
             
             accounts.append({
                 "id": account_id_str,
-                "name": f"Аккаунт {account_id_str}",
+                "name": f"Кабинет {account_id_str}",
                 "status": "active"
             })
             logger.info(f"✅ Using account_id from constructor as fallback: {account_id_str}")
@@ -1610,38 +1612,108 @@ class VKAdsAPI:
     
     async def _enrich_accounts_with_names(self, accounts: List[Dict[str, Any]]):
         """
-        Обогащает список кабинетов названиями, получая их из кампаний.
-        Для каждого кабинета запрашиваем первую кампанию и пытаемся извлечь название.
+        Adds human-readable VK Ads cabinet names without guessing from campaign
+        names.  Statistics returns only an opaque user/cabinet identifier; the
+        documented user and delegated-client resources contain the actual
+        ``username`` / ``additional_info.client_name``.
+
+        A missing name remains an exceptional fallback (``Кабинет {ID}``), not
+        a normal display value.  The same normalised name is later persisted by
+        the wizard in ``Integration.account_name`` and is thus reused in the
+        summary, settings and project cards.
         """
+        if not accounts:
+            return
+
+        names_by_id: Dict[str, str] = {}
+
+        def add_name(raw: Any, fallback_ids: Optional[List[Any]] = None) -> None:
+            item = raw if isinstance(raw, dict) else {}
+            user = item.get("user") if isinstance(item.get("user"), dict) else item
+            account = user.get("account") if isinstance(user.get("account"), dict) else {}
+            additional = user.get("additional_info") if isinstance(user.get("additional_info"), dict) else {}
+            root_additional = item.get("additional_info") if isinstance(item.get("additional_info"), dict) else {}
+            name = self._first_present(
+                additional.get("client_name"),
+                root_additional.get("client_name"),
+                item.get("client_name"),
+                item.get("name"),
+                user.get("username"),
+                item.get("username"),
+                user.get("firstname") and user.get("lastname") and f"{user.get('firstname')} {user.get('lastname')}",
+                user.get("firstname"),
+            )
+            if not name:
+                return
+            raw_ids = [
+                account.get("id"), user.get("id"), item.get("user_id"),
+                item.get("client_id"), item.get("id"),
+                *(fallback_ids or []),
+            ]
+            for raw_id in raw_ids:
+                normalized = self._normalise_account_id(raw_id)
+                if normalized:
+                    names_by_id.setdefault(normalized, name)
+
         try:
             async with httpx.AsyncClient() as client:
-                for account in accounts:
-                    account_id = account.get("id")
-                    if not account_id:
-                        continue
-                    
-                    # Запрашиваем кампании для этого кабинета
-                    # Согласно документации, можно использовать client_id для фильтрации
-                    try:
-                        campaigns_url = f"{self.base_url}/ad_plans.json"
-                        campaigns_params = {"client_id": account_id, "limit": 1}
-                        campaigns_response = await client.get(
-                            campaigns_url,
-                            params=campaigns_params,
-                            headers=self.headers,
-                            timeout=10.0
-                        )
-                        
-                        if campaigns_response.status_code == 200:
-                            campaigns_data = campaigns_response.json()
-                            campaigns_items = campaigns_data.get("items", [])
-                            # Если есть кампании, можно использовать их для определения названия кабинета
-                            # Но обычно название кабинета не содержится в данных кампаний
-                            pass
-                    except Exception as e:
-                        logger.debug(f"Could not enrich account {account_id} with name: {e}")
-        except Exception as e:
-            logger.debug(f"Error enriching accounts with names: {e}")
+                # Personal advertiser profile. The endpoint returns a user
+                # object; its account.id is the same identifier exposed by
+                # statistics for a personal cabinet.
+                try:
+                    await self._throttle()
+                    response = await client.get(
+                        f"{self.base_url}/user.json", headers=self.headers, timeout=20.0
+                    )
+                    if response.status_code == 200:
+                        payload = response.json()
+                        add_name(payload.get("user") or payload)
+                    elif response.status_code not in (403, 404):
+                        logger.debug("VK Ads user.json returned HTTP %s", response.status_code)
+                except Exception as exc:
+                    logger.debug("VK Ads user profile name lookup failed: %s", exc)
+
+                # Agency and manager lists are the authoritative source for
+                # delegated-client display names. Their availability depends
+                # on the OAuth role, so failures are intentionally soft.
+                for url, endpoint_name in (
+                    (f"{self.base_url}/agency/clients.json", "agency/clients.json"),
+                    ("https://ads.vk.com/api/v3/manager/clients.json", "manager/clients.json"),
+                ):
+                    for item in await self._get_paginated_vk_items(url, endpoint_name):
+                        add_name(item)
+        except Exception as exc:
+            logger.debug("VK Ads account-name enrichment failed: %s", exc)
+
+        for account in accounts:
+            account_id = self._normalise_account_id(account.get("id"))
+            if not account_id:
+                continue
+            # Do not replace a real API name with a less specific profile
+            # name. Placeholders are always replaced when a name is available.
+            current_name = str(account.get("name") or "").strip()
+            placeholder = current_name in {"", f"Кабинет {account_id}", f"Аккаунт {account_id}"}
+            if names_by_id.get(account_id) and placeholder:
+                account["name"] = names_by_id[account_id]
+            elif not current_name:
+                account["name"] = f"Кабинет {account_id}"
+
+    @staticmethod
+    def _normalise_account_id(raw_id: Any) -> Optional[str]:
+        """Convert VK's statistics identifiers to the numeric cabinet id."""
+        if raw_id is None:
+            return None
+        raw = str(raw_id).strip()
+        if not raw:
+            return None
+        import re
+        match = re.search(r"vkads_(\d+)", raw)
+        if match:
+            return match.group(1)
+        if raw.isdigit():
+            return raw
+        match = re.search(r"(\d+)", raw)
+        return match.group(1) if match else None
 
     @staticmethod
     def _first_present(*values: Any) -> Optional[str]:
@@ -1893,7 +1965,7 @@ class VKAdsAPI:
                 account_id = account.get("id")
                 if account_id and account_id not in seen_ids:
                     # Используем оригинальное название кабинета из API
-                    account_name = account.get("name", f"Аккаунт {account_id}")
+                    account_name = account.get("name", f"Кабинет {account_id}")
                     profiles.append({
                         "id": account_id,
                         "login": account_id,

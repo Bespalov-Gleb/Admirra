@@ -198,15 +198,14 @@ async def _avito_metrika_utm_conv_maps(
 
     try:
         from automation.avito_integration_helpers import (
-            get_metrika_integration_for_client,
-            metrika_profile_login,
+            avito_metrika_access_token,
+            avito_metrika_profile_login,
         )
 
-        metrika_integration = get_metrika_integration_for_client(db, integration.client_id)
-        if not metrika_integration:
+        access_token = avito_metrika_access_token(integration)
+        if not access_token:
             return {}, {}, False
-        access_token = security.decrypt_token(metrika_integration.access_token)
-        selected_profile = metrika_profile_login(metrika_integration)
+        selected_profile = avito_metrika_profile_login(integration)
     except Exception:
         return {}, {}, False
 

@@ -595,6 +595,14 @@ class Integration(Base):
     # Metrika Counters Support (for Direct integrations)
     selected_counters = Column(String, nullable=True) # JSON list of counter IDs
     utm_source = Column(String, nullable=True) # For hybrid channels like Avito Ads + Metrika leads
+
+    # Avito Ads gets its own Yandex Metrika OAuth grant.  These credentials
+    # deliberately do not reuse a Yandex Direct/Metrika integration belonging
+    # to the same project: the person who connected Avito chooses the Metrika
+    # account explicitly in the Avito wizard.
+    metrika_access_token = Column(String, nullable=True)
+    metrika_refresh_token = Column(String, nullable=True)
+    metrika_account_id = Column(String, nullable=True)
     
     # Balance Support
     balance = Column(Numeric(10, 2), nullable=True) # Account balance in platform currency
@@ -613,6 +621,11 @@ class Integration(Base):
     def client_display_id(self):
         """Public project ID shown in the UI."""
         return self.client.display_id if self.client else None
+
+    @property
+    def metrika_connected(self) -> bool:
+        """Safe boolean for the frontend; never expose the OAuth token itself."""
+        return bool(self.metrika_access_token)
 
 class Campaign(Base):
     __tablename__ = "campaigns"

@@ -355,6 +355,8 @@ class IntegrationResponse(IntegrationBase):
     link_expires_at: Optional[datetime] = None
     link_created_at: Optional[datetime] = None
     link_authorized_at: Optional[datetime] = None
+    # Only a boolean is serialised. OAuth credentials always stay server-side.
+    metrika_connected: Optional[bool] = None
 
     @field_validator('selected_counters', mode='before')
     @classmethod

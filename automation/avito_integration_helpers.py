@@ -8,22 +8,21 @@ from automation.avito_ads import AvitoAdsAPI
 from core import models, security
 
 
-def get_metrika_integration_for_client(db, client_id) -> Optional[models.Integration]:
-    for platform in (
-        models.IntegrationPlatform.YANDEX_METRIKA,
-        models.IntegrationPlatform.YANDEX_DIRECT,
-    ):
-        integ = (
-            db.query(models.Integration)
-            .filter(
-                models.Integration.client_id == client_id,
-                models.Integration.platform == platform,
-            )
-            .first()
-        )
-        if integ and integ.access_token:
-            return integ
-    return None
+def avito_metrika_access_token(integration: models.Integration) -> Optional[str]:
+    """Return the Avito-specific Metrika token, never a project-wide fallback."""
+    token = getattr(integration, "metrika_access_token", None)
+    return security.decrypt_token(token) if token else None
+
+
+def avito_metrika_profile_login(integration: models.Integration) -> Optional[str]:
+    """Yandex login used as ``ulogin`` for this Avito-specific grant."""
+    candidate = getattr(integration, "metrika_account_id", None)
+    if not candidate:
+        return None
+    value = str(candidate).strip()
+    if not value or value.lower() in {"unknown", "none", "null"}:
+        return None
+    return value
 
 
 def metrika_profile_login(integration: models.Integration) -> Optional[str]:
