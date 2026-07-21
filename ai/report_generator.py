@@ -81,11 +81,61 @@ async def generate_report(
         reverse=True,
     )[:5]
 
-    context = _build_context(summary, top_campaigns, start_date, end_date)
+    # §6/§7: для короткого дашборд-комментария добавляем факты о подключениях и
+    # агрегаты по направлениям — то, что AI иначе домысливает или чего не видит.
+    ctx_integrations = None
+    ctx_directions = None
+    if report_type == "dashboard_comment":
+        from core import models as _models
+        _plat_ru = {"YANDEX_DIRECT": "Яндекс Директ", "VK_ADS": "VK Реклама", "AVITO_ADS": "Avito Ads", "YANDEX_METRIKA": "Яндекс Метрика"}
+        integ_rows = db.query(_models.Integration).filter(_models.Integration.client_id.in_(effective_client_ids)).all()
+        ctx_integrations = [
+            {
+                "name": _plat_ru.get(getattr(i.platform, "value", str(i.platform)), str(i.platform)),
+                "status": "подключена" if getattr(i, "connection_status", "active") == "active" else "подключение не завершено",
+            }
+            for i in integ_rows
+        ]
+        if len(effective_client_ids) == 1:
+            try:
+                from backend_api.services import directions as _dir_svc
+                client_obj = db.query(_models.Client).filter(_models.Client.id == effective_client_ids[0]).first()
+                if client_obj is not None:
+                    dstats = _dir_svc.direction_stats(db, client_obj, d_start, d_end, platform or "all")
+                    ctx_directions = [
+                        {
+                            "name": it.get("name"),
+                            "expenses": float(it.get("expenses") or 0),
+                            "budget_share": float(it.get("budget_share") or 0),
+                            "leads": int(it.get("leads") or 0),
+                            "cpl": float(it.get("cpl") or 0),
+                        }
+                        for it in (dstats.get("items") or [])
+                    ]
+            except Exception as _dir_err:
+                logger.warning("dashboard_comment: directions context skipped: %s", _dir_err)
+
+    context = _build_context(summary, top_campaigns, start_date, end_date, ctx_integrations, ctx_directions)
 
     client = _create_anthropic_client()
 
-    if report_type == "comment":
+    if report_type == "dashboard_comment":
+        system_prompt = """Ты — аналитик рекламы. Напиши КОРОТКИЙ комментарий за период к дашборду проекта. Это не отчёт, а выжимка.
+
+Формат — строго четыре элемента, обычным связным текстом на русском:
+1) Первая строка — суть периода одним предложением (её мы сами выделим жирным, звёзды не ставь).
+2) 1–2 коротких абзаца «что произошло»: синтез и причинно-следственные связи, а не перечисление метрик.
+3) Один абзац — вероятная причина.
+4) Одна конкретная рекомендация; начни её ровно со слова «Рекомендация:».
+
+Объём 600–900 знаков, жёсткий максимум 1200. Без заголовков, секций, таблиц, списков, эмодзи и любой Markdown-разметки.
+
+Запреты:
+- Не переписывай KPI, которые уже видны в карточках дашборда. Ценность — синтез (например: «лиды упали сильнее бюджета — просела эффективность, а не активность»).
+- НЕ считай сам. Все дельты, сравнения и производные метрики уже даны в контексте предрасчитанными. Если числа в контексте нет — не пиши про него. Никаких «оценочно», «порядка», «ориентировочно», «~» рядом с цифрами.
+- Про интеграции пиши строго по блоку «Подключения»: если канала там нет или он не подключён — так и утверждай, не строй версий «отключена / данные не переданы / требует уточнения».
+- Если данных мало — честно скажи это одним предложением, не выдумывай тренды."""
+    elif report_type == "comment":
         system_prompt = """Ты — аналитик рекламных кампаний. Сформируй короткий комментарий для клиента к уже готовому отчёту.
 
 Строгие правила:
@@ -128,7 +178,7 @@ async def generate_report(
 2. Что масштабировать (с обоснованием)
 3. Что протестировать (конкретные гипотезы)
 Каждый пункт — не более 2 предложений. Без общих слов."""
-    elif report_type != "comment":
+    elif report_type not in ("comment", "dashboard_comment"):
         system_prompt += """
 
 Развёрнутый отчёт. Структура:
@@ -150,14 +200,39 @@ async def generate_report(
             temperature=1.0,
         )
         text = response.content[0].text if response.content else ""
-        result = _normalise_delivery_comment(text) if report_type == "comment" else text.strip()
-        if report_type == "comment" and not result:
-            raise ValueError("AI-комментарий должен содержать от 3 до 5 обычных предложений")
+        if report_type == "dashboard_comment":
+            result = _sanitize_dashboard_comment(text)
+        elif report_type == "comment":
+            result = _normalise_delivery_comment(text)
+        else:
+            result = text.strip()
+        if report_type in ("comment", "dashboard_comment") and not result:
+            raise ValueError("AI-комментарий пуст")
         logger.info("generate_report: Anthropic returned %d chars", len(result))
         return result
     except Exception as e:
         logger.exception("Anthropic API error: %s", e)
         raise
+
+
+def _sanitize_dashboard_comment(text: str, hard_limit: int = 1200) -> str:
+    """§1/§3: короткий дашборд-комментарий без разметки. Вырезаем markdown,
+    оставляем только связный текст (жирный лид фронт делает сам из 1-й строки),
+    жёстко ограничиваем длину."""
+    import re
+    t = (text or "").replace("\r", "")
+    t = re.sub(r"(?m)^\s*\|.*\|\s*$", "", t)          # таблицы
+    t = re.sub(r"(?m)^\s*-{3,}\s*$", "", t)            # горизонтальные линии ---
+    t = re.sub(r"(?m)^\s{0,3}#{1,6}\s*", "", t)        # заголовки
+    t = re.sub(r"(?m)^\s*[-*•]\s+", "", t)             # маркеры списка
+    t = re.sub(r"(?m)^\s*\d+[.)]\s+", "", t)           # нумерация
+    t = t.replace("**", "").replace("`", "")           # bold/code
+    t = re.sub(r"(?<!\w)\*(?!\s)(.+?)(?<!\s)\*(?!\w)", r"\1", t)  # *italic*
+    t = re.sub(r"\n{3,}", "\n\n", t).strip()
+    if len(t) > hard_limit:
+        cut = t.rfind(". ", 0, hard_limit)
+        t = (t[: cut + 1] if cut > hard_limit // 2 else t[:hard_limit]).strip()
+    return t
 
 
 def _normalise_delivery_comment(text: str) -> str:
@@ -184,6 +259,8 @@ def _build_context(
     top_campaigns: list,
     start_date: str,
     end_date: str,
+    integrations: list | None = None,
+    directions: list | None = None,
 ) -> str:
     lines = []
 
@@ -200,11 +277,29 @@ def _build_context(
 
     trends = summary.get("trends")
     if trends:
-        lines.append("\n## Тренды (к прошлому периоду)")
+        lines.append("\n## Тренды (к прошлому периоду, уже посчитаны — не пересчитывай)")
         lines.append(f"Расходы: {trends.get('expenses', 0):+.1f}%")
         lines.append(f"Показы: {trends.get('impressions', 0):+.1f}%")
         lines.append(f"Клики: {trends.get('clicks', 0):+.1f}%")
         lines.append(f"Лиды: {trends.get('leads', 0):+.1f}%")
+
+    # §6/§7: факты о подключениях — чтобы AI утверждал, а не гадал.
+    if integrations is not None:
+        lines.append("\n## Подключения (факт, не догадки)")
+        if integrations:
+            for it in integrations:
+                lines.append(f"- {it['name']}: {it['status']}")
+        else:
+            lines.append("- Нет подключённых рекламных кабинетов")
+
+    # §7: агрегаты по направлениям — синтез, которого нет в отдельных карточках.
+    if directions:
+        lines.append("\n## Направления за период")
+        for d in directions:
+            lines.append(
+                f"- {d['name']}: расход {d['expenses']:,.0f} ₽ ({d['budget_share']:.0f}% бюджета), "
+                f"{d['leads']} лидов, CPL {d['cpl']:,.0f} ₽"
+            )
 
     if top_campaigns:
         lines.append("\n## Топ кампаний по конверсиям")

@@ -909,6 +909,70 @@
       </div>
     </section>
 
+    <section class="bottom-grid">
+      <article class="panel ai-panel ai-comment" :class="{ 'panel--syncing': dashboardSyncInProgress }">
+        <div class="ai-comment__head">
+          <span class="ai-comment__icon"><SparklesIcon /></span>
+          <h2 class="ai-comment__title">AI-комментарий за период</h2>
+          <button
+            v-if="reportComment && !loadingInitialComment"
+            class="ai-download-btn"
+            type="button"
+            title="Скачать комментарий"
+            @click="downloadAiComment"
+          >
+            <DocumentArrowDownIcon />
+          </button>
+          <button
+            class="ai-comment__refresh"
+            type="button"
+            :disabled="loadingAiComment || dashboardSyncInProgress"
+            @click="triggerAiComment"
+          >
+            <svg v-if="loadingAiComment" class="ai-generate-btn__spinner" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="31.4 31.4" />
+            </svg>
+            <ArrowPathIcon v-else />
+            {{ loadingAiComment ? 'Обновляю…' : 'Обновить' }}
+          </button>
+        </div>
+
+        <!-- Загрузка сохранённого комментария / первая генерация -->
+        <div v-if="loadingInitialComment || (loadingAiComment && !reportComment)" class="ai-comment__skeleton">
+          <div class="ai-skeleton-line ai-skeleton-line--wide"></div>
+          <div class="ai-skeleton-line"></div>
+          <div class="ai-skeleton-line ai-skeleton-line--medium"></div>
+        </div>
+
+        <!-- Комментарий ещё не сформирован -->
+        <div v-else-if="!aiComment" class="ai-comment__empty">
+          <p>Комментарий появится автоматически после ближайшего обновления данных. Можно сформировать сразу — кнопка «Обновить».</p>
+        </div>
+
+        <!-- Готовый комментарий -->
+        <template v-else>
+          <div class="ai-comment__body">
+            <p class="ai-comment__lead">{{ aiComment.lead }}</p>
+            <p v-for="(para, i) in aiComment.body" :key="i" class="ai-comment__para">{{ para }}</p>
+            <div v-if="aiComment.recommendation" class="ai-comment__reco">
+              <span class="ai-comment__reco-tag">Рекомендация</span>
+              <span class="ai-comment__reco-text">{{ aiComment.recommendation }}</span>
+            </div>
+          </div>
+          <p class="ai-comment__meta">
+            Сгенерировано {{ aiCommentGeneratedLabel }} · период {{ aiCommentPeriodLabel }} · не тратит AI-лимит
+          </p>
+        </template>
+
+        <div v-if="dashboardSyncInProgress" class="sync-panel-overlay">
+          <ArrowPathIcon class="spinning" />
+          <strong>Выполняется синхронизация</strong>
+          <span>Комментарий обновится после пересчёта данных.</span>
+          <i></i><i></i><i></i>
+        </div>
+      </article>
+    </section>
+
     <section class="panel campaigns-panel" :class="{ 'panel--syncing': dashboardSyncInProgress || allChannelsDataLoading }">
       <div class="panel-title-row">
         <h2>Рекламные кампании</h2>
@@ -1087,74 +1151,6 @@
         <span>{{ dashboardSyncInProgress ? 'Кампании обновятся автоматически.' : 'Формируем общую таблицу по всем источникам.' }}</span>
         <i></i><i></i><i></i>
       </div>
-    </section>
-
-    <section class="bottom-grid">
-      <article class="panel ai-panel" :class="{ 'panel--syncing': dashboardSyncInProgress }">
-        <!-- Header with small button (only when comment exists or loading) -->
-        <div v-if="loadingInitialComment || reportComment" class="ai-title">
-          <span><SparklesIcon /></span>
-          <h2>AI комментарии к отчету</h2>
-          <button
-            v-if="reportComment && !loadingInitialComment"
-            class="ai-download-btn"
-            type="button"
-            title="Скачать комментарий"
-            @click="downloadAiComment"
-          >
-            <DocumentArrowDownIcon />
-          </button>
-          <button
-            class="ai-generate-btn"
-            :disabled="loadingAiComment || dashboardSyncInProgress"
-            @click="triggerAiComment"
-          >
-            <svg v-if="loadingAiComment" class="ai-generate-btn__spinner" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="31.4 31.4" />
-            </svg>
-            <SparklesIcon v-else class="ai-generate-btn__icon" />
-            {{ loadingAiComment ? 'Генерирую...' : 'Обновить' }}
-          </button>
-        </div>
-
-        <!-- Skeleton while loading saved comment -->
-        <div v-if="loadingInitialComment" class="ai-skeleton">
-          <div class="ai-skeleton-line ai-skeleton-line--wide"></div>
-          <div class="ai-skeleton-line"></div>
-          <div class="ai-skeleton-line ai-skeleton-line--medium"></div>
-          <div class="ai-skeleton-line ai-skeleton-line--wide"></div>
-          <div class="ai-skeleton-line ai-skeleton-line--narrow"></div>
-        </div>
-
-        <!-- CTA: no comment yet -->
-        <div v-else-if="!reportComment" class="ai-cta">
-          <span class="ai-cta__icon"><SparklesIcon /></span>
-          <h2 class="ai-cta__title">AI комментарии к отчёту</h2>
-          <p class="ai-cta__desc">Краткий анализ эффективности кампаний за выбранный период: расходы, конверсии, топ кампаний и рекомендации.</p>
-          <button
-            class="ai-cta__btn"
-            :disabled="loadingAiComment || dashboardSyncInProgress"
-            @click="triggerAiComment"
-          >
-            <svg v-if="loadingAiComment" class="ai-generate-btn__spinner" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="31.4 31.4" />
-            </svg>
-            <SparklesIcon v-else />
-            {{ loadingAiComment ? 'Генерирую...' : dashboardSyncInProgress ? 'Дождитесь синхронизации' : 'Сгенерировать анализ' }}
-          </button>
-        </div>
-
-        <!-- Rendered markdown report -->
-        <div v-else class="ai-report-body" v-html="renderMarkdown(reportComment)"></div>
-        <p v-if="reportComment && !loadingInitialComment">Сгенерировано AI · {{ dateRangeLabel }}</p>
-
-        <div v-if="dashboardSyncInProgress" class="sync-panel-overlay">
-          <ArrowPathIcon class="spinning" />
-          <strong>Выполняется синхронизация</strong>
-          <span>Комментарии обновятся после пересчёта данных.</span>
-          <i></i><i></i><i></i>
-        </div>
-      </article>
     </section>
     </template>
 
@@ -1970,6 +1966,7 @@ const formatReportDate = (value) => {
 const reportComment = ref('')
 const loadingAiComment = ref(false)
 const loadingInitialComment = ref(false)
+const aiCommentGeneratedAt = ref(null)
 
 const loadSavedComment = async () => {
   if (!filters.client_id) return
@@ -1977,12 +1974,52 @@ const loadSavedComment = async () => {
   try {
     const { data } = await api.get(`ai/comment?client_id=${filters.client_id}`)
     if (data?.text) reportComment.value = data.text
+    aiCommentGeneratedAt.value = data?.generated_at || null
   } catch {
     // не критично — просто не показываем сохранённый
   } finally {
     loadingInitialComment.value = false
   }
 }
+
+// ТЗ AI-комментария §1/§11: разбираем короткий текст на лид / абзацы / рекомендацию,
+// дочищаем остаточный markdown (§3) — рендерим структурой, а не сырым markdown.
+const aiComment = computed(() => {
+  const raw = (reportComment.value || '').trim()
+  if (!raw) return null
+  const clean = raw
+    .replace(/^\s*\|.*\|\s*$/gm, '')
+    .replace(/^\s*-{3,}\s*$/gm, '')
+    .replace(/^\s{0,3}#{1,6}\s*/gm, '')
+    .replace(/^\s*[-*•]\s+/gm, '')
+    .replace(/^\s*\d+[.)]\s+/gm, '')
+    .replace(/\*\*/g, '')
+    .replace(/`/g, '')
+    .trim()
+  const parts = clean.split(/\n{2,}/).map((s) => s.replace(/\s*\n\s*/g, ' ').trim()).filter(Boolean)
+  if (!parts.length) return null
+  const lead = parts[0]
+  let recommendation = ''
+  const body = []
+  for (const p of parts.slice(1)) {
+    if (/^рекоменд/i.test(p)) recommendation = p.replace(/^рекомендаци[ияю][:\s—-]*/i, '').trim()
+    else body.push(p)
+  }
+  return { lead, body, recommendation }
+})
+const aiCommentPeriodLabel = computed(() => {
+  const fmt = (d) => (d ? new Date(d).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' }) : '')
+  return `${fmt(filters.start_date)} — ${fmt(filters.end_date)}`
+})
+const aiCommentGeneratedLabel = computed(() => {
+  if (!aiCommentGeneratedAt.value) return 'только что'
+  const d = new Date(aiCommentGeneratedAt.value)
+  if (Number.isNaN(d.getTime())) return 'только что'
+  const time = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+  return d.toDateString() === new Date().toDateString()
+    ? `сегодня, ${time} МСК`
+    : `${d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}, ${time} МСК`
+})
 
 const renderMarkdown = (text) => {
   if (!text) return ''
@@ -4949,9 +4986,10 @@ const handleGenerateReport = async () => {
       client_id: filters.client_id || null,
       start_date: filters.start_date,
       end_date: filters.end_date,
-      report_type: 'full'
+      report_type: 'dashboard_comment'
     })
     reportComment.value = data?.text || ''
+    aiCommentGeneratedAt.value = new Date().toISOString()
     return reportComment.value
   } catch (err) {
     toaster.error(err.response?.data?.detail || 'Не удалось сгенерировать отчет')
@@ -14885,4 +14923,130 @@ onMounted(() => {
 .figma-dashboard.is-dark .dashboard-source-add { background:rgba(255,255,255,.04); border-color:rgba(255,255,255,.1); }.figma-dashboard.is-dark .dashboard-service-row { border-color:rgba(255,255,255,.1); }
 @media (max-width: 1000px) { .dashboard-service-row { align-items:flex-start; flex-direction:column; }.dashboard-delivery-status,.dashboard-delivery-empty { margin-left:0; text-align:left; }.dashboard-report-actions { width:100%; margin-left:0; } }
 @media (max-width: 620px) { .dashboard-title-row--actions .dashboard-view-tabs { order:4; }.dashboard-report-actions { flex-wrap:wrap; }.dashboard-report-actions .detector-status-chip { order:-1; }.filters-row .sync-status-label { margin-left:0; }.dashboard-delivery-status { font-size:.84rem; }.dashboard-delivery-status > svg,.dashboard-delivery-prefix { display:none; } }
+
+/* ── AI-комментарий за период (ТЗ admirra_ai_comment_delta_july) ──────────
+   Короткий комментарий вместо полного отчёта: узкая колонка ≤740px, без
+   внутреннего скролла, компактная высота, структура лид/абзацы/рекомендация. */
+.ai-panel.ai-comment {
+  min-height: auto;
+  padding: 1.5rem 1.75rem 1.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+.ai-comment__head {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.ai-comment__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.6rem;
+  background: #eef2ff;
+  color: #4a7aff;
+  flex: 0 0 auto;
+}
+.ai-comment__icon svg { width: 1.15rem; height: 1.15rem; }
+.ai-comment__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #111827;
+}
+.ai-comment__refresh {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.42rem 0.85rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.6rem;
+  background: #fff;
+  color: #374151;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.ai-comment__refresh svg { width: 0.95rem; height: 0.95rem; }
+.ai-comment__refresh:hover:not(:disabled) { background: #f9fafb; border-color: #d1d5db; }
+.ai-comment__refresh:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.ai-comment__body {
+  max-width: 740px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.ai-comment__lead {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #111827;
+}
+.ai-comment__para {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: #374151;
+}
+.ai-comment__reco {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  margin-top: 0.35rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 0.7rem;
+  background: #f0f6ff;
+  border: 1px solid #dbe8ff;
+}
+.ai-comment__reco-tag {
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #2f6bff;
+}
+.ai-comment__reco-text {
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: #1f3a7a;
+}
+.ai-comment__meta {
+  margin: 0.2rem 0 0;
+  font-size: 0.78rem;
+  color: #9ca3af;
+}
+.ai-comment__empty {
+  max-width: 740px;
+}
+.ai-comment__empty p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: #6b7280;
+}
+.ai-comment__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  max-width: 740px;
+}
+
+/* Тёмная тема */
+.figma-dashboard.is-dark .ai-comment__icon { background: rgba(255,255,255,0.06); color: #4a7aff; }
+.figma-dashboard.is-dark .ai-comment__title { color: #f3f4f6; }
+.figma-dashboard.is-dark .ai-comment__lead { color: #f3f4f6; }
+.figma-dashboard.is-dark .ai-comment__para { color: #cbd5e1; }
+.figma-dashboard.is-dark .ai-comment__refresh { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.12); color: #e5e7eb; }
+.figma-dashboard.is-dark .ai-comment__refresh:hover:not(:disabled) { background: rgba(255,255,255,0.08); }
+.figma-dashboard.is-dark .ai-comment__reco { background: rgba(74,122,255,0.1); border-color: rgba(74,122,255,0.28); }
+.figma-dashboard.is-dark .ai-comment__reco-text { color: #bcd0ff; }
+.figma-dashboard.is-dark .ai-comment__empty p { color: #9ca3af; }
 </style>

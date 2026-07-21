@@ -607,8 +607,12 @@ async def generate_report(
     if client_id:
         _client_or_404(db, current_user, client_id)
 
+    # Короткий AI-комментарий к дашборду не расходует AI-лимит (ТЗ §12):
+    # он формируется автоматически и по кнопке «Обновить» без списания квоты.
+    is_dashboard_comment = (body.report_type or "full") == "dashboard_comment"
     try:
-        SubscriptionService.ensure_can_use_ai(db, current_user, requested=1)
+        if not is_dashboard_comment:
+            SubscriptionService.ensure_can_use_ai(db, current_user, requested=1)
         text = await do_generate(
             db=db,
             user_id=current_user.id,
@@ -617,7 +621,8 @@ async def generate_report(
             end_date=body.end_date,
             report_type=body.report_type or "full",
         )
-        SubscriptionService.increment_ai_usage(db, current_user, requested=1)
+        if not is_dashboard_comment:
+            SubscriptionService.increment_ai_usage(db, current_user, requested=1)
         log_history_event(
             db,
             actor=current_user,
