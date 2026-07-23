@@ -115,6 +115,9 @@ def _upsert_campaign_catalog(
             campaign.name = incoming_name
 
         apply_platform_status(campaign, item)
+        # Модель оплаты кампании (AI-контекст) — только если пришла в каталоге.
+        if item.get("bid_strategy"):
+            campaign.bid_strategy = item["bid_strategy"]
 
     return campaign_map
 
@@ -680,20 +683,29 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             # Запускаем group и keyword отчёты одновременно с campaign — Yandex ставит их в очередь параллельно
             group_task = api.get_report(date_from, date_to, level="group")
             keyword_task = api.get_report(date_from, date_to, level="keyword")
+            # Стратегии кампаний (модель оплаты) для AI-контекста — best-effort.
+            strategies_task = api.get_campaign_strategies()
 
             # Ждем ВСЕ запросы параллельно (экономим время на 2 последовательных polling-раунда)
-            yandex_campaigns, balance_data, stats, _group_stats_prefetched, _keyword_stats_prefetched = await asyncio.gather(
+            yandex_campaigns, balance_data, stats, _group_stats_prefetched, _keyword_stats_prefetched, campaign_strategies = await asyncio.gather(
                 campaigns_task,
                 balance_task,
                 stats_task,
                 group_task,
                 keyword_task,
+                strategies_task,
                 return_exceptions=True
             )
 
             if isinstance(yandex_campaigns, Exception):
                 logger.warning(f"⚠️ Failed to fetch Yandex campaign statuses for integration {integration.id}: {yandex_campaigns}")
             else:
+                # Домешиваем стратегию в каталог кампаний (если удалось получить).
+                if isinstance(campaign_strategies, dict) and campaign_strategies:
+                    for _item in yandex_campaigns:
+                        _bs = campaign_strategies.get(str(_item.get("id")))
+                        if _bs:
+                            _item["bid_strategy"] = _bs
                 _upsert_campaign_catalog(db, integration, yandex_campaigns)
                 db.commit()
                 logger.info(f"✅ Synced Yandex campaign statuses: {len(yandex_campaigns)} campaigns")

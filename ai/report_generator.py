@@ -356,10 +356,18 @@ def _build_comment_context(db: Session, effective_client_ids: list, d_start, d_e
         except Exception as _e:
             logger.warning("comment context: directions skipped: %s", _e)
 
-    # Режим направлений на проекте пока не хранится: консервативно считаем
-    # бюджет фиксированным (правило 10) — запрещаем модели рекомендовать
-    # перелив, разрешаем сравнение как факт. Направлений нет → none.
-    directions_mode = "fixed" if directions else "none"
+    # Режим бюджета направлений — настройка проекта (правило 10). Если направлений
+    # нет — none, иначе берём режим проекта (по умолчанию fixed).
+    client_row = db.query(models.Client).filter(models.Client.id == single).first() if single is not None else None
+    if not directions:
+        directions_mode = "none"
+    else:
+        directions_mode = getattr(client_row, "directions_budget_mode", None) or "fixed"
+
+    project_context = None
+    if client_row is not None:
+        sc = (getattr(client_row, "strategy_context", None) or "").strip()
+        project_context = sc or None
 
     campaigns = _comment_campaigns(db, effective_client_ids, d_start, d_end, platform)
 
@@ -388,6 +396,22 @@ def _build_comment_context(db: Session, effective_client_ids: list, d_start, d_e
                 flags.append({"type": (a.meta or {}).get("check") or a.metric, "text": head})
             detector = {"enabled": True, "flags": flags}
 
+    # События, ломающие сравнимость периодов (правило 7): пересекающие период.
+    comparability_events = []
+    if single is not None:
+        ev_rows = (
+            db.query(models.ComparabilityEvent)
+            .filter(models.ComparabilityEvent.client_id == single,
+                    models.ComparabilityEvent.event_date >= d_start,
+                    models.ComparabilityEvent.event_date <= d_end)
+            .order_by(models.ComparabilityEvent.event_date.desc())
+            .all()
+        )
+        comparability_events = [
+            {"type": e.type, "date": e.event_date.isoformat(), "description": e.description or ""}
+            for e in ev_rows
+        ]
+
     label = None
     key = period_key_for(start_date, end_date)
     if key:
@@ -403,8 +427,8 @@ def _build_comment_context(db: Session, effective_client_ids: list, d_start, d_e
         "campaigns": campaigns,
         "integrations": integrations,
         "detector": detector,
-        "comparability_events": [],
-        "project_context": None,
+        "comparability_events": comparability_events,
+        "project_context": project_context,
     }
 
 
@@ -418,6 +442,23 @@ def _comment_campaigns(db: Session, effective_client_ids: list, d_start, d_end, 
     for c in rows:
         if id(c) not in seen and int(c.get("conversions") or 0) > 0:
             picked.append(c); seen.add(id(c))
+
+    # Модель оплаты кампании (bid_strategy) — из справочника campaigns по id.
+    strategies = {}
+    picked_uuids = []
+    for c in picked:
+        try:
+            picked_uuids.append(uuid.UUID(str(c.get("id"))))
+        except (ValueError, TypeError, AttributeError):
+            continue
+    if picked_uuids:
+        for cid, bs in (
+            db.query(models.Campaign.id, models.Campaign.bid_strategy)
+            .filter(models.Campaign.id.in_(picked_uuids), models.Campaign.bid_strategy.isnot(None))
+            .all()
+        ):
+            strategies[str(cid)] = bs
+
     out = []
     for c in picked:
         leads = int(c.get("conversions") or 0)
@@ -427,6 +468,9 @@ def _comment_campaigns(db: Session, effective_client_ids: list, d_start, d_end, 
             "spend": cost,
             "leads": leads,
         }
+        bs = strategies.get(str(c.get("id")))
+        if bs:
+            item["bid_strategy"] = bs
         if c.get("impressions") is not None:
             item["impressions"] = int(c.get("impressions") or 0)
         if c.get("clicks") is not None:

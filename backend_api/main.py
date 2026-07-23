@@ -55,6 +55,20 @@ def init_db_with_retry(max_retries=10, retry_delay=2):
                 conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS last_ai_comment TEXT"))
                 conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS last_ai_comment_at TIMESTAMP"))
                 conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS ai_comment_cache JSONB"))
+                conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS directions_budget_mode VARCHAR(16) NOT NULL DEFAULT 'fixed'"))
+                conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS strategy_context TEXT"))
+                conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS bid_strategy VARCHAR"))
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS comparability_events (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                        type VARCHAR(32) NOT NULL,
+                        event_date DATE NOT NULL,
+                        description TEXT,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+                    )
+                """))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_comparability_events_client ON comparability_events (client_id, event_date)"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_clients_folder_id ON clients (folder_id)"))
                 conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS platform_status VARCHAR"))
                 conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS platform_state VARCHAR"))

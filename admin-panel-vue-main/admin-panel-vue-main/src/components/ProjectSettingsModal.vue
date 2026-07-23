@@ -67,6 +67,55 @@
             </div>
           </section>
 
+          <!-- ===== Block: AI-комментарий ===== -->
+          <section class="psm-card">
+            <div class="psm-card__header">
+              <h3 class="psm-card__title">
+                AI-комментарий
+                <span class="psm-optional-tag">необязательно</span>
+              </h3>
+            </div>
+            <div class="psm-card__body">
+              <p class="psm-hint mb-4">Контекст для AI-комментария к дашборду: как трактовать бюджет направлений и заявленную стратегию периода.</p>
+
+              <div class="mb-4">
+                <label class="psm-label">Бюджет направлений</label>
+                <div class="psm-seg">
+                  <button
+                    type="button"
+                    class="psm-seg__btn"
+                    :class="{ 'psm-seg__btn--on': form.directions_budget_mode === 'fixed' }"
+                    @click="form.directions_budget_mode = 'fixed'"
+                  >Фиксированный</button>
+                  <button
+                    type="button"
+                    class="psm-seg__btn"
+                    :class="{ 'psm-seg__btn--on': form.directions_budget_mode === 'flexible' }"
+                    @click="form.directions_budget_mode = 'flexible'"
+                  >Гибкий</button>
+                </div>
+                <div class="psm-hint mt-2">
+                  {{ form.directions_budget_mode === 'flexible'
+                    ? 'AI сможет предлагать перераспределение бюджета между направлениями.'
+                    : 'Бюджет закреплён за направлениями — AI не предлагает переливы, только сравнивает как факт.' }}
+                </div>
+              </div>
+
+              <div>
+                <label class="psm-label">Стратегия периода</label>
+                <textarea
+                  v-model="form.strategy_context"
+                  rows="2"
+                  class="psm-input psm-textarea"
+                  placeholder="Напр.: с 20.07 сознательно смещаем бюджет в подписчиков, чат-боты сворачиваем"
+                  maxlength="500"
+                ></textarea>
+                <div class="psm-char-count">{{ (form.strategy_context || '').length }} / 500</div>
+                <div class="psm-hint">Изменения метрик по этой стратегии AI не считает аномалией.</div>
+              </div>
+            </div>
+          </section>
+
           <!-- ===== Block 4: Детектор и цели ===== -->
           <section class="psm-card">
             <div class="psm-card__header">
@@ -482,6 +531,8 @@ const form = reactive({
   site_url: '',
   spreadsheet_id: '',
   detector_enabled: false,
+  directions_budget_mode: 'fixed',
+  strategy_context: '',
   status: 'active',
   period_start: '',
   period_end: '',
@@ -820,6 +871,8 @@ watch(
       form.site_url = props.project.site_url || ''
       form.spreadsheet_id = props.project.spreadsheet_id || ''
       form.detector_enabled = props.project.detector_enabled || false
+      form.directions_budget_mode = props.project.directions_budget_mode || 'fixed'
+      form.strategy_context = props.project.strategy_context || ''
       form.status = props.project.status || 'active'
       updatedAvatarUrl.value = null
       error.value = ''
@@ -1243,6 +1296,8 @@ async function save() {
       description: form.description.trim() || null,
       site_url: form.site_url.trim() || null,
       detector_enabled: form.detector_enabled,
+      directions_budget_mode: form.directions_budget_mode,
+      strategy_context: form.strategy_context.trim() || null,
       status: form.status,
     }
 
@@ -1902,6 +1957,32 @@ onUnmounted(() => {
   border-radius: 6.9444rem;
   text-transform: lowercase;
 }
+
+/* Сегмент-контрол «Бюджет направлений» (AI-комментарий) */
+.psm-seg {
+  display: inline-flex;
+  padding: 0.25rem;
+  gap: 0.25rem;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 0.7rem;
+}
+.psm-seg__btn {
+  border: 0;
+  padding: 0.45rem 1rem;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: #6b7280;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.psm-seg__btn--on {
+  background: #fff;
+  color: #111827;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+.mt-2 { margin-top: 0.5rem; }
 
 /* ===== Channels list ===== */
 .psm-channel-row {

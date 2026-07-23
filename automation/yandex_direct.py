@@ -13,6 +13,34 @@ logger = logging.getLogger(__name__)
 
 _SENSITIVE_HEADER_NAMES = {"authorization", "proxy-authorization"}
 
+# Ручные стратегии Яндекс.Директа (оплата за клик, ставки задаёт человек).
+_YANDEX_MANUAL_STRATEGIES = {"HIGHEST_POSITION", "MANUAL_CPC", "MAXIMUM_COVERAGE", "SERVING_OFF"}
+
+
+def _normalize_yandex_strategy(bidding_strategy: dict) -> Optional[str]:
+    """BiddingStrategy кампании → manual_cpc | auto_cpc | pay_per_conversion.
+
+    Оплата за конверсии определяется флагом PayForConversion=YES внутри
+    авто-стратегий; иначе ручные типы → manual_cpc, остальное авто → auto_cpc.
+    """
+    types = set()
+    for scope in ("Search", "Network"):
+        node = bidding_strategy.get(scope)
+        if not isinstance(node, dict):
+            continue
+        strategy_type = node.get("BiddingStrategyType")
+        if strategy_type:
+            types.add(str(strategy_type).upper())
+        for key in ("AverageCpa", "WbMaximumConversionRate", "AverageCpi", "PayForConversion"):
+            sub = node.get(key)
+            if isinstance(sub, dict) and str(sub.get("PayForConversion", "")).upper() == "YES":
+                return "pay_per_conversion"
+    if not types:
+        return None
+    if types & _YANDEX_MANUAL_STRATEGIES:
+        return "manual_cpc"
+    return "auto_cpc"
+
 
 def redact_headers(headers: Mapping[str, Any]) -> Dict[str, Any]:
     """Return request headers safe for diagnostics without OAuth credentials."""
@@ -136,6 +164,48 @@ class YandexDirectAPI:
                     )
         except (ValueError, IndexError) as e:
             logger.warning(f"Failed to parse Units header '{units_header}': {e}")
+
+    async def get_campaign_strategies(self) -> Dict[str, str]:
+        """Best-effort карта {campaign_id: bid_strategy} для AI-контекста.
+
+        Отдельный лёгкий запрос campaigns.get только за стратегией. Любая ошибка
+        не критична — возвращаем {}, синхронизация кампаний не затрагивается.
+        Значения нормализованы: manual_cpc | auto_cpc | pay_per_conversion.
+        """
+        payload = {
+            "method": "get",
+            "params": {
+                "SelectionCriteria": {"States": ["ON", "OFF", "SUSPENDED", "ENDED"]},
+                "FieldNames": ["Id"],
+                "TextCampaignFieldNames": ["BiddingStrategy"],
+                "DynamicTextCampaignFieldNames": ["BiddingStrategy"],
+                "MobileAppCampaignFieldNames": ["BiddingStrategy"],
+                "UnifiedCampaignFieldNames": ["BiddingStrategy"],
+            },
+        }
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(self.campaigns_url, json=payload, headers=self.headers, timeout=120.0)
+            if response.status_code != 200:
+                logger.info("get_campaign_strategies: non-200 (%s), пропускаем", response.status_code)
+                return {}
+            data = response.json()
+            out: Dict[str, str] = {}
+            for c in data.get("result", {}).get("Campaigns", []):
+                strat = None
+                for grp in ("TextCampaign", "DynamicTextCampaign", "MobileAppCampaign", "UnifiedCampaign"):
+                    node = c.get(grp)
+                    if isinstance(node, dict) and isinstance(node.get("BiddingStrategy"), dict):
+                        strat = _normalize_yandex_strategy(node["BiddingStrategy"])
+                        if strat:
+                            break
+                if strat:
+                    out[str(c.get("Id"))] = strat
+            logger.info("get_campaign_strategies: получено стратегий: %d", len(out))
+            return out
+        except Exception as e:
+            logger.info("get_campaign_strategies: пропущено из-за ошибки: %s", e)
+            return {}
 
     async def get_campaigns(self) -> List[Dict[str, Any]]:
         """

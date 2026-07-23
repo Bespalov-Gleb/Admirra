@@ -459,6 +459,8 @@ class ClientUpdate(BaseModel):
     spreadsheet_id: Optional[str] = None
     site_url: Optional[str] = None
     direction_label: Optional[str] = None
+    directions_budget_mode: Optional[str] = None
+    strategy_context: Optional[str] = None
     detector_enabled: Optional[bool] = None
     status: Optional[str] = None
 
@@ -469,6 +471,8 @@ class ClientResponse(ClientBase):
     avatar_url: Optional[str] = None
     site_url: Optional[str] = None
     direction_label: str = "directions"
+    directions_budget_mode: Optional[str] = "fixed"
+    strategy_context: Optional[str] = None
     status: Optional[str] = "active"
     detector_enabled: Optional[bool] = False
     actual_start_date: Optional[str] = None

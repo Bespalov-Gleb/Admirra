@@ -345,6 +345,12 @@ def update_client(
     if "direction_label" in update_data:
         update_data["direction_label"] = normalize_label(update_data["direction_label"])
 
+    if "directions_budget_mode" in update_data:
+        mode = str(update_data["directions_budget_mode"] or "fixed").strip().lower()
+        if mode not in ("fixed", "flexible", "none"):
+            raise HTTPException(status_code=400, detail="directions_budget_mode: fixed | flexible | none")
+        update_data["directions_budget_mode"] = mode
+
     for key, value in update_data.items():
         setattr(client, key, value)
     if update_data:

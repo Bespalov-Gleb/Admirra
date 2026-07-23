@@ -444,6 +444,12 @@ class Client(Base):
     avatar_url = Column(String)
     site_url = Column(String, nullable=True)
     direction_label = Column(String(32), nullable=False, default="directions", server_default="directions")
+    # AI-комментарий (промпт v1, правило 10): режим бюджета направлений —
+    # fixed запрещает рекомендовать перелив, flexible разрешает.
+    directions_budget_mode = Column(String(16), nullable=False, default="fixed", server_default="fixed")
+    # AI-комментарий (правило 13): заявленная стратегия периода — свободный
+    # текст менеджера; изменения по стратегии не считаются аномалией.
+    strategy_context = Column(Text, nullable=True)
     status = Column(Enum(ClientStatus), default=ClientStatus.ACTIVE, nullable=False, server_default="ACTIVE")
     detector_enabled = Column(Boolean, default=False, nullable=False, server_default="false")
     detector_onboarding_dismissed_until = Column(DateTime(timezone=True), nullable=True)
@@ -644,6 +650,9 @@ class Campaign(Base):
     status_synced_at = Column(DateTime(timezone=True), nullable=True)
     vk_goal_action_id = Column(String, nullable=True)  # VK Ads goal/action identifier
     vk_goal_action_name = Column(String, nullable=True)  # VK Ads goal/action display name
+    # Модель оплаты кампании (AI-комментарий, механика каналов):
+    # manual_cpc | auto_cpc | pay_per_conversion
+    bid_strategy = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     integration = relationship("Integration", back_populates="campaigns")
@@ -680,6 +689,19 @@ class ProjectDirectionMask(Base):
     position = Column(Integer, nullable=False, default=0)
 
     direction = relationship("ProjectDirection", back_populates="masks")
+
+
+class ComparabilityEvent(Base):
+    """События, ломающие сравнимость периодов (ТЗ AI-комментария, правило 7):
+    смена целей/периода/атрибуции. Питает поле comparability_events контекста."""
+    __tablename__ = "comparability_events"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True)
+    type = Column(String(32), nullable=False)  # goals_changed | period_changed | attribution_changed
+    event_date = Column(Date, nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class TariffPlan(Base):

@@ -3443,6 +3443,48 @@ async def get_integration_goals(
         logger.error(f"Error fetching real Metrica goals: {e}")
         return []
 
+def _goal_signature(integration) -> str:
+    """Стабильная сигнатура выбора целей интеграции (для детекта смены целей)."""
+    def _norm(raw):
+        if raw is None:
+            return []
+        try:
+            parsed = json.loads(raw) if isinstance(raw, str) else raw
+        except (ValueError, TypeError):
+            return [str(raw)]
+        if isinstance(parsed, dict):
+            parsed = list(parsed.keys())
+        if not isinstance(parsed, (list, tuple)):
+            parsed = [parsed]
+        return sorted(str(x) for x in parsed)
+    return json.dumps({
+        "goals": _norm(getattr(integration, "selected_goals", None)),
+        "primary": str(getattr(integration, "primary_goal_id", None) or ""),
+        "vk_actions": _norm(getattr(integration, "lead_action_types", None)),
+    }, sort_keys=True)
+
+
+def _record_goals_changed_event(db: Session, client_id) -> None:
+    """Логируем событие смены целей (правило 7). Дедуп в пределах одного дня."""
+    from datetime import date as _date
+    today = _date.today()
+    exists = (
+        db.query(models.ComparabilityEvent.id)
+        .filter(models.ComparabilityEvent.client_id == client_id,
+                models.ComparabilityEvent.type == "goals_changed",
+                models.ComparabilityEvent.event_date == today)
+        .first()
+    )
+    if exists:
+        return
+    db.add(models.ComparabilityEvent(
+        client_id=client_id,
+        type="goals_changed",
+        event_date=today,
+        description="изменён состав целей / целевых действий",
+    ))
+
+
 @router.patch("/{integration_id}", response_model=schemas.IntegrationResponse)
 async def update_integration(
     integration_id: uuid.UUID,
@@ -3537,6 +3579,11 @@ async def update_integration(
                 if not account_id_raw.isdigit():
                     logger.warning(f"⚠️ VK Ads account_id '{account_id_raw}' is not purely numeric, but using as-is")
     
+    # Сигнатура выбранных целей ДО обновления — чтобы зафиксировать событие,
+    # ломающее сравнимость периодов (AI-комментарий, правило 7).
+    _goal_fields = {"selected_goals", "primary_goal_id", "lead_action_types"}
+    _old_goal_sig = _goal_signature(integration) if (_goal_fields & set(integration_in)) else None
+
     # 1. Обновляем поля самой интеграции
     for key, value in integration_in.items():
         if key in allowed_fields:
@@ -3549,6 +3596,12 @@ async def update_integration(
                 value = json.dumps(value)
             setattr(integration, key, value)
             logger.info("Updated integration field %s", key)
+
+    # Цели сменились → фиксируем comparability-событие на сегодня (дедуп в пределах дня).
+    if _old_goal_sig is not None and integration.client_id:
+        _new_goal_sig = _goal_signature(integration)
+        if _new_goal_sig != _old_goal_sig:
+            _record_goals_changed_event(db, integration.client_id)
 
     if "lead_action_types" in integration_in:
         # Saving the composition acknowledges every objective currently present
