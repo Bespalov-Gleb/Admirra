@@ -338,27 +338,28 @@ def _build_comment_context(db: Session, effective_client_ids: list, d_start, d_e
         if row and row.target_cpa:
             target_cpl = _num(row.target_cpa)
 
+    # Одиночный проект нужен нескольким блокам (направления, режим бюджета,
+    # стратегия, детектор) — читаем один раз.
+    client_row = db.query(models.Client).filter(models.Client.id == single).first() if single is not None else None
+
     directions = []
-    if single is not None:
+    if client_row is not None:
         try:
             from backend_api.services import directions as _dir_svc
-            client_obj = db.query(models.Client).filter(models.Client.id == single).first()
-            if client_obj is not None:
-                dstats = _dir_svc.direction_stats(db, client_obj, d_start, d_end, platform)
-                for it in (dstats.get("items") or []):
-                    directions.append({
-                        "name": it.get("name"),
-                        "spend": _num(it.get("expenses")),
-                        "budget_share_pct": _num(it.get("budget_share"), 1),
-                        "leads": int(it.get("leads") or 0),
-                        "cpl": _num(it.get("cpl")),
-                    })
+            dstats = _dir_svc.direction_stats(db, client_row, d_start, d_end, platform)
+            for it in (dstats.get("items") or []):
+                directions.append({
+                    "name": it.get("name"),
+                    "spend": _num(it.get("expenses")),
+                    "budget_share_pct": _num(it.get("budget_share"), 1),
+                    "leads": int(it.get("leads") or 0),
+                    "cpl": _num(it.get("cpl")),
+                })
         except Exception as _e:
             logger.warning("comment context: directions skipped: %s", _e)
 
     # Режим бюджета направлений — настройка проекта (правило 10). Если направлений
     # нет — none, иначе берём режим проекта (по умолчанию fixed).
-    client_row = db.query(models.Client).filter(models.Client.id == single).first() if single is not None else None
     if not directions:
         directions_mode = "none"
     else:
@@ -382,19 +383,17 @@ def _build_comment_context(db: Session, effective_client_ids: list, d_start, d_e
 
     # Детектор: подмешиваем флажки только если он включён (иначе null).
     detector = None
-    if single is not None:
-        client_obj = db.query(models.Client).filter(models.Client.id == single).first()
-        if client_obj is not None and getattr(client_obj, "detector_enabled", False):
-            alerts = (
-                db.query(models.DetectorAlert)
-                .filter(models.DetectorAlert.client_id == single, models.DetectorAlert.status == "open")
-                .order_by(models.DetectorAlert.opened_at.desc()).limit(8).all()
-            )
-            flags = []
-            for a in alerts:
-                head = str(a.hypothesis_text or "").replace("\r", "").split("\n")[0].lstrip("• ").strip()
-                flags.append({"type": (a.meta or {}).get("check") or a.metric, "text": head})
-            detector = {"enabled": True, "flags": flags}
+    if client_row is not None and getattr(client_row, "detector_enabled", False):
+        alerts = (
+            db.query(models.DetectorAlert)
+            .filter(models.DetectorAlert.client_id == single, models.DetectorAlert.status == "open")
+            .order_by(models.DetectorAlert.opened_at.desc()).limit(8).all()
+        )
+        flags = []
+        for a in alerts:
+            head = str(a.hypothesis_text or "").replace("\r", "").split("\n")[0].lstrip("• ").strip()
+            flags.append({"type": (a.meta or {}).get("check") or a.metric, "text": head})
+        detector = {"enabled": True, "flags": flags}
 
     # События, ломающие сравнимость периодов (правило 7): пересекающие период.
     comparability_events = []
@@ -603,8 +602,10 @@ async def _generate_dashboard_comment(db: Session, effective_client_ids: list, d
             user_message += "\n\nПредыдущая попытка отклонена: " + error_hint + " Исправь и верни только JSON."
         logger.info("dashboard_comment %s: attempt %d (model=%s)", COMMENT_PROMPT_VERSION, attempt + 1, settings.OPENAI_MODEL)
         response = await client.messages.create(
+            # Кириллица токеноёмкая: до 1200 знаков текста + JSON-обвязка —
+            # берём запас, чтобы ответ не обрезался (иначе невалидный JSON).
             model=settings.OPENAI_MODEL,
-            max_tokens=1024,
+            max_tokens=2000,
             system=DASHBOARD_COMMENT_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_message}],
             temperature=0.35,
