@@ -454,7 +454,11 @@ def _build_comment_context(db: Session, effective_client_ids: list, d_start, d_e
 
 def data_fingerprint(db: Session, client_ids: list, d_start, d_end, platform: str = "all", include_vat: bool = True) -> str:
     """Отпечаток видимого среза данных периода (§6): по нему фронт понимает,
-    что данные изменились после генерации, и показывает «пересчитываем»."""
+    что данные изменились после генерации, и показывает «пересчитываем».
+
+    В отпечаток входит и контекст проекта с режимом бюджета — чтобы правка
+    «Контекста для AI» тоже помечала комментарий устаревшим и запускала
+    регенерацию (§5/§2)."""
     import hashlib
     s = StatsService.aggregate_summary(db, client_ids, d_start, d_end, platform, None, None)
     raw_spend = float(s.get("expenses") or 0)
@@ -464,9 +468,14 @@ def data_fingerprint(db: Session, client_ids: list, d_start, d_end, platform: st
     else:
         spend_vat = raw_spend * 1.22
     spend = spend_vat if include_vat else raw_spend
+    ctx_sig = ""
+    if len(client_ids) == 1:
+        cl = db.query(models.Client).filter(models.Client.id == client_ids[0]).first()
+        if cl is not None:
+            ctx_sig = f"{(cl.strategy_context or '').strip()}|{cl.directions_budget_mode or 'fixed'}"
     key = "|".join(str(x) for x in (
         round(spend), int(s.get("leads") or 0), int(s.get("clicks") or 0),
-        int(s.get("impressions") or 0), 1 if include_vat else 0,
+        int(s.get("impressions") or 0), 1 if include_vat else 0, ctx_sig,
     ))
     return hashlib.md5(key.encode("utf-8")).hexdigest()[:12]
 

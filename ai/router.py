@@ -809,6 +809,41 @@ async def ai_comment_feedback(
     return {"ok": True}
 
 
+@router.get("/comment/generations.csv")
+async def export_comment_generations(
+    client_id: Optional[str] = None,
+    prompt_version: Optional[str] = None,
+    rating: Optional[int] = None,
+    limit: int = 5000,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """§8: CSV-выгрузка лога генераций/оценок для контроля качества (только ADMIN)."""
+    from fastapi.responses import PlainTextResponse
+    import csv, io
+    if getattr(current_user.role, "value", str(current_user.role)) != "ADMIN":
+        raise HTTPException(status_code=403, detail="Только для администратора")
+    q = db.query(models.AICommentGeneration)
+    if client_id:
+        q = q.filter(models.AICommentGeneration.client_id == _parse_uuid(client_id, "client_id"))
+    if prompt_version:
+        q = q.filter(models.AICommentGeneration.prompt_version == prompt_version)
+    if rating in (1, -1):
+        q = q.filter(models.AICommentGeneration.rating == rating)
+    rows = q.order_by(models.AICommentGeneration.generated_at.desc()).limit(min(limit, 20000)).all()
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["id", "client_id", "period_from", "period_to", "generated_at", "trigger",
+                "prompt_version", "model", "directions_mode", "vat_mode", "fingerprint",
+                "context_hash", "rating", "rated_at", "text"])
+    for r in rows:
+        w.writerow([r.id, r.client_id, r.period_from, r.period_to, r.generated_at, r.trigger,
+                    r.prompt_version, r.model, r.directions_mode, r.vat_mode, r.fingerprint,
+                    r.context_hash, r.rating, r.rated_at, (r.text or "").replace("\n", " ")])
+    return PlainTextResponse(buf.getvalue(), media_type="text/csv",
+                             headers={"Content-Disposition": "attachment; filename=ai_comment_generations.csv"})
+
+
 @router.post("/comment")
 async def save_ai_comment(
     body: dict,

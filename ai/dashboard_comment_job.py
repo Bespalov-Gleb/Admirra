@@ -18,6 +18,25 @@ from ai.comment_periods import standard_periods
 logger = logging.getLogger("ai.dashboard_comment_job")
 
 
+def _prune_generation_log(db) -> None:
+    """§8: неоценённые генерации храним ≥90 дней; записи с оценкой — бессрочно."""
+    from datetime import datetime, timedelta, timezone
+    cutoff = datetime.now(timezone.utc) - timedelta(days=90)
+    try:
+        deleted = (
+            db.query(models.AICommentGeneration)
+            .filter(models.AICommentGeneration.generated_at < cutoff,
+                    models.AICommentGeneration.rating.is_(None))
+            .delete(synchronize_session=False)
+        )
+        db.commit()
+        if deleted:
+            logger.info("generation log pruned: %d старых неоценённых записей", deleted)
+    except Exception as e:
+        db.rollback()
+        logger.warning("generation log prune skipped: %s", e)
+
+
 async def generate_dashboard_comments() -> None:
     """Пересчитать и закэшировать AI-комментарии по стандартным периодам."""
     try:
@@ -28,6 +47,7 @@ async def generate_dashboard_comments() -> None:
 
     db = SessionLocal()
     try:
+        _prune_generation_log(db)
         clients = (
             db.query(models.Client)
             .filter(models.Client.status == models.ClientStatus.ACTIVE)
