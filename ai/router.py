@@ -286,7 +286,25 @@ def _get_cached_comment(db: Session, client_id: uuid.UUID, start_date, end_date)
     return entry
 
 
-def _save_comment_cache(db: Session, client_id: uuid.UUID, start_date, end_date, text: str) -> None:
+def _comment_fingerprint(db: Session, user_id: uuid.UUID, client_id: uuid.UUID, start_date, end_date) -> str | None:
+    """Отпечаток текущего среза данных периода (§6) — для сверки со кэшем."""
+    try:
+        from ai.report_generator import data_fingerprint
+        from backend_api.stats_service import StatsService
+        from datetime import datetime as _dt
+        eff = StatsService.get_effective_client_ids(db, user_id, client_id)
+        if not eff:
+            return None
+        d_start = _dt.strptime(str(start_date), "%Y-%m-%d").date()
+        d_end = _dt.strptime(str(end_date), "%Y-%m-%d").date()
+        return data_fingerprint(db, eff, d_start, d_end)
+    except Exception as e:
+        logger.warning("comment fingerprint skipped: %s", e)
+        return None
+
+
+def _save_comment_cache(db: Session, client_id: uuid.UUID, start_date, end_date, text: str,
+                        fingerprint: str | None = None) -> None:
     client = db.query(models.Client).filter(models.Client.id == client_id).first()
     if not client:
         return
@@ -297,6 +315,7 @@ def _save_comment_cache(db: Session, client_id: uuid.UUID, start_date, end_date,
         "generated_at": datetime.utcnow().isoformat(),
         "start": str(start_date) if start_date else None,
         "end": str(end_date) if end_date else None,
+        "fingerprint": fingerprint,
     }
     client.ai_comment_cache = cache
     # Обратная совместимость: последний сгенерированный комментарий.
@@ -673,6 +692,12 @@ async def generate_report(
                     return GenerateReportResponse(text=cached["text"])
         if not is_dashboard_comment:
             SubscriptionService.ensure_can_use_ai(db, current_user, requested=1)
+        # Триггер для лога генераций (§8): стандартный период — «Обновить»,
+        # произвольный — «Рассчитать».
+        _dc_trigger = "refresh"
+        if is_dashboard_comment:
+            _, _dc_is_standard = _comment_cache_key(body.start_date, body.end_date)
+            _dc_trigger = "refresh" if _dc_is_standard else "calculate"
         text = await do_generate(
             db=db,
             user_id=current_user.id,
@@ -680,9 +705,11 @@ async def generate_report(
             start_date=body.start_date,
             end_date=body.end_date,
             report_type=body.report_type or "full",
+            trigger=_dc_trigger,
         )
         if is_dashboard_comment and client_id:
-            _save_comment_cache(db, client_id, body.start_date, body.end_date, text)
+            fp = _comment_fingerprint(db, current_user.id, client_id, body.start_date, body.end_date)
+            _save_comment_cache(db, client_id, body.start_date, body.end_date, text, fingerprint=fp)
         if not is_dashboard_comment:
             SubscriptionService.increment_ai_usage(db, current_user, requested=1)
         log_history_event(
@@ -730,14 +757,56 @@ async def get_ai_comment(
         _key, is_standard = _comment_cache_key(start_date, end_date)
         entry = _get_cached_comment(db, cid, start_date, end_date)
         if entry:
+            # §6: отпечаток данных — если срез изменился после генерации
+            # (синхронизация, смена НДС), помечаем stale, фронт пересчитает.
+            stale = False
+            stored_fp = entry.get("fingerprint")
+            if stored_fp:
+                current_fp = _comment_fingerprint(db, current_user.id, cid, start_date, end_date)
+                stale = bool(current_fp and current_fp != stored_fp)
             return {
                 "text": entry.get("text"),
                 "generated_at": entry.get("generated_at"),
                 "standard": is_standard,
+                "stale": stale,
             }
-        return {"text": None, "generated_at": None, "standard": is_standard}
+        return {"text": None, "generated_at": None, "standard": is_standard, "stale": False}
 
-    return {"text": client.last_ai_comment, "generated_at": client.last_ai_comment_at, "standard": None}
+    return {"text": client.last_ai_comment, "generated_at": client.last_ai_comment_at, "standard": None, "stale": False}
+
+
+@router.post("/comment/feedback")
+async def ai_comment_feedback(
+    body: dict,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """§7/§8: оценка 👍/👎 комментария — пишется в последнюю запись лога генераций."""
+    from datetime import datetime
+    client_id = body.get("client_id")
+    rating = body.get("rating")
+    if not client_id or rating not in (1, -1):
+        raise HTTPException(status_code=400, detail="client_id и rating (1|-1) обязательны")
+    cid = _parse_uuid(client_id, "client_id")
+    _client_or_404(db, current_user, cid)
+    q = db.query(models.AICommentGeneration).filter(models.AICommentGeneration.client_id == cid)
+    if body.get("start_date") and body.get("end_date"):
+        try:
+            from datetime import datetime as _dt
+            q = q.filter(
+                models.AICommentGeneration.period_from == _dt.strptime(body["start_date"], "%Y-%m-%d").date(),
+                models.AICommentGeneration.period_to == _dt.strptime(body["end_date"], "%Y-%m-%d").date(),
+            )
+        except (ValueError, TypeError):
+            pass
+    row = q.order_by(models.AICommentGeneration.generated_at.desc()).first()
+    if not row:
+        return {"ok": False, "detail": "нет записи генерации"}
+    row.rating = int(rating)
+    row.rated_by = current_user.id
+    row.rated_at = datetime.utcnow()
+    db.commit()
+    return {"ok": True}
 
 
 @router.post("/comment")

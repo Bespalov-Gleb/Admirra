@@ -114,6 +114,7 @@ async def generate_report(
     report_type: str = "full",
     folder_id=None,
     platform: str = "all",
+    trigger: str = "refresh",
 ) -> str:
     """
     Генерирует текстовый отчёт на основе данных дашборда.
@@ -137,11 +138,11 @@ async def generate_report(
     except ValueError:
         raise ValueError("Неверный формат дат. Используйте YYYY-MM-DD.")
 
-    # AI-комментарий за период — отдельный конвейер (промпт v1.0): богатый
+    # AI-комментарий за период — отдельный конвейер (промпт v1.1): богатый
     # JSON-контекст, структурный ответ модели, программная пост-валидация.
     if report_type == "dashboard_comment":
         return await _generate_dashboard_comment(
-            db, effective_client_ids, d_start, d_end, start_date, end_date, platform or "all"
+            db, effective_client_ids, d_start, d_end, start_date, end_date, platform or "all", trigger=trigger
         )
 
     # Собираем контекст
@@ -451,6 +452,25 @@ def _build_comment_context(db: Session, effective_client_ids: list, d_start, d_e
     }
 
 
+def data_fingerprint(db: Session, client_ids: list, d_start, d_end, platform: str = "all", include_vat: bool = True) -> str:
+    """Отпечаток видимого среза данных периода (§6): по нему фронт понимает,
+    что данные изменились после генерации, и показывает «пересчитываем»."""
+    import hashlib
+    s = StatsService.aggregate_summary(db, client_ids, d_start, d_end, platform, None, None)
+    raw_spend = float(s.get("expenses") or 0)
+    cbp = s.get("cost_by_platform") or {}
+    if cbp:
+        spend_vat = (float(cbp.get("yandex") or 0) + float(cbp.get("vk") or 0)) * 1.22 + float(cbp.get("avito") or 0)
+    else:
+        spend_vat = raw_spend * 1.22
+    spend = spend_vat if include_vat else raw_spend
+    key = "|".join(str(x) for x in (
+        round(spend), int(s.get("leads") or 0), int(s.get("clicks") or 0),
+        int(s.get("impressions") or 0), 1 if include_vat else 0,
+    ))
+    return hashlib.md5(key.encode("utf-8")).hexdigest()[:12]
+
+
 def _comment_campaigns(db: Session, effective_client_ids: list, d_start, d_end, platform: str) -> list:
     """Усечённый список: топ-10 по расходу + все с лидами (раздел 2)."""
     rows = StatsService.get_campaign_stats(db, effective_client_ids, d_start, d_end, platform, None, None)
@@ -608,7 +628,8 @@ def _flatten_comment(obj: dict, hard_limit: int = 1200) -> str:
 
 
 async def _generate_dashboard_comment(db: Session, effective_client_ids: list, d_start, d_end,
-                                      start_date: str, end_date: str, platform: str) -> str:
+                                      start_date: str, end_date: str, platform: str,
+                                      trigger: str = "refresh") -> str:
     """Конвейер AI-комментария: контекст → модель (JSON) → пост-валидация → текст."""
     import json
     context = _build_comment_context(db, effective_client_ids, d_start, d_end, start_date, end_date, platform)
@@ -642,13 +663,42 @@ async def _generate_dashboard_comment(db: Session, effective_client_ids: list, d
         if not hard:
             if soft:
                 logger.warning("dashboard_comment %s: soft issues: %s", COMMENT_PROMPT_VERSION, "; ".join(soft))
-            return _flatten_comment(obj)
+            text = _flatten_comment(obj)
+            _log_comment_generation(db, effective_client_ids, d_start, d_end, text, context, trigger)
+            return text
         error_hint = " ".join(hard)
 
     # Повторный провал (раздел 5.5): не портим кэш — отдаём ошибку, UI оставляет
     # предыдущий валидный комментарий.
     logger.warning("dashboard_comment %s: validation_failed after retries", COMMENT_PROMPT_VERSION)
     raise ValueError("AI-комментарий не прошёл валидацию")
+
+
+def _log_comment_generation(db: Session, effective_client_ids: list, d_start, d_end,
+                            text: str, context: dict, trigger: str) -> None:
+    """§8: пишем каждую успешную генерацию в лог качества (только для проекта)."""
+    if len(effective_client_ids) != 1:
+        return
+    try:
+        import hashlib
+        pc = context.get("project_context") or ""
+        db.add(models.AICommentGeneration(
+            client_id=effective_client_ids[0],
+            period_from=d_start,
+            period_to=d_end,
+            trigger=trigger,
+            text=text,
+            fingerprint=data_fingerprint(db, effective_client_ids, d_start, d_end),
+            prompt_version=COMMENT_PROMPT_VERSION,
+            model=str(settings.OPENAI_MODEL),
+            directions_mode=context.get("directions_mode"),
+            vat_mode=context.get("vat_mode"),
+            context_hash=hashlib.md5(pc.encode("utf-8")).hexdigest()[:12] if pc else None,
+        ))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.warning("comment generation log skipped: %s", e)
 
 
 def _sanitize_dashboard_comment(text: str, hard_limit: int = 1200) -> str:

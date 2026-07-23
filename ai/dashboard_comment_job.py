@@ -55,6 +55,7 @@ async def generate_dashboard_comments() -> None:
                         start_date=start.isoformat(),
                         end_date=end.isoformat(),
                         report_type="dashboard_comment",
+                        trigger="auto_sync",
                     )
                 except Exception as e:
                     logger.error("dashboard_comment autogen failed %s/%s: %s", client.id, key, e)

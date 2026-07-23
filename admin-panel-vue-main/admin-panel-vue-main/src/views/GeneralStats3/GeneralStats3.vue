@@ -910,20 +910,22 @@
     </section>
 
     <section class="bottom-grid">
-      <article class="panel ai-panel ai-comment" :class="{ 'panel--syncing': dashboardSyncInProgress }">
+      <article class="panel ai-panel ai-comment" :class="{ 'panel--syncing': dashboardSyncInProgress, 'ai-comment--collapsed': aiCommentCollapsed }">
         <div class="ai-comment__head">
           <span class="ai-comment__icon"><SparklesIcon /></span>
           <h2 class="ai-comment__title">AI-комментарий за период</h2>
           <button
-            v-if="reportComment && !loadingInitialComment"
+            v-if="reportComment && !loadingInitialComment && !aiCommentCollapsed"
             class="ai-download-btn"
             type="button"
-            title="Скачать комментарий"
-            @click="downloadAiComment"
+            :title="aiCommentCopied ? 'Скопировано' : 'Копировать текст'"
+            @click="copyAiComment"
           >
-            <DocumentArrowDownIcon />
+            <ClipboardDocumentIcon v-if="!aiCommentCopied" />
+            <CheckIcon v-else />
           </button>
           <button
+            v-if="!aiCommentCollapsed"
             class="ai-comment__refresh"
             type="button"
             :disabled="loadingAiComment || dashboardSyncInProgress"
@@ -935,10 +937,20 @@
             <ArrowPathIcon v-else />
             {{ loadingAiComment ? 'Обновляю…' : 'Обновить' }}
           </button>
+          <button
+            class="ai-comment__collapse"
+            type="button"
+            :title="aiCommentCollapsed ? 'Развернуть' : 'Свернуть'"
+            @click="toggleAiCommentCollapsed"
+          >
+            <ChevronDownIcon :class="{ 'ai-comment__collapse-ic--up': !aiCommentCollapsed }" />
+          </button>
         </div>
 
-        <!-- Загрузка сохранённого комментария / первая генерация -->
-        <div v-if="loadingInitialComment || (loadingAiComment && !reportComment)" class="ai-comment__skeleton">
+        <template v-if="!aiCommentCollapsed">
+        <!-- Загрузка сохранённого комментария / первая генерация / пересчёт -->
+        <div v-if="loadingInitialComment || loadingAiComment || aiCommentStale" class="ai-comment__skeleton">
+          <p class="ai-comment__skeleton-note">{{ aiCommentStale || loadingAiComment ? 'Данные обновились, пересчитываем комментарий…' : 'Готовим комментарий по свежей синхронизации…' }}</p>
           <div class="ai-skeleton-line ai-skeleton-line--wide"></div>
           <div class="ai-skeleton-line"></div>
           <div class="ai-skeleton-line ai-skeleton-line--medium"></div>
@@ -963,19 +975,47 @@
           <p>Комментарий появится автоматически после ближайшего обновления данных. Можно сформировать сразу — кнопка «Обновить».</p>
         </div>
 
-        <!-- Готовый комментарий -->
+        <!-- Готовый комментарий: две колонки на десктопе (текст + рекомендация) -->
         <template v-else>
-          <div class="ai-comment__body">
-            <p class="ai-comment__lead">{{ aiComment.lead }}</p>
-            <p v-for="(para, i) in aiComment.body" :key="i" class="ai-comment__para">{{ para }}</p>
-            <div v-if="aiComment.recommendation" class="ai-comment__reco">
-              <span class="ai-comment__reco-tag">Рекомендация</span>
-              <span class="ai-comment__reco-text">{{ aiComment.recommendation }}</span>
+          <div class="ai-comment__cols">
+            <div class="ai-comment__text">
+              <p class="ai-comment__lead">{{ aiComment.lead }}</p>
+              <p v-for="(para, i) in aiComment.body" :key="i" class="ai-comment__para">{{ para }}</p>
+            </div>
+            <aside v-if="aiComment.recommendation" class="ai-comment__reco">
+              <div class="ai-comment__reco-tag"><span class="ai-comment__reco-ic">💡</span> Рекомендация</div>
+              <p class="ai-comment__reco-text">{{ aiComment.recommendation }}</p>
+            </aside>
+          </div>
+          <div class="ai-comment__foot">
+            <p class="ai-comment__meta">
+              Сгенерировано {{ aiCommentGeneratedLabel }} · период {{ aiCommentPeriodLabel }} · не тратит AI-лимит
+            </p>
+            <div class="ai-comment__feedback">
+              <button
+                type="button"
+                class="ai-comment__ctx-link"
+                @click="clarifyAiContext"
+              >Уточнить контекст для AI</button>
+              <button
+                type="button"
+                class="ai-comment__vote"
+                :class="{ 'ai-comment__vote--on': aiCommentRating === 1 }"
+                title="Полезно"
+                @click="sendAiFeedback(1)"
+              >👍</button>
+              <button
+                type="button"
+                class="ai-comment__vote"
+                :class="{ 'ai-comment__vote--on': aiCommentRating === -1 }"
+                title="Неточно"
+                @click="sendAiFeedback(-1)"
+              >👎</button>
             </div>
           </div>
-          <p class="ai-comment__meta">
-            Сгенерировано {{ aiCommentGeneratedLabel }} · период {{ aiCommentPeriodLabel }} · не тратит AI-лимит
-          </p>
+          <div v-if="aiCommentDownvoteHint" class="ai-comment__downvote-hint">
+            Спасибо. Если AI чего-то не знает про проект — <button type="button" class="ai-comment__ctx-link" @click="clarifyAiContext">уточните контекст</button> и нажмите «Обновить».
+          </div>
         </template>
 
         <div v-if="dashboardSyncInProgress" class="sync-panel-overlay">
@@ -984,6 +1024,7 @@
           <span>Комментарий обновится после пересчёта данных.</span>
           <i></i><i></i><i></i>
         </div>
+        </template>
       </article>
     </section>
 
@@ -1504,6 +1545,8 @@ import {
   ArrowTrendingDownIcon,
   ArrowTrendingUpIcon,
   CheckCircleIcon,
+  CheckIcon,
+  ClipboardDocumentIcon,
   ArrowUpRightIcon,
   CalendarDaysIcon,
   ChartBarIcon,
@@ -1983,12 +2026,17 @@ const loadingInitialComment = ref(false)
 const aiCommentGeneratedAt = ref(null)
 // null — период не определён; true — стандартный (кэш); false — произвольный (нужна кнопка «Рассчитать»)
 const aiCommentStandard = ref(null)
+const aiCommentStale = ref(false)      // §6: данные изменились после генерации
+const aiCommentRating = ref(0)         // §7: 1 = 👍, -1 = 👎, 0 — не оценён
+const aiCommentDownvoteHint = ref(false)
 
 const loadSavedComment = async () => {
   if (!filters.client_id) return
   loadingInitialComment.value = true
   reportComment.value = ''
   aiCommentGeneratedAt.value = null
+  aiCommentRating.value = 0
+  aiCommentDownvoteHint.value = false
   try {
     const params = new URLSearchParams({ client_id: filters.client_id })
     if (filters.start_date) params.set('start_date', filters.start_date)
@@ -1997,11 +2045,38 @@ const loadSavedComment = async () => {
     if (data?.text) reportComment.value = data.text
     aiCommentGeneratedAt.value = data?.generated_at || null
     aiCommentStandard.value = data?.standard ?? null
+    aiCommentStale.value = Boolean(data?.stale)
+    // §6: срез данных изменился (синхронизация/НДС) — показываем пересчёт
+    // и автоматически регенерируем (не тратит AI-лимит).
+    if (aiCommentStale.value && data?.text) {
+      loadingInitialComment.value = false
+      triggerAiComment()
+    }
   } catch {
     // не критично — просто не показываем сохранённый
   } finally {
     loadingInitialComment.value = false
   }
+}
+
+const sendAiFeedback = async (rating) => {
+  if (!filters.client_id) return
+  aiCommentRating.value = rating
+  aiCommentDownvoteHint.value = rating === -1
+  try {
+    await api.post('ai/comment/feedback', {
+      client_id: filters.client_id,
+      start_date: filters.start_date,
+      end_date: filters.end_date,
+      rating,
+    })
+  } catch {
+    // оценка не критична для UX
+  }
+}
+
+const clarifyAiContext = () => {
+  openProjectSettingsModal()
 }
 
 // ТЗ AI-комментария §1/§11: разбираем короткий текст на лид / абзацы / рекомендацию,
@@ -5022,27 +5097,42 @@ const handleGenerateReport = async () => {
 const triggerAiComment = async () => {
   if (loadingAiComment.value) return
   loadingAiComment.value = true
+  aiCommentRating.value = 0
+  aiCommentDownvoteHint.value = false
   try {
     // Бэк кэширует dashboard_comment по периоду сам (ТЗ §12) — отдельный POST не нужен.
     await handleGenerateReport()
     // После ручного «Рассчитать» произвольный период считается посчитанным.
     if (reportComment.value) aiCommentStandard.value = aiCommentStandard.value ?? false
+    aiCommentStale.value = false
   } finally {
     loadingAiComment.value = false
   }
 }
 
-const downloadAiComment = () => {
+// §7: вместо скачивания — копирование plain-text в буфер (кейс «переслать в чат»).
+const aiCommentCopied = ref(false)
+const copyAiComment = async () => {
   if (!reportComment.value) return
-  const dateStr = filters.start_date || 'report'
-  const blob = new Blob([reportComment.value], { type: 'text/plain;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `ai-comment-${dateStr}.txt`
-  a.click()
-  URL.revokeObjectURL(url)
+  try {
+    await navigator.clipboard.writeText(reportComment.value)
+    aiCommentCopied.value = true
+    setTimeout(() => { aiCommentCopied.value = false }, 1800)
+  } catch {
+    toaster.error('Не удалось скопировать')
+  }
 }
+
+// §7: сворачивание блока, состояние запоминается на пользователя × проект.
+const aiCommentCollapsed = ref(false)
+const aiCommentCollapseKey = computed(() => `ai_comment_collapsed:${filters.client_id || 'none'}`)
+const toggleAiCommentCollapsed = () => {
+  aiCommentCollapsed.value = !aiCommentCollapsed.value
+  try { localStorage.setItem(aiCommentCollapseKey.value, aiCommentCollapsed.value ? '1' : '0') } catch { /* no-op */ }
+}
+watch(() => filters.client_id, () => {
+  try { aiCommentCollapsed.value = localStorage.getItem(aiCommentCollapseKey.value) === '1' } catch { aiCommentCollapsed.value = false }
+}, { immediate: true })
 
 const getOrGenerateComment = async () => reportComment.value || await handleGenerateReport()
 
@@ -14955,6 +15045,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
+  container-type: inline-size;
 }
 .ai-comment__head {
   display: flex;
@@ -14997,54 +15088,147 @@ onMounted(() => {
 .ai-comment__refresh svg { width: 0.95rem; height: 0.95rem; }
 .ai-comment__refresh:hover:not(:disabled) { background: #f9fafb; border-color: #d1d5db; }
 .ai-comment__refresh:disabled { opacity: 0.55; cursor: not-allowed; }
+.ai-comment__collapse {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: #9ca3af;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.ai-comment__collapse:hover { background: #f3f4f6; color: #4b5563; }
+.ai-comment__collapse svg { width: 1.1rem; height: 1.1rem; transition: transform 0.2s ease; }
+.ai-comment__collapse-ic--up { transform: rotate(180deg); }
+.ai-comment--collapsed { gap: 0 !important; }
+.figma-dashboard.is-dark .ai-comment__collapse:hover { background: rgba(255,255,255,0.06); color: #cbd5e1; }
 
-.ai-comment__body {
+/* §4: две колонки на десктопе (>1100px карточки) — текст (≤740px) слева,
+   рекомендация отдельной карточкой справа; ≤1100px — рекомендация под текстом. */
+.ai-comment__cols {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.ai-comment__text {
   max-width: 740px;
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.65rem;
 }
 .ai-comment__lead {
   margin: 0;
-  font-size: 0.98rem;
+  font-size: 1.0625rem;
   font-weight: 700;
   line-height: 1.5;
   color: #111827;
 }
 .ai-comment__para {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: 0.9375rem;
   line-height: 1.6;
   color: #374151;
 }
 .ai-comment__reco {
   display: flex;
-  align-items: baseline;
-  gap: 0.55rem;
-  margin-top: 0.35rem;
-  padding: 0.7rem 0.9rem;
-  border-radius: 0.7rem;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.9rem 1rem;
+  border-radius: 0.8rem;
   background: #f0f6ff;
   border: 1px solid #dbe8ff;
 }
 .ai-comment__reco-tag {
-  flex: 0 0 auto;
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 800;
   color: #2f6bff;
 }
+.ai-comment__reco-ic { font-size: 0.9rem; }
 .ai-comment__reco-text {
-  font-size: 0.9rem;
+  margin: 0;
+  font-size: 0.9375rem;
   line-height: 1.55;
   color: #1f3a7a;
 }
+@container (min-width: 1100px) {
+  .ai-comment__cols {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 1.75rem;
+  }
+  .ai-comment__text { flex: 1 1 auto; min-width: 0; }
+  .ai-comment__reco { flex: 0 0 320px; max-width: 340px; }
+}
 .ai-comment__meta {
-  margin: 0.2rem 0 0;
+  margin: 0;
   font-size: 0.78rem;
   color: #9ca3af;
 }
+.ai-comment__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 0.2rem;
+}
+.ai-comment__feedback {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.ai-comment__ctx-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: #2563eb;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ai-comment__ctx-link:hover { text-decoration: underline; }
+.ai-comment__vote {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background: #fff;
+  font-size: 0.85rem;
+  cursor: pointer;
+  opacity: 0.65;
+  transition: all 0.15s ease;
+}
+.ai-comment__vote:hover { opacity: 1; border-color: #d1d5db; }
+.ai-comment__vote--on { opacity: 1; border-color: #2f6bff; background: #f0f6ff; }
+.ai-comment__downvote-hint {
+  margin-top: 0.5rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.6rem;
+  background: #f9fafb;
+  border: 1px solid #eef0f3;
+  font-size: 0.82rem;
+  color: #4b5563;
+  line-height: 1.5;
+}
+.ai-comment__skeleton-note {
+  margin: 0 0 0.2rem;
+  font-size: 0.82rem;
+  color: #6b7280;
+}
+.figma-dashboard.is-dark .ai-comment__vote { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.12); }
+.figma-dashboard.is-dark .ai-comment__vote--on { background: rgba(74,122,255,0.12); border-color: rgba(74,122,255,0.4); }
+.figma-dashboard.is-dark .ai-comment__downvote-hint { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.08); color: #9ca3af; }
 .ai-comment__empty {
   max-width: 740px;
 }

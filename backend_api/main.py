@@ -69,6 +69,28 @@ def init_db_with_retry(max_retries=10, retry_delay=2):
                     )
                 """))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_comparability_events_client ON comparability_events (client_id, event_date)"))
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS ai_comment_generations (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                        period_from DATE,
+                        period_to DATE,
+                        generated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+                        trigger VARCHAR(24),
+                        text TEXT,
+                        fingerprint VARCHAR(32),
+                        prompt_version VARCHAR(16),
+                        model VARCHAR(64),
+                        directions_mode VARCHAR(16),
+                        vat_mode VARCHAR(16),
+                        context_hash VARCHAR(32),
+                        rating SMALLINT,
+                        rated_by UUID,
+                        rated_at TIMESTAMP WITH TIME ZONE
+                    )
+                """))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_ai_comment_gen_client ON ai_comment_generations (client_id, generated_at DESC)"))
+                conn.execute(text("ALTER TABLE ai_comment_generations ADD COLUMN IF NOT EXISTS rating SMALLINT"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_clients_folder_id ON clients (folder_id)"))
                 conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS platform_status VARCHAR"))
                 conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS platform_state VARCHAR"))

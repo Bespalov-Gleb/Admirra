@@ -704,6 +704,29 @@ class ComparabilityEvent(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
+class AICommentGeneration(Base):
+    """Лог генераций AI-комментария и оценок (ТЗ §8) — внутренний инструмент
+    качества: база для доли 👎 по версиям промпта и отбора few-shot эталонов."""
+    __tablename__ = "ai_comment_generations"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True)
+    period_from = Column(Date, nullable=True)
+    period_to = Column(Date, nullable=True)
+    generated_at = Column(DateTime(timezone=True), server_default=func.now())
+    trigger = Column(String(24), nullable=True)  # auto_sync | refresh | calculate
+    text = Column(Text, nullable=True)
+    fingerprint = Column(String(32), nullable=True)
+    prompt_version = Column(String(16), nullable=True)
+    model = Column(String(64), nullable=True)
+    directions_mode = Column(String(16), nullable=True)
+    vat_mode = Column(String(16), nullable=True)
+    context_hash = Column(String(32), nullable=True)
+    rating = Column(Integer, nullable=True)  # 1 = 👍, -1 = 👎
+    rated_by = Column(UUID(as_uuid=True), nullable=True)
+    rated_at = Column(DateTime(timezone=True), nullable=True)
+
+
 class TariffPlan(Base):
     __tablename__ = "tariff_plans"
 
