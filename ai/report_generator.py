@@ -35,7 +35,7 @@ def _create_anthropic_client():
 
 
 # ── AI-комментарий за период: базовый промпт v1.0 (ТЗ admirra_ai_comment_prompt_v1)
-COMMENT_PROMPT_VERSION = "v1.0"
+COMMENT_PROMPT_VERSION = "v1.1"
 
 # Правило 16 — банлист (регистронезависимо, по основным формам).
 _COMMENT_BANLIST = [
@@ -76,7 +76,11 @@ lead — 1 предложение. body — 1–2 абзаца (для прос�
 - Поиск ограничен объёмом спроса. Масштабирование — расширение семантики и гео; долив бюджета сверх спроса уходит в рост ставок, не в лиды.
 - РСЯ и таргетинг по интересам масштабируются бюджетом, но требуют работы с креативами и аудиториями; аудитории выгорают.
 - Свежие кампании проходят обучение; резкие изменения бюджета сбивают его.
-- Модель оплаты кампании (bid_strategy) определяет валидные рассуждения: при оплате за конверсии расход = лиды × ставка, клики бесплатны — «слив бюджета на нецелевые клики» невозможен, падение CTR — риск для объёма показов и обучения, не для денег. CPC-логика — только для поскликовой оплаты.
+- Модель оплаты кампании (bid_strategy) определяет валидные рассуждения: при оплате за конверсии расход = лиды × ставка, клики бесплатны — «слив бюджета на нецелевые клики» невозможен, падение CTR — риск для объёма показов и обучения, не для денег. CPC-логика — только для поскликовой оплаты. Гипотезы про «дорогие клики / пустой трафик» — только для кампаний с bid_strategy="manual_cpc" или "auto_cpc".
+
+## СОГЛАСОВАНИЕ С ЭКРАНОМ
+- Флажки детектора: если detector.enabled=true и есть detector.flags — комментарий обязан свести картину с ними. Позитивный вывод при активном алерте по CPL/бюджету должен явно назвать цель и движение к ней («CPL за период снизился до 1 178 ₽ — движение к цели, но выше плановых 1 000 ₽»). Активный флажок игнорировать нельзя: экран не должен говорить двумя голосами.
+- НДС: суммы в контексте уже приведены к НДС-режиму экрана (vat_mode) — не пересчитывай их и не упоминай НДС.
 
 ## ПРАВИЛА — ЯЗЫК
 14. Тон: сухо, декларативно, как сообщение коллеге в рабочий чат. Без метафор, публицистики и эмоций. Серьёзность передаётся цифрами, не лексикой. Числа — в русской типографике: десятичный разделитель запятая (80,07 ₽, 1,94%), тысячи — пробел (2 461 ₽).
@@ -88,14 +92,17 @@ lead — 1 предложение. body — 1–2 абзаца (для прос�
 20. Объём: суммарно 600–900 знаков, жёсткий потолок 1200. Это потолок, не план: простой период — короткий комментарий.
 
 ## САМОПРОВЕРКА (выполни молча перед ответом)
-Сверь черновик: каждое число существует в контексте и совпадает с ним; каждое сравнительное утверждение соответствует числам; лид не противоречит телу; гипотеза причины не противоречит ни одному числу; рекомендация исполнима по правилам 9–13; банлист-слов нет; длина в лимите. Нашёл нарушение — исправь и проверь снова. Только потом отвечай.
+Сверь черновик: каждое число существует в контексте и совпадает с ним; каждое сравнительное утверждение («сильнее», «слабее», «больше») соответствует числам; лид не противоречит телу и соседние предложения не противоречат друг другу; гипотеза причины не противоречит ни одному числу; при активных флажках детектора картина сведена с ними; рекомендация исполнима по правилам 9–13; банлист-слов нет; длина в лимите. Нашёл нарушение — исправь и проверь снова. Только потом отвечай.
 
 ## ПРИМЕРЫ
 Контекст: {"period":{"label":"Эта неделя"},"target_cpl":1000,"kpi":{"spend":{"value":45210,"delta_pct":-36},"leads":{"value":18,"delta_pct":-5,"prev_value":19},"cpl":{"value":2512,"delta_pct":-33},"cr_click_to_lead_pct":3.28},"directions_mode":"fixed","campaigns":[{"name":"Поиск / Волгоград","cpa":1537,"leads":18}]}
 Ответ: {"lead":"Неделя тише предыдущей, но заявки держатся.","body":["Лидов 18 против 19 — изменение в пределах шума, судить о тренде рано. Заявки идут почти целиком из «Поиск / Волгоград» с CPA 1537 ₽, это ниже целевого CPL. Конверсия из клика в заявку 3,28% — остальные кампании расход тратят, а заявок не дают."],"recommendation":"Стоит проверить посадочные и семантику кампаний без заявок, прежде чем снимать с них бюджет."}
 
 Контекст: {"period":{"label":"Этот месяц"},"target_cpl":2000,"kpi":{"spend":{"value":88000,"delta_pct":12},"leads":{"value":34,"delta_pct":-18},"cpl":{"value":2588,"delta_pct":37},"cr_click_to_lead_pct":1.9},"directions_mode":"flexible","directions":[{"name":"Krasnodar","cpl":1400,"leads":20},{"name":"Rostov","cpl":4100,"leads":6}]}
-Ответ: {"lead":"Заявки дорожают: расход растёт, а лидов меньше.","body":["Конверсия в заявку просела до 1,9%. Основной разрыв по направлениям: «Krasnodar» даёт заявку за 1400 ₽, «Rostov» — за 4100 ₽ при целевом CPL 2000 ₽, то есть заметно выше цели именно там."],"recommendation":"Стоит рассмотреть смещение части бюджета из «Rostov» в «Krasnodar» и параллельно проверить офферы «Rostov» — если и после этого CPL не сойдётся к цели, отключить слабые кампании направления."}"""
+Ответ: {"lead":"Заявки дорожают: расход растёт, а лидов меньше.","body":["Конверсия в заявку просела до 1,9%. Основной разрыв по направлениям: «Krasnodar» даёт заявку за 1400 ₽, «Rostov» — за 4100 ₽ при целевом CPL 2000 ₽, то есть заметно выше цели именно там."],"recommendation":"Стоит рассмотреть смещение части бюджета из «Rostov» в «Krasnodar» и параллельно проверить офферы «Rostov» — если и после этого CPL не сойдётся к цели, отключить слабые кампании направления."}
+
+Контекст: {"period":{"label":"Эта неделя"},"target_cpl":1000,"kpi":{"leads":{"value":52,"delta_pct":18},"cpl":{"value":1178,"delta_pct":-16},"cr_click_to_lead_pct":4.1},"directions_mode":"fixed","detector":{"enabled":true,"flags":[{"type":"P-2","text":"Стоимость заявки выше цели: 1 178 ₽ при целевом CPL 1 000 ₽"}]},"campaigns":[{"name":"Поиск / Волгоград","cpa":980,"leads":30,"bid_strategy":"auto_cpc"}]}
+Ответ: {"lead":"Заявки дешевеют, но цель по стоимости пока не взята.","body":["CPL за период снизился до 1 178 ₽ — движение к цели, но выше плановых 1 000 ₽, флажок по стоимости заявки ещё активен. Конверсия в заявку 4,1%, основной объём даёт «Поиск / Волгоград» с CPA 980 ₽ — ниже цели, на эту кампанию можно опираться."],"recommendation":"Стоит перенести часть недельного бюджета на «Поиск / Волгоград». Если после переноса CPC растёт, а показы нет — спрос по кампании выбран: расширять семантику, а не поднимать ставку."}"""
 
 
 async def generate_report(
@@ -303,17 +310,30 @@ def _build_comment_context(db: Session, effective_client_ids: list, d_start, d_e
     trends = summary.get("trends") or {}
     single = effective_client_ids[0] if len(effective_client_ids) == 1 else None
 
-    def _kpi(value, delta_key):
-        return {"value": _num(value), "delta_pct": _num(trends.get(delta_key), 1)} if trends else {"value": _num(value)}
+    # НДС (§6): дашборд по умолчанию показывает суммы С НДС 22%. Бэк отдаёт
+    # расход БЕЗ НДС для Яндекс/VK и С НДС для Avito. Приводим деньги к экрану,
+    # иначе комментарий пишет числа, которых на дашборде нет. Дельты — доли,
+    # НДС на них не влияет: множим только абсолютные суммы.
+    raw_spend = float(summary.get("expenses") or 0)
+    cbp = summary.get("cost_by_platform") or {}
+    if cbp:
+        spend_vat = (float(cbp.get("yandex") or 0) + float(cbp.get("vk") or 0)) * 1.22 + float(cbp.get("avito") or 0)
+    else:
+        spend_vat = raw_spend * 1.22
+    vat_k = (spend_vat / raw_spend) if raw_spend > 0 else 1.22
+
+    def _kpi(value, delta_key, money=False):
+        v = _num(float(value or 0) * vat_k) if money else _num(value)
+        return {"value": v, "delta_pct": _num(trends.get(delta_key), 1)} if trends else {"value": v}
 
     leads_val = int(summary.get("leads") or 0)
     kpi = {
-        "spend": _kpi(summary.get("expenses"), "expenses"),
+        "spend": _kpi(summary.get("expenses"), "expenses", money=True),
         "impressions": {"value": int(summary.get("impressions") or 0), **({"delta_pct": _num(trends.get("impressions"), 1)} if trends else {})},
         "clicks": {"value": int(summary.get("clicks") or 0), **({"delta_pct": _num(trends.get("clicks"), 1)} if trends else {})},
-        "cpc": _kpi(summary.get("cpc"), "cpc"),
+        "cpc": _kpi(summary.get("cpc"), "cpc", money=True),
         "leads": {"value": leads_val, **({"delta_pct": _num(trends.get("leads"), 1)} if trends else {})},
-        "cpl": _kpi(summary.get("cpa"), "cpa"),
+        "cpl": _kpi(summary.get("cpa"), "cpa", money=True),
         "cr_click_to_lead_pct": _num(summary.get("cr")),
     }
     if trends and leads_val:
@@ -350,10 +370,10 @@ def _build_comment_context(db: Session, effective_client_ids: list, d_start, d_e
             for it in (dstats.get("items") or []):
                 directions.append({
                     "name": it.get("name"),
-                    "spend": _num(it.get("expenses")),
+                    "spend": _num(float(it.get("expenses") or 0) * vat_k),
                     "budget_share_pct": _num(it.get("budget_share"), 1),
                     "leads": int(it.get("leads") or 0),
-                    "cpl": _num(it.get("cpl")),
+                    "cpl": _num(float(it.get("cpl") or 0) * vat_k),
                 })
         except Exception as _e:
             logger.warning("comment context: directions skipped: %s", _e)
@@ -418,7 +438,7 @@ def _build_comment_context(db: Session, effective_client_ids: list, d_start, d_e
 
     return {
         "period": {"from": start_date, "to": end_date, "label": label},
-        "vat_mode": "included",
+        "vat_mode": "included_22",
         "target_cpl": target_cpl,
         "kpi": kpi,
         "directions_mode": directions_mode,
@@ -461,9 +481,12 @@ def _comment_campaigns(db: Session, effective_client_ids: list, d_start, d_end, 
     out = []
     for c in picked:
         leads = int(c.get("conversions") or 0)
-        cost = _num(c.get("cost"))
+        name = c.get("name") or c.get("campaign_name") or "—"
+        # НДС по платформе кампании: Avito уже с НДС, Яндекс/VK — добавляем 22%.
+        vat = 1.0 if "[Avito]" in name else 1.22
+        cost = _num(float(c.get("cost") or 0) * vat)
         item = {
-            "name": c.get("name") or c.get("campaign_name") or "—",
+            "name": name,
             "spend": cost,
             "leads": leads,
         }
@@ -477,7 +500,7 @@ def _comment_campaigns(db: Session, effective_client_ids: list, d_start, d_end, 
         if c.get("ctr") is not None:
             item["ctr_pct"] = _num(c.get("ctr"))
         if c.get("cpc") is not None:
-            item["cpc"] = _num(c.get("cpc"))
+            item["cpc"] = _num(float(c.get("cpc") or 0) * vat)
         if leads:
             item["cpa"] = _num(cost / leads) if leads else None
         out.append(item)
@@ -785,6 +808,8 @@ def build_assistant_context(
         _num(summary.get(key)) > 0
         for key in ("expenses", "impressions", "clicks", "leads", "conversions")
     )
+    _client = db.query(models.Client).filter(models.Client.id == client_id).first()
+    project_context = ((getattr(_client, "strategy_context", None) or "").strip() or None) if _client else None
     return {
         "period": {"start": start_date, "end": end_date},
         "summary": summary,
@@ -794,6 +819,7 @@ def build_assistant_context(
         "alerts": alerts,
         "integrations": integrations,
         "has_data": has_data,
+        "project_context": project_context,
     }
 
 
@@ -808,6 +834,8 @@ def assistant_context_to_text(context: dict) -> str:
     lines = []
     period = context.get("period") or {}
     lines.append(f"Период: {period.get('start')} — {period.get('end')}")
+    if context.get("project_context"):
+        lines.append(f"\n## Контекст проекта (заявленные цели/стратегия)\n{context['project_context']}")
     lines.append(f"Подключенные каналы: {', '.join(str(i.platform.value if hasattr(i.platform, 'value') else i.platform) for i in integrations) or 'нет'}")
     lines.append("\n## KPI проекта")
     lines.append(f"Расходы: {_num(summary.get('expenses')):,.2f} ₽")
