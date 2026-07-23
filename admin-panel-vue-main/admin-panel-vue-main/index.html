@@ -19,11 +19,13 @@
             url: location.href, accurateTrackBounce:true, trackLinks:true});
     </script>
     <!-- /Yandex.Metrika counter (noscript-фолбэк — в <body>) -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Шрифт Inter — локально (без Google Fonts): не блокирует рендер и не
+         зависит от доступности Google на мобильном интернете. -->
+    <link rel="preload" href="/admirra/fonts/inter/Inter-Regular.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/admirra/fonts/inter/Inter-Medium.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/admirra/css/fonts.css" />
     <link rel="stylesheet" href="/admirra/css/style.css" />
-    <link href="https://cdn.jsdelivr.net/npm/air-datepicker@3.6.0/air-datepicker.min.css" rel="stylesheet" />
+    <link href="/admirra/vendor/air-datepicker/air-datepicker.min.css" rel="stylesheet" />
     <link rel="icon" type="image/png" sizes="96x96" href="/admirra/img/favicon/favicon-96x96.png" />
     <link rel="icon" type="image/x-icon" href="/admirra/img/favicon/favicon.ico" />
     <link rel="apple-touch-icon" sizes="180x180" href="/admirra/img/favicon/apple-touch-icon.png" />
@@ -42,6 +44,6 @@
     <script src="/admirra/js/easytabs.js" defer></script>
     <script src="/admirra/js/nice-select.js" defer></script>
     <script src="/admirra/js/main.js" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/air-datepicker@3.6.0/air-datepicker.min.js" defer></script>
+    <script src="/admirra/vendor/air-datepicker/air-datepicker.min.js" defer></script>
   </body>
 </html>

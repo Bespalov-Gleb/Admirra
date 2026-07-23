@@ -1,0 +1,38 @@
+/* Self-hosted Inter — без обращения к fonts.googleapis.com/gstatic.com.
+   Google Fonts render-блокирует первую отрисовку и подтормаживает на
+   мобильном интернете в РФ. Файлы лежат локально в /admirra/fonts/inter. */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url('/admirra/fonts/inter/Inter-Light.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/admirra/fonts/inter/Inter-Regular.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/admirra/fonts/inter/Inter-Medium.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/admirra/fonts/inter/Inter-SemiBold.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/admirra/fonts/inter/Inter-Bold.woff2') format('woff2');
+}
