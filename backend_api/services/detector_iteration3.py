@@ -38,6 +38,30 @@ def _money(value: float) -> str:
     return f"{round(float(value or 0)):,}".replace(",", " ") + " ₽"
 
 
+def _leads_word(n) -> str:
+    n = abs(int(n or 0))
+    if 11 <= (n % 100) <= 14:
+        return "заявок"
+    d = n % 10
+    if d == 1:
+        return "заявка"
+    if 2 <= d <= 4:
+        return "заявки"
+    return "заявок"
+
+
+def _campaigns_word(n) -> str:
+    n = abs(int(n or 0))
+    if 11 <= (n % 100) <= 14:
+        return "кампаний"
+    d = n % 10
+    if d == 1:
+        return "кампания"
+    if 2 <= d <= 4:
+        return "кампании"
+    return "кампаний"
+
+
 def _date_ru(value: date) -> str:
     return value.strftime("%d.%m")
 
@@ -690,15 +714,18 @@ def _collapse_plan_checks(candidates: list[AlertCandidate]) -> list[AlertCandida
     priority = {"plan_cpl": 0, "plan_spend": 1, "plan_leads": 2}
     for channel, rows in by_channel.items():
         primary = sorted(rows, key=lambda item: (priority[item.mode], 0 if item.severity == "problem" else 1, -abs(item.deviation_pct)))[0]
-        context = [item.hypothesis_text for item in rows if item is not primary and item.hypothesis_text]
-        # Составной алерт читается списком: каждая проверка — отдельный пункт
-        # с новой строки, а не слитная простыня (фронт рендерит pre-line).
+        others = [item for item in rows if item is not primary and item.hypothesis_text]
+        # Легаси-текст для не-баннерных потребителей (отчёты/уведомления):
+        # каждая проверка — отдельный пункт списка. Служебный префикс
+        # «Дополнительно:» в интерфейс детектора не попадает (эталон §сквозные).
         parts = [primary.hypothesis_text or "Отклонение от плана."]
-        for index, item_text in enumerate(context):
-            parts.append(("Дополнительно: " if index == 0 else "") + item_text)
+        parts.extend(item.hypothesis_text for item in others)
         text = "\n• ".join(parts)
         if len(parts) > 1:
             text = "• " + text
+        # Структурированные связанные проверки для баннера: короткая форма
+        # (с прогнозом периода) для строки «Связано:» + полная для разворота.
+        related = [{"short": _related_short(item), "full": item.hypothesis_text} for item in others]
         result.append(AlertCandidate(primary.metric, "project", None, channel, "plan", primary.severity,
                                      primary.deviation_pct, primary.baseline_value, primary.actual_value,
                                      primary.direction, hypothesis_text=text,
@@ -708,8 +735,29 @@ def _collapse_plan_checks(candidates: list[AlertCandidate]) -> list[AlertCandida
                                            # составной текст остаётся баннеру на дашборде.
                                            "check_texts": {item.meta.get("check"): item.hypothesis_text
                                                            for item in rows if item.meta and item.hypothesis_text},
-                                           "composite": len(rows) > 1}))
+                                           "composite": len(rows) > 1,
+                                           "related": related}))
     return result
+
+
+def _related_short(item: "AlertCandidate") -> str:
+    """Короткая форма связанной проверки для строки «Связано:» (эталон §2).
+
+    Обязана нести прогноз периода, а не только текущий счёт.
+    """
+    m = item.meta or {}
+    check = m.get("check")
+    if check == "P-3":
+        forecast = m.get("forecast")
+        planned = m.get("planned_leads")
+        if forecast is not None and planned:
+            return f"отставание по заявкам — к концу периода ~{forecast:.0f} из {planned} по плану"
+    if check == "P-1":
+        dev = item.deviation_pct or 0
+        word = "перекрут бюджета" if dev > 0 else "недокрут бюджета"
+        return f"{word} ({dev:+.0f}% к темпу)"
+    full = (item.hypothesis_text or "").strip()
+    return full.split(".")[0].strip() if full else ""
 
 
 def _relative_change(prior: float, fresh: float) -> float | None:
@@ -754,8 +802,14 @@ def _diagnose_pattern(check: str, direction: str, fresh: dict, prior: dict, thre
     return None
 
 
-def _campaign_contributors(db: Session, client_id: uuid.UUID, channel: models.IntegrationPlatform, reference_date: date, cfg: DetectorCfg) -> str | None:
-    """§4.1 ↔ P-2 link: the highlighted rows are the alert's own breakdown."""
+def _campaign_contributors(db: Session, client_id: uuid.UUID, channel: models.IntegrationPlatform, reference_date: date, cfg: DetectorCfg):
+    """§4.1 ↔ P-2 link: the highlighted rows are the alert's own breakdown.
+
+    Возвращает (items, extra, legacy_str): items — до двух кампаний-виновников
+    с готовыми метриками (CPL, заявки), extra — сколько ещё кампаний вносят
+    вклад сверх показанных, legacy_str — слитная строка для не-баннерных
+    потребителей. None — когда виновников нет.
+    """
     end = reference_date - timedelta(days=1)
     start = end - timedelta(days=cfg.plan_cpl_window_days - 1)
     rows = campaign_highlights(db, client_id, start, end)
@@ -763,15 +817,28 @@ def _campaign_contributors(db: Session, client_id: uuid.UUID, channel: models.In
         (
             (item.get("actual_cpl") or math.inf if item.get("leads") else math.inf, key, item)
             for key, item in rows.items()
-            if item.get("channel") == _enum(channel)
+            if item.get("channel") == _enum(channel) and item.get("name")
         ),
         key=lambda entry: (0 if entry[2]["severity"] == "problem" else 1, -entry[0] if math.isfinite(entry[0]) else float("-inf")),
     )
-    names = [entry[2].get("name") for entry in scored[:2] if entry[2].get("name")]
-    if not names:
+    if not scored:
         return None
-    quoted = " и ".join(f"«{name}»" for name in names)
-    return f"Основной вклад — {'кампании' if len(names) > 1 else 'кампания'} {quoted}."
+    top = scored[:2]
+    extra = max(0, len(scored) - len(top))
+    items = []
+    for _cpl, _key, item in top:
+        cpl = item.get("actual_cpl")
+        leads = int(item.get("leads") or 0)
+        if cpl is not None and leads:
+            metrics = f"CPL {_money(cpl)} ({leads} {_leads_word(leads)})"
+        elif cpl is not None:
+            metrics = f"CPL {_money(cpl)}"
+        else:
+            metrics = f"расход {_money(item.get('spend'))}, без заявок"
+        items.append({"name": item.get("name"), "metrics": metrics})
+    quoted = " и ".join(f"«{it['name']}»" for it in items)
+    legacy = f"Основной вклад — {_campaigns_word(len(items))} {quoted}."
+    return items, extra, legacy
 
 
 def _apply_diagnostics(
@@ -791,18 +858,28 @@ def _apply_diagnostics(
             fresh = _window_funnel(db, client_id, alert.channel, fresh_start, fresh_end, selected, vk_codes)
             prior = _window_funnel(db, client_id, alert.channel, prior_start, prior_end, selected, vk_codes)
             check = (alert.meta or {}).get("check") or ""
-            parts: list[str] = []
             diagnosis = _diagnose_pattern(check, alert.direction, fresh, prior, cfg.diagnostic_change_threshold)
-            if diagnosis:
-                parts.append(diagnosis)
+            contributors = None
             if "P-2" in ((alert.meta or {}).get("checks") or [check]):
                 contributors = _campaign_contributors(db, client_id, alert.channel, reference_date, cfg)
-                if contributors:
-                    parts.append(contributors)
-            if parts:
-                # Диагностика и «основной вклад» — отдельные пункты списка
-                alert.hypothesis_text = alert.hypothesis_text + "".join(f"\n• {part}" for part in parts)
-                alert.meta = {**(alert.meta or {}), "diagnosis": " ".join(parts)}
+            # Структурируем в meta без дублей (эталон §3): диагностика — отдельной
+            # строкой, виновники — по строке на кампанию. Легаси-текст оставляем
+            # для отчётов/уведомлений, баннер читает meta.
+            meta_updates: dict = {}
+            legacy_parts: list[str] = []
+            if diagnosis:
+                meta_updates["diagnosis"] = diagnosis
+                legacy_parts.append(diagnosis)
+            if contributors:
+                items, extra, legacy = contributors
+                meta_updates["contributors"] = items
+                meta_updates["contributors_extra"] = extra
+                meta_updates["contributors_count"] = len(items) + extra
+                legacy_parts.append(legacy)
+            if meta_updates:
+                alert.meta = {**(alert.meta or {}), **meta_updates}
+            if legacy_parts:
+                alert.hypothesis_text = alert.hypothesis_text + "".join(f"\n• {part}" for part in legacy_parts)
         except Exception:
             # The diagnosis explains an alert; failing to build it must never
             # cancel the alert itself.

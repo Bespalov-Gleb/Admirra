@@ -20,41 +20,67 @@
           <span class="detector-block__dot"></span>
           <div class="detector-block__body">
             <p class="detector-block__lead">{{ leadPhrase(alert) }}</p>
-            <p v-if="relatedShort(alert)" class="detector-block__related">
-              <span class="detector-block__related-label">Связано:</span>
-              <span
-                class="detector-block__related-text"
-                :class="{ 'detector-block__related-text--full': expandedId === alert.id }"
-              >{{ expandedId === alert.id ? relatedFull(alert) : relatedShort(alert) }}</span>
+
+            <!-- Строка контекста: короткие формы + один переключатель в конце -->
+            <p v-if="hasDetails(alert)" class="detector-block__related">
+              <template v-if="contextShort(alert)">
+                <span class="detector-block__related-label">Связано:</span>
+                <span class="detector-block__related-text">{{ contextShort(alert) }}</span>
+              </template>
               <button
-                v-if="hasDetails(alert)"
                 type="button"
                 class="detector-block__more-link"
                 @click="toggleExpand(alert.id)"
-              >{{ expandedId === alert.id ? 'Свернуть ▴' : 'Подробнее ▾' }}</button>
+              >{{ toggleLabel(alert) }}</button>
             </p>
+
+            <!-- Развёрнутый контент: связанные → диагностика → виновники -->
+            <div v-if="expandedId === alert.id && hasDetails(alert)" class="detector-block__expanded">
+              <p
+                v-for="(rel, i) in relatedList(alert)"
+                :key="`rel-${i}`"
+                class="detector-block__exp-line"
+              >{{ rel.full }}</p>
+              <p v-if="diagnosisText(alert)" class="detector-block__exp-line">{{ diagnosisText(alert) }}</p>
+              <div v-if="contributors(alert).length" class="detector-block__contrib">
+                <template v-if="contributorsInline(alert)">
+                  <p class="detector-block__exp-line">
+                    <span class="detector-block__contrib-label">Основной вклад:</span>
+                    <span v-for="(c, i) in contributors(alert)" :key="`ci-${i}`">
+                      <template v-if="i">&nbsp;·&nbsp;</template>«{{ c.name }}» — {{ c.metrics }}</span>
+                    <template v-if="contributorsExtra(alert)">&nbsp;·&nbsp;и ещё {{ contributorsExtra(alert) }} {{ campaignsWord(contributorsExtra(alert)) }}</template>
+                  </p>
+                </template>
+                <template v-else>
+                  <p class="detector-block__contrib-label detector-block__contrib-label--own">Основной вклад:</p>
+                  <p
+                    v-for="(c, i) in contributors(alert)"
+                    :key="`cl-${i}`"
+                    class="detector-block__contrib-item"
+                  ><span class="detector-block__contrib-name">«{{ c.name }}»</span> — {{ c.metrics }}</p>
+                  <p v-if="contributorsExtra(alert)" class="detector-block__contrib-item detector-block__contrib-more">и ещё {{ contributorsExtra(alert) }} {{ campaignsWord(contributorsExtra(alert)) }}</p>
+                </template>
+              </div>
+            </div>
           </div>
 
+          <!-- Всегда три кнопки: «Спросить AI» · «Скрыть…» · «Не проблема» -->
           <div class="detector-block__actions">
             <button type="button" class="detector-block__ai" @click="$emit('ask-ai', alert)">Спросить AI</button>
             <span class="detector-block__snooze" :class="{ open: openSnoozeId === alert.id }">
               <button type="button" @click.stop="toggleSnooze(alert.id)">Скрыть…</button>
               <span class="detector-block__menu">
-                <button type="button" @click="snooze(alert, 1)">На 1 день</button>
-                <button type="button" @click="snooze(alert, 3)">На 3 дня</button>
-                <button type="button" @click="snooze(alert, 7)">На 7 дней</button>
+                <button type="button" @click="snooze(alert, 1)">Скрыть на 1 день</button>
+                <button type="button" @click="snooze(alert, 3)">Скрыть на 3 дня</button>
+                <button type="button" @click="snooze(alert, 7)">Скрыть на 7 дней</button>
               </span>
             </span>
-            <span class="detector-block__dots" :class="{ open: openMoreId === alert.id }">
-              <button type="button" class="detector-block__dots-btn" aria-label="Ещё" @click.stop="toggleMore(alert.id)">⋯</button>
-              <span class="detector-block__menu detector-block__menu--right">
-                <button
-                  type="button"
-                  title="Скроется до конца отклонения, поможет настроить детектор"
-                  @click="notProblem(alert)"
-                >Не проблема</button>
-              </span>
-            </span>
+            <button
+              type="button"
+              class="detector-block__notproblem"
+              title="Скроется до конца отклонения, поможет настроить детектор"
+              @click="notProblem(alert)"
+            >Не проблема</button>
           </div>
         </article>
       </div>
@@ -125,7 +151,6 @@ const emit = defineEmits(['ask-ai', 'snooze', 'not-problem', 'restore'])
 
 const expandedId = ref(null)
 const openSnoozeId = ref(null)
-const openMoreId = ref(null)
 const hiddenListOpen = ref(false)
 
 const activeAlerts = computed(() => props.alerts || [])
@@ -163,30 +188,58 @@ const neutralSubtitle = computed(() => {
   return props.syncIssues.map((issue) => issue.text).join(' ')
 })
 
-// Составной алерт: hypothesis_text = ведущая фраза + «\n• …» связанные проверки.
-const alertSections = (alert) => {
+// Ведущая фраза = первая секция hypothesis_text (до первого «•»). Всё остальное
+// (связанные проверки, диагностика, виновники) баннер берёт из структурного meta,
+// чтобы не дублировать (эталон §3) и показывать короткие формы с прогнозом (§2).
+const leadPhrase = (alert) => {
   const text = String(alert?.hypothesis_text || '').replace(/\r/g, '').trim()
-  if (!text) return ['Отклонение в показателях']
-  const sections = text
-    .split(/\n\s*•\s*/)
-    .map((part) => part.replace(/^\s*•\s*/, '').trim())
-    .filter(Boolean)
-  return sections.length ? sections : [text]
+  if (!text) return 'Отклонение в показателях'
+  const first = text.split(/\n\s*•\s*/)[0].replace(/^\s*•\s*/, '').trim()
+  return first || text
 }
 
-const leadPhrase = (alert) => alertSections(alert)[0]
-const relatedSections = (alert) => alertSections(alert).slice(1)
-// Одна приглушённая строка «Связано: …» — связанные проверки через « · ».
-const relatedShort = (alert) => relatedSections(alert).join(' · ')
-// Полный текст по «Подробнее» — те же связанные фразы целиком + диагностика,
-// разворачивается ИНЛАЙНОМ (не отдельным блоком).
-const relatedFull = (alert) => {
-  const parts = relatedSections(alert)
-  const diag = alert?.meta && alert.meta.diagnosis ? String(alert.meta.diagnosis).trim() : ''
-  return [...parts, diag].filter(Boolean).join(' · ')
+const campaignsWord = (n) => {
+  const abs = Math.abs(Number(n) || 0)
+  if (abs % 100 >= 11 && abs % 100 <= 14) return 'кампаний'
+  const d = abs % 10
+  if (d === 1) return 'кампания'
+  if (d >= 2 && d <= 4) return 'кампании'
+  return 'кампаний'
 }
+
+const relatedList = (alert) => (alert?.meta && Array.isArray(alert.meta.related) ? alert.meta.related : [])
+const diagnosisText = (alert) => (alert?.meta && alert.meta.diagnosis ? String(alert.meta.diagnosis).trim() : '')
+const contributors = (alert) => (alert?.meta && Array.isArray(alert.meta.contributors) ? alert.meta.contributors : [])
+const contributorsExtra = (alert) => Number(alert?.meta?.contributors_extra || 0)
+const contributorsCount = (alert) =>
+  Number(alert?.meta?.contributors_count || contributors(alert).length)
+
+// Короткая форма для строки «Связано:»: связанные проверки (с прогнозом) +
+// сводка виновников «основной вклад — N кампаний» (сами имена в короткой не видны).
+const contextShort = (alert) => {
+  const parts = relatedList(alert).map((r) => (r?.short || '').trim()).filter(Boolean)
+  const count = contributorsCount(alert)
+  if (count > 0) parts.push(`основной вклад — ${count} ${campaignsWord(count)}`)
+  return parts.join(' · ')
+}
+
 const hasDetails = (alert) =>
-  relatedSections(alert).length > 0 || Boolean(alert?.meta && alert.meta.diagnosis)
+  relatedList(alert).length > 0 || Boolean(diagnosisText(alert)) || contributors(alert).length > 0
+
+// Ярлык переключателя: «Диагностика ▾» когда единственный контент — диагностика
+// (эталон §5, без «Связано:»); иначе «Подробнее ▾».
+const toggleLabel = (alert) => {
+  if (expandedId.value === alert.id) return 'Свернуть ▴'
+  const diagnosisOnly = !contextShort(alert) && diagnosisText(alert)
+  return diagnosisOnly ? 'Диагностика ▾' : 'Подробнее ▾'
+}
+
+// Виновники в один абзац через « · » — только если оба имени короткие (≤25),
+// иначе по строке на кампанию (§4).
+const contributorsInline = (alert) => {
+  const list = contributors(alert)
+  return list.length > 0 && list.length <= 2 && list.every((c) => (c?.name || '').length <= 25)
+}
 
 const nearestHiddenDate = computed(() => {
   const dates = hiddenAlerts.value
@@ -210,11 +263,10 @@ const hiddenAuthorMeta = (alert) => {
 }
 
 const toggleExpand = (id) => { expandedId.value = expandedId.value === id ? null : id }
-const toggleSnooze = (id) => { openMoreId.value = null; openSnoozeId.value = openSnoozeId.value === id ? null : id }
-const toggleMore = (id) => { openSnoozeId.value = null; openMoreId.value = openMoreId.value === id ? null : id }
+const toggleSnooze = (id) => { openSnoozeId.value = openSnoozeId.value === id ? null : id }
 
 const snooze = (alert, days) => { openSnoozeId.value = null; emit('snooze', alert, days) }
-const notProblem = (alert) => { openMoreId.value = null; emit('not-problem', alert) }
+const notProblem = (alert) => { openSnoozeId.value = null; emit('not-problem', alert) }
 </script>
 
 <style scoped>
@@ -248,7 +300,7 @@ const notProblem = (alert) => { openMoreId.value = null; emit('not-problem', ale
 .detector-banner__hypothesis { color: currentColor; font-size: 0.84rem; font-weight: 650; opacity: 0.82; line-height: 1.35; }
 
 /* ───── Блок-эпизод ───── */
-.detector-blocks { display: flex; flex-direction: column; gap: 0.55rem; }
+.detector-blocks { display: flex; flex-direction: column; gap: 0.55rem; container-type: inline-size; }
 .detector-block {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -289,20 +341,12 @@ const notProblem = (alert) => { openMoreId.value = null; emit('not-problem', ale
   align-items: baseline;
   gap: 0.3rem;
 }
-.detector-block__related-label { font-weight: 800; }
+.detector-block__related-label { font-weight: 800; flex-shrink: 0; }
+/* §2: короткая строка не обрезается многоточием — при нехватке места
+   переносится, переключатель прижат к концу текста. */
 .detector-block__related-text {
   min-width: 0;
-  flex: 1 1 12rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* Развёрнуто по «Подробнее»: текст течёт инлайном на всю ширину, без обрезки. */
-.detector-block__related-text--full {
-  flex: 1 1 100%;
-  overflow: visible;
-  text-overflow: clip;
-  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .detector-block__more-link {
   flex-shrink: 0;
@@ -313,8 +357,39 @@ const notProblem = (alert) => { openMoreId.value = null; emit('not-problem', ale
   font-size: 0.8rem;
   font-weight: 800;
   cursor: pointer;
+  white-space: nowrap;
 }
 .detector-block__more-link:hover { text-decoration: underline; }
+
+/* ───── Развёрнутый контент (эталон §3): порядок связанные → диагностика → виновники ───── */
+.detector-block__expanded {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-top: 0.1rem;
+}
+.detector-block__exp-line {
+  margin: 0;
+  color: #4b5563;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.detector-block__contrib { display: flex; flex-direction: column; gap: 0.15rem; }
+.detector-block__contrib-label { font-weight: 800; color: #4b5563; }
+.detector-block__contrib-label--own { margin: 0; font-size: 0.8rem; line-height: 1.45; }
+.detector-block__contrib-item {
+  margin: 0;
+  color: #4b5563;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+/* §4: имя кампании можно переносить внутри, многоточие запрещено. */
+.detector-block__contrib-name { font-weight: 700; word-break: break-word; }
+.detector-block__contrib-more { color: #6b7280; font-style: italic; }
 
 /* ───── Действия на блоке ───── */
 .detector-block__actions { display: flex; align-items: center; gap: 0.35rem; }
@@ -332,9 +407,8 @@ const notProblem = (alert) => { openMoreId.value = null; emit('not-problem', ale
 }
 .detector-block__actions button:hover { border-color: #bfdbfe; color: #2563eb; }
 .detector-block__ai { color: #2563eb !important; }
-.detector-block__dots-btn { min-width: 2.35rem; padding: 0.5rem 0.6rem !important; line-height: 0.5; }
 
-.detector-block__snooze, .detector-block__dots { position: relative; }
+.detector-block__snooze { position: relative; }
 .detector-block__menu {
   position: absolute;
   top: calc(100% + 0.3rem);
@@ -350,8 +424,7 @@ const notProblem = (alert) => { openMoreId.value = null; emit('not-problem', ale
   box-shadow: 0 0.7rem 1.8rem rgba(15, 23, 42, 0.16);
 }
 .detector-block__menu--right { left: auto; right: 0; }
-.detector-block__snooze.open .detector-block__menu,
-.detector-block__dots.open .detector-block__menu { display: flex; }
+.detector-block__snooze.open .detector-block__menu { display: flex; }
 .detector-block__menu button {
   min-height: auto !important;
   border: 0 !important;
@@ -441,9 +514,20 @@ const notProblem = (alert) => { openMoreId.value = null; emit('not-problem', ale
 .detector-banner-enter-active, .detector-banner-leave-active { transition: all 0.25s ease; }
 .detector-banner-enter-from, .detector-banner-leave-to { opacity: 0; transform: translateY(-0.35rem); }
 
-@media (max-width: 760px) {
+/* §10: контентная ширина < ~680px — ряд кнопок целиком уходит под текст,
+   влево, с отступом = ширина точки + gap (колонка текста в сетке). Кнопки
+   не сжимаются, порядок сохраняется. */
+@container (max-width: 680px) {
   .detector-block { grid-template-columns: auto minmax(0, 1fr); }
-  .detector-block__actions { grid-column: 1 / -1; margin-top: 0.4rem; flex-wrap: wrap; }
+  .detector-block__actions {
+    grid-column: 2 / 3;
+    margin-top: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 760px) {
   .detector-hidden-list--chip { min-width: min(90vw, 22rem); }
   .detector-hidden-item { grid-template-columns: 1fr; gap: 0.25rem; }
 }
