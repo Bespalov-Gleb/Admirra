@@ -16,13 +16,27 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+COLUMNS = ("metrika_access_token", "metrika_refresh_token", "metrika_account_id")
+
+
+def _existing_columns() -> set:
+    inspector = sa.inspect(op.get_bind())
+    return {col["name"] for col in inspector.get_columns("integrations")}
+
+
 def upgrade() -> None:
-    op.add_column("integrations", sa.Column("metrika_access_token", sa.String(), nullable=True))
-    op.add_column("integrations", sa.Column("metrika_refresh_token", sa.String(), nullable=True))
-    op.add_column("integrations", sa.Column("metrika_account_id", sa.String(), nullable=True))
+    # Идемпотентно: те же колонки параллельно создаёт init_db_with_retry() в
+    # backend_api/main.py, поэтому на проде они уже есть, и обычный add_column
+    # падал бы с DuplicateColumn. В проекте схема ведётся двумя механизмами
+    # сразу, значит миграции обязаны переживать «колонка уже создана».
+    present = _existing_columns()
+    for name in COLUMNS:
+        if name not in present:
+            op.add_column("integrations", sa.Column(name, sa.String(), nullable=True))
 
 
 def downgrade() -> None:
-    op.drop_column("integrations", "metrika_account_id")
-    op.drop_column("integrations", "metrika_refresh_token")
-    op.drop_column("integrations", "metrika_access_token")
+    present = _existing_columns()
+    for name in reversed(COLUMNS):
+        if name in present:
+            op.drop_column("integrations", name)

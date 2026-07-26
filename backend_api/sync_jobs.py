@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import threading
 import time
 from datetime import datetime, timedelta
@@ -19,6 +20,73 @@ _worker_lock = threading.Lock()
 _worker_started = False
 _poll_interval_sec = 2.0
 _stale_job_timeout = timedelta(hours=2)
+
+# Жёсткий потолок на одну задачу. Без него единственным предохранителем был
+# _stale_job_timeout (2 часа), и зависшая задача всё это время держала слот
+# воркера и блокировала ручной синк своей интеграции.
+_JOB_TIMEOUT_SEC = int(os.getenv("SYNC_JOB_TIMEOUT_SEC", "900"))
+
+
+class SyncJobTimeout(Exception):
+    """Задача превысила _JOB_TIMEOUT_SEC. Намеренно НЕ ретраится."""
+
+
+# Классификация ошибок для ретрая. Раньше здесь было `"5" in err_lower`, что
+# совпадало с любым текстом, где есть цифра 5 (UUID, дата, ID кампании), — и
+# мёртвая интеграция с 401/404 повторяла полный синк три раза подряд.
+_RETRIABLE_STATUS = {408, 423, 425, 429, 500, 502, 503, 504, 507, 509}
+# Границы по [0-9a-z], а не по \d: иначе "500" нашлось бы внутри hex-UUID
+# вроде "a500b1c2-..." и мёртвая задача снова уходила бы в повторы.
+_RETRIABLE_STATUS_RE = re.compile(
+    r"(?<![0-9a-z])(408|423|425|429|500|502|503|504|507|509)(?![0-9a-z])"
+)
+_RETRIABLE_HINTS = (
+    "timeout", "timed out", "read timeout", "connect timeout",
+    "too many requests", "rate limit", "ratelimit",
+    "connection reset", "connection aborted", "connection refused",
+    "temporarily unavailable", "service unavailable", "bad gateway",
+    "server disconnected", "remote protocol error", "eof occurred",
+    "превышен лимит", "временно недоступ", "повторите попытку",
+)
+# Приоритетнее подсказок выше: это окончательные отказы, повтор бессмысленен.
+_FATAL_HINTS = (
+    "401", "403", "404", "invalid_grant", "invalid_token",
+    "ошибка авторизации", "отсутствует токен", "не подключен",
+    "объект не найден", "нет доступа", "access denied", "unauthorized", "forbidden",
+)
+
+
+def _is_retriable_error(exc: BaseException) -> bool:
+    """Повторять только сетевые сбои и явные 429/5xx.
+
+    По умолчанию — не повторять: лишний повтор мёртвой интеграции стоит трёх
+    полных обходов внешнего API и трёх слотов-минут в ночном окне.
+    """
+    if isinstance(exc, SyncJobTimeout):
+        return False
+    if isinstance(exc, (asyncio.TimeoutError, TimeoutError, ConnectionError)):
+        return True
+
+    try:
+        import httpx
+
+        if isinstance(exc, httpx.HTTPStatusError):
+            return exc.response.status_code in _RETRIABLE_STATUS
+        if isinstance(exc, (httpx.TimeoutException, httpx.NetworkError, httpx.RemoteProtocolError)):
+            return True
+    except Exception:  # pragma: no cover — httpx всегда есть, но падать здесь нельзя
+        pass
+
+    status = getattr(getattr(exc, "response", None), "status_code", None)
+    if isinstance(status, int):
+        return status in _RETRIABLE_STATUS
+
+    text = str(exc).lower()
+    if any(hint in text for hint in _FATAL_HINTS):
+        return False
+    if any(hint in text for hint in _RETRIABLE_HINTS):
+        return True
+    return bool(_RETRIABLE_STATUS_RE.search(text))
 
 # Parallel worker config — tune via env vars without code changes
 _MAX_WORKERS = int(os.getenv("SYNC_WORKER_CONCURRENCY", "4"))
@@ -189,19 +257,35 @@ def _run_job_sync(job_id: uuid.UUID) -> None:
             db.commit()
             try:
                 async def _run():
-                    await sync_integration(db, integration, date_from, date_to)
+                    # Потолок на задачу: зависший внешний вызов больше не держит
+                    # слот воркера до stale-таймаута в 2 часа.
+                    try:
+                        await asyncio.wait_for(
+                            sync_integration(db, integration, date_from, date_to),
+                            timeout=_JOB_TIMEOUT_SEC,
+                        )
+                    except asyncio.TimeoutError as exc:
+                        raise SyncJobTimeout(
+                            f"Синхронизация превысила лимит {_JOB_TIMEOUT_SEC} с и была прервана"
+                        ) from exc
                 asyncio.run(_run())
                 last_error = None
                 break
             except Exception as e:
                 last_error = e
-                err_lower = str(e).lower()
-                retriable = (
-                    "429" in err_lower or "rate" in err_lower
-                    or "timeout" in err_lower or "5" in err_lower
-                )
-                if not retriable or attempt >= retries:
+                # Сессию после сбоя обязательно откатываем: иначе незакоммиченные
+                # DELETE (например, диапазон metrika_goals) доедут до следующего
+                # commit и удалят данные при неуспешном синке.
+                try:
+                    db.rollback()
+                except Exception:
+                    logger.exception("Rollback after failed sync attempt failed")
+                if not _is_retriable_error(e) or attempt >= retries:
                     raise
+                logger.warning(
+                    "Sync job %s: попытка %d/%d не удалась (%s), повтор через %d с",
+                    job_id, attempt, retries, type(e).__name__, delay_sec,
+                )
                 time.sleep(delay_sec)
                 delay_sec *= 2
         if last_error:
@@ -223,6 +307,9 @@ def _run_job_sync(job_id: uuid.UUID) -> None:
     except Exception as e:
         logger.exception("Sync job failed: %s", e)
         try:
+            # Откат до записи статуса: незакоммиченные изменения провалившегося
+            # синка не должны попасть в БД вместе с отметкой FAILED.
+            db.rollback()
             job = db.query(models.SyncJob).filter(models.SyncJob.id == job_id).first()
             if job:
                 job.status = models.SyncJobStatus.FAILED

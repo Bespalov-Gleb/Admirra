@@ -1,10 +1,43 @@
+# Ротация логов контейнеров. По умолчанию json-file растёт без ограничений —
+# на проде диск уже забивался на 83%, и логи вносили в это свой вклад.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "5"
+
 services:
   db:
     image: postgres:15-alpine
     restart: unless-stopped
-    # Запас по коннектам под рост (backend pool + worker + automation).
-    # Дефолт postgres = 100; поднимаем до 200.
-    command: postgres -c max_connections=200
+    logging: *default-logging
+    # Параметры под сервер 4 vCPU / 8 ГБ, на котором рядом живут backend,
+    # automation и frontend. Postgres до этого работал на полном дефолте
+    # (shared_buffers 128MB, work_mem 4MB) — то есть почти без кэша.
+    #
+    # ВАЖНО: idle_in_transaction_session_timeout здесь намеренно НЕ задан.
+    # Синхронизация пока держит транзакцию открытой поверх внешних HTTP-вызовов;
+    # включать таймаут можно только после того, как это будет исправлено.
+    command: >
+      postgres
+      -c max_connections=200
+      -c shared_buffers=1GB
+      -c effective_cache_size=3GB
+      -c work_mem=8MB
+      -c maintenance_work_mem=256MB
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c max_wal_size=2GB
+      -c min_wal_size=256MB
+      -c checkpoint_completion_target=0.9
+      -c shared_preload_libraries=pg_stat_statements
+      -c pg_stat_statements.max=5000
+      -c pg_stat_statements.track=top
+      -c log_min_duration_statement=500ms
+      -c log_lock_waits=on
+      -c log_temp_files=0
+      -c log_autovacuum_min_duration=0
+    shm_size: 512mb
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
@@ -24,6 +57,7 @@ services:
   backend:
     build: .
     restart: unless-stopped
+    logging: *default-logging
     env_file:
       - .env
     environment:
@@ -53,6 +87,7 @@ services:
 
   automation:
     build: .
+    logging: *default-logging
     command: python -m automation.main
     env_file:
       - .env
@@ -82,6 +117,7 @@ services:
   frontend:
     build: ./admin-panel-vue-main/admin-panel-vue-main
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "8080:80"
     volumes:

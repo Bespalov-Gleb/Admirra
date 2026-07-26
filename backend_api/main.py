@@ -131,6 +131,27 @@ def init_db_with_retry(max_retries=10, retry_delay=2):
                 conn.execute(text("ALTER TABLE detector_alerts ADD COLUMN IF NOT EXISTS snooze_source JSON"))
                 conn.execute(text("ALTER TABLE detector_alerts ADD COLUMN IF NOT EXISTS not_problem_at TIMESTAMP WITH TIME ZONE"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_detector_alerts_snoozed_until ON detector_alerts (snoozed_until)"))
+                # Индексы под горячие пути чтения/записи. Дубль миграции
+                # v3w4x5y6z7a8: индексы, объявленные только в alembic, пропадают
+                # при пересоздании базы через create_all() — проверено на проде,
+                # где 7 таких индексов физически отсутствовали.
+                for _idx_sql in (
+                    "CREATE INDEX IF NOT EXISTS ix_yandex_stats_client_date_campaign ON yandex_stats (client_id, date, campaign_id)",
+                    "CREATE INDEX IF NOT EXISTS ix_vk_stats_client_date_campaign ON vk_stats (client_id, date, campaign_id)",
+                    "CREATE INDEX IF NOT EXISTS ix_avito_stats_client_date_campaign ON avito_stats (client_id, date, campaign_id)",
+                    "CREATE INDEX IF NOT EXISTS ix_metrika_goals_client_date_goal ON metrika_goals (client_id, date, goal_id)",
+                    "CREATE INDEX IF NOT EXISTS ix_metrika_goals_integration_date ON metrika_goals (integration_id, date)",
+                    "CREATE INDEX IF NOT EXISTS ix_yandex_stats_campaign_id ON yandex_stats (campaign_id)",
+                    "CREATE INDEX IF NOT EXISTS ix_vk_stats_campaign_id ON vk_stats (campaign_id)",
+                    "CREATE INDEX IF NOT EXISTS ix_yandex_keywords_lookup ON yandex_keywords (client_id, date, campaign_name, keyword)",
+                    "CREATE INDEX IF NOT EXISTS ix_yandex_groups_lookup ON yandex_groups (client_id, campaign_id, date, group_id)",
+                    "CREATE INDEX IF NOT EXISTS ix_campaigns_integration_external ON campaigns (integration_id, external_id)",
+                    "CREATE INDEX IF NOT EXISTS ix_sync_jobs_status_created ON sync_jobs (status, created_at)",
+                    "CREATE INDEX IF NOT EXISTS ix_detector_alerts_client_status ON detector_alerts (client_id, status)",
+                    "CREATE INDEX IF NOT EXISTS ix_detector_alerts_owner_status ON detector_alerts (owner_id, status)",
+                    "CREATE INDEX IF NOT EXISTS ix_project_directions_client_position ON project_directions (client_id, position)",
+                ):
+                    conn.execute(text(_idx_sql))
             logger.info("Database tables created successfully")
             return
         except OperationalError as e:

@@ -655,6 +655,11 @@ class Campaign(Base):
     bid_strategy = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    # Сопоставление кампаний по внешнему id выполняется на каждой синхронизации.
+    __table_args__ = (
+        Index("ix_campaigns_integration_external", "integration_id", "external_id"),
+    )
+
     integration = relationship("Integration", back_populates="campaigns")
     yandex_stats = relationship("YandexStats", back_populates="campaign")
     yandex_groups = relationship("YandexGroups", back_populates="campaign")
@@ -675,6 +680,10 @@ class ProjectDirection(Base):
     is_active = Column(Boolean, nullable=False, default=True, server_default="true")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("ix_project_directions_client_position", "client_id", "position"),
+    )
 
     client = relationship("Client", back_populates="directions")
     masks = relationship("ProjectDirectionMask", back_populates="direction", cascade="all, delete-orphan")
@@ -791,6 +800,11 @@ class SyncJob(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
+    # Воркер выбирает QUEUED в порядке created_at — покрывающий индекс под это.
+    __table_args__ = (
+        Index("ix_sync_jobs_status_created", "status", "created_at"),
+    )
+
     integration = relationship("Integration", back_populates="sync_jobs")
 
 class YandexStats(Base):
@@ -807,6 +821,13 @@ class YandexStats(Base):
     conversions = Column(BigInteger, default=0)
     ctr = Column(Numeric(10, 4))
     cpc = Column(Numeric(20, 2))
+
+    # Индексы обязаны быть и здесь, и в миграции: объявленные только в alembic
+    # пропадают при пересоздании базы через create_all().
+    __table_args__ = (
+        Index("ix_yandex_stats_client_date_campaign", "client_id", "date", "campaign_id"),
+        Index("ix_yandex_stats_campaign_id", "campaign_id"),
+    )
 
     client = relationship("Client", back_populates="yandex_stats")
     campaign = relationship("Campaign", back_populates="yandex_stats")
@@ -825,6 +846,12 @@ class YandexKeywords(Base):
     cost = Column(Numeric(20, 2), default=0)
     conversions = Column(BigInteger, default=0)
 
+    # Ключ поиска при апсерте: без него каждый SELECT существующей строки шёл
+    # через BitmapAnd по двум одиночным индексам.
+    __table_args__ = (
+        Index("ix_yandex_keywords_lookup", "client_id", "date", "campaign_name", "keyword"),
+    )
+
     client = relationship("Client", back_populates="yandex_keywords")
 
 class YandexGroups(Base):
@@ -841,6 +868,10 @@ class YandexGroups(Base):
     clicks = Column(BigInteger, default=0)
     cost = Column(Numeric(20, 2), default=0)
     conversions = Column(BigInteger, default=0)
+
+    __table_args__ = (
+        Index("ix_yandex_groups_lookup", "client_id", "campaign_id", "date", "group_id"),
+    )
 
     client = relationship("Client", back_populates="yandex_groups")
     campaign = relationship("Campaign", back_populates="yandex_groups")
@@ -879,6 +910,10 @@ class AvitoStats(Base):
     conversions = Column(BigInteger, default=0)
     cpc = Column(Numeric(20, 2), nullable=True)
     cpa = Column(Numeric(20, 2), nullable=True)
+
+    __table_args__ = (
+        Index("ix_avito_stats_client_date_campaign", "client_id", "date", "campaign_id"),
+    )
 
     client = relationship("Client", back_populates="avito_stats")
     campaign = relationship("Campaign", back_populates="avito_stats")
@@ -987,6 +1022,11 @@ class VKStats(Base):
     cpc = Column(Numeric(20, 2), nullable=True)  # Средняя цена клика из VK API
     cpa = Column(Numeric(20, 2), nullable=True)  # vk.cpa - Средняя цена цели из VK API
 
+    __table_args__ = (
+        Index("ix_vk_stats_client_date_campaign", "client_id", "date", "campaign_id"),
+        Index("ix_vk_stats_campaign_id", "campaign_id"),
+    )
+
     client = relationship("Client", back_populates="vk_stats")
     campaign = relationship("Campaign", back_populates="vk_stats")
 
@@ -1000,7 +1040,14 @@ class MetrikaGoals(Base):
     goal_id = Column(String, nullable=False)
     goal_name = Column(String)
     conversion_count = Column(Integer, default=0)
-    
+
+    # client_id раньше не был проиндексирован вовсе, хотя это одна из самых
+    # читаемых таблиц: без индекса выборка по проекту шла по всем арендаторам.
+    __table_args__ = (
+        Index("ix_metrika_goals_client_date_goal", "client_id", "date", "goal_id"),
+        Index("ix_metrika_goals_integration_date", "integration_id", "date"),
+    )
+
     # Relationships
     integration = relationship("Integration", foreign_keys=[integration_id])
 
@@ -1077,6 +1124,8 @@ class DetectorAlert(Base):
             "client_id", "metric", "detection_level", "entity_id", "channel", "mode",
             name="uq_detector_alert_open",
         ),
+        Index("ix_detector_alerts_client_status", "client_id", "status"),
+        Index("ix_detector_alerts_owner_status", "owner_id", "status"),
     )
 
 
