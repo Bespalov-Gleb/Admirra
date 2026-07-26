@@ -1,11 +1,15 @@
 import base64
 import hashlib
 import hmac
+import logging
+import os
 from typing import Any, Dict
 
 import httpx
 
 from core.config import get_config
+
+logger = logging.getLogger(__name__)
 
 
 class CloudPaymentsService:
@@ -79,7 +83,21 @@ class CloudPaymentsService:
         cfg = get_config().cloudpayments
         secret = (cfg.webhook_secret or cfg.api_secret or "").strip()
         if not secret:
-            return True
+            # Fail-closed. Раньше здесь стоял `return True`, и стоило секрету
+            # пропасть из окружения — вебхук начинал принимать что угодно от кого
+            # угодно, то есть выдача тарифа становилась публичным эндпоинтом.
+            # Для локальной разработки без секрета есть явный опт-аут.
+            if os.getenv("CLOUDPAYMENTS_ALLOW_UNSIGNED_WEBHOOKS", "").strip().lower() in ("1", "true", "yes"):
+                logger.warning(
+                    "CloudPayments webhook signature check DISABLED "
+                    "(CLOUDPAYMENTS_ALLOW_UNSIGNED_WEBHOOKS) — так нельзя в проде"
+                )
+                return True
+            logger.error(
+                "CloudPayments webhook rejected: секрет не настроен "
+                "(CLOUDPAYMENTS_WEBHOOK_SECRET / CLOUDPAYMENTS_API_SECRET)"
+            )
+            return False
         if not signature:
             return False
         sig_clean = signature.strip()

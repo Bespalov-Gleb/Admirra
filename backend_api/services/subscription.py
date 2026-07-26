@@ -167,6 +167,17 @@ class SubscriptionService:
             if sub.current_period_end is None:
                 return True
             return sub.current_period_end >= SubscriptionService._now()
+        # Отменённая подписка сохраняет доступ до конца ОПЛАЧЕННОГО периода — это
+        # обещано и в интерфейсе («Доступ сохранится до …»), и в docstring
+        # эндпоинта отмены. Раньше CANCELED отсекался сразу, и пользователь терял
+        # доступ в тот же момент, хотя период был оплачен: отмена автопродления
+        # гасит рекуррент в CloudPayments, оттуда приходит Recurrent(Cancelled),
+        # вебхук ставил CANCELED — и require_active_subscription отдавал 402.
+        # PAST_DUE — та же логика: неудачное списание не отбирает период, за
+        # который уже заплачено. Обычно он к этому моменту истёк, и доступ
+        # закроется сам по дате.
+        if sub.status in {models.SubscriptionStatus.CANCELED, models.SubscriptionStatus.PAST_DUE}:
+            return bool(sub.current_period_end) and sub.current_period_end >= SubscriptionService._now()
         return False
 
     @staticmethod

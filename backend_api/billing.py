@@ -2,6 +2,7 @@ import json
 import logging
 import uuid
 from datetime import timedelta
+from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, List, Optional
 from urllib.parse import parse_qs
 
@@ -105,6 +106,48 @@ def _billing_period_days(plan, billing_period: str) -> int:
     if billing_period == "year":
         return 365
     return int(plan.period_days or 30)
+
+
+# Коды тарифов, которые вообще можно оплатить. Используется для сверки суммы:
+# по оплаченной сумме мы обязаны сами определить тариф, а не верить клиенту.
+PURCHASABLE_PLAN_CODES = ("start", "basic", "standard")
+
+
+def _expected_amount(plan, billing_period: str) -> int:
+    """Цена тарифа за период — единственный источник истины на сервере."""
+    if billing_period == "year":
+        return int(_yearly_price_from_monthly(plan.price_rub))
+    return int(plan.price_rub or 0)
+
+
+def _paid_amount(data: Dict[str, Any]) -> Optional[Decimal]:
+    raw = data.get("Amount")
+    if raw is None or str(raw).strip() == "":
+        return None
+    try:
+        return Decimal(str(raw).replace(",", ".").strip())
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def _resolve_plan_by_paid_amount(paid: Decimal, billing_period: str):
+    """Ищет тариф, чья цена за период совпадает с фактически оплаченной суммой.
+
+    Возвращает (plan, billing_period) либо (None, None), если однозначного
+    совпадения нет. Период тоже перебираем: клиент мог заявить 'year', заплатив
+    месячную цену.
+    """
+    matches = []
+    for period in (billing_period, "year" if billing_period == "month" else "month"):
+        for code in PURCHASABLE_PLAN_CODES:
+            candidate = SubscriptionService.get_plan_from_config(code)
+            if Decimal(_expected_amount(candidate, period)) == paid:
+                matches.append((candidate, period))
+        if matches:
+            break
+    if len(matches) == 1:
+        return matches[0]
+    return None, None
 
 
 def _cabinet_limit_for_plan(plan_code: str) -> int:
@@ -282,7 +325,7 @@ async def subscribe(
     if not cfg.cloudpayments.public_id:
         raise HTTPException(status_code=500, detail="CLOUDPAYMENTS_PUBLIC_ID не настроен")
 
-    amount = _yearly_price_from_monthly(plan.price_rub) if billing_period == "year" else plan.price_rub
+    amount = _expected_amount(plan, billing_period)
     description = f"Подписка {plan.name} ({'год' if billing_period == 'year' else 'месяц'})"
     receipt = _build_cloudpayments_receipt(
         amount=amount,
@@ -395,6 +438,43 @@ async def cloudpayments_webhook(
     plan = SubscriptionService.get_plan_from_config(plan_code)
     event_name = (data.get("Type") or data.get("Event") or "").lower()
 
+    # plan_code и billing_period приходят из JsonData, а его формирует ФРОНТ —
+    # значит пользователь может подменить их в браузере и получить дорогой тариф
+    # за цену дешёвого. Единственный доверенный факт — фактически списанная
+    # сумма, поэтому тариф определяем по ней.
+    amount_mismatch = False
+    paid = _paid_amount(data)
+    if paid is not None:
+        expected = Decimal(_expected_amount(plan, billing_period))
+        if paid != expected:
+            resolved_plan, resolved_period = _resolve_plan_by_paid_amount(paid, billing_period)
+            if resolved_plan is not None:
+                logger.warning(
+                    "CloudPayments webhook: заявлен тариф %s/%s (ожидалось %s), оплачено %s — "
+                    "выдаём %s/%s по фактической сумме. user=%s",
+                    plan_code, billing_period, expected, paid,
+                    resolved_plan.code, resolved_period, user.id,
+                )
+                plan = resolved_plan
+                plan_code = resolved_plan.code
+                billing_period = resolved_period
+            else:
+                amount_mismatch = True
+                logger.error(
+                    "CloudPayments webhook: сумма %s не соответствует ни одному тарифу "
+                    "(заявлен %s/%s, ожидалось %s). Тариф НЕ выдан. user=%s",
+                    paid, plan_code, billing_period, expected, user.id,
+                )
+
+    expected_currency = (get_config().cloudpayments.currency or "RUB").upper()
+    got_currency = str(data.get("Currency") or expected_currency).upper()
+    if got_currency != expected_currency:
+        amount_mismatch = True
+        logger.error(
+            "CloudPayments webhook: валюта %s вместо %s — тариф НЕ выдан. user=%s",
+            got_currency, expected_currency, user.id,
+        )
+
     # Pay/Fail/Recurrent/Cancel приходят на ОДИН URL, а поля Type у CloudPayments нет —
     # классифицируем по реальному составу уведомления (см. developers.cloudpayments.ru):
     #  - Recurrent: есть Id подписки и Status (Active/PastDue/Cancelled/...), нет TransactionId
@@ -419,7 +499,35 @@ async def cloudpayments_webhook(
     else:
         outcome = "pay"
 
-    sub.plan_code = plan.code
+    # Сумма не сошлась ни с одним тарифом — состояние подписки не трогаем вовсе.
+    # Возвращаем code 0, чтобы CloudPayments не долбил повторами: платёж уже
+    # прошёл, разбираться нужно руками по логу и уведомлению.
+    if amount_mismatch and outcome == "pay":
+        log_history_event(
+            db,
+            actor=user,
+            event_type="billing",
+            action="payment_amount_mismatch",
+            description="Оплаченная сумма не соответствует ни одному тарифу — доступ не выдан",
+            target_type="subscription",
+            target_id=str(sub.id),
+            meta={
+                "claimed_plan_code": plan_code,
+                "claimed_billing_period": billing_period,
+                "paid_amount": str(paid) if paid is not None else None,
+                "currency": got_currency,
+                "transaction_id": str(data.get("TransactionId") or ""),
+            },
+        )
+        db.commit()
+        return schemas.CloudPaymentsWebhookResponse(code=0)
+
+    # plan_code меняем ТОЛЬКО при успешной оплате. Раньше он переписывался и на
+    # fail/cancel — то есть неудачный платёж за старший тариф всё равно менял
+    # тариф пользователя, а от него считаются лимиты.
+    prev_plan_code = (sub.plan_code or "").lower()
+    if outcome == "pay":
+        sub.plan_code = plan.code
     prev_cp_sub_id = (sub.cloudpayments_subscription_id or "").strip()
     sub.cloudpayments_subscription_id = str(
         data.get("SubscriptionId")
@@ -449,10 +557,25 @@ async def cloudpayments_webhook(
         # периода происходит по реальному списанию (уведомление Pay).
         extend_period = not is_recurrent_report or not sub.current_period_end
         sub.status = models.SubscriptionStatus.ACTIVE
+        # Успешная оплата снова включает автопродление. Раньше cancel_at_period_end
+        # выставлялся в True при отмене и НИКОГДА не сбрасывался: после повторной
+        # оплаты UI продолжал показывать «автопродление отключено», хотя рекуррент
+        # в CloudPayments был создан заново и списания шли.
+        sub.cancel_at_period_end = False
         if extend_period:
             sub.billing_period = billing_period
+            days = _billing_period_days(plan, billing_period)
+            # Продление того же тарифа прибавляется к остатку оплаченного периода,
+            # а не обнуляет его. При смене тарифа период начинается заново — иначе
+            # апгрейд посреди месяца дарил бы почти два периода за один платёж.
+            same_plan = prev_plan_code == (plan.code or "").lower()
+            base = (
+                max(now, sub.current_period_end)
+                if same_plan and sub.current_period_end
+                else now
+            )
             sub.current_period_start = now
-            sub.current_period_end = now + timedelta(days=_billing_period_days(plan, billing_period))
+            sub.current_period_end = base + timedelta(days=days)
         user.is_subscribed = True
         user.subscription_expires_at = sub.current_period_end
         if extend_period:
@@ -500,13 +623,24 @@ async def cloudpayments_webhook(
             logger.warning("Metrika offline conversion hook error: %s", _conv_err)
     elif outcome == "cancel":
         sub.status = models.SubscriptionStatus.CANCELED
-        user.is_subscribed = False
+        # Оплаченный период отменой не сгорает: и UI, и docstring эндпоинта
+        # отмены обещают доступ до его конца. Раньше здесь безусловно стоял
+        # is_subscribed = False, и пользователь терял доступ в тот же миг.
+        period_still_paid = bool(sub.current_period_end) and sub.current_period_end >= now
+        user.is_subscribed = period_still_paid
+        if period_still_paid:
+            user.subscription_expires_at = sub.current_period_end
         create_notification(
             db,
             user_id=user.id,
             type="payment_failed",
             title="Подписка отменена",
-            body="Ваша подписка была отменена. Вы можете оформить её заново в разделе «Тарифы».",
+            body=(
+                f"Автопродление отключено. Доступ сохранится до "
+                f"{sub.current_period_end.strftime('%d.%m.%Y')}."
+                if period_still_paid
+                else "Ваша подписка была отменена. Вы можете оформить её заново в разделе «Тарифы»."
+            ),
         )
         log_history_event(
             db,
@@ -520,7 +654,9 @@ async def cloudpayments_webhook(
         )
     else:
         sub.status = models.SubscriptionStatus.PAST_DUE
-        user.is_subscribed = False
+        # Неудачное списание не отбирает уже оплаченный период. Обычно неудача
+        # приходит уже после его конца, но если период ещё идёт — доступ остаётся.
+        user.is_subscribed = bool(sub.current_period_end) and sub.current_period_end >= now
         create_notification(
             db,
             user_id=user.id,

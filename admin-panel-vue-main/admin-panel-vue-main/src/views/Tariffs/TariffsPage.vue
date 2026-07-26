@@ -63,10 +63,14 @@
           <em>{{ currentPlanCode === 'start' ? 'Все каналы от «Базового»' : 'Все каналы доступны' }}</em>
         </div>
 
+        <!-- Карта и автопродление на бэкенде — одно состояние, а не два: отмена
+             автопродления там же обнуляет маску карты (billing.py). Поэтому и в
+             интерфейсе это один блок с одним действием. Раньше блоков было два,
+             и при отсутствии карты оба показывали кнопку «Привязать карту». -->
         <div class="subscription-footer">
-          <div class="payment-row">
+          <div class="payment-row" :class="{ 'payment-row--warning': !autorenewEnabled }">
             <div class="payment-row__content">
-              <span class="payment-row__label">Способ оплаты</span>
+              <span class="payment-row__label">Способ оплаты и автопродление</span>
               <div class="payment-method">
                 <template v-if="hasPaymentMethod">
                   <span class="card-badge" :class="`card-badge--${cardBrandKey}`">
@@ -82,17 +86,6 @@
                   <span class="payment-method__empty">Карта не привязана</span>
                 </template>
               </div>
-            </div>
-            <div class="subscription-footer-actions">
-              <button type="button" :class="{ 'payment-action--primary': !hasPaymentMethod }" @click="onBindCard">
-                {{ hasPaymentMethod ? 'Изменить карту' : 'Привязать карту' }}
-              </button>
-            </div>
-          </div>
-
-          <div class="payment-row" :class="{ 'payment-row--warning': !autorenewEnabled }">
-            <div class="payment-row__content">
-              <span class="payment-row__label">Автопродление</span>
               <div
                 class="payment-renewal"
                 :class="{
@@ -109,29 +102,21 @@
             </div>
             <div class="subscription-footer-actions">
               <button
-                v-if="autorenewEnabled"
-                type="button"
-                :disabled="cancellingAutorenew"
-                @click="openCancelAutorenewModal"
-              >
-                {{ cancellingAutorenew ? 'Подождите…' : 'Отключить автопродление' }}
-              </button>
-              <button
-                v-else
                 type="button"
                 class="payment-action--primary"
+                :disabled="paymentActionBusy"
                 @click="onBindCard"
               >
-                {{ hasPaymentMethod ? 'Включить автопродление' : 'Привязать карту' }}
+                {{ bindCardLabel }}
               </button>
               <button
-                v-if="hasPaymentMethod && !subscription.autorenew"
+                v-if="hasPaymentMethod"
                 type="button"
                 class="payment-action--danger"
-                :disabled="cancellingAutorenew"
-                @click="onDetachCard"
+                :disabled="paymentActionBusy"
+                @click="openCancelAutorenewModal"
               >
-                Отвязать карту
+                {{ autorenewEnabled ? 'Отключить автопродление' : 'Отвязать карту' }}
               </button>
             </div>
           </div>
@@ -264,14 +249,20 @@
         @click.self="cancelAutorenewModalOpen = false"
       >
         <div class="billing-modal">
-          <h4>Отключить автопродление?</h4>
+          <h4>{{ autorenewEnabled ? 'Отключить автопродление?' : 'Отвязать карту?' }}</h4>
           <p>
             Доступ сохранится до {{ subscriptionEndDate || 'конца оплаченного периода' }},
             списания не будет. Подписку можно возобновить в любой момент.
           </p>
+          <!-- Отмена автопродления и отвязка карты — одна операция на бэкенде,
+               поэтому предупреждаем об этом явно, чтобы карта не пропадала молча. -->
+          <p class="billing-modal__note">
+            Привязанная карта •••• {{ paymentLast4 }} будет удалена — для возобновления
+            подписки её нужно будет привязать заново.
+          </p>
           <div class="billing-modal__actions">
             <button type="button" class="billing-modal__confirm" :disabled="cancellingAutorenew" @click="onCancelAutorenew">
-              {{ cancellingAutorenew ? 'Отключаем…' : 'Отключить автопродление' }}
+              {{ cancellingAutorenew ? 'Отключаем…' : (autorenewEnabled ? 'Отключить автопродление' : 'Отвязать карту') }}
             </button>
             <button type="button" class="billing-modal__cancel" @click="cancelAutorenewModalOpen = false">
               Отмена
@@ -313,6 +304,7 @@ const paying = ref(null)
 const billingPeriod = ref('month')
 const plansAnchor = ref(null)
 const cancelAutorenewModalOpen = ref(false)
+const cancellingAutorenew = ref(false)
 
 const subscription = ref({
   plan_code: 'start',
@@ -400,6 +392,15 @@ const hasPaymentMethod = computed(() => {
 
 const autorenewEnabled = computed(() => hasPaymentMethod.value && Boolean(subscription.value?.autorenew))
 
+// Пока идёт оплата или отмена — блокируем обе кнопки блока. Без этого повторный
+// клик открывал второй виджет CloudPayments и приводил ко второму списанию.
+const paymentActionBusy = computed(() => Boolean(paying.value) || cancellingAutorenew.value)
+
+const bindCardLabel = computed(() => {
+  if (paymentActionBusy.value) return 'Подождите…'
+  return hasPaymentMethod.value ? 'Изменить карту' : 'Привязать карту'
+})
+
 const paymentMethod = computed(() => subscription.value?.payment_method || {})
 const paymentLast4 = computed(() => paymentMethod.value.last4 || subscription.value?.payment_last4 || '')
 const paymentExp = computed(() => paymentMethod.value.exp || paymentMethod.value.expires || subscription.value?.payment_exp || '')
@@ -459,9 +460,14 @@ const subscriptionUsageTiles = computed(() => {
     {
       key: 'projects',
       label: 'Проекты',
+      // projects_used — это СЛОТЫ, а не число проектов: папка занимает один слот
+      // независимо от количества филиалов внутри (count_project_slots на бэкенде).
+      // Раньше подпись гласила «N активных», и пользователь читал слоты как проекты.
       used: projectsUsed,
       limit: s.max_projects ?? currentPlan.value?.max_projects ?? 1,
-      caption: `${projectsUsed} ${pluralRu(projectsUsed, 'активный', 'активных', 'активных')}  •  ${pausedProjects} на паузе`,
+      caption: pausedProjects
+        ? `Папка = 1 слот  •  ${pausedProjects} на паузе`
+        : 'Папка занимает 1 слот',
     },
     {
       key: 'cabinets',
@@ -637,8 +643,6 @@ async function onSubscribe(planCode, bp = 'month') {
   }
 }
 
-const cancellingAutorenew = ref(false)
-
 async function reloadSubscription() {
   try {
     const { data } = await api.get('billing/subscription')
@@ -680,14 +684,6 @@ async function onCancelAutorenew() {
   } finally {
     cancellingAutorenew.value = false
   }
-}
-
-async function onDetachCard() {
-  if (subscription.value?.autorenew) {
-    toaster.info('Сначала отключите автопродление.')
-    return
-  }
-  await onCancelAutorenew()
 }
 
 function onContactWl() {
@@ -1249,6 +1245,16 @@ function onContactWl() {
   color: rgba(105, 105, 105, 0.72);
   font-size: 1.0417rem;
   line-height: 1.45;
+}
+
+/* В модалке теперь два абзаца: основной текст и предупреждение про удаление
+   карты. Нижний отступ полной высоты оставляем только последнему. */
+.billing-modal p:not(:last-of-type) {
+  margin-bottom: 0.6944rem;
+}
+
+.billing-modal__note {
+  color: rgba(194, 65, 12, 0.9);
 }
 
 .billing-modal__actions {

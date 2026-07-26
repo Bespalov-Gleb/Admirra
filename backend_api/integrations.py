@@ -1863,6 +1863,10 @@ async def connect_avito_ads(
         if not db_client:
             raise HTTPException(status_code=404, detail="Проект не найден")
     elif client_name_input:
+        # Этот эндпоинт создаёт проект в обход POST /clients, поэтому лимит
+        # тарифа нужно проверять здесь же — иначе подключение Avito было
+        # способом завести проект сверх тарифа.
+        SubscriptionService.ensure_can_create_project(db, current_user)
         db_client = models.Client(owner_id=current_user.id, name=client_name_input)
         db.add(db_client)
         db.flush()
@@ -1933,6 +1937,10 @@ async def connect_avito_ads(
         db_integration.sync_status = models.IntegrationSyncStatus.NEVER
         db_integration.error_message = None
     else:
+        # Новый кабинет — считаем его в лимит тарифа наравне с остальными
+        # платформами. Обновление существующей интеграции (ветка выше) лимит
+        # не расходует.
+        SubscriptionService.ensure_can_create_cabinet(db, current_user)
         db_integration = models.Integration(
             client_id=db_client.id,
             platform=models.IntegrationPlatform.AVITO_ADS,
@@ -4686,19 +4694,38 @@ async def import_yandex_clients(db: Session, user_id: uuid.UUID, access_token: s
     Core logic to import Yandex clients into the database.
     """
     imported_count = 0
+    limit_error: Optional[str] = None
     tasks = []
+    # Массовый импорт агентских клиентов заводит и проект, и кабинет на каждую
+    # строку, минуя POST /clients и обычный эндпоинт интеграции. Без проверки
+    # здесь импорт был способом выйти за тариф одним запросом.
+    import_user = db.query(models.User).filter(models.User.id == user_id).first()
     for client_data in clients_to_import:
         login = client_data.get("login")
-        
+
         # 0. Check if this client already exists for this user to avoid duplicates
         existing = db.query(models.Integration).join(models.Client).filter(
             models.Client.owner_id == user_id,
             models.Integration.platform == models.IntegrationPlatform.YANDEX_DIRECT,
             models.Integration.agency_client_login == login
         ).first()
-        
+
         if existing:
             continue
+
+        # Лимит проверяем на каждой итерации: она создаёт по одному проекту и
+        # кабинету. При исчерпании — останавливаемся и отдаём частичный импорт,
+        # а не 403 поверх уже созданных строк.
+        if import_user is not None:
+            try:
+                SubscriptionService.ensure_can_create_project(db, import_user)
+                SubscriptionService.ensure_can_create_cabinet(db, import_user)
+            except HTTPException as limit_exc:
+                limit_error = str(limit_exc.detail)
+                logger.warning(
+                    "Batch import stopped at %d imported: %s", imported_count, limit_error
+                )
+                break
 
         # 1. Create Client (Project)
         new_client = models.Client(
@@ -4730,9 +4757,9 @@ async def import_yandex_clients(db: Session, user_id: uuid.UUID, access_token: s
         # в отдельном потоке с новым event loop, чтобы не блокировать основной event loop FastAPI.
         run_sync_in_background(new_integration.id, 7)
         imported_count += 1
-    
+
     # НЕ ждем завершения синхронизации - она выполняется в фоне
-    return imported_count
+    return imported_count, limit_error
 
 async def run_sync_in_background_async(integration_id: uuid.UUID, days: int = 7):
     """
@@ -4777,5 +4804,14 @@ async def batch_import_integrations(
     if not access_token or not clients_to_import:
         raise HTTPException(status_code=400, detail="Missing access_token or clients list")
         
-    count = await import_yandex_clients(db, current_user.id, access_token, clients_to_import)
+    count, limit_error = await import_yandex_clients(db, current_user.id, access_token, clients_to_import)
+    if limit_error:
+        # Частичный импорт: то, что успели создать, остаётся, а пользователю
+        # честно сообщаем, на чём остановились и почему.
+        return {
+            "message": f"Импортировано {count} из {len(clients_to_import)}: {limit_error}",
+            "count": count,
+            "limit_reached": True,
+            "detail": limit_error,
+        }
     return {"message": f"Successfully imported {count} projects", "count": count}
