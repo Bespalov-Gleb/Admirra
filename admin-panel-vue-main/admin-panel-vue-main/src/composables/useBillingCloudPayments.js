@@ -77,6 +77,12 @@ export async function payWithCloudPayments(payload) {
     skin: 'classic',
     data,
   }
+  // Идентификатор заказа с бэкенда. Возвращается в вебхуке как InvoiceId и
+  // позволяет связать платёж с намерением: без него повторный клик создавал
+  // полностью независимый платёж, который нечем было опознать.
+  if (payload.invoice_id) {
+    options.invoiceId = payload.invoice_id
+  }
 
   return new Promise((resolve, reject) => {
     let finished = false

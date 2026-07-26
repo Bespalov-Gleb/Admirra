@@ -8,6 +8,7 @@ from urllib.parse import parse_qs
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend_api.services.cloudpayments import CloudPaymentsService
@@ -148,6 +149,124 @@ def _resolve_plan_by_paid_amount(paid: Decimal, billing_period: str):
     if len(matches) == 1:
         return matches[0]
     return None, None
+
+
+# Порядок тарифов: апгрейд начинает период заново (решение владельца), понижение
+# откладывается до конца уже оплаченного периода.
+PLAN_RANK = {"start": 1, "basic": 2, "standard": 3, "white_label": 4}
+
+# Окно, в течение которого повторный клик по оплате переиспользует тот же заказ,
+# а не создаёт второй независимый платёж.
+INVOICE_REUSE_WINDOW = timedelta(minutes=15)
+
+
+def _reuse_or_create_invoice(
+    db: Session,
+    *,
+    user: models.User,
+    subscription: models.Subscription,
+    plan_code: str,
+    billing_period: str,
+    amount: int,
+    currency: str,
+) -> str:
+    """Возвращает invoice_id для виджета, переиспользуя недавнее неоплаченное намерение.
+
+    Без этого второй клик по «Оплатить» создавал полностью независимый платёж:
+    у CloudPayments не было ключа, по которому он мог бы понять, что это тот же
+    заказ.
+    """
+    now = SubscriptionService._now()
+    recent = (
+        db.query(models.BillingEvent)
+        .filter(
+            models.BillingEvent.user_id == user.id,
+            models.BillingEvent.event_type == "intent",
+            models.BillingEvent.plan_code == plan_code,
+            models.BillingEvent.billing_period == billing_period,
+            models.BillingEvent.created_at >= now - INVOICE_REUSE_WINDOW,
+        )
+        .order_by(models.BillingEvent.created_at.desc())
+        .first()
+    )
+    if recent and recent.invoice_id:
+        already_paid = (
+            db.query(models.BillingEvent.id)
+            .filter(
+                models.BillingEvent.invoice_id == recent.invoice_id,
+                models.BillingEvent.event_type == "pay",
+            )
+            .first()
+        )
+        if not already_paid:
+            return recent.invoice_id
+
+    invoice_id = uuid.uuid4().hex
+    db.add(
+        models.BillingEvent(
+            user_id=user.id,
+            subscription_id=subscription.id,
+            event_type="intent",
+            invoice_id=invoice_id,
+            amount=amount,
+            currency=currency,
+            plan_code=plan_code,
+            billing_period=billing_period,
+        )
+    )
+    return invoice_id
+
+
+def _record_billing_event(
+    db: Session,
+    *,
+    user: models.User,
+    subscription: Optional[models.Subscription],
+    event_type: str,
+    data: Dict[str, Any],
+    plan_code: Optional[str],
+    billing_period: Optional[str],
+    amount: Optional[Decimal],
+) -> bool:
+    """Пишет денежное событие в журнал.
+
+    Возвращает False, если событие с таким TransactionId уже записано — это и
+    есть идемпотентность: CloudPayments повторяет доставку, пока не получит
+    code 0, и без такой проверки повтор заново продлевал подписку.
+    """
+    transaction_id = str(data.get("TransactionId") or "").strip() or None
+    if transaction_id:
+        seen = (
+            db.query(models.BillingEvent.id)
+            .filter(models.BillingEvent.transaction_id == transaction_id)
+            .first()
+        )
+        if seen:
+            return False
+
+    db.add(
+        models.BillingEvent(
+            user_id=user.id,
+            subscription_id=subscription.id if subscription is not None else None,
+            event_type=event_type,
+            invoice_id=str(data.get("InvoiceId") or "").strip() or None,
+            transaction_id=transaction_id,
+            cp_subscription_id=str(data.get("SubscriptionId") or data.get("Id") or "").strip() or None,
+            amount=amount,
+            currency=str(data.get("Currency") or "") or None,
+            plan_code=plan_code,
+            billing_period=billing_period,
+            payload=data,
+        )
+    )
+    try:
+        db.flush()
+    except IntegrityError:
+        # Гонка: два одинаковых вебхука пришли одновременно. Уникальный индекс по
+        # transaction_id отсекает второй — это ожидаемо, а не ошибка.
+        db.rollback()
+        return False
+    return True
 
 
 def _cabinet_limit_for_plan(plan_code: str) -> int:
@@ -334,6 +453,18 @@ async def subscribe(
         cfg=cfg,
     )
 
+    sub = SubscriptionService.ensure_default_subscription(db, current_user)
+    invoice_id = _reuse_or_create_invoice(
+        db,
+        user=current_user,
+        subscription=sub,
+        plan_code=plan.code,
+        billing_period=billing_period,
+        amount=amount,
+        currency=cfg.cloudpayments.currency,
+    )
+    db.commit()
+
     # Для фронта готовим данные виджета, включая receipt для автоматической фискализации.
     return schemas.BillingSubscribeResponse(
         public_id=cfg.cloudpayments.public_id,
@@ -347,6 +478,7 @@ async def subscribe(
         trial_days=plan.trial_days,
         recurrent=_recurrent_for_billing_period(plan, billing_period),
         receipt=receipt,
+        invoice_id=invoice_id,
     )
 
 
@@ -360,11 +492,16 @@ async def cancel_autorenew(
     sub = SubscriptionService.ensure_default_subscription(db, current_user)
     cp_sub_id = (sub.cloudpayments_subscription_id or "").strip()
     cancelled_ids = []
+    # Если рекуррент в CloudPayments отменить не удалось, списания продолжатся.
+    # Раньше об этом знал только лог, а пользователю показывался бодрый тост
+    # «карта отвязана, списаний не будет» — теперь отдаём правду наверх.
+    failed_ids = []
     if cp_sub_id:
         try:
             await CloudPaymentsService.cancel_subscription(cp_sub_id)
             cancelled_ids.append(cp_sub_id)
         except Exception as err:
+            failed_ids.append(cp_sub_id)
             logger.warning("CloudPayments cancel_subscription failed for %s: %s", cp_sub_id, err)
     # Подстраховка: отменяем ВСЕ активные рекурренты аккаунта в CP. Закрывает гонку
     # «нажал отмену раньше, чем вебхук записал SubscriptionId» и осиротевшие подписки
@@ -379,8 +516,12 @@ async def cancel_autorenew(
                     cancelled_ids.append(sid)
                     logger.info("Cancelled orphan CP subscription %s for user %s", sid, current_user.id)
                 except Exception as err:
+                    failed_ids.append(sid)
                     logger.warning("Failed to cancel orphan CP subscription %s: %s", sid, err)
     except Exception as err:
+        # Не смогли даже получить список рекуррентов — значит не можем утверждать,
+        # что списаний не будет.
+        failed_ids.append("unknown")
         logger.warning("CloudPayments find_subscriptions failed for %s: %s", current_user.id, err)
     sub.cancel_at_period_end = True
     # Отмена автопродления = отвязка карты: рекуррент в CP отменён, токен карты больше
@@ -389,18 +530,43 @@ async def cancel_autorenew(
     sub.card_type = None
     sub.card_exp = None
     sub.cloudpayments_subscription_id = None
+    recurrent_cancelled = not failed_ids
     log_history_event(
         db,
         actor=current_user,
         event_type="billing",
         action="autorenew_canceled",
-        description="Автопродление отключено пользователем (карта отвязана)",
+        description=(
+            "Автопродление отключено пользователем (карта отвязана)"
+            if recurrent_cancelled
+            else "Автопродление отключено, но рекуррент в CloudPayments отменить не удалось"
+        ),
         target_type="subscription",
         target_id=str(sub.id),
-        meta={"plan_code": sub.plan_code},
+        meta={
+            "plan_code": sub.plan_code,
+            "cancelled_cp_ids": cancelled_ids,
+            "failed_cp_ids": failed_ids,
+        },
     )
     db.commit()
-    return {"ok": True, "autorenew": False}
+    if not recurrent_cancelled:
+        logger.error(
+            "Автопродление отключено в БД, но рекурренты %s в CloudPayments активны — "
+            "списания продолжатся. user=%s",
+            failed_ids, current_user.id,
+        )
+    return {
+        "ok": True,
+        "autorenew": False,
+        "recurrent_cancelled": recurrent_cancelled,
+        "warning": (
+            None
+            if recurrent_cancelled
+            else "Автопродление отключено в личном кабинете, но отменить подписку "
+                 "в платёжной системе не удалось. Списание возможно — напишите в поддержку."
+        ),
+    }
 
 
 @router.post("/cloudpayments/webhook", response_model=schemas.CloudPaymentsWebhookResponse)
@@ -499,6 +665,27 @@ async def cloudpayments_webhook(
     else:
         outcome = "pay"
 
+    # Идемпотентность. CloudPayments повторяет доставку, пока не получит code 0,
+    # и без этой проверки повтор заново продлевал подписку. Запись в журнал —
+    # она же и защита: TransactionId уникален частичным индексом.
+    is_new_event = _record_billing_event(
+        db,
+        user=user,
+        subscription=sub,
+        event_type=outcome,
+        data=data,
+        plan_code=plan_code,
+        billing_period=billing_period,
+        amount=paid,
+    )
+    if not is_new_event:
+        logger.info(
+            "CloudPayments webhook: повторная доставка транзакции %s — пропущена",
+            data.get("TransactionId"),
+        )
+        db.commit()
+        return schemas.CloudPaymentsWebhookResponse(code=0)
+
     # Сумма не сошлась ни с одним тарифом — состояние подписки не трогаем вовсе.
     # Возвращаем code 0, чтобы CloudPayments не долбил повторами: платёж уже
     # прошёл, разбираться нужно руками по логу и уведомлению.
@@ -526,7 +713,13 @@ async def cloudpayments_webhook(
     # fail/cancel — то есть неудачный платёж за старший тариф всё равно менял
     # тариф пользователя, а от него считаются лимиты.
     prev_plan_code = (sub.plan_code or "").lower()
-    if outcome == "pay":
+    new_plan_code = (plan.code or "").lower()
+    prev_rank = PLAN_RANK.get(prev_plan_code, 0)
+    new_rank = PLAN_RANK.get(new_plan_code, 0)
+    is_downgrade = outcome == "pay" and new_rank and prev_rank and new_rank < prev_rank
+    if outcome == "pay" and not is_downgrade:
+        # Понижение вступает в силу в конце оплаченного периода, поэтому здесь
+        # тариф не меняем — см. ветку ниже, где выставляется pending_plan_code.
         sub.plan_code = plan.code
     prev_cp_sub_id = (sub.cloudpayments_subscription_id or "").strip()
     sub.cloudpayments_subscription_id = str(
@@ -565,15 +758,27 @@ async def cloudpayments_webhook(
         if extend_period:
             sub.billing_period = billing_period
             days = _billing_period_days(plan, billing_period)
-            # Продление того же тарифа прибавляется к остатку оплаченного периода,
-            # а не обнуляет его. При смене тарифа период начинается заново — иначе
-            # апгрейд посреди месяца дарил бы почти два периода за один платёж.
-            same_plan = prev_plan_code == (plan.code or "").lower()
-            base = (
-                max(now, sub.current_period_end)
-                if same_plan and sub.current_period_end
-                else now
-            )
+            same_plan = prev_plan_code == new_plan_code
+            if is_downgrade:
+                # Понижение: оплаченный уровень не отбираем досрочно. Текущий
+                # тариф доживает до конца периода, новый — приписывается следом
+                # и вступает в силу по его окончании (применяется лениво в
+                # SubscriptionService при чтении подписки).
+                base = max(now, sub.current_period_end) if sub.current_period_end else now
+                sub.pending_plan_code = plan.code
+                logger.info(
+                    "Понижение тарифа %s -> %s отложено до %s (user=%s)",
+                    prev_plan_code, new_plan_code, base.date(), user.id,
+                )
+            elif same_plan:
+                # Продление того же тарифа прибавляется к остатку периода.
+                base = max(now, sub.current_period_end) if sub.current_period_end else now
+                sub.pending_plan_code = None
+            else:
+                # Апгрейд: период начинается заново, остаток старого сгорает —
+                # решение владельца продукта от 2026-07-26.
+                base = now
+                sub.pending_plan_code = None
             sub.current_period_start = now
             sub.current_period_end = base + timedelta(days=days)
         user.is_subscribed = True

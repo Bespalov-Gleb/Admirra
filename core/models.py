@@ -777,11 +777,68 @@ class Subscription(Base):
     card_last4 = Column(String, nullable=True)
     card_type = Column(String, nullable=True)
     card_exp = Column(String, nullable=True)
+    # Понижение тарифа применяется в конце оплаченного периода, а не сразу:
+    # пользователь уже заплатил за более дорогой тариф и не должен терять его
+    # досрочно. Здесь лежит код тарифа, который вступит в силу после
+    # current_period_end; применяется лениво при чтении подписки.
+    pending_plan_code = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     user = relationship("User", back_populates="subscriptions")
     plan = relationship("TariffPlan", back_populates="subscriptions")
+
+
+class BillingEvent(Base):
+    """Неизменяемый журнал денежных событий.
+
+    До него денежная история сводилась к перезаписываемым полям в subscriptions:
+    нельзя было ни разобрать спор с клиентом, ни сверить обороты с CloudPayments,
+    ни отличить повторную доставку вебхука от нового платежа.
+
+    Уникальность transaction_id — механизм идемпотентности: CloudPayments
+    повторяет доставку, пока не получит code 0, и без этого повтор заново
+    продлевал подписку.
+    """
+
+    __tablename__ = "billing_events"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    subscription_id = Column(UUID(as_uuid=True), ForeignKey("subscriptions.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    # intent — намерение оплатить (создаётся в /billing/subscribe);
+    # pay / fail / cancel / recurrent — то, что пришло вебхуком.
+    event_type = Column(String(16), nullable=False, index=True)
+
+    # Идентификатор заказа, который мы генерируем сами и передаём в виджет.
+    # Позволяет связать намерение с платежом и не плодить дубли по двойному клику.
+    invoice_id = Column(String(64), nullable=True, index=True)
+    # TransactionId из CloudPayments — ключ идемпотентности денежных событий.
+    transaction_id = Column(String(64), nullable=True)
+    cp_subscription_id = Column(String(64), nullable=True, index=True)
+
+    amount = Column(Numeric(14, 2), nullable=True)
+    currency = Column(String(8), nullable=True)
+    plan_code = Column(String(32), nullable=True)
+    billing_period = Column(String(8), nullable=True)
+    # Сырое тело уведомления — единственный способ разобрать спорный платёж.
+    payload = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+    __table_args__ = (
+        # Частичный уникальный индекс: у recurrent-уведомлений TransactionId нет,
+        # и NULL'ы не должны конфликтовать между собой.
+        Index(
+            "uq_billing_events_transaction",
+            "transaction_id",
+            unique=True,
+            postgresql_where=text("transaction_id IS NOT NULL"),
+        ),
+        Index("ix_billing_events_user_created", "user_id", "created_at"),
+    )
+
+    user = relationship("User")
 
 
 class SyncJob(Base):

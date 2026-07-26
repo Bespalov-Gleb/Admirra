@@ -1264,6 +1264,10 @@ class BillingSubscribeResponse(BaseModel):
     recurrent: Optional[BillingRecurrentParams] = None
     # Объект чека для CloudPayments/CloudKassir (options.receipt в виджете).
     receipt: Optional[dict] = None
+    # Идентификатор заказа: уходит в options.invoiceId виджета и возвращается
+    # в вебхуке. Без него у платежа не было ключа, по которому его можно
+    # опознать — повторный клик просто создавал второй независимый платёж.
+    invoice_id: Optional[str] = None
 
 
 class CloudPaymentsWebhookResponse(BaseModel):

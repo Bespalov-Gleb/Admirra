@@ -167,3 +167,50 @@ def test_webhook_signature_rejects_tampered_body():
 def test_webhook_signature_requires_header_when_secret_set():
     with patch("backend_api.services.cloudpayments.get_config", return_value=_cfg_with_secret("s3cr3t")):
         assert CloudPaymentsService.validate_webhook_signature(b"{}", None) is False
+
+
+# --------------------------------------------------------------------------
+# Понижение тарифа: применяется в конце оплаченного периода
+# --------------------------------------------------------------------------
+
+def _sub_pending(pending, period_end):
+    return SimpleNamespace(
+        plan_code="standard", pending_plan_code=pending, current_period_end=period_end
+    )
+
+
+def test_pending_downgrade_not_applied_while_period_runs():
+    """Оплаченный уровень нельзя забирать досрочно."""
+    sub = _sub_pending("start", datetime.now(timezone.utc) + timedelta(days=5))
+    SubscriptionService._apply_pending_plan(sub)
+    assert sub.plan_code == "standard"
+    assert sub.pending_plan_code == "start"
+
+
+def test_pending_downgrade_applied_after_period_end():
+    sub = _sub_pending("start", datetime.now(timezone.utc) - timedelta(minutes=1))
+    SubscriptionService._apply_pending_plan(sub)
+    assert sub.plan_code == "start"
+    assert sub.pending_plan_code is None
+
+
+def test_apply_pending_plan_is_noop_without_pending():
+    sub = _sub_pending(None, datetime.now(timezone.utc) - timedelta(days=1))
+    SubscriptionService._apply_pending_plan(sub)
+    assert sub.plan_code == "standard"
+
+
+def test_plan_rank_orders_tariffs_for_upgrade_detection():
+    """От этого порядка зависит, сгорает ли остаток периода."""
+    rank = billing.PLAN_RANK
+    assert rank["start"] < rank["basic"] < rank["standard"]
+    # Понижение standard -> start распознаётся, апгрейд start -> standard нет.
+    assert rank["start"] < rank["standard"]
+
+
+def test_get_user_plan_reads_config_not_db():
+    """Единый источник истины: строка в tariff_plans не должна влиять на тариф."""
+    import inspect
+
+    src = inspect.getsource(SubscriptionService.get_user_plan)
+    assert "TariffPlan" not in src, "get_user_plan снова читает тариф из БД — источников снова два"

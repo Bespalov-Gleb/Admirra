@@ -613,6 +613,9 @@ async function onSubscribe(planCode, bp = 'month') {
       // receipt обязателен для фискализации (онлайн-чек CloudKassir): без него
       // CloudPayments не формирует чек покупателю даже при подключённой кассе.
       receipt: data.receipt || null,
+      // Идентификатор заказа: связывает платёж с намерением на бэкенде и не даёт
+      // повторному клику превратиться во второй независимый платёж.
+      invoice_id: data.invoice_id || null,
     })
     if (result.status === 'cancelled') return
     // Успешная оплата — денежная цель с суммой и срезами
@@ -666,7 +669,7 @@ function openCancelAutorenewModal() {
 async function onCancelAutorenew() {
   cancellingAutorenew.value = true
   try {
-    await api.post('billing/autorenew/cancel')
+    const { data: cancelResult } = await api.post('billing/autorenew/cancel')
     // Отмена автопродления = отвязка карты (бэкенд чистит маску и рекуррент CP)
     subscription.value = {
       ...subscription.value,
@@ -677,7 +680,17 @@ async function onCancelAutorenew() {
       payment_brand: '',
     }
     cancelAutorenewModalOpen.value = false
-    toaster.success('Автопродление отключено, карта отвязана. Доступ сохранится до конца оплаченного периода.')
+    // Бэкенд отдаёт recurrent_cancelled=false, если рекуррент в CloudPayments
+    // отменить не удалось. Обещать «списаний не будет» в этом случае нельзя —
+    // раньше бодрый тост показывался всегда, а деньги продолжали списываться.
+    if (cancelResult && cancelResult.recurrent_cancelled === false) {
+      toaster.error(
+        cancelResult.warning
+          || 'Автопродление отключено, но платёжная система не подтвердила отмену. Напишите в поддержку.'
+      )
+    } else {
+      toaster.success('Автопродление отключено, карта отвязана. Доступ сохранится до конца оплаченного периода.')
+    }
   } catch (e) {
     const d = e?.response?.data?.detail
     toaster.error(typeof d === 'string' ? d : 'Не удалось отключить автопродление')

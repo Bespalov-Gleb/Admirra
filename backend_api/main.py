@@ -152,6 +152,39 @@ def init_db_with_retry(max_retries=10, retry_delay=2):
                     "CREATE INDEX IF NOT EXISTS ix_project_directions_client_position ON project_directions (client_id, position)",
                 ):
                     conn.execute(text(_idx_sql))
+                # Журнал денежных событий и отложенное понижение тарифа.
+                # Дубль миграции w4x5y6z7a8b9 — см. комментарий про create_all выше.
+                conn.execute(text("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS pending_plan_code VARCHAR"))
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS billing_events (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        subscription_id UUID REFERENCES subscriptions(id) ON DELETE SET NULL,
+                        event_type VARCHAR(16) NOT NULL,
+                        invoice_id VARCHAR(64),
+                        transaction_id VARCHAR(64),
+                        cp_subscription_id VARCHAR(64),
+                        amount NUMERIC(14, 2),
+                        currency VARCHAR(8),
+                        plan_code VARCHAR(32),
+                        billing_period VARCHAR(8),
+                        payload JSON,
+                        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+                    )
+                """))
+                for _be_sql in (
+                    "CREATE INDEX IF NOT EXISTS ix_billing_events_user_id ON billing_events (user_id)",
+                    "CREATE INDEX IF NOT EXISTS ix_billing_events_subscription_id ON billing_events (subscription_id)",
+                    "CREATE INDEX IF NOT EXISTS ix_billing_events_event_type ON billing_events (event_type)",
+                    "CREATE INDEX IF NOT EXISTS ix_billing_events_invoice_id ON billing_events (invoice_id)",
+                    "CREATE INDEX IF NOT EXISTS ix_billing_events_cp_subscription_id ON billing_events (cp_subscription_id)",
+                    "CREATE INDEX IF NOT EXISTS ix_billing_events_created_at ON billing_events (created_at)",
+                    "CREATE INDEX IF NOT EXISTS ix_billing_events_user_created ON billing_events (user_id, created_at)",
+                    # Ключ идемпотентности вебхуков CloudPayments.
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_billing_events_transaction "
+                    "ON billing_events (transaction_id) WHERE transaction_id IS NOT NULL",
+                ):
+                    conn.execute(text(_be_sql))
             logger.info("Database tables created successfully")
             return
         except OperationalError as e:

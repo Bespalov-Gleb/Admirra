@@ -112,9 +112,26 @@ class SubscriptionService:
         )
 
     @staticmethod
+    def _apply_pending_plan(sub: models.Subscription) -> None:
+        """Применяет отложенное понижение тарифа, когда оплаченный период истёк.
+
+        Понижение не забирает уже оплаченный уровень: оно записывается в
+        pending_plan_code и вступает в силу здесь. Отдельного шедулера в проекте
+        нет, поэтому применяем лениво — на любом чтении подписки.
+        """
+        pending = getattr(sub, "pending_plan_code", None)
+        if not pending:
+            return
+        if sub.current_period_end and sub.current_period_end > SubscriptionService._now():
+            return
+        sub.plan_code = pending
+        sub.pending_plan_code = None
+
+    @staticmethod
     def ensure_default_subscription(db: Session, user: models.User) -> models.Subscription:
         sub = SubscriptionService.get_user_subscription(db, user.id)
         if sub:
+            SubscriptionService._apply_pending_plan(sub)
             return sub
 
         plan = SubscriptionService.get_plan_from_config("start")
@@ -135,31 +152,21 @@ class SubscriptionService:
 
     @staticmethod
     def get_user_plan(db: Session, user: models.User) -> EffectivePlan:
-        sub = SubscriptionService.ensure_default_subscription(db, user)
-        plan_code = sub.plan_code or "start"
+        """Единственный источник истины по тарифам — конфигурация (env + дефолты).
 
-        plan_row = (
-            db.query(models.TariffPlan)
-            .filter(models.TariffPlan.code == plan_code, models.TariffPlan.is_active.is_(True))
-            .first()
-        )
-        if plan_row:
-            fallback = SubscriptionService.get_plan_from_config(plan_row.code)
-            return EffectivePlan(
-                code=plan_row.code,
-                name=plan_row.name,
-                price_rub=plan_row.price_rub,
-                max_projects=plan_row.max_projects,
-                max_ai_requests_per_period=plan_row.max_ai_requests_per_period,
-                period_days=plan_row.period_days,
-                trial_days=plan_row.trial_days,
-                max_cabinets=getattr(plan_row, "max_cabinets", None) or fallback.max_cabinets,
-                max_staff=getattr(plan_row, "max_staff", None) or fallback.max_staff,
-                max_clients=getattr(plan_row, "max_clients", None) or fallback.max_clients,
-                is_default=plan_row.is_default,
-                is_active=plan_row.is_active,
-            )
-        return SubscriptionService.get_plan_from_config(plan_code)
+        Раньше здесь сначала читалась строка из tariff_plans, и только при её
+        отсутствии брался конфиг. На проде таблица пустая, то есть фактически
+        всегда работал конфиг, но развилка оставалась молчаливой миной: стоило
+        кому-то завести строку — цены и лимиты менялись бы наполовину, потому что
+        колонок max_cabinets/max_staff/max_clients в таблице нет вовсе, и они всё
+        равно доставались бы из конфига.
+
+        Если понадобится управлять тарифами из БД, это нужно делать осознанно:
+        добавить недостающие колонки, засеять таблицу и убрать конфиг — а не
+        держать два источника одновременно.
+        """
+        sub = SubscriptionService.ensure_default_subscription(db, user)
+        return SubscriptionService.get_plan_from_config(sub.plan_code or "start")
 
     @staticmethod
     def _is_subscription_active(user: models.User, sub: models.Subscription) -> bool:
