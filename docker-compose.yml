@@ -125,5 +125,14 @@ services:
     depends_on:
       - backend
 
+  admin_frontend:
+    build: ./admin-frontend
+    restart: unless-stopped
+    logging: *default-logging
+    ports:
+      - "127.0.0.1:8081:80"
+    depends_on:
+      - backend
+
 volumes:
   postgres_data:

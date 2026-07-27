@@ -1,0 +1,8 @@
+<template>
+  <RouterView />
+  <ToastStack />
+</template>
+
+<script setup>
+import ToastStack from './components/ToastStack.vue'
+</script>
