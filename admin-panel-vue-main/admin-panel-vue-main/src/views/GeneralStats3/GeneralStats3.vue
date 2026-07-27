@@ -2104,13 +2104,19 @@ const aiCommentPeriodLabel = computed(() => {
   return `${fmt(filters.start_date)} — ${fmt(filters.end_date)}`
 })
 const aiCommentGeneratedLabel = computed(() => {
-  if (!aiCommentGeneratedAt.value) return 'только что'
-  const d = new Date(aiCommentGeneratedAt.value)
+  const raw = aiCommentGeneratedAt.value
+  if (!raw) return 'только что'
+  // Бэк отдаёт наивный UTC (без «Z») — трактуем как UTC, иначе браузер парсит
+  // как локальное время. Формат — принудительно по Москве (не по TZ браузера).
+  let iso = String(raw)
+  if (!/[zZ]|[+-]\d\d:?\d\d$/.test(iso)) iso += 'Z'
+  const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return 'только что'
-  const time = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
-  return d.toDateString() === new Date().toDateString()
-    ? `сегодня, ${time} МСК`
-    : `${d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}, ${time} МСК`
+  const TZ = 'Europe/Moscow'
+  const time = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: TZ })
+  const dayMsk = d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', timeZone: TZ })
+  const todayMsk = new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', timeZone: TZ })
+  return dayMsk === todayMsk ? `сегодня, ${time} МСК` : `${dayMsk}, ${time} МСК`
 })
 
 const renderMarkdown = (text) => {

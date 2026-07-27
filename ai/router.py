@@ -679,16 +679,15 @@ async def generate_report(
     # он формируется автоматически и по кнопке «Обновить» без списания квоты.
     is_dashboard_comment = (body.report_type or "full") == "dashboard_comment"
     try:
-        # Троттлинг ручного пересчёта: не чаще 1 раза в 10 минут на период (ТЗ §12).
+        # Троттл по отпечатку: если данные периода И контекст проекта не менялись
+        # с прошлой генерации — новый вызов даст то же самое, деньги зря → отдаём
+        # кэш. Изменилось что-то (синхрон, правка «Контекста для AI») → генерим
+        # заново. Так правка контекста применяется сразу, а не режется троттлом.
         if is_dashboard_comment and client_id:
             cached = _get_cached_comment(db, client_id, body.start_date, body.end_date)
-            if cached and cached.get("text"):
-                gen_at = cached.get("generated_at")
-                try:
-                    gen_dt = datetime.fromisoformat(gen_at) if isinstance(gen_at, str) else gen_at
-                except (ValueError, TypeError):
-                    gen_dt = None
-                if gen_dt and (datetime.utcnow() - gen_dt) < timedelta(minutes=10):
+            if cached and cached.get("text") and cached.get("fingerprint"):
+                current_fp = _comment_fingerprint(db, current_user.id, client_id, body.start_date, body.end_date)
+                if current_fp and cached.get("fingerprint") == current_fp:
                     return GenerateReportResponse(text=cached["text"])
         if not is_dashboard_comment:
             SubscriptionService.ensure_can_use_ai(db, current_user, requested=1)
