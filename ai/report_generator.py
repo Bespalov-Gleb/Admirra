@@ -537,7 +537,12 @@ def _comment_campaigns(db: Session, effective_client_ids: list, d_start, d_end, 
 
 
 def _collect_context_numbers(node, acc: set | None = None) -> set:
-    """Множество допустимых числовых значений из контекста (для сверки чисел)."""
+    """Множество допустимых числовых значений из контекста (для сверки чисел).
+
+    Числа собираем и из строк тоже (имена кампаний с датами, тексты флажков
+    детектора вида «за 7 дней — 3 712 ₽»), иначе легитимные числа из контекста
+    ложно помечались как выдуманные."""
+    import re
     if acc is None:
         acc = set()
     if isinstance(node, dict):
@@ -546,8 +551,17 @@ def _collect_context_numbers(node, acc: set | None = None) -> set:
     elif isinstance(node, list):
         for v in node:
             _collect_context_numbers(v, acc)
-    elif isinstance(node, (int, float)) and not isinstance(node, bool):
+    elif isinstance(node, bool):
+        pass
+    elif isinstance(node, (int, float)):
         acc.add(round(abs(float(node))))
+    elif isinstance(node, str):
+        for tok in re.findall(r"\d[\d\s]*(?:[.,]\d+)?", node):
+            norm = re.sub(r"\s", "", tok).replace(",", ".")
+            try:
+                acc.add(round(abs(float(norm))))
+            except ValueError:
+                pass
     return acc
 
 
@@ -601,13 +615,22 @@ def _validate_comment(obj: dict, allowed_numbers: set, directions_fixed: bool, d
 
     rec_low = (obj.get("recommendation", "") or "").lower()
     if directions_fixed and direction_names:
-        realloc = any(w in rec_low for w in ("бюджет", "перераспредел", "перенес", "перелит"))
-        named = sum(1 for n in direction_names if n and n.lower() in rec_low)
-        if realloc and named >= 2:
+        # Считаем упоминанием направления только имя В КАВЫЧКАХ («Саратов»), а не
+        # подстроку — иначе город внутри имени кампании («…Челябинск - авто…»)
+        # ложно засчитывался как направление. Реаллокация — только про бюджет:
+        # «перенести креативы между кампаниями» это НЕ перелив бюджета.
+        named = sum(1 for n in direction_names if n and f"«{n.lower()}»" in rec_low)
+        budget_move = (
+            "перераспредел" in rec_low
+            or "перелит" in rec_low
+            or "перелив" in rec_low
+            or ("бюджет" in rec_low and any(w in rec_low for w in ("перенес", "перевед", "перевод", "сдвин", "смест", "перекин")))
+        )
+        if budget_move and named >= 2:
             hard.append("при directions_mode=fixed рекомендован перелив бюджета между направлениями")
 
     for token in re.findall(r"\d[\d\s]*(?:[.,]\d+)?", text):
-        norm = token.replace(" ", "").replace(",", ".")
+        norm = re.sub(r"\s", "", token).replace(",", ".")
         try:
             val = abs(float(norm))
         except ValueError:
@@ -649,6 +672,7 @@ async def _generate_dashboard_comment(db: Session, effective_client_ids: list, d
 
     client = _create_anthropic_client()
     error_hint = ""
+    last_obj = None
     for attempt in range(2):
         user_message = "Контекст:\n" + context_json
         if error_hint:
@@ -668,6 +692,7 @@ async def _generate_dashboard_comment(db: Session, effective_client_ids: list, d
         if obj is None:
             error_hint = "ответ не является валидным JSON схемы {lead, body[], recommendation}."
             continue
+        last_obj = obj
         hard, soft = _validate_comment(obj, allowed_numbers, directions_fixed, direction_names)
         if not hard:
             if soft:
@@ -677,9 +702,16 @@ async def _generate_dashboard_comment(db: Session, effective_client_ids: list, d
             return text
         error_hint = " ".join(hard)
 
-    # Повторный провал (раздел 5.5): не портим кэш — отдаём ошибку, UI оставляет
-    # предыдущий валидный комментарий.
-    logger.warning("dashboard_comment %s: validation_failed after retries", COMMENT_PROMPT_VERSION)
+    # Повторный провал (раздел 5.5): «устаревший/имперфектный комментарий лучше
+    # отсутствующего». Если модель вернула разбираемый JSON — отдаём лучший
+    # кандидат (в лог с пометкой), а не 500. Полный отказ — только если модель
+    # ни разу не вернула валидный JSON.
+    if last_obj is not None:
+        logger.warning("dashboard_comment %s: validation_failed, отдаём кандидат (%s)", COMMENT_PROMPT_VERSION, error_hint)
+        text = _flatten_comment(last_obj)
+        _log_comment_generation(db, effective_client_ids, d_start, d_end, text, context, trigger)
+        return text
+    logger.warning("dashboard_comment %s: модель не вернула валидный JSON", COMMENT_PROMPT_VERSION)
     raise ValueError("AI-комментарий не прошёл валидацию")
 
 
