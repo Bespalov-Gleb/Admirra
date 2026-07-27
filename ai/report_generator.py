@@ -683,11 +683,9 @@ async def _generate_dashboard_comment(db: Session, effective_client_ids: list, d
             # берём запас, чтобы ответ не обрезался (иначе невалидный JSON).
             model=settings.OPENAI_MODEL,
             max_tokens=2000,
-            # Кэш промпта: статический системный промпт (~2.8k токенов) кэшируется
-            # и на повторных вызовах читается за 0.1× вместо полной цены — резко
-            # дешевле, особенно на ночном пакете генераций.
-            system=[{"type": "text", "text": DASHBOARD_COMMENT_SYSTEM_PROMPT,
-                     "cache_control": {"type": "ephemeral"}}],
+            # Без кэша промпта: генерация ручная и редкая (реже раза в 5 мин),
+            # эфемерный кэш всё равно остывал бы, а запись кэша добавляет +25%.
+            system=DASHBOARD_COMMENT_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_message}],
             temperature=0.35,
         )
