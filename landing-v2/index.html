@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- §1 ТЗ. Тексты финальные, менять только осознанно: title 52 символа,
+       description ~150 — оба подобраны под семантическое ядро. -->
+  <title>AdMirra — аналитика рекламы и автоотчёты для агентств</title>
+  <meta name="description" content="Аналитика рекламы для агентств: Яндекс.Директ, VK Реклама и Авито Реклама в одном дашборде. Детектор просадок и автоотчёты клиентам. 14 дней бесплатно.">
+  <link rel="canonical" href="https://admirra.ru/">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <meta name="theme-color" content="#2F6BFF">
+
+  <!-- §2 ТЗ. Иконки лежат в корне сайта. -->
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+
+  <!-- §3 ТЗ. Open Graph и Twitter. -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="AdMirra">
+  <meta property="og:locale" content="ru_RU">
+  <meta property="og:url" content="https://admirra.ru/">
+  <meta property="og:title" content="AdMirra — аналитика рекламы и автоотчёты для агентств">
+  <meta property="og:description" content="Яндекс.Директ, VK Реклама и Авито Реклама в одной панели. Детектор просадок и автоотчёты клиентам.">
+  <meta property="og:image" content="https://admirra.ru/og/og-cover.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Дашборд AdMirra: реклама клиентов в одной панели">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="AdMirra — аналитика рекламы и автоотчёты для агентств">
+  <meta name="twitter:description" content="Яндекс.Директ, VK Реклама и Авито Реклама в одной панели. Детектор просадок и автоотчёты клиентам.">
+  <meta name="twitter:image" content="https://admirra.ru/og/og-cover.png">
+
+  <!-- Шрифт первого экрана грузим заранее: без этого текст перерисовывается
+       после подмены гарнитуры и портит CLS (§8 ТЗ). -->
+  <link rel="preload" href="/assets/fonts/gilroy-semibold.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/assets/fonts/gilroy-medium.woff2" as="font" type="font/woff2" crossorigin>
+
+  <link rel="stylesheet" href="/assets/css/main.css">
+</head>
+<body>
+
+  <!-- Первый экран и шапка лежат на одной подложке: в макете это единый
+       лавандовый блок от самого верха страницы до перехода в белое. -->
+  <div class="hero-wrap">
+
+  <header class="site-header">
+    <div class="site-header__inner">
+      <a class="site-header__logo" href="/" aria-label="AdMirra — на главную">
+        <img src="/assets/img/logo.png" width="146" height="31"
+             alt="AdMirra — аналитика рекламы для агентств">
+      </a>
+
+      <nav class="site-nav" aria-label="Основная навигация">
+        <a class="site-nav__link" href="#audience">Для кого</a>
+        <a class="site-nav__link" href="#dashboard">Пример дашборда</a>
+        <a class="site-nav__link" href="#features">Возможности</a>
+        <a class="site-nav__link" href="#integrations">Интеграции</a>
+        <a class="site-nav__link" href="#pricing">Цены</a>
+      </nav>
+
+      <div class="site-header__actions">
+        <a class="btn btn--gradient" href="#demo">Демо версия</a>
+        <a class="btn btn--dark" href="/signin">Войти</a>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <!-- H1 по §4 ТЗ — единственный на странице. Иконки площадок декоративные:
+         названия уже есть текстом, поэтому alt пустой и aria-hidden. -->
+    <h1 class="hero__title">
+      <span class="hero__title-soft">Вся реклама клиентов —</span><br>
+      <!-- Пробелы между иконкой и следующим словом убраны намеренно: перенос
+           строки в разметке даёт пробел ~14 px поверх заданного margin, и строка
+           расползается. Зазор задаётся только через margin у .hero__ico. -->
+      <b>Яндекс.Директ</b><img class="hero__ico hero__ico--yd" src="/assets/icons/yandex-direct.png" width="30" height="30" alt="" aria-hidden="true"
+      ><b>VK Реклама</b><img class="hero__ico hero__ico--vk" src="/assets/icons/vk-ads.png" width="30" height="30" alt="" aria-hidden="true"><br
+      ><b>и Авито Реклама</b><img class="hero__ico hero__ico--avito" src="/assets/icons/avito.png" width="30" height="30" alt="" aria-hidden="true"
+      ><span class="hero__title-soft">— в одной панели</span>
+    </h1>
+
+    <p class="hero__lead">
+      AdMirra сводит рекламные кабинеты в один дашборд, сама замечает, когда заявки<br>
+      дорожают, и собирает за вас отчёты, которые не стыдно<br>
+      отправить клиенту. Для тех, кто ведёт не один проект.
+    </p>
+
+    <!-- Кнопка и карточка-примечание в макете перекрываются: карточка уходит
+         под кнопку, её текст начинается там, где кнопка заканчивается. -->
+    <div class="hero__cta">
+      <a class="btn-cta" href="#demo">
+        Подключить кабинеты
+        <span class="btn-cta__arrow" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M2 12L12 2M12 2H4.5M12 2V9.5" stroke="#fff" stroke-width="1.5"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+      </a>
+      <p class="hero__note">
+        <b>14 дней бесплатно —</b><br>
+        настройка за 5 минут<br>
+        · без выгрузок в Excel
+      </p>
+    </div>
+
+    <ul class="hero__chips">
+      <li>Подключение без передачи паролей</li>
+      <li>Отчёт уходит только с вашей проверкой</li>
+    </ul>
+
+    <!-- Композиция первого экрана: тёмный планшет (корпус — CSS-вектор,
+         1183×850, безель 47 из макета) с дашбордом внутри, вокруг — четыре
+         плавающие карточки. Дашборд — LCP-элемент, грузится сразу. -->
+    <div class="hero__shot">
+      <div class="hero__tablet">
+        <img class="hero__screen" src="/assets/img/hero-dashboard.png" width="1089" height="756"
+             fetchpriority="high" decoding="async"
+             alt="Дашборд AdMirra: реклама Яндекс.Директ, VK Реклама и Авито Реклама в одной панели">
+      </div>
+      <img class="hero__card hero__card--tl" src="/assets/img/hero-card-tl.png" width="269" height="114" alt="" aria-hidden="true">
+      <img class="hero__card hero__card--tr" src="/assets/img/hero-card-tr.png" width="299" height="196" alt="" aria-hidden="true">
+      <img class="hero__card hero__card--r"  src="/assets/img/hero-card-r.png"  width="352" height="250" alt="" aria-hidden="true">
+      <img class="hero__card hero__card--l"  src="/assets/img/hero-card-l.png"  width="241" height="193" alt="" aria-hidden="true">
+    </div>
+  </section>
+
+  </div><!-- /.hero-wrap -->
+
+  <!-- «Для кого». По §4 ТЗ названия карточек — не заголовки страницы:
+       иерархия H2/H3 их не касается, поэтому здесь <strong>, а не <h3>. -->
+  <section class="audience" id="audience">
+    <div class="container">
+      <ul class="audience__grid">
+        <li class="aud-card">
+          <img class="aud-card__ico" src="/assets/icons/aud-agency.png" width="39" height="46" alt="" aria-hidden="true">
+          <div class="aud-card__body">
+            <strong class="aud-card__title">Рекламным<br>агентствам</strong>
+            <p>Десятки клиентов, Яндекс.Директ,<br>VK Реклама и Авито Реклама —<br>в одном окне. Меньше рутины,<br>больше проектов на специалиста.</p>
+          </div>
+        </li>
+        <li class="aud-card">
+          <img class="aud-card__ico" src="/assets/icons/aud-specialist.png" width="37" height="43" alt="" aria-hidden="true">
+          <div class="aud-card__body">
+            <strong class="aud-card__title">Специалистам<br>по контексту и таргету</strong>
+            <p>Ведёте пул проектов сами?<br>Система следит за просадками,<br>а отчёты собираются<br>без вечеров в Excel.</p>
+          </div>
+        </li>
+        <li class="aud-card">
+          <img class="aud-card__ico" src="/assets/icons/aud-inhouse.png" width="43" height="42" alt="" aria-hidden="true">
+          <div class="aud-card__body">
+            <strong class="aud-card__title">Инхаус-командам<br>с пулом кампаний</strong>
+            <p>Разные услуги, филиалы или<br>товары в одном кабинете —<br>видно, что именно проседает,<br>а не среднее по больнице.</p>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- «Боли». В макете это единый скруглённый блок 1836×1077 с заливкой
+       #f0f4f8 и отступом 42 от краёв страницы. Внутри — размытые эллипсы
+       подсветки и тот же точечный узор, что на первом экране. -->
+  <section class="pains">
+    <div class="pains__inner">
+      <!-- Декоративные «плавающие» карточки-скриншоты по краям панели.
+           overflow:hidden у .pains__inner подрезает их по границе блока, как в макете. -->
+      <img class="pains__decor pains__decor--tl" src="/assets/img/pains-decor-tl.png" width="223" height="167" alt="" aria-hidden="true" loading="lazy">
+      <img class="pains__decor pains__decor--tr" src="/assets/img/pains-decor-tr.png" width="239" height="191" alt="" aria-hidden="true" loading="lazy">
+      <img class="pains__decor pains__decor--bl" src="/assets/img/pains-decor-bl.png" width="212" height="80" alt="" aria-hidden="true" loading="lazy">
+      <img class="pains__decor pains__decor--br" src="/assets/img/pains-decor-br.png" width="143" height="130" alt="" aria-hidden="true" loading="lazy">
+
+      <p class="eyebrow">Знакомо?</p>
+
+      <h2 class="section-title">
+        <span class="section-title--soft">Реклама в Яндекс.Директе, VK Рекламе</span><br>
+        <span class="section-title--soft">и Авито Рекламе.</span> Клиентов много.<br>
+        А времени и нервов — нет
+      </h2>
+
+      <p class="section-lead">
+        Если хоть одно узнаёте — дальше можно не читать описание,<br>
+        просто подключайте кабинеты.
+      </p>
+
+      <ul class="pains__grid">
+        <li class="pain-card">
+          <img class="pain-card__ico" src="/assets/icons/pain-1.png" width="83" height="83" alt="" aria-hidden="true">
+          <div class="pain-card__body">
+            <p class="pain-card__quote">«Яндекс.Директ в одной вкладке,<br>VK Реклама — в другой, Авито Реклама<br>— в третьей. А клиент хочет одну цифру<br>по заявкам. Сводишь руками.»</p>
+            <p class="pain-card__tag pain-card__tag--blue">// разрозненные кабинеты</p>
+          </div>
+        </li>
+        <li class="pain-card">
+          <img class="pain-card__ico" src="/assets/icons/pain-2.png" width="83" height="83" alt="" aria-hidden="true">
+          <div class="pain-card__body">
+            <p class="pain-card__quote">«В одном кабинете — и разные<br>услуги, и филиалы, и товары. А<br>клиенту нужен отчёт с разбивкой.<br>Собираешь вручную каждый раз.»</p>
+            <p class="pain-card__tag pain-card__tag--cyan">// нет разбивки внутри проекта</p>
+          </div>
+        </li>
+        <li class="pain-card">
+          <img class="pain-card__ico pain-card__ico--sm" src="/assets/icons/pain-3.png" width="67" height="67" alt="" aria-hidden="true">
+          <div class="pain-card__body">
+            <p class="pain-card__quote">«О том, что стоимость лида<br>или расходы улетели в потолок,<br>узнаёшь от клиента. А не первым.»</p>
+            <p class="pain-card__tag pain-card__tag--red">// реакция постфактум</p>
+          </div>
+        </li>
+        <li class="pain-card">
+          <img class="pain-card__ico pain-card__ico--sm" src="/assets/icons/pain-4.png" width="67" height="67" alt="" aria-hidden="true">
+          <div class="pain-card__body">
+            <p class="pain-card__quote">«Каждую неделю —<br>вечер в Excel ради отчётов.<br>И так по каждому клиенту.»</p>
+            <p class="pain-card__tag pain-card__tag--green">// ручная отчётность</p>
+          </div>
+        </li>
+        <li class="pain-card">
+          <img class="pain-card__ico pain-card__ico--sm" src="/assets/icons/pain-5.png" width="66" height="66" alt="" aria-hidden="true">
+          <div class="pain-card__body">
+            <p class="pain-card__quote">«У каждого спеца отчёт<br>в своём формате. Клиент<br>путается, ты краснеешь.»</p>
+            <p class="pain-card__tag pain-card__tag--purple">// разнобой в отчётах</p>
+          </div>
+        </li>
+        <li class="pain-card">
+          <img class="pain-card__ico pain-card__ico--sm" src="/assets/icons/pain-6.png" width="68" height="68" alt="" aria-hidden="true">
+          <div class="pain-card__body">
+            <p class="pain-card__quote">«На встрече спрашивают<br>«сколько лидов за неделю и по какой<br>цене» — а ты не можешь ответить<br>в моменте, разгребая таблицы.»</p>
+            <p class="pain-card__tag pain-card__tag--blue">// нет цифр под рукой</p>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- «Как это работает». В отличие от первого экрана и «Болей», заголовок
+       и подзаголовок здесь выровнены ВЛЕВО (textAlignHorizontal: LEFT). -->
+  <section class="how" id="how">
+    <div class="container">
+      <p class="eyebrow">Как это работает</p>
+
+      <h2 class="section-title how__title">Подключил → увидел → отправил</h2>
+
+      <p class="section-lead">
+        Никаких выгрузок, коннекторов и сведения таблиц.<br>
+        Три шага, и дальше система работает за вас.
+      </p>
+
+      <ol class="how__grid">
+        <li class="how-card">
+          <span class="how-card__dot" aria-hidden="true"></span>
+          <h3 class="how-card__title">Подключаете кабинеты</h3>
+          <p class="how-card__text">
+            Подключаете Яндекс.Директ, VK Рекламу<br>
+            и Авито Рекламу в пару кликов,<br>
+            без передачи паролей. Выбираете<br>
+            счётчик Яндекс.Метрики и цели. 5 минут.
+          </p>
+          <ul class="how-card__tags">
+            <li class="tag tag--yd">Яндекс Директ</li>
+            <li class="tag tag--vk">ВКонтакте</li>
+            <li class="tag tag--avito">Avito</li>
+          </ul>
+          <div class="how-card__art">
+            <img class="how-art how-art--1a" src="/assets/img/how-1-illustration.png" width="558" height="449" alt="" aria-hidden="true" loading="lazy">
+            <img class="how-art how-art--1b" src="/assets/img/how-1-card.png" width="504" height="160" alt="" aria-hidden="true" loading="lazy">
+          </div>
+        </li>
+
+        <li class="how-card">
+          <span class="how-card__dot" aria-hidden="true"></span>
+          <h3 class="how-card__title">Данные сводятся,<br>детектор следит</h3>
+          <p class="how-card__text">
+            Единый дашборд по всем проектам<br>
+            сразу. Как только заявки дорожают,<br>
+            конверсии падают или идём<br>
+            не по плану KPI — на проекте<br>
+            появляется уведомление.
+          </p>
+          <div class="how-card__art">
+            <img class="how-art how-art--2a" src="/assets/img/how-2-dashboard.png" width="379" height="219" alt="" aria-hidden="true" loading="lazy">
+            <img class="how-art how-art--2b" src="/assets/img/how-2-badges.png" width="358" height="119" alt="" aria-hidden="true" loading="lazy">
+          </div>
+        </li>
+
+        <li class="how-card">
+          <span class="how-card__dot" aria-hidden="true"></span>
+          <h3 class="how-card__title">Отправляете<br>отчёт клиенту</h3>
+          <p class="how-card__text">
+            Проверили на предпросмотре,<br>
+            поправили AI-комментарий, утвердили<br>
+            — отчёт ушёл в Telegram, MAX<br>
+            или на почту клиенту по проекту.
+          </p>
+          <ul class="how-card__tags">
+            <li class="tag tag--tg">Telegram</li>
+            <li class="tag tag--max">MAX</li>
+            <li class="tag tag--mail">E-mail</li>
+          </ul>
+          <div class="how-card__art">
+            <img class="how-art how-art--3a" src="/assets/img/how-3-report.png" width="834" height="432" alt="" aria-hidden="true" loading="lazy">
+          </div>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- «Возможности». Единый блок 1836×3747 с заливкой #f0f4f8, внутри шесть
+       чередующихся пар «текст / скриншот». По §4 ТЗ подзаголовки блоков —
+       это H3 под общим H2 секции. -->
+  <section class="features" id="features">
+    <div class="features__inner">
+      <header class="features__head">
+        <p class="eyebrow">Что внутри</p>
+        <h2 class="section-title features__title">
+          <span class="section-title--soft">Не «ещё один дашборд».</span><br>
+          Инструмент, который ведёт клиента —<br>
+          от первой встречи до отчёта
+        </h2>
+      </header>
+
+      <div class="feature feature--text-left">
+        <div class="feature__text">
+          <p class="badge">Единый дашборд</p>
+          <h3 class="feature__title">Яндекс.Директ, VK Реклама<br>и Авито Реклама — в одной<br>картине, по всем клиентам</h3>
+          <p class="feature__lead">Расход, заявки, CPL и лучшие кампании — сведены<br>автоматически. Кросс-проектный обзор показывает, у<br>кого из клиентов всё ровно, а кому нужно внимание<br>прямо сейчас.</p>
+          <ul class="feature__list">
+            <li>Все рекламные источники в одних метриках, без ручного сведения</li>
+            <li>Виден остаток бюджета по каждому кабинету</li>
+            <li>Тренды по месяцам и неделям — видно, как меняются расход, CPL и конверсии, а не только снимок периода</li>
+            <li>Все проекты агентства — на одном экране</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="feature feature--text-right">
+        <div class="feature__text">
+          <p class="badge">Детектор просадки · узнаёте первым</p>
+          <h3 class="feature__title">Система сама замечает, что<br>пошло не так</h3>
+          <p class="feature__lead">Детектор каждый день сравнивает показатели с планом<br>на период и пишет человеческим языком, что случилось,<br>как только заявки дорожают или конверсии падают.<br>Вы реагируете до того, как позвонит клиент.</p>
+          <ul class="feature__list">
+            <li>Сравнивает факт с планом на период, а не просто «со вчера»</li>
+            <li>Целевая стоимость заявки по каждой цели — контроль включается тумблером</li>
+            <li>Не нужен мониторинг на каком-то проекте — выключается одним переключателем</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="feature feature--text-left">
+        <div class="feature__text">
+          <p class="badge">Направления</p>
+          <h3 class="feature__title">Видно, что именно<br>проседает — услуга, филиал<br>или товар</h3>
+          <p class="feature__lead">Один рекламный кабинет, но внутри — разные услуги,<br>филиалы или товары. AdMirra делит кампании на<br>направления автоматически, по словам в их названиях,<br>которые вы и так проставляете. Понятная разбивка по<br>стоимости лида.</p>
+          <ul class="feature__list">
+            <li>Группировка по слову в названии кампании, а не вручную</li>
+            <li>Отчёт и флажки работают в разрезе направления</li>
+            <li>Ярлык настраивается под клиента: услуги, филиалы, товары, бренды</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="feature feature--text-right">
+        <div class="feature__text">
+          <p class="badge">AI-помощник</p>
+          <h3 class="feature__title">AI берёт на себя рутину<br>объяснений</h3>
+          <p class="feature__lead">Не абстрактный «ИИ-агент», а два рабочих инструмента<br>под реальные задачи: спросить про свои проекты<br>человеческим языком и получить готовый связный<br>комментарий к отчёту.</p>
+          <ul class="feature__list">
+            <li>AI-ассистент (чат) — спросить про метрики, кампании и клиентов</li>
+            <li>Авто-комментарий к отчёту — связное «что произошло за период и почему», а не пересказ таблицы. Цифры из ваших данных, AI только формулирует</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="feature feature--text-left">
+        <div class="feature__text">
+          <p class="badge">Отчёты клиенту</p>
+          <h3 class="feature__title">Собираются сами.<br>Но уходят только<br>с вашей проверкой</h3>
+          <p class="feature__lead">Расписание готовит отчёт и кладёт в очередь на<br>одобрение — оно не отправляет за вас. Вы открываете<br>предпросмотр, правите AI-комментарий, утверждаете, и<br>клиент получает ровно то, что вы проверили. Одним<br>снимком, без расхождений между PDF, картинкой и<br>текстом.</p>
+          <ul class="feature__list">
+            <li>Предпросмотр между «сформировать» и «отправить»</li>
+            <li>Telegram, MAX, e-mail. Короткая выжимка + PDF + картинка</li>
+            <li>Покажите клиенту рост за несколько месяцев — график-тренд включается в отчёт одним тумблером</li>
+            <li>Доверяете клиенту автоотправку — включается на проекте</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="feature feature--text-right">
+        <div class="feature__text">
+          <p class="badge">White Label</p>
+          <h3 class="feature__title">Клиент видит ваш бренд,<br>а не AdMirra</h3>
+          <p class="feature__lead">Логотип агентства, фирменный цвет, шапка PDF и<br>собственный домен для ссылок на отчёты. Для клиента<br>это ваша система аналитики — а вы не платите за<br>разработку своей. Подключается на отдельном тарифе<br>White Label.</p>
+          <ul class="feature__list">
+            <li>Отчёты и КП без логотипа сервиса</li>
+            <li>Свой домен вида reports.вашеагентство.ru</li>
+            <li>Платформа как ваша собственная система аналитики</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Иллюстрации выложены абсолютным слоем по координатам из Figma
+           (section-relative). Каждая — стопка из 3 дашбордов, собранная в один
+           2× PNG с прозрачностью. Декоративны → aria-hidden, lazy. -->
+      <div class="features__art" aria-hidden="true">
+        <img class="feat-illu" style="left:819px;top:363px;width:752px"  src="/assets/img/feat-illu-1.png" width="752" height="528" alt="" loading="lazy">
+        <img class="feat-illu" style="left:299px;top:979px;width:662px"  src="/assets/img/feat-illu-2.png" width="662" height="476" alt="" loading="lazy">
+        <img class="feat-illu" style="left:819px;top:1519px;width:752px" src="/assets/img/feat-illu-3.png" width="752" height="528" alt="" loading="lazy">
+        <img class="feat-illu" style="left:313px;top:2101px;width:593px" src="/assets/img/feat-illu-4.png" width="593" height="426" alt="" loading="lazy">
+        <img class="feat-illu" style="left:771px;top:2581px;width:802px" src="/assets/img/feat-illu-5.png" width="802" height="592" alt="" loading="lazy">
+        <img class="feat-illu" style="left:302px;top:3245px;width:593px" src="/assets/img/feat-illu-6.png" width="593" height="426" alt="" loading="lazy">
+      </div>
+    </div>
+  </section>
+
+  <!-- ЗАГОТОВКА. Секции добавляются по одной, по мере сверки с макетом Figma.
+       Порядок соответствует макету и карте заголовков §4 ТЗ.
+
+       1. header      — шапка
+       2. hero        — H1, первый экран
+       3. audience    — «Для кого», 3 карточки (не заголовки, см. §4 прим.)
+       4. pains       — H2 «Реклама в Яндекс.Директе… А времени и нервов — нет»
+       5. how         — H2 «Подключил → увидел → отправил» + 3×H3
+       6. features    — H2 «Не «ещё один дашборд»…» + 6×H3
+       7. integrations— H2 «Подключается к тому, чем вы уже пользуетесь»
+       8. pricing     — H2 «Платите за число проектов, а не за «фичи»»
+       9. faq         — H2 «Коротко о главном» + вопросы как H3
+      10. cta         — H2 «Подключите кабинеты и увидите всех клиентов…»
+      11. blog        — H2 «Наш блог» (в ТЗ §4 не описан, есть в макете)
+      12. about-seo   — H2 «AdMirra — аналитика рекламы и автоотчёты для агентств» (§4a)
+      13. footer      — подвал
+  -->
+
+  <!-- §6 ТЗ. Микроразметка. Отдаётся в исходном HTML, без участия JS. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "name": "AdMirra",
+        "url": "https://admirra.ru/",
+        "logo": "https://admirra.ru/logo.png",
+        "description": "Сервис аналитики рекламы и автоматических отчётов для агентств: Яндекс.Директ, VK Реклама и Авито Реклама в одной панели.",
+        "email": "hello@admirra.ru",
+        "sameAs": [
+          "https://t.me/admirra"
+        ],
+        "contactPoint": {
+          "@type": "ContactPoint",
+          "contactType": "customer support",
+          "email": "support@admirra.ru",
+          "availableLanguage": ["Russian"]
+        }
+      },
+      {
+        "@type": "WebSite",
+        "name": "AdMirra",
+        "url": "https://admirra.ru/",
+        "inLanguage": "ru"
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Главная",
+            "item": "https://admirra.ru/"
+          }
+        ]
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Нужно ли что-то устанавливать?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Нет. AdMirra работает в браузере. Достаточно зарегистрироваться и подключить рекламные кабинеты в пару кликов — пароли передавать не нужно."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Сколько времени занимает настройка?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Около пяти минут на проект: подключить Яндекс.Директ, VK Рекламу и Авито Рекламу, выбрать счётчик Яндекс.Метрики и цели. Детектор и история начинают считаться сразу."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Можно вести несколько клиентов в одном аккаунте?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Да, это основной сценарий. Число одновременных проектов зависит от тарифа; проект на паузе слот не занимает. Внутри проекта кампании можно разбить на направления — по услугам, филиалам или товарам."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Отчёт клиенту уходит автоматически?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "По умолчанию нет: расписание готовит отчёт и кладёт в очередь, а отправляете вы после проверки на превью. Для проектов, которым доверяете, можно включить автоотправку без проверки."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "С каких площадок собираете данные?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Реклама — Яндекс.Директ, VK Реклама и Авито Реклама, плюс цели из Яндекс.Метрики. Доставка отчётов — Telegram, MAX и e-mail. Историю можно выгружать в Google Sheets."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Клиент увидит, что это AdMirra?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "На тарифе с White Label — нет. Отчёты и ссылки идут под вашим логотипом, цветом и доменом."
+            }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+
+  <!-- §6.3 ТЗ — SoftwareApplication с ценами.
+       ВНИМАНИЕ: подключать только когда цены в оплате совпадут с витриной.
+       Сейчас в биллинге тестовые 10/20/30 ₽, а White Label вообще не продаётся
+       (оплачиваемые коды: start, basic, standard). Публиковать сейчас — риск
+       санкций за расхождение витрины и оплаты, см. разбор в чате.
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "AdMirra",
+    "applicationCategory": "BusinessApplication",
+    "applicationSubCategory": "Marketing Analytics",
+    "operatingSystem": "Web",
+    "url": "https://admirra.ru/",
+    "description": "Аналитика рекламы и автоматические отчёты для агентств. Яндекс.Директ, VK Реклама и Авито Реклама в одном дашборде, детектор просадок, отчёты клиентам.",
+    "offers": {
+      "@type": "AggregateOffer",
+      "priceCurrency": "RUB",
+      "lowPrice": "1590",
+      "highPrice": "25900",
+      "offerCount": "4",
+      "offers": [
+        { "@type": "Offer", "name": "Старт",       "price": "1590",  "priceCurrency": "RUB", "category": "месячная подписка", "url": "https://admirra.ru/#pricing" },
+        { "@type": "Offer", "name": "Базовый",     "price": "3990",  "priceCurrency": "RUB", "category": "месячная подписка", "url": "https://admirra.ru/#pricing" },
+        { "@type": "Offer", "name": "Стандартный", "price": "9990",  "priceCurrency": "RUB", "category": "месячная подписка", "url": "https://admirra.ru/#pricing" },
+        { "@type": "Offer", "name": "White Label", "price": "25900", "priceCurrency": "RUB", "category": "месячная подписка", "url": "https://admirra.ru/#pricing" }
+      ]
+    }
+  }
+  </script>
+  -->
+
+</body>
+</html>

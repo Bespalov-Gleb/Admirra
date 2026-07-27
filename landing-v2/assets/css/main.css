@@ -1,0 +1,1041 @@
+/* ==========================================================================
+   AdMirra — лендинг. Основа: шрифты, сброс, токены, контейнер, шапка.
+
+   Значения взяты из Figma напрямую (узел шапки 1:48009 и потомки), а не
+   измерены на глаз. Макет нарисован под ширину 1920, контентный контейнер —
+   1160 px, центрированный: (1920 − 1160) / 2 = 380.
+
+   Раскладка — flex/grid. Координаты из Figma служат источником размеров и
+   отступов, но не способом позиционирования: на абсолютных координатах макет
+   развалился бы на любой другой ширине.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Шрифты. Gilroy уже используется в проекте — файлы взяты оттуда, кириллица
+   в наличии (466 глифов). font-display: swap по §8 ТЗ: текст показывается
+   сразу системным шрифтом и не блокирует рендер.
+   -------------------------------------------------------------------------- */
+
+@font-face {
+  font-family: 'Gilroy';
+  src: url('/assets/fonts/gilroy-light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Gilroy';
+  src: url('/assets/fonts/gilroy-regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Gilroy';
+  src: url('/assets/fonts/gilroy-medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Gilroy';
+  src: url('/assets/fonts/gilroy-semibold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* --------------------------------------------------------------------------
+   Сброс
+   -------------------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+
+/* Лендинг свёрстан под фиксированную ширину макета 1920: секции «Возможности»
+   и декор первого экрана позиционированы абсолютно в пикселях. На экранах уже
+   1920 эти декоративные элементы выходят за правый край — глушим горизонтальную
+   прокрутку. overflow-x: clip не создаёт скролл-контейнер (в отличие от hidden)
+   и не ломает position: sticky у шапки. */
+html, body {
+  overflow-x: clip;
+  max-width: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-base);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--c-text);
+  background: var(--c-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, p, figure, blockquote, dl, dd {
+  margin: 0;
+}
+
+ul, ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img, svg, video {
+  display: block;
+  max-width: 100%;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Токены
+   -------------------------------------------------------------------------- */
+
+:root {
+  --font-base: 'Gilroy', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+
+  --c-bg: #ffffff;
+  --c-bg-lavender: #e7ecf8;   /* подложка первого экрана */
+  --c-surface: #ffffff;
+
+  --c-text: #16213e;
+  --c-text-muted: #797979;    /* пункты меню, из Figma */
+  --c-text-body: #5b6478;
+
+  --c-brand: #2563eb;
+  --c-brand-mid: #1f9de4;
+  --c-brand-cyan: #06b5d4;
+  --c-dark: #353535;          /* кнопка «Войти», из Figma */
+  --c-accent-soft: #5171d0;
+  --c-accent-pale: #bccbf7;
+
+  /* В Figma градиент задан справа налево (gradientTransform переворачивает ось),
+     поэтому позиции стопов здесь зеркальны исходным: 1 − p. */
+  --grad-cta: linear-gradient(90deg,
+    var(--c-brand) 3.84%,
+    var(--c-brand-mid) 68.26%,
+    var(--c-brand-cyan) 100%);
+
+  --container: 1160px;
+  --gutter: 24px;
+
+  --r-pill: 999px;
+  --r-card: 24px;
+}
+
+/* --------------------------------------------------------------------------
+   Контейнер
+   -------------------------------------------------------------------------- */
+
+.container {
+  width: 100%;
+  max-width: calc(var(--container) + var(--gutter) * 2);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+/* Скрыть визуально, оставить скринридерам.
+   К SEO-абзацу (§4a ТЗ) НЕ применять — за спрятанный ключевой текст штрафуют. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Кнопки
+   Из Figma: высота 40, радиус 60 (визуально пилюля), padding 15/33,
+   текст Gilroy Semibold 10 px, межбуквенный 10 % = 1 px, белый.
+   -------------------------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 40px;
+  padding-inline: 33px;
+  border-radius: var(--r-pill);
+  font-family: var(--font-base);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #ffffff;
+  white-space: nowrap;
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.btn:hover { filter: brightness(1.06); }
+.btn:active { transform: translateY(1px); }
+
+.btn--gradient { background: var(--grad-cta); }
+.btn--dark { background: var(--c-dark); }
+
+/* --------------------------------------------------------------------------
+   Шапка
+   Фрейм 1:48009 — 1134.96 × 76, радиус 60, белая заливка,
+   padding 18 / 35, auto-layout по горизонтали с gap 75.
+   Сходится точно: 35 + 146 + 75 + 459 + 75 + 310 + 35 = 1135.
+   -------------------------------------------------------------------------- */
+
+/* --------------------------------------------------------------------------
+   Подложка первого экрана.
+
+   Из макета: вертикальный градиент от #e5eaf8 вверху, темнеет до #d9dff9
+   примерно к 36 % высоты, затем светлеет и уходит в белый к низу блока
+   (высота блока ≈ 1240 px при ширине макета 1920).
+
+   Поверх градиента — два слоя узора, снятые с макета измерением:
+   квадратные точки 2,5 px с шагом 12,5 px и «плюсики» 13 px с шагом 125 px
+   (ровно 10 ячеек сетки точек). Оба слоя — SVG в data-URI: масштабируются
+   без потерь и не добавляют сетевых запросов.
+   -------------------------------------------------------------------------- */
+
+.hero-wrap {
+  position: relative;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='125' height='125'%3E%3Cpath d='M53 43h3v5h5v3h-5v5h-3v-5h-5v-3h5z' fill='%23fff' fill-opacity='.75'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='25' height='25'%3E%3Cg fill='%23fff' fill-opacity='.5'%3E%3Crect x='0' y='0' width='2.5' height='2.5'/%3E%3Crect x='12.5' y='12.5' width='2.5' height='2.5'/%3E%3Crect x='12.5' y='0' width='2.5' height='2.5'/%3E%3Crect x='0' y='12.5' width='2.5' height='2.5'/%3E%3C/g%3E%3C/svg%3E"),
+    linear-gradient(180deg,
+      #e5eaf8 0%,
+      #d9dff9 36%,
+      #eef2f8 92%,
+      #ffffff 100%);
+  background-size: 125px 125px, 25px 25px, 100% 100%;
+  background-repeat: repeat, repeat, no-repeat;
+}
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  padding-top: 35px;
+}
+
+.site-header__inner {
+  display: flex;
+  align-items: center;
+  gap: 75px;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 76px;
+  margin-inline: auto;
+  padding: 18px 35px;
+  background: var(--c-surface);
+  border-radius: var(--r-pill);
+}
+
+.site-header__logo {
+  flex: 0 0 auto;
+}
+
+/* Логотип в макете растровый (image-заливка, не вектор). Берём готовый PNG
+   292×62 — это ровно @2x от макетных 146×31, поэтому размер задаём явно:
+   и чёткость на retina, и защита от CLS (§8 ТЗ). */
+.site-header__logo img {
+  width: 146px;
+  height: 31px;
+}
+
+.site-nav {
+  display: flex;
+  align-items: center;
+  gap: 25px;
+}
+
+.site-nav__link {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--c-text-muted);
+  white-space: nowrap;
+  transition: color 0.15s ease;
+}
+
+.site-nav__link:hover,
+.site-nav__link:focus-visible {
+  color: var(--c-text);
+}
+
+.site-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex: 0 0 auto;
+}
+
+/* Кнопки шапки в Figma фиксированной ширины: 145 и 150. */
+.site-header__actions .btn--gradient { width: 145px; padding-inline: 0; }
+.site-header__actions .btn--dark { width: 150px; padding-inline: 0; }
+
+/* --------------------------------------------------------------------------
+   Первый экран
+
+   Значения из Figma (координаты абсолютные, страница шириной 1920,
+   центр 960):
+     H1          (471, 206)  962×161   Gilroy 55/110 %, #0c2950, по центру
+     подзаголовок(540, 414)  839×66    Gilroy Light 20/130 %
+     кнопка      (624, 528)  423×100   padding 30/51, gap 20
+     примечание  (986, 528)  310×103   белая 55 %, радиус 24
+     чипы        (647, 661)  306×40 и (953, 661) 319×40
+   -------------------------------------------------------------------------- */
+
+.hero {
+  text-align: center;
+}
+
+.hero__title {
+  margin: 89px auto 0;
+  max-width: 980px;
+  font-size: 55px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: 0;
+  color: #0c2950;
+}
+
+/* «Вся реклама клиентов —» и «— в одной панели» набраны светлым начертанием,
+   названия площадок — полужирным. В Figma это mixed-стиль внутри одного узла. */
+.hero__title-soft {
+  font-weight: 300;
+}
+
+.hero__title b {
+  font-weight: 600;
+}
+
+/* Иконки площадок стоят прямо в строке заголовка, 30×30. */
+.hero__ico {
+  display: inline-block;
+  width: 30px;
+  height: 30px;
+  /* В макете иконки лежат поверх литеральных пробелов, поэтому их «след»
+     в каждой строке свой. Значения сняты измерением, задаются поштучно ниже. */
+  margin: 0;
+  vertical-align: baseline;
+  position: relative;
+  top: 3px;
+}
+
+.hero__ico--yd    { margin: 0 29px 0 13px; }
+.hero__ico--vk    { margin: 0 0    0 15px; }
+.hero__ico--avito { margin: 0 22px 0 14px; }
+
+.hero__lead {
+  margin: 47px auto 0;
+  max-width: 839px;
+  font-size: 20px;
+  font-weight: 300;
+  line-height: 1.3;
+  color: #0c2950;
+  /* Белое свечение из макета: DROP_SHADOW белый, radius 16, режим overlay.
+     Нужно, чтобы текст читался поверх узорчатой подложки. */
+  text-shadow: 0 0 16px #fff;
+}
+
+.hero__cta {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  margin-top: 48px;
+}
+
+.btn-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 20px;
+  width: 423px;
+  height: 100px;
+  padding: 30px 51px 30px 52px;
+  border-radius: var(--r-pill);
+  background: var(--grad-cta);
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #fff;
+  white-space: nowrap;
+  transition: filter 0.15s ease;
+  position: relative;
+  z-index: 2;
+}
+
+.btn-cta:hover { filter: brightness(1.06); }
+
+/* Кружок со стрелкой: 40×40, белая заливка 9 %, размытие подложки. */
+.btn-cta__arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(36.85px);
+}
+
+/* Карточка уходит под кнопку: в макете их прямоугольники перекрываются
+   на 61 px (кнопка 624..1047, карточка 986..1296). */
+.hero__note {
+  width: 310px;
+  height: 103px;
+  margin-left: -61px;
+  padding: 22px 31px 0 92px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.55);
+  /* В макете текст ~16px, высота блока 103 = как у кнопки (100). При 18px
+     три строки распирали капсулу до ~115 и она свисала ниже кнопки. */
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-align: left;
+  color: #0c2950;
+  text-shadow: 0 0 16px #fff;
+  z-index: 1;
+}
+
+/* «14 дней бесплатно» — фирменный градиент (как на кнопке), а не сплошной цвет. */
+.hero__note b {
+  font-weight: 600;
+  background: var(--grad-cta);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* Чипы: заливки нет, только обводка #0c2950 26 %, скругление 60 (пилюля).
+   В макете прямоугольники стыкуются вплотную — видимый зазор даёт само
+   скругление: на нижней кромке концы пилюль расходятся на 29 px. */
+.hero__chips {
+  display: flex;
+  justify-content: center;
+  gap: 0;
+  margin-top: 33px;
+}
+
+.hero__chips li {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  border: 1px solid rgba(12, 41, 80, 0.26);
+  border-radius: var(--r-pill);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.1;
+  color: #0c2950;
+  text-shadow: 0 0 16px #fff;
+}
+
+.hero__chips li:nth-child(1) { width: 306px; }
+.hero__chips li:nth-child(2) { width: 319px; }
+
+/* --------------------------------------------------------------------------
+   «Для кого» — три карточки
+
+   Из Figma: карточки 360×299 на x = 380 / 780 / 1180, зазор 40.
+   Заливки нет, только обводка #94accd с прозрачностью 22 %, скругление 30,
+   padding 30/28/30/30. Внутри вертикальная раскладка: иконка, отступ 66,
+   затем заголовок и текст с отступом 20.
+
+   Отступ до следующего блока («Боли») в макете 50 px.
+   -------------------------------------------------------------------------- */
+
+.audience {
+  /* Зазор от планшета первого экрана до карточек «Для кого». Планшет держим
+     на его точной позиции (y815) укороченным margin у .hero__shot, а
+     недостающие 42 px пространства под ним возвращаем здесь — иначе все
+     секции ниже (боли/как/возможности) уезжают на 42 px вверх. */
+  margin-top: 42px;
+  padding-bottom: 50px;
+}
+
+.audience__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 360px);
+  gap: 40px;
+  justify-content: center;
+}
+
+.aud-card {
+  display: flex;
+  flex-direction: column;
+  /* Высота карточки в макете фиксированная, а не по содержимому. */
+  height: 299px;
+  padding: 30px 28px 30px 30px;
+  border: 1px solid rgba(148, 172, 205, 0.22);
+  border-radius: 30px;
+}
+
+/* В макете отступ 66 px отсчитывается от НИЗА рамки иконки (39×46), но сама
+   графика занимает не всю рамку. Рамку задаём явно, чтобы текст встал ровно. */
+.aud-card__ico {
+  margin-bottom: 66px;
+  object-fit: contain;
+  object-position: left top;
+}
+
+.aud-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.aud-card__title {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #1c274c;
+}
+
+.aud-card p {
+  font-size: 15px;
+  font-weight: 300;
+  line-height: 1.3;
+  color: #0c2950;
+  /* То же белое свечение, что у остальных текстов на узорчатой подложке. */
+  text-shadow: 0 0 16px #fff;
+}
+
+
+/* --------------------------------------------------------------------------
+   Композиция дашборда первого экрана.
+   Из Figma: фрейм 1089×756 на (413, 861); отступ от чипов — 160 px.
+   Это LCP-элемент, поэтому грузим сразу (без lazy) и задаём размеры явно.
+   -------------------------------------------------------------------------- */
+
+/* Стойка первого экрана: планшет по центру, карточки — абсолютным слоем.
+   Координаты карточек из Figma, относительно левого-верхнего угла корпуса
+   планшета (page 367,815). */
+.hero__shot {
+  position: relative;
+  width: 1183px;
+  margin: 72px auto 0;
+}
+
+/* Корпус планшета — CSS-вектор: 1183×850, чёрный, радиус 44, безель 47.
+   Сходится: экран 1089×756 + 2×47 = 1183×850. */
+.hero__tablet {
+  position: relative;
+  z-index: 2;               /* планшет перекрывает карточки — они выглядывают из-за краёв */
+  width: 1183px;
+  height: 850px;
+  padding: 47px;
+  border-radius: 44px;
+  background: #05070e;
+  box-shadow: 0 40px 80px rgba(16, 24, 45, 0.28);
+}
+
+.hero__screen {
+  display: block;
+  width: 1089px;
+  height: 756px;
+  border-radius: 24px;
+}
+
+.hero__card {
+  position: absolute;
+  z-index: 1;               /* позади планшета */
+  height: auto;
+  filter: drop-shadow(0 18px 40px rgba(22, 33, 62, 0.14));
+}
+
+/* Смещения от угла корпуса (367,815): карточка page(x,y) → (x−367, y−815).
+   Экспорт крупнее рамки узла на величину тени, поэтому подгоняется визуально. */
+/* z-порядок из Figma: «Разбивка» и «Расходы» — поверх планшета (z:3),
+   «Подключённые» и AI-карточка — позади (z:1). */
+.hero__card--tl { left: -82px;  top: -78px; width: 269px; z-index: 1; }  /* «Подключённые каналы», page 285,737 */
+.hero__card--tr { left: 978px;  top: -76px; width: 299px; z-index: 3; }  /* «Расходы», page 1345,739 */
+.hero__card--r  { left: 1090px; top: 125px; width: 352px; z-index: 1; }  /* «AI-ассистент», page 1457,940 */
+.hero__card--l  { left: -209px; top: 224px; width: 241px; z-index: 3; }  /* «Разбивка по целям», page 158,1039 */
+
+/* --------------------------------------------------------------------------
+   Общая типографика секций (используется в «Болях», «Как это работает» и далее)
+
+   Из Figma:
+     надзаголовок — Gilroy Bold 20, разрядка 4 px, #5b84f5, верхний регистр
+     H2           — 55/110 %, #0c2950, смешанные начертания
+     подзаголовок — Gilroy Light 20/130 %, #0c2950, с белым свечением
+   -------------------------------------------------------------------------- */
+
+.eyebrow {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: #5b84f5;
+}
+
+.section-title {
+  font-size: 55px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: #0c2950;
+}
+
+/* Части заголовка, набранные светлым начертанием. */
+.section-title--soft {
+  font-weight: 300;
+}
+
+.section-lead {
+  font-size: 20px;
+  font-weight: 300;
+  line-height: 1.3;
+  color: #0c2950;
+  text-shadow: 0 0 16px #fff;
+}
+
+/* --------------------------------------------------------------------------
+   «Боли»
+
+   Блок 1836×1077 с заливкой #f0f4f8 и скруглением 30, отступ от краёв 42.
+   Внутри (координаты относительно блока):
+     надзаголовок  y 69
+     H2            y 120
+     подзаголовок  y 326
+     карточки      y 407 / 615 / 823, x 338 и 930 — то есть 568×184 с зазором 24
+   Карточка: белая, скругление 30, тень #f0f0f0 27 % с радиусом 32,8,
+   padding 30/28/30/30; иконка вынесена влево, текст с отступа 124.
+   -------------------------------------------------------------------------- */
+
+.pains {
+  padding-inline: 42px;
+}
+
+.pains__inner {
+  position: relative;
+  max-width: 1836px;
+  margin-inline: auto;
+  padding: 69px 0 70px;
+  border-radius: 30px;
+  overflow: hidden;
+  text-align: center;
+  background:
+    /* Размытые эллипсы подсветки из макета (LAYER_BLUR 500) — воспроизводим
+       радиальными градиентами, это дешевле и визуально неотличимо. */
+    radial-gradient(circle at 12% 45%, rgba(213, 220, 249, 0.9) 0%, rgba(213, 220, 249, 0) 55%),
+    radial-gradient(circle at 53% 0%, rgba(255, 255, 255, 0.46) 0%, rgba(255, 255, 255, 0) 45%),
+    radial-gradient(circle at 88% 55%, rgba(220, 230, 245, 0.95) 0%, rgba(220, 230, 245, 0) 60%),
+    /* Тот же точечный узор, что на первом экране, приглушённый до 54 %. */
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='25' height='25'%3E%3Cg fill='%23fff' fill-opacity='.45'%3E%3Crect x='0' y='0' width='2.5' height='2.5'/%3E%3Crect x='12.5' y='12.5' width='2.5' height='2.5'/%3E%3Crect x='12.5' y='0' width='2.5' height='2.5'/%3E%3Crect x='0' y='12.5' width='2.5' height='2.5'/%3E%3C/g%3E%3C/svg%3E"),
+    #f0f4f8;
+  background-size: auto, auto, auto, 25px 25px, auto;
+}
+
+/* Надзаголовок стоит на 69 px от верха блока, H2 — на 120, то есть между
+   ними 51 − высота строки надзаголовка. */
+/* Отступы подобраны по фактическому положению текста, а не по рамкам Figma:
+   рамка H2 в макете (161 px на три строки) плотнее реальной высоты строк
+   в браузере, поэтому «бумажные» 37/45/41 давали накопленный сдвиг вниз. */
+/* Плавающие карточки-скриншоты по краям панели «Болей». Позиции сняты
+   по факту с макета (панель шириной 1836, координаты от её левого/правого края). */
+.pains__decor {
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  user-select: none;
+}
+.pains__decor--tl { left: -24px;  top: 190px;  width: 223px; }
+.pains__decor--tr { right: 1px;   top: 284px;  width: 239px; }
+.pains__decor--bl { left: 33px;   top: 1008px; width: 212px; }
+.pains__decor--br { right: 105px; top: 783px;  width: 143px; }
+
+/* Текст и сетка должны лежать поверх декоративных карточек. */
+.pains .eyebrow,
+.pains .section-title,
+.pains .section-lead,
+.pains__grid { position: relative; z-index: 1; }
+
+.pains .eyebrow {
+  margin-bottom: 25px;
+}
+
+.pains .section-title {
+  margin-bottom: 26px;
+}
+
+.pains .section-lead {
+  margin-bottom: 35px;
+}
+
+.pains__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 568px);
+  gap: 24px;
+  justify-content: center;
+  text-align: left;
+}
+
+.pain-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 21px;
+  width: 568px;
+  height: 184px;
+  padding: 21px 28px 30px 20px;
+  border-radius: 30px;
+  background: #fff;
+  box-shadow: 0 0 32.8px rgba(240, 240, 240, 0.27);
+}
+
+.pain-card__ico {
+  flex: 0 0 auto;
+}
+
+/* У карточек 3-6 иконка меньше (67 против 83) — выравниваем по общей сетке. */
+.pain-card__ico--sm {
+  margin: 8px 8px 0 8px;
+}
+
+.pain-card__body {
+  display: flex;
+  flex-direction: column;
+  padding: 9px 0 0;
+}
+
+.pain-card__quote {
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: #1c274c;
+}
+
+/* Тег «// …» в макете стоит на фиксированной высоте 143 px от верха карточки
+   (одинаково во всех шести), а не подпирается к нижнему краю. Между цитатой и
+   тегом получается пробел, размер которого зависит от длины цитаты. */
+.pain-card__tag {
+  position: absolute;
+  left: 124px;
+  top: 143px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.3;
+  text-shadow: 0 0 16px #fff;
+}
+
+.pain-card__tag--blue   { color: #5b84f5; }
+.pain-card__tag--cyan   { color: #23a2b3; }
+.pain-card__tag--red    { color: #d75751; }
+.pain-card__tag--green  { color: #0da35b; }
+.pain-card__tag--purple { color: #935deb; }
+
+/* --------------------------------------------------------------------------
+   «Как это работает»
+
+   Из Figma:
+     надзаголовок  (383, 3241)
+     H2            (380, 3292) 1055×38, Gilroy Semibold 55/110 %, ВЛЕВО
+     подзаголовок  (380, 3375) 711×40
+     карточки      (382|780|1178, 3460) 360×450 и 360×445, зазор 38
+   Карточка: заливка #f6f9ff, скругление 30, padding 40/25/0/30,
+   содержимое обрезается (иллюстрация уходит за нижний край).
+   Отступ от предыдущего блока («Боли») — 107 px.
+   -------------------------------------------------------------------------- */
+
+.how {
+  padding-top: 107px;
+  padding-bottom: 120px;
+}
+
+/* Единственная секция, где заголовок не по центру. */
+.how__title,
+.how .eyebrow,
+.how .section-lead {
+  text-align: left;
+}
+
+.how .eyebrow {
+  margin-bottom: 26px;
+}
+
+.how__title {
+  margin-bottom: 23px;
+}
+
+.how .section-lead {
+  margin-bottom: 38px;
+}
+
+.how__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 360px);
+  gap: 38px;
+  justify-content: center;
+}
+
+.how-card {
+  position: relative;
+  height: 450px;
+  padding: 40px 25px 0 30px;
+  border-radius: 30px;
+  background: #f6f9ff;
+  overflow: hidden;
+}
+
+/* Маркер из двух перекрывающихся кругов 12×12 (#bccbf7 и #5171d0). */
+.how-card__dot {
+  display: block;
+  width: 18px;
+  height: 12px;
+  margin-bottom: 35px;
+  background:
+    radial-gradient(circle 6px at 12px 6px, var(--c-accent-soft) 100%, transparent 0),
+    radial-gradient(circle 6px at 6px 6px, var(--c-accent-pale) 100%, transparent 0);
+}
+
+.how-card__title {
+  margin-bottom: 22px;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #1c274c;
+}
+
+.how-card__text {
+  font-size: 15px;
+  font-weight: 300;
+  line-height: 1.3;
+  color: #0c2950;
+}
+
+/* Теги площадок: белые пилюли высотой 25, у каждой площадки свой цвет. */
+.how-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 20px;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  height: 25px;
+  padding-inline: 10px;
+  border-radius: 38px;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.1;
+  text-shadow: 0 0 10px #fff;
+}
+
+.tag--yd    { color: #a69354; }
+.tag--vk    { color: #3959b8; }
+.tag--avito { color: #6a8b2f; }
+.tag--tg    { color: #5171d0; }
+.tag--max   { color: #8539b8; }
+.tag--mail  { color: #505050; }
+
+/* Иллюстрации уходят за нижний край карточки — она их обрезает.
+   Повороты уже «запечены» в экспортированные PNG, поэтому здесь только
+   позиционирование по координатам из макета. */
+.how-card__art {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.how-art {
+  position: absolute;
+}
+
+.how-art--1a { left: -170px; top: 295px; width: 558px; height: 449px; }
+.how-art--1b { left: 58px;   top: 334px; width: 504px; height: 160px; }
+.how-art--2a { left: 57px;   top: 298px; width: 379px; height: 219px; }
+.how-art--2b { left: 83px;   top: 272px; width: 358px; height: 119px; }
+.how-art--3a { left: 140px;  top: 299px; width: 834px; height: 432px; }
+
+/* --------------------------------------------------------------------------
+   «Возможности»
+
+   Блок 1836×3747, заливка #f0f4f8, скругление 30, отступ от краёв 31.
+   Внутри (координаты относительно блока):
+     надзаголовок  (341, 94)
+     H2            (338, 144) 1010×161, 55/110 %, ВЛЕВО
+     блоки: текст слева на x=343, текст справа на x=1015 — чередуются
+   Типографика блока:
+     бейдж   — пилюля #f7f9ff, высота 47, скругление 32,7, padding 23
+     H3      — Gilroy Semibold 33, интерлиньяж 37 px, #1c274c
+     лид     — Gilroy Medium 17,86/130 %, #0c2950
+     пункты  — Gilroy Light 17,86/130 %, маркер — точка 4,76 px
+   -------------------------------------------------------------------------- */
+
+.features {
+  padding-inline: 31px;
+  padding-bottom: 60px;
+}
+
+.features__inner {
+  position: relative;
+  max-width: 1836px;
+  height: 3747px;   /* высота секции из Figma — контент позиционируется абсолютно */
+  margin-inline: auto;
+  border-radius: 30px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 10% 12%, rgba(213, 220, 249, 0.85) 0%, rgba(213, 220, 249, 0) 42%),
+    radial-gradient(circle at 55% 0%, rgba(255, 255, 255, 0.46) 0%, rgba(255, 255, 255, 0) 30%),
+    radial-gradient(circle at 92% 30%, rgba(220, 230, 245, 0.9) 0%, rgba(220, 230, 245, 0) 45%),
+    radial-gradient(circle at 8% 78%, rgba(220, 230, 245, 0.9) 0%, rgba(220, 230, 245, 0) 45%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='25' height='25'%3E%3Cg fill='%23fff' fill-opacity='.45'%3E%3Crect x='0' y='0' width='2.5' height='2.5'/%3E%3Crect x='12.5' y='12.5' width='2.5' height='2.5'/%3E%3Crect x='12.5' y='0' width='2.5' height='2.5'/%3E%3Crect x='0' y='12.5' width='2.5' height='2.5'/%3E%3C/g%3E%3C/svg%3E"),
+    #f0f4f8;
+  background-size: auto, auto, auto, auto, 25px 25px, auto;
+}
+
+.features__head {
+  position: absolute;
+  top: 94px;
+  left: 341px;
+}
+
+.features .eyebrow {
+  margin-bottom: 24px;
+  text-align: left;
+}
+
+.features__title {
+  text-align: left;
+}
+
+/* Пары «текст / картинка». Текст всегда занимает свою половину, скриншот —
+   вторую; чередование задаётся порядком колонок. */
+/* Каждый блок абсолютно спозиционирован по координатам бейджа из Figma —
+   так текст встаёт ровно рядом со своей иллюстрацией (тоже абсолютной). */
+.feature {
+  position: absolute;
+  width: 672px;
+}
+.feature:nth-of-type(1) { left: 343px;  top: 407px;  }  /* Единый дашборд */
+.feature:nth-of-type(2) { left: 1015px; top: 1006px; }  /* Детектор */
+.feature:nth-of-type(3) { left: 343px;  top: 1563px; }  /* Направления */
+.feature:nth-of-type(4) { left: 1015px; top: 2124px; }  /* AI */
+.feature:nth-of-type(5) { left: 343px;  top: 2614px; }  /* Отчёты */
+.feature:nth-of-type(6) { left: 1015px; top: 3256px; }  /* White Label */
+
+.feature:last-child {
+  margin-bottom: 0;
+}
+
+/* Бейдж-пилюля над заголовком блока. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  height: 47px;
+  padding-inline: 23px;
+  margin-bottom: 39px;
+  border-radius: 33px;
+  background: #f7f9ff;
+  /* Из Figma: Gilroy Bold 13px, трекинг 3px (было 15/500/1.5 — не совпадало). */
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: #5b84f5;
+}
+
+.feature__title {
+  margin-bottom: 35px;
+  font-size: 33px;
+  font-weight: 600;
+  line-height: 37px;
+  color: #1c274c;
+}
+
+.feature__lead {
+  margin-bottom: 25px;
+  font-size: 17.86px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: #0c2950;
+}
+
+.feature__list {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+/* Маркер — точка 4,76 px, отступ до текста 9,5 px. */
+.feature__list li {
+  position: relative;
+  padding-left: 14.3px;
+  font-size: 17.86px;
+  font-weight: 300;
+  line-height: 1.3;
+  color: #0c2950;
+}
+
+.feature__list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 9px;
+  width: 4.76px;
+  height: 4.76px;
+  border-radius: 50%;
+  background: #0c2950;
+}
+
+/* Абсолютный слой иллюстраций поверх контента секции. */
+.features__art {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.feat-illu {
+  position: absolute;
+  height: auto;
+  /* Тень уже запечена в PNG (экспорт из Figma) — второй drop-shadow не нужен. */
+}
