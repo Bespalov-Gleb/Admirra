@@ -133,6 +133,21 @@ async def send_login_otp_email(to_email: str, code: str) -> bool:
         return False
 
 
+async def send_staff_invite_email(to_email: str, invite_url: str, role_label: str) -> bool:
+    subject = "Приглашение в команду AdMirra"
+    body = (
+        f"Здравствуйте!\n\n"
+        f"Вас пригласили в административную панель AdMirra (роль: {role_label}).\n"
+        f"Перейдите по ссылке, задайте пароль и при желании включите 2FA:\n{invite_url}\n\n"
+        f"Ссылка действительна 7 дней.\n"
+    )
+    try:
+        return await asyncio.to_thread(_send_sync, to_email, subject, body)
+    except Exception as e:
+        logger.exception("send_staff_invite_email failed: %s", e)
+        return False
+
+
 async def send_support_idea_email(
     inbox_to: str,
     subject: str,

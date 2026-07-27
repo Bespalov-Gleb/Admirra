@@ -211,6 +211,16 @@ class DetectorCfg:
 
 
 @dataclass
+class InternalAdminConfig:
+    """Внутренняя админка (отдельный поддомен)."""
+    enabled: bool
+    jwt_secret: str
+    jwt_expire_minutes: int
+    openai_usd_per_1k_tokens: float
+    cors_origins: str
+
+
+@dataclass
 class Config:
     security: SecurityConfig
     database: DatabaseConfig
@@ -224,6 +234,7 @@ class Config:
     smtp: SmtpConfig
     unisender: UniSenderConfig
     support: SupportConfig
+    internal_admin: InternalAdminConfig
     detector: DetectorCfg
 
 
@@ -374,6 +385,13 @@ def get_config() -> Config:
         ),
         support=SupportConfig(
             inbox_email=_env("SUPPORT_INBOX_EMAIL", "support@admirra.ru"),
+        ),
+        internal_admin=InternalAdminConfig(
+            enabled=_bool("INTERNAL_ADMIN_ENABLED", True),
+            jwt_secret=_env("INTERNAL_ADMIN_JWT_SECRET") or _env("SECRET_KEY"),
+            jwt_expire_minutes=int(_env("INTERNAL_ADMIN_JWT_EXPIRE_MINUTES", "480")),
+            openai_usd_per_1k_tokens=float(_env("INTERNAL_ADMIN_OPENAI_USD_PER_1K_TOKENS", "0.002")),
+            cors_origins=_env("INTERNAL_ADMIN_CORS_ORIGINS", "*"),
         ),
         detector=DetectorCfg(
             enabled=_bool("DETECTOR_ENABLED", True),

@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 import sys
 from core.config import get_config
 
@@ -22,15 +23,24 @@ else:
 # pool_timeout - время ожидания свободного соединения (в секундах)
 # pool_recycle - время жизни соединения перед переподключением (в секундах)
 # pool_pre_ping - проверка соединения перед использованием
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    pool_size=20,  # Увеличено с 5 (по умолчанию) до 20
-    max_overflow=30,  # Увеличено с 10 (по умолчанию) до 30
-    pool_timeout=60,  # Увеличено с 30 до 60 секунд
-    pool_recycle=3600,  # Переподключение каждые 1 час
-    pool_pre_ping=True,  # Проверка соединения перед использованием
-    echo=False  # Отключаем SQL логирование для производительности
-)
+if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
+    # Только для тестов (in-memory sqlite). На проде — ветка else (Postgres).
+    engine = create_engine(
+        SQLALCHEMY_DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+        echo=False,
+    )
+else:
+    engine = create_engine(
+        SQLALCHEMY_DATABASE_URL,
+        pool_size=20,  # Увеличено с 5 (по умолчанию) до 20
+        max_overflow=30,  # Увеличено с 10 (по умолчанию) до 30
+        pool_timeout=60,  # Увеличено с 30 до 60 секунд
+        pool_recycle=3600,  # Переподключение каждые 1 час
+        pool_pre_ping=True,  # Проверка соединения перед использованием
+        echo=False,  # Отключаем SQL логирование для производительности
+    )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()

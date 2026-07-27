@@ -645,6 +645,15 @@ async def chat(
         target_id=str(dialog.id),
         meta={"message_length": len(message_text), "redirect": redirect["target"] if redirect else None},
     )
+    try:
+        from internal_admin.usage import record_ai_call
+        record_ai_call(
+            db, user_id=current_user.id, action="ai_chat",
+            prompt_text=message_text, response_text=assistant_message.content,
+            meta={"client_id": str(body.client_id) if body.client_id else None},
+        )
+    except Exception:
+        pass
     db.commit()
     db.refresh(user_message)
     db.refresh(assistant_message)
@@ -711,6 +720,16 @@ async def generate_report(
             _save_comment_cache(db, client_id, body.start_date, body.end_date, text, fingerprint=fp)
         if not is_dashboard_comment:
             SubscriptionService.increment_ai_usage(db, current_user, requested=1)
+        try:
+            from internal_admin.usage import record_ai_call
+            record_ai_call(
+                db, user_id=current_user.id, action="ai_report",
+                prompt_text=f"{body.report_type or 'full'} {body.start_date}-{body.end_date}",
+                response_text=text,
+                meta={"client_id": str(client_id) if client_id else None, "report_type": body.report_type or "full"},
+            )
+        except Exception:
+            pass
         log_history_event(
             db,
             actor=current_user,

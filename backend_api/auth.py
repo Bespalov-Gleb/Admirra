@@ -175,6 +175,7 @@ def _issue_login_session(
 ) -> dict:
     access_token = security.create_access_token(data={"sub": user.email})
     security.create_refresh_session(db, user, request, response, remember_me=remember_me)
+    _touch_last_login(db, user)  # админка: время последнего входа
     return {"access_token": access_token, "token_type": "bearer"}
 
 
@@ -199,6 +200,11 @@ def _activate_pending_team_invites(db: Session, user: models.User) -> None:
 
 def _frontend_verify_url(raw_token: str) -> str:
     return f"{FRONTEND_URL}/verify-email?token={raw_token}"
+
+
+def _touch_last_login(db: Session, user: models.User) -> None:
+    user.last_login_at = utcnow()
+    db.add(user)
 
 
 @router.post("/register", response_model=schemas.RegisterPendingResponse, status_code=status.HTTP_201_CREATED)
@@ -234,6 +240,9 @@ async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db))
         email_verification_token_hash=token_hash,
         email_verification_expires_at=exp,
         verification_email_last_sent_at=utcnow(),
+        registration_utm_source=(user.registration_utm_source or None),
+        registration_utm_medium=(user.registration_utm_medium or None),
+        registration_utm_campaign=(user.registration_utm_campaign or None),
     )
     db.add(new_user)
     db.commit()

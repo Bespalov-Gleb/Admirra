@@ -185,6 +185,31 @@ def init_db_with_retry(max_retries=10, retry_delay=2):
                     "ON billing_events (transaction_id) WHERE transaction_id IS NOT NULL",
                 ):
                     conn.execute(text(_be_sql))
+
+                # ── Схема админ-панели (internal_admin). На проде уже применена
+                # прошлым деплоем ru2online — все ALTER'ы идемпотентны (IF NOT
+                # EXISTS), тут это no-op; на свежей БД create_all + эти ALTER'ы
+                # создают колонки users и значения enum. Таблицы ia_* создаёт
+                # create_all из internal_admin.models.
+                for _role_val in ("SUPERADMIN", "STAFF_MANAGER", "SUPPORT", "SEO", "DEVELOPER"):
+                    conn.execute(text(f"ALTER TYPE userrole ADD VALUE IF NOT EXISTS '{_role_val}'"))
+                conn.execute(text("""
+                    DO $$ BEGIN
+                        CREATE TYPE staffstatus AS ENUM ('PENDING','ACTIVE','INACTIVE');
+                    EXCEPTION WHEN duplicate_object THEN null;
+                    END $$;
+                """))
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP WITH TIME ZONE"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_utm_source VARCHAR"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_utm_medium VARCHAR"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS registration_utm_campaign VARCHAR"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS block_reason VARCHAR"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_quota_resets_at TIMESTAMP WITH TIME ZONE"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS staff_status staffstatus"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS staff_totp_enabled BOOLEAN NOT NULL DEFAULT FALSE"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS staff_totp_secret_encrypted VARCHAR"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS staff_totp_pending_secret_encrypted VARCHAR"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS staff_recovery_codes_hashed JSONB"))
             logger.info("Database tables created successfully")
             return
         except OperationalError as e:
@@ -226,7 +251,11 @@ from backend_api.support import router as support_router
 from backend_api.health_routes import router as health_router
 from backend_api.team import router as team_router
 from backend_api.history import router as history_router
-from backend_api.admin import router as admin_router
+from internal_admin.router import router as internal_admin_router
+from internal_admin.manager_router import router as internal_manager_router
+from internal_admin.seo_router import router as internal_seo_router
+from internal_admin.auth_public_router import router as internal_auth_public_router
+import internal_admin.models  # noqa: F401 — регистрация ORM для create_all (таблицы ia_*)
 from backend_api.detector import router as detector_router
 from backend_api.brand import router as brand_router
 
@@ -268,6 +297,21 @@ async def startup_event():
     from automation.request_queue import get_request_queue
     await get_request_queue()  # Инициализируем очередь запросов
     logger.info("✅ Application startup complete - request queue initialized")
+
+    # Админ-панель: сидинг дефолтных SEO-страниц (идемпотентно, best-effort).
+    try:
+        from core.config import get_config
+        if get_config().internal_admin.enabled:
+            from core.database import SessionLocal
+            from internal_admin.bootstrap import ensure_default_seo_pages
+            _db = SessionLocal()
+            try:
+                ensure_default_seo_pages(_db)
+                logger.info("✅ Internal admin SEO pages seeded")
+            finally:
+                _db.close()
+    except Exception as e:
+        logger.warning("Internal admin bootstrap skipped: %s", e)
 
     # Воркер очереди синхронизации держим в backend и стартуем при загрузке —
     # он обрабатывает и ручные задачи, и ночные авто-задачи (их ставит automation).
@@ -378,7 +422,10 @@ app.include_router(support_router, prefix="/api")
 app.include_router(health_router, prefix="/api")
 app.include_router(team_router, prefix="/api")
 app.include_router(history_router, prefix="/api")
-app.include_router(admin_router, prefix="/api")
+app.include_router(internal_admin_router, prefix="/api")
+app.include_router(internal_manager_router, prefix="/api")
+app.include_router(internal_seo_router, prefix="/api")
+app.include_router(internal_auth_public_router, prefix="/api")
 app.include_router(detector_router, prefix="/api")
 app.include_router(brand_router, prefix="/api")
 

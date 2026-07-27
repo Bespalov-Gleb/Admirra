@@ -42,7 +42,11 @@ class SubscriptionService:
 
     @staticmethod
     def is_admin_bypass(user: models.User) -> bool:
-        if user.role == models.UserRole.ADMIN:
+        if user.role in {
+            models.UserRole.ADMIN,
+            models.UserRole.SUPERADMIN,
+            models.UserRole.DEVELOPER,
+        }:
             return True
         whitelist = SubscriptionService._admin_whitelist()
         if not whitelist:
