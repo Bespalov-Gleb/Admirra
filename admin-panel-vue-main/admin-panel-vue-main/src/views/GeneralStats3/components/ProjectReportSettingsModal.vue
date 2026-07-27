@@ -818,7 +818,10 @@ watch(() => [props.clientId, props.folderId], load, { immediate: true })
 .rp-recipient-status { margin-left: auto; color: #15803d; font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
 .rp-check--unavailable { opacity: 0.6; }
 .rp-check--unavailable .rp-recipient-status { color: #b45309; }
-.rp-check__name small { display: block; margin-top: 0.12rem; color: rgba(105, 105, 105, 0.62); font-size: 0.74rem; font-weight: 500; }
+/* min-width:0 + перенос: длинный email (неразрывная строка) иначе распирает
+   ячейку имени и ломает всю сетку получателей (у tg/max имена короткие — не видно). */
+.rp-check__name { min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+.rp-check__name small { display: block; margin-top: 0.12rem; color: rgba(105, 105, 105, 0.62); font-size: 0.74rem; font-weight: 500; overflow-wrap: anywhere; }
 
 /* Список получателей — сетка с выровненными колонками (иконка · имя · статус · отвязать),
    отступы между строками и от строки ссылки. */

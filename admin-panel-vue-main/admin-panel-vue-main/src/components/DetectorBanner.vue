@@ -335,11 +335,11 @@ const notProblem = (alert) => { openSnoozeId.value = null; emit('not-problem', a
   color: #6b7280;
   font-size: 0.8rem;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.5;
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.3rem;
+  align-items: center;
+  gap: 0.3rem 0.35rem;
 }
 .detector-block__related-label { font-weight: 800; flex-shrink: 0; }
 /* §2: короткая строка не обрезается многоточием — при нехватке места
@@ -348,18 +348,27 @@ const notProblem = (alert) => { openSnoozeId.value = null; emit('not-problem', a
   min-width: 0;
   overflow-wrap: anywhere;
 }
+/* Переключатель — отдельный чип, а не часть предложения: рамка, подложка,
+   компактный кегль. Стоит в конце строки контекста, но визуально это кнопка. */
 .detector-block__more-link {
   flex-shrink: 0;
-  border: 0;
-  background: none;
-  padding: 0;
+  margin-left: 0.15rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  border: 1px solid rgba(37, 99, 235, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.75);
+  padding: 0.15rem 0.6rem;
   color: #2563eb;
-  font-size: 0.8rem;
-  font-weight: 800;
+  font-size: 0.7222rem;
+  font-weight: 700;
+  line-height: 1.2;
   cursor: pointer;
   white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
-.detector-block__more-link:hover { text-decoration: underline; }
+.detector-block__more-link:hover { background: #fff; border-color: #2563eb; }
 
 /* ───── Развёрнутый контент (эталон §3): порядок связанные → диагностика → виновники ───── */
 .detector-block__expanded {

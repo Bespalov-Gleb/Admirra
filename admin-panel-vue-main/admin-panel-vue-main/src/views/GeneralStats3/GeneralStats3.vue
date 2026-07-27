@@ -924,8 +924,10 @@
             <ClipboardDocumentIcon v-if="!aiCommentCopied" />
             <CheckIcon v-else />
           </button>
+          <!-- «Обновить» только когда есть что обновлять — иначе кнопку показывает
+               пустое состояние ниже. Две кнопки одновременно не висят. -->
           <button
-            v-if="!aiCommentCollapsed"
+            v-if="!aiCommentCollapsed && aiComment"
             class="ai-comment__refresh"
             type="button"
             :disabled="loadingAiComment || dashboardSyncInProgress"
@@ -956,23 +958,11 @@
           <div class="ai-skeleton-line ai-skeleton-line--medium"></div>
         </div>
 
-        <!-- Произвольный период — комментарий не рассчитан -->
-        <div v-else-if="!aiComment && aiCommentStandard === false" class="ai-comment__empty ai-comment__empty--custom">
-          <p>Комментарий за произвольный период не рассчитан.</p>
-          <button
-            class="ai-comment__calc"
-            type="button"
-            :disabled="loadingAiComment || dashboardSyncInProgress"
-            @click="triggerAiComment"
-          >
-            <SparklesIcon />
-            Рассчитать
-          </button>
-        </div>
-
-        <!-- Комментарий ещё не сформирован — генерируется только вручную -->
+        <!-- Комментарий ещё не сформирован — единственная кнопка «Получить комментарий» -->
         <div v-else-if="!aiComment" class="ai-comment__empty ai-comment__empty--custom">
-          <p>Комментарий ещё не сформирован. Нажмите «Обновить», чтобы AI разобрал период.</p>
+          <p>{{ aiCommentStandard === false
+            ? 'Комментарий за произвольный период не сформирован.'
+            : 'Комментарий ещё не сформирован — AI разберёт период по кнопке.' }}</p>
           <button
             class="ai-comment__calc"
             type="button"
@@ -980,7 +970,7 @@
             @click="triggerAiComment"
           >
             <SparklesIcon />
-            Обновить
+            Получить комментарий
           </button>
         </div>
 

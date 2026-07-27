@@ -67,55 +67,6 @@
             </div>
           </section>
 
-          <!-- ===== Block: Контекст для AI ===== -->
-          <section class="psm-card">
-            <div class="psm-card__header">
-              <h3 class="psm-card__title">
-                Контекст для AI
-                <span class="psm-optional-tag">необязательно</span>
-              </h3>
-            </div>
-            <div class="psm-card__body">
-              <p class="psm-hint mb-4">Питает AI-комментарий к дашборду и ассистента: как трактовать бюджет направлений и что сейчас происходит с проектом.</p>
-
-              <div class="mb-4">
-                <label class="psm-label">Бюджет направлений</label>
-                <div class="psm-seg">
-                  <button
-                    type="button"
-                    class="psm-seg__btn"
-                    :class="{ 'psm-seg__btn--on': form.directions_budget_mode === 'fixed' }"
-                    @click="form.directions_budget_mode = 'fixed'"
-                  >Фиксированные сегменты</button>
-                  <button
-                    type="button"
-                    class="psm-seg__btn"
-                    :class="{ 'psm-seg__btn--on': form.directions_budget_mode === 'flexible' }"
-                    @click="form.directions_budget_mode = 'flexible'"
-                  >Гибкие категории</button>
-                </div>
-                <div class="psm-hint mt-2">
-                  {{ form.directions_budget_mode === 'flexible'
-                    ? 'Направления — портфель услуг/форматов одного клиента: AI может предлагать перераспределение бюджета.'
-                    : 'Бюджет закреплён за направлениями договорённостью с клиентом: AI не предлагает переливы, только сравнивает как факт.' }}
-                </div>
-              </div>
-
-              <div>
-                <label class="psm-label">Контекст проекта</label>
-                <textarea
-                  v-model="form.strategy_context"
-                  rows="3"
-                  class="psm-input psm-textarea"
-                  placeholder="Цели, ограничения, текущая стратегия. Напр.: с 20.07 сознательно смещаем бюджет в подписчиков, чат-боты сворачиваем"
-                  maxlength="1000"
-                ></textarea>
-                <div class="psm-char-count">{{ (form.strategy_context || '').length }} / 1000</div>
-                <div class="psm-hint">Заявленную стратегию AI не считает аномалией и не предлагает откатывать. Знание работает во всех AI-функциях.</div>
-              </div>
-            </div>
-          </section>
-
           <!-- ===== Block 4: Детектор и цели ===== -->
           <section class="psm-card">
             <div class="psm-card__header">
@@ -437,6 +388,55 @@
                   <div class="psm-hint">Необратимо. Потребуется подтверждение вводом названия проекта.</div>
                 </div>
                 <button type="button" class="psm-btn-danger" @click="showDeleteConfirm = true">Удалить</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- ===== Block: Контекст для AI (внизу — необязательный) ===== -->
+          <section class="psm-card">
+            <div class="psm-card__header">
+              <h3 class="psm-card__title">
+                Контекст для AI
+                <span class="psm-optional-tag">необязательно</span>
+              </h3>
+            </div>
+            <div class="psm-card__body">
+              <p class="psm-hint mb-4">Питает AI-комментарий к дашборду и ассистента: как трактовать бюджет направлений и что сейчас происходит с проектом.</p>
+
+              <div class="mb-4">
+                <label class="psm-label">Бюджет направлений</label>
+                <div class="psm-seg">
+                  <button
+                    type="button"
+                    class="psm-seg__btn"
+                    :class="{ 'psm-seg__btn--on': form.directions_budget_mode === 'fixed' }"
+                    @click="form.directions_budget_mode = 'fixed'"
+                  >Фиксированные сегменты</button>
+                  <button
+                    type="button"
+                    class="psm-seg__btn"
+                    :class="{ 'psm-seg__btn--on': form.directions_budget_mode === 'flexible' }"
+                    @click="form.directions_budget_mode = 'flexible'"
+                  >Гибкие категории</button>
+                </div>
+                <div class="psm-hint mt-2">
+                  {{ form.directions_budget_mode === 'flexible'
+                    ? 'Направления — портфель услуг/форматов одного клиента: AI может предлагать перераспределение бюджета.'
+                    : 'Бюджет закреплён за направлениями договорённостью с клиентом: AI не предлагает переливы, только сравнивает как факт.' }}
+                </div>
+              </div>
+
+              <div>
+                <label class="psm-label">Контекст проекта</label>
+                <textarea
+                  v-model="form.strategy_context"
+                  rows="3"
+                  class="psm-input psm-textarea"
+                  placeholder="Цели, ограничения, текущая стратегия. Напр.: с 20.07 сознательно смещаем бюджет в подписчиков, чат-боты сворачиваем"
+                  maxlength="1000"
+                ></textarea>
+                <div class="psm-char-count">{{ (form.strategy_context || '').length }} / 1000</div>
+                <div class="psm-hint">Заявленную стратегию AI не считает аномалией и не предлагает откатывать. Знание работает во всех AI-функциях.</div>
               </div>
             </div>
           </section>
