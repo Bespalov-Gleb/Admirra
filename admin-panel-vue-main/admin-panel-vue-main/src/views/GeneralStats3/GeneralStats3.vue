@@ -948,15 +948,15 @@
         </div>
 
         <template v-if="!aiCommentCollapsed">
-        <!-- Загрузка сохранённого комментария / первая генерация / пересчёт -->
-        <div v-if="loadingInitialComment || loadingAiComment || aiCommentStale" class="ai-comment__skeleton">
-          <p class="ai-comment__skeleton-note">{{ aiCommentStale || loadingAiComment ? 'Данные обновились, пересчитываем комментарий…' : 'Готовим комментарий по свежей синхронизации…' }}</p>
+        <!-- Генерация по кнопке -->
+        <div v-if="loadingInitialComment || loadingAiComment" class="ai-comment__skeleton">
+          <p class="ai-comment__skeleton-note">{{ loadingAiComment ? 'Формируем комментарий…' : 'Загружаем…' }}</p>
           <div class="ai-skeleton-line ai-skeleton-line--wide"></div>
           <div class="ai-skeleton-line"></div>
           <div class="ai-skeleton-line ai-skeleton-line--medium"></div>
         </div>
 
-        <!-- Произвольный период — комментарий не рассчитан (ТЗ раздел 6) -->
+        <!-- Произвольный период — комментарий не рассчитан -->
         <div v-else-if="!aiComment && aiCommentStandard === false" class="ai-comment__empty ai-comment__empty--custom">
           <p>Комментарий за произвольный период не рассчитан.</p>
           <button
@@ -970,13 +970,25 @@
           </button>
         </div>
 
-        <!-- Стандартный период — комментарий ещё не сформирован -->
-        <div v-else-if="!aiComment" class="ai-comment__empty">
-          <p>Комментарий появится автоматически после ближайшего обновления данных. Можно сформировать сразу — кнопка «Обновить».</p>
+        <!-- Комментарий ещё не сформирован — генерируется только вручную -->
+        <div v-else-if="!aiComment" class="ai-comment__empty ai-comment__empty--custom">
+          <p>Комментарий ещё не сформирован. Нажмите «Обновить», чтобы AI разобрал период.</p>
+          <button
+            class="ai-comment__calc"
+            type="button"
+            :disabled="loadingAiComment || dashboardSyncInProgress"
+            @click="triggerAiComment"
+          >
+            <SparklesIcon />
+            Обновить
+          </button>
         </div>
 
         <!-- Готовый комментарий: две колонки на десктопе (текст + рекомендация) -->
         <template v-else>
+          <div v-if="aiCommentStale" class="ai-comment__stale">
+            Данные изменились с момента генерации — нажмите «Обновить», чтобы пересчитать.
+          </div>
           <div class="ai-comment__cols">
             <div class="ai-comment__text">
               <p class="ai-comment__lead">{{ aiComment.lead }}</p>
@@ -2045,13 +2057,9 @@ const loadSavedComment = async () => {
     if (data?.text) reportComment.value = data.text
     aiCommentGeneratedAt.value = data?.generated_at || null
     aiCommentStandard.value = data?.standard ?? null
+    // Данные изменились с момента генерации — НЕ регенерируем сами (только
+    // вручную, чтобы не тратить деньги): показываем комментарий + подсказку.
     aiCommentStale.value = Boolean(data?.stale)
-    // §6: срез данных изменился (синхронизация/НДС) — показываем пересчёт
-    // и автоматически регенерируем (не тратит AI-лимит).
-    if (aiCommentStale.value && data?.text) {
-      loadingInitialComment.value = false
-      triggerAiComment()
-    }
   } catch {
     // не критично — просто не показываем сохранённый
   } finally {
@@ -15226,6 +15234,17 @@ onMounted(() => {
   font-size: 0.82rem;
   color: #6b7280;
 }
+.ai-comment__stale {
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.8rem;
+  border-radius: 0.6rem;
+  background: #fff8e8;
+  border: 1px solid #f6d996;
+  color: #8a5217;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+.figma-dashboard.is-dark .ai-comment__stale { background: rgba(246,217,150,0.1); border-color: rgba(246,217,150,0.28); color: #e0b978; }
 .figma-dashboard.is-dark .ai-comment__vote { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.12); }
 .figma-dashboard.is-dark .ai-comment__vote--on { background: rgba(74,122,255,0.12); border-color: rgba(74,122,255,0.4); }
 .figma-dashboard.is-dark .ai-comment__downvote-hint { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.08); color: #9ca3af; }

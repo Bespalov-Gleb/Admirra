@@ -299,21 +299,11 @@ async def startup_event():
         id="vk_client_link_maintenance",
         replace_existing=True,
     )
-    # Автогенерация коротких AI-комментариев к дашборду по стандартным периодам
-    # (ТЗ §12). После ночного окна синка (3:00) и отчётов (5:00) — в 6:00 МСК.
-    try:
-        from ai.dashboard_comment_job import generate_dashboard_comments
-        lead_scheduler.add_job(
-            generate_dashboard_comments,
-            "cron",
-            hour=6,
-            minute=0,
-            id="dashboard_ai_comments",
-            replace_existing=True,
-            timezone="Europe/Moscow",
-        )
-    except Exception as e:
-        logger.warning(f"Dashboard AI-comment autogen not scheduled: {e}")
+    # AI-комментарий к дашборду генерится ТОЛЬКО вручную (кнопка «Обновить» /
+    # «Рассчитать») — по решению владельца от 2026-07-27: автогенерация (ночью
+    # 56×3 вызова) слишком дорога на текущем AI-провайдере. Ночной джоб
+    # намеренно НЕ планируется; функция generate_dashboard_comments оставлена
+    # для ручного/будущего запуска.
     if lead_scheduler.get_jobs():
         lead_scheduler.start()
         logger.info("✅ Scheduler started (leads + reports)")
