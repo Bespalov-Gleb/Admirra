@@ -924,21 +924,6 @@
             <ClipboardDocumentIcon v-if="!aiCommentCopied" />
             <CheckIcon v-else />
           </button>
-          <!-- «Обновить» только когда есть что обновлять — иначе кнопку показывает
-               пустое состояние ниже. Две кнопки одновременно не висят. -->
-          <button
-            v-if="!aiCommentCollapsed && aiComment"
-            class="ai-comment__refresh"
-            type="button"
-            :disabled="loadingAiComment || dashboardSyncInProgress"
-            @click="triggerAiComment"
-          >
-            <svg v-if="loadingAiComment" class="ai-generate-btn__spinner" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="31.4 31.4" />
-            </svg>
-            <ArrowPathIcon v-else />
-            {{ loadingAiComment ? 'Обновляю…' : 'Обновить' }}
-          </button>
           <button
             class="ai-comment__collapse"
             type="button"
@@ -988,6 +973,18 @@
               <div class="ai-comment__reco-tag"><span class="ai-comment__reco-ic">💡</span> Рекомендация</div>
               <p class="ai-comment__reco-text">{{ aiComment.recommendation }}</p>
             </aside>
+          </div>
+          <!-- Кнопка обновления — под комментарием, на месте кнопки генерации -->
+          <div class="ai-comment__actions-row">
+            <button
+              class="ai-comment__calc"
+              type="button"
+              :disabled="loadingAiComment || dashboardSyncInProgress"
+              @click="triggerAiComment"
+            >
+              <ArrowPathIcon />
+              Обновить
+            </button>
           </div>
           <div class="ai-comment__foot">
             <p class="ai-comment__meta">
@@ -15270,6 +15267,7 @@ onMounted(() => {
 .ai-comment__calc svg { width: 0.95rem; height: 0.95rem; }
 .ai-comment__calc:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
 .ai-comment__calc:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.ai-comment__actions-row { margin-top: 0.9rem; display: flex; }
 .ai-comment__skeleton {
   display: flex;
   flex-direction: column;

@@ -360,39 +360,7 @@
             </div>
           </section>
 
-          <!-- ===== Block 5: Управление проектом ===== -->
-          <section class="psm-card">
-            <div class="psm-card__header">
-              <h3 class="psm-card__title">Управление проектом</h3>
-            </div>
-            <div class="psm-card__body space-y-3">
-              <!-- Pause/Resume -->
-              <div class="psm-manage-row" :class="{ 'psm-manage-row--paused': form.status === 'paused' }">
-                <div class="min-w-0">
-                  <div class="psm-manage-row__title">{{ form.status === 'paused' ? 'Возобновить проект' : 'Приостановить проект' }}</div>
-                  <div class="psm-hint">{{ form.status === 'paused' ? 'Проект на паузе. Синхронизация и детектор остановлены.' : 'Синхронизация и детектор останавливаются. Обратимо.' }}</div>
-                </div>
-                <button
-                  type="button"
-                  :class="form.status === 'paused' ? 'psm-btn-accent' : 'psm-btn-outline'"
-                  @click="requestTogglePause"
-                >
-                  {{ form.status === 'paused' ? 'Возобновить' : 'Приостановить' }}
-                </button>
-              </div>
-
-              <!-- Delete -->
-              <div class="psm-manage-row psm-manage-row--danger">
-                <div class="min-w-0">
-                  <div class="psm-manage-row__title psm-manage-row__title--danger">Удалить проект</div>
-                  <div class="psm-hint">Необратимо. Потребуется подтверждение вводом названия проекта.</div>
-                </div>
-                <button type="button" class="psm-btn-danger" @click="showDeleteConfirm = true">Удалить</button>
-              </div>
-            </div>
-          </section>
-
-          <!-- ===== Block: Контекст для AI (внизу — необязательный) ===== -->
+          <!-- ===== Block: Контекст для AI (необязательный) ===== -->
           <section class="psm-card">
             <div class="psm-card__header">
               <h3 class="psm-card__title">
@@ -440,6 +408,39 @@
               </div>
             </div>
           </section>
+
+          <!-- ===== Block 5: Управление проектом ===== -->
+          <section class="psm-card">
+            <div class="psm-card__header">
+              <h3 class="psm-card__title">Управление проектом</h3>
+            </div>
+            <div class="psm-card__body space-y-3">
+              <!-- Pause/Resume -->
+              <div class="psm-manage-row" :class="{ 'psm-manage-row--paused': form.status === 'paused' }">
+                <div class="min-w-0">
+                  <div class="psm-manage-row__title">{{ form.status === 'paused' ? 'Возобновить проект' : 'Приостановить проект' }}</div>
+                  <div class="psm-hint">{{ form.status === 'paused' ? 'Проект на паузе. Синхронизация и детектор остановлены.' : 'Синхронизация и детектор останавливаются. Обратимо.' }}</div>
+                </div>
+                <button
+                  type="button"
+                  :class="form.status === 'paused' ? 'psm-btn-accent' : 'psm-btn-outline'"
+                  @click="requestTogglePause"
+                >
+                  {{ form.status === 'paused' ? 'Возобновить' : 'Приостановить' }}
+                </button>
+              </div>
+
+              <!-- Delete -->
+              <div class="psm-manage-row psm-manage-row--danger">
+                <div class="min-w-0">
+                  <div class="psm-manage-row__title psm-manage-row__title--danger">Удалить проект</div>
+                  <div class="psm-hint">Необратимо. Потребуется подтверждение вводом названия проекта.</div>
+                </div>
+                <button type="button" class="psm-btn-danger" @click="showDeleteConfirm = true">Удалить</button>
+              </div>
+            </div>
+          </section>
+
         </div>
 
         <!-- Footer -->
