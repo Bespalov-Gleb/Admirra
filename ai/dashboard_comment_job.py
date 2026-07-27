@@ -64,9 +64,16 @@ async def generate_dashboard_comments() -> None:
             if not has_integration:
                 continue
 
+            from ai.report_generator import data_fingerprint
             cache = dict(client.ai_comment_cache or {})
             changed = False
             for key, (start, end) in periods.items():
+                # Данные периода не менялись с прошлой генерации (тот же отпечаток) —
+                # не тратим вызов модели. Отсекает дремлющие/паузнутые проекты.
+                fp = data_fingerprint(db, [client.id], start, end)
+                entry = cache.get(key)
+                if entry and entry.get("text") and entry.get("fingerprint") == fp:
+                    continue
                 try:
                     text = await do_generate(
                         db=db,
@@ -86,6 +93,7 @@ async def generate_dashboard_comments() -> None:
                         "generated_at": datetime.utcnow().isoformat(),
                         "start": start.isoformat(),
                         "end": end.isoformat(),
+                        "fingerprint": fp,
                     }
                     changed = True
                     generated += 1
