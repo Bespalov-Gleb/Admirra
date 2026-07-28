@@ -1541,3 +1541,478 @@ button {
   width: 296px;
   height: 70px;
 }
+
+/* --------------------------------------------------------------------------
+   FAQ «Коротко о главном»
+
+   Из Figma: заголовок центрирован, ниже две колонки — декоративный визуал
+   (574×515) слева и аккордеон (карточки 561 шириной) справа. Карточка вопроса
+   #f6f9ff, скругление 15; раскрытая получает рамку rgba(148,172,205,0.3) и
+   показывает ответ. Кнопка-плюс — круг 40 с заливкой #5171d0.
+   -------------------------------------------------------------------------- */
+
+.faq {
+  padding: 130px 0 120px;
+}
+
+.faq__head {
+  text-align: center;
+}
+
+.faq .eyebrow {
+  margin-bottom: 30px;
+}
+
+.faq__title {
+  font-weight: 300;
+}
+
+.faq__body {
+  display: flex;
+  gap: 25px;
+  align-items: flex-start;
+  justify-content: center;
+  max-width: 1160px;
+  margin: 72px auto 0;
+  padding-inline: 24px;
+}
+
+.faq__visual {
+  flex: 0 0 574px;
+  width: 574px;
+  height: auto;
+}
+
+.faq__list {
+  flex: 0 0 561px;
+  width: 561px;
+}
+
+.faq-item {
+  width: 561px;
+  border: 1px solid transparent;
+  border-radius: 15px;
+  overflow: hidden;
+}
+
+.faq-item + .faq-item {
+  margin-top: 13px;
+}
+
+.faq-item[open] {
+  border-color: rgba(148, 172, 205, 0.3);
+  background: #fff;
+}
+
+.faq-item__q {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 62px;
+  padding: 0 11px 0 21px;
+  background: #f6f9ff;
+  border-radius: 15px;
+  color: #1c274c;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.3;
+  list-style: none;
+  cursor: pointer;
+}
+
+.faq-item__q::-webkit-details-marker { display: none; }
+
+.faq-item__toggle {
+  flex: 0 0 auto;
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #5171d0;
+}
+
+/* Плюс из двух перекладин; при раскрытии вертикальная скрывается → получается
+   минус (лёгкая индикация состояния поверх точного вида макета). */
+.faq-item__toggle::before,
+.faq-item__toggle::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  background: #fff;
+  content: '';
+  transform: translate(-50%, -50%);
+}
+.faq-item__toggle::before { width: 13px; height: 1.6px; }
+.faq-item__toggle::after  { width: 1.6px; height: 13px; }
+.faq-item[open] .faq-item__toggle::after { opacity: 0; }
+
+.faq-item__a {
+  margin: 0;
+  padding: 9px 21px 22px;
+  color: #0c2950;
+  font-size: 15px;
+  font-weight: 300;
+  line-height: 1.3;
+}
+
+/* --------------------------------------------------------------------------
+   CTA-баннер «Подключите кабинеты…»
+
+   Инсет-панель 1836×578 (как тарифы), лавандовый фон с точечным паттерном.
+   Контент по центру, вокруг — плавающие декоративные скриншоты, обрезаемые
+   краями панели. Координаты декора сняты по Figma (frame-relative).
+   -------------------------------------------------------------------------- */
+
+.cta-band {
+  padding: 0 42px;
+}
+
+.cta-band__inner {
+  position: relative;
+  width: 100%;
+  max-width: 1836px;
+  height: 578px;
+  margin-inline: auto;
+  overflow: hidden;
+  border-radius: 30px;
+  background:
+    radial-gradient(760px 620px at 8% 20%, rgba(213, 220, 249, 0.9) 0%, rgba(213, 220, 249, 0) 60%),
+    radial-gradient(820px 700px at 95% 85%, rgba(220, 230, 245, 0.95) 0%, rgba(220, 230, 245, 0) 62%),
+    radial-gradient(560px 460px at 50% 4%, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 70%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='25' height='25'%3E%3Cg fill='%23fff' fill-opacity='.45'%3E%3Crect x='0' y='0' width='2.5' height='2.5'/%3E%3Crect x='12.5' y='12.5' width='2.5' height='2.5'/%3E%3Crect x='12.5' y='0' width='2.5' height='2.5'/%3E%3Crect x='0' y='12.5' width='2.5' height='2.5'/%3E%3C/g%3E%3C/svg%3E"),
+    #dbe2f9;
+  background-size: auto, auto, auto, 25px 25px, auto;
+}
+
+.cta-band__title {
+  position: absolute;
+  top: 72px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: #0c2950;
+  font-size: 55px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.cta-band__lead {
+  position: absolute;
+  top: 232px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: #0c2950;
+  font-size: 20px;
+  font-weight: 300;
+  line-height: 1.3;
+}
+
+.cta-band__cta {
+  position: absolute;
+  top: 329px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+}
+
+.cta-band__note {
+  position: absolute;
+  top: 452px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: #0c2950;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.cta-band__note b {
+  font-weight: 600;
+  background: var(--grad-cta);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* Плавающие декоративные скриншоты. */
+.cta-deco {
+  position: absolute;
+  z-index: 0;
+  height: auto;
+  pointer-events: none;
+  user-select: none;
+}
+.cta-deco--send     { left: 255px;  top: -4px;  width: 124px; }
+.cta-deco--calendar { left: 1414px; top: 52px;  width: 91px;  }
+.cta-deco--cpc      { left: 36px;   top: 212px; width: 262px; }
+.cta-deco--metrics  { left: 1588px; top: 140px; width: 296px; }
+.cta-deco--pie      { left: 1470px; top: 314px; width: 534px; }
+.cta-deco--bars     { left: -150px; top: 360px; width: 502px; }
+
+/* --------------------------------------------------------------------------
+   Блог «Наш блог»
+
+   Заголовок слева + кнопка «Смотреть все статьи» справа, ниже три карточки
+   360×431 (#f6f9ff, скругление 15). Из Figma: обложка 330×172 с чипами
+   поверх, заголовок, лид, кнопка-пилюля. Кнопки — белые, текст #3361d0.
+   -------------------------------------------------------------------------- */
+
+.btn-pill-light {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 60px;
+  padding-inline: 51px;
+  border-radius: 60px;
+  background: #fff;
+  color: #3361d0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  box-shadow: 0 6px 24px rgba(39, 79, 158, 0.06);
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.btn-pill-light:hover { transform: translateY(-1px); }
+
+.blog {
+  padding: 120px 0 130px;
+}
+
+.blog__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 42px;
+}
+
+.blog__title {
+  color: #0c2950;
+  font-size: 55px;
+  font-weight: 300;
+  line-height: 1.1;
+}
+
+.blog__all {
+  height: 71px;
+  padding-inline: 52px;
+}
+
+.blog__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 38px;
+}
+
+.blog-card {
+  display: flex;
+  flex-direction: column;
+  padding: 15px;
+  border-radius: 15px;
+  background: #f6f9ff;
+}
+
+.blog-card__cover {
+  position: relative;
+  border-radius: 15px;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.blog-card__cover > img {
+  width: 100%;
+  height: auto;
+}
+
+.blog-card__tags {
+  position: absolute;
+  top: 11px;
+  left: 11px;
+  display: flex;
+  gap: 8px;
+}
+
+.blog-card__tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 13px;
+  border-radius: 15px;
+  background: #fff;
+  color: #90ade8;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.blog-card__title {
+  margin-top: 25px;
+  color: #1c274c;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.blog-card__excerpt {
+  margin-top: 12px;
+  color: #7c8aa5;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.blog-card__more {
+  width: 100%;
+  height: 60px;
+  margin-top: 22px;
+}
+
+/* --------------------------------------------------------------------------
+   Подвал
+
+   Верхняя лента #f0f4f8: логотип + соцсети слева, подписка справа. Тонкий
+   разделитель, центрированная навигация, ниже — белый блок с колонками
+   ссылок и реквизитами (Ресурсы / Контакты / АдМирра / Документы).
+   Раскладка колонок повторяет x-координаты Figma при ширине 1920.
+   -------------------------------------------------------------------------- */
+
+.footer {
+  background: #f0f4f8;
+  color: #1c274c;
+}
+
+.footer__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1160px;
+  margin-inline: auto;
+  padding: 37px 24px 0;
+}
+
+.footer__brand {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+}
+
+.footer__social {
+  display: flex;
+  gap: 6px;
+}
+
+.footer__social img { width: 24px; height: 24px; }
+
+.footer__subscribe {
+  display: flex;
+  align-items: center;
+  gap: 25px;
+}
+
+.footer__subscribe-label {
+  color: #1c274c;
+  font-size: 17px;
+  font-weight: 400;
+}
+
+.footer__field input {
+  width: 223px;
+  height: 50px;
+  padding-inline: 17px;
+  border: 1px solid rgba(148, 172, 205, 0.3);
+  border-radius: 12px;
+  background: #fff;
+  font-family: var(--font-base);
+  font-size: 14px;
+  color: #1c274c;
+}
+
+.footer__field input::placeholder { color: #a0a7b8; }
+
+.footer__subscribe-btn {
+  width: 170px;
+  height: 50px;
+  border-radius: 12px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.footer__nav {
+  display: flex;
+  justify-content: center;
+  gap: 25px;
+  margin-top: 31px;
+  padding: 31px 24px;
+  border-top: 1px solid rgba(148, 172, 205, 0.28);
+}
+
+.footer__nav a {
+  color: #a0a7b8;
+  font-size: 16px;
+  font-weight: 400;
+  transition: color 0.15s ease;
+}
+
+.footer__nav a:hover { color: #1c274c; }
+
+.footer__bottom {
+  background: #fff;
+  padding: 30px 0 31px;
+}
+
+.footer__cols {
+  position: relative;
+  max-width: 1160px;
+  min-height: 118px;
+  margin-inline: auto;
+  padding-inline: 24px;
+}
+
+.footer__col-title {
+  margin-bottom: 25px;
+  color: #1c274c;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.footer__col ul { display: flex; flex-direction: column; gap: 25px; }
+
+.footer__col a,
+.footer__center .footer__tagline,
+.footer__center .footer__copy {
+  color: #7c8aa5;
+  font-size: 16px;
+  font-weight: 400;
+}
+
+.footer__col a { transition: color 0.15s ease; }
+.footer__col a:hover { color: #1c274c; }
+
+/* Колонки спозиционированы по x-координатам макета (контейнер 1160). */
+.footer__col--res      { position: absolute; left: 24px;  top: 0; }
+.footer__col--contacts { position: absolute; left: 196px; top: 0; }
+.footer__col--docs     { position: absolute; right: 24px; top: 0; width: 340px; }
+
+.footer__center {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  text-align: center;
+}
+
+.footer__center .footer__col-title { margin-bottom: 20px; }
+.footer__tagline { margin-bottom: 22px; }
+.footer__pay { display: inline-block; height: 19px; width: auto; margin-bottom: 22px; }
+.footer__copy { font-size: 15px; }
