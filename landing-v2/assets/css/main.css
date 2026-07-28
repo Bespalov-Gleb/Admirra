@@ -889,11 +889,15 @@ button {
   position: absolute;
 }
 
-.how-art--1a { left: -170px; top: 295px; width: 558px; height: 449px; }
-.how-art--1b { left: 58px;   top: 334px; width: 504px; height: 160px; }
-.how-art--2a { left: 57px;   top: 298px; width: 379px; height: 219px; }
-.how-art--2b { left: 83px;   top: 272px; width: 358px; height: 119px; }
-.how-art--3a { left: 140px;  top: 299px; width: 834px; height: 432px; }
+/* Пользовательские экспорты сняты из Figma в 2×. Показываем их в половинном
+   размере: так прозрачные поля и фактический контент совпадают с карточками
+   360×450 без повторной обрезки фона. */
+.how-art--1a { left: 0;    top: 137px; width: 360px; height: auto; }
+.how-art--1b { left: 58px; top: 203px; width: 302px; height: auto; }
+.how-art--2a { left: 0;    top: 298px; width: 360px; height: auto; }
+.how-art--2b { left: 45px; top: 271px; width: 292px; height: auto; }
+.how-art--3b { left: 0;    top: 145px; width: 360px; height: auto; }
+.how-art--3a { left: 85px; top: 290px; width: 360px; height: auto; }
 
 /* --------------------------------------------------------------------------
    «Возможности»
@@ -954,6 +958,9 @@ button {
 .feature {
   position: absolute;
   width: 672px;
+  /* Текст и непрозрачные капсулы всегда выше декоративных PNG. В Figma
+     иллюстрации лежат рядом с копирайтом, а не могут визуально «выбеливать» его. */
+  z-index: 1;
 }
 .feature:nth-of-type(1) { left: 343px;  top: 407px;  }  /* Единый дашборд */
 .feature:nth-of-type(2) { left: 1015px; top: 1006px; }  /* Детектор */
@@ -973,12 +980,14 @@ button {
   height: 47px;
   padding-inline: 23px;
   margin-bottom: 39px;
-  border-radius: 33px;
-  background: #f7f9ff;
-  /* Из Figma: Gilroy Bold 13px, трекинг 3px (было 15/500/1.5 — не совпадало). */
+  border-radius: 32.679px;
+  background-color: rgb(247 249 255 / 100%);
+  opacity: 1;
+  font-family: 'Gilroy', sans-serif;
+  /* Figma 1:132114: Gilroy Bold 13px, tracking 3px. */
   font-size: 13px;
   font-weight: 700;
-  line-height: 1;
+  line-height: normal;
   letter-spacing: 3px;
   text-transform: uppercase;
   color: #5b84f5;
@@ -1027,10 +1036,11 @@ button {
   background: #0c2950;
 }
 
-/* Абсолютный слой иллюстраций поверх контента секции. */
+/* Иллюстрации — самостоятельный декоративный слой под текстом. */
 .features__art {
   position: absolute;
   inset: 0;
+  z-index: 0;
   pointer-events: none;
 }
 
@@ -1038,4 +1048,501 @@ button {
   position: absolute;
   height: auto;
   /* Тень уже запечена в PNG (экспорт из Figma) — второй drop-shadow не нужен. */
+}
+
+/* --------------------------------------------------------------------------
+   «Интеграции»
+
+   Figma: заголовок 617 px, Gilroy Light/Semibold 55 px; ряд карточек имеет
+   ширину 1935 px, то есть намеренно выходит за 1920-пиксельный вьюпорт на 7.5
+   px с каждой стороны. Это не карусель, а ровно такой видимый срез как в
+   макете. Логотипы — прямые прозрачные экспорты из Figma.
+   -------------------------------------------------------------------------- */
+
+.integrations {
+  padding-top: 134px;
+  padding-bottom: 90px;
+  overflow: hidden;
+}
+
+.integrations__head {
+  text-align: center;
+}
+
+.integrations__eyebrow {
+  margin-bottom: 31px;
+}
+
+.integrations__title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: #0c2950;
+  font-size: 55px;
+  font-weight: 300;
+  line-height: 1.1;
+}
+
+.integrations__title strong {
+  font-weight: 600;
+}
+
+.integrations__rail {
+  display: flex;
+  gap: 15px;
+  width: 1935px;
+  /* (1920 − 1935) / 2 = −7.5: крайние карточки подрезаны так же, как в Figma. */
+  margin: 45px 0 0 calc(50% - 967.5px);
+}
+
+.integration-card {
+  display: flex;
+  flex: 0 0 310px;
+  align-items: center;
+  justify-content: center;
+  height: 110px;
+  border: 1px solid #e5ebf8;
+  border-radius: 30px;
+  background: #fff;
+}
+
+.integration-card > img {
+  object-fit: contain;
+}
+
+.integration-card:nth-child(1) > img { width: 222px; }
+.integration-card:nth-child(2) > img { width: 185px; }
+.integration-card:nth-child(3) > img { width: 247px; }
+.integration-card:nth-child(4) > img { width: 164px; }
+
+.integration-card--coming {
+  gap: 13px;
+}
+
+.integration-card--coming > img {
+  width: 40px;
+  height: 40px;
+  /* У исходников Figma широкий прозрачный холст справа от знака. Показываем
+     левую, фактически занятую логотипом часть, не уменьшая сам знак. */
+  object-fit: cover;
+  object-position: left center;
+}
+
+.integration-card__brand {
+  color: #000;
+  font-size: 33px;
+  font-weight: 600;
+  letter-spacing: -1px;
+  line-height: 1;
+}
+
+.integration-card__soon {
+  display: inline-flex;
+  align-items: center;
+  height: 25px;
+  padding-left: 15px;
+  border-left: 1px solid #b8c8ef;
+  color: #152c61;
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+/* --------------------------------------------------------------------------
+   «Тарифы»
+
+   Внешняя карточка Figma 1:132747: 1836 × 1558, x=42, радиус 30. Внутренние
+   координаты сохранены: заголовок x=338, верхние карточки x=338/738/1138,
+   White Label x=338. Поэтому при ширине 1920 все совпадает с исходником.
+   -------------------------------------------------------------------------- */
+
+.pricing {
+  padding: 0 42px 120px;
+}
+
+.pricing__inner {
+  position: relative;
+  width: 100%;
+  max-width: 1836px;
+  height: 1558px;
+  margin-inline: auto;
+  overflow: hidden;
+  border-radius: 30px;
+  background:
+    radial-gradient(700px 780px at 6% 90%, rgba(197, 205, 249, 0.82), transparent 72%),
+    radial-gradient(810px 740px at 95% 40%, rgba(227, 237, 247, 0.88), transparent 70%),
+    radial-gradient(520px 560px at 49% 0%, rgba(255, 255, 255, 0.65), transparent 82%),
+    #dce5f7;
+  background-size: auto;
+}
+
+.pricing__head {
+  position: absolute;
+  top: 72px;
+  left: 338px;
+}
+
+.pricing__eyebrow {
+  margin-bottom: 31px;
+}
+
+.pricing__title {
+  color: #0c2950;
+  font-size: 55px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.pricing__title span {
+  font-weight: 300;
+}
+
+.pricing__lead {
+  margin-top: 31px;
+  color: #0c2950;
+  font-size: 20px;
+  font-weight: 300;
+  line-height: 1.3;
+}
+
+.pricing__cards {
+  position: absolute;
+  top: 344px;
+  left: 338px;
+  display: grid;
+  grid-template-columns: repeat(3, 360px);
+  gap: 40px;
+}
+
+.price-card {
+  position: relative;
+  width: 360px;
+  height: 680px;
+  overflow: hidden;
+  border-radius: 30px;
+  background: #fff;
+  color: #0c2950;
+}
+
+.price-card--base {
+  background: #285bd5 url('/assets/img/pricing-base-bg.jpg') center / cover no-repeat;
+  color: #fff;
+}
+
+.price-card__name {
+  position: absolute;
+  top: 40px;
+  left: 66px;
+  z-index: 1;
+  color: inherit;
+  font-size: 25px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.price-card__name::before,
+.price-card__name::after,
+.price-wl__name::before,
+.price-wl__name::after {
+  position: absolute;
+  top: 3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  content: '';
+}
+
+.price-card__name::before,
+.price-wl__name::before {
+  left: -36px;
+  background: #bfcef5;
+}
+
+.price-card__name::after,
+.price-wl__name::after {
+  left: -30px;
+  background: #5278db;
+}
+
+.price-card--base .price-card__name::before { background: #fff; }
+.price-card--base .price-card__name::after { background: #cfe3ff; }
+
+.price-card__price {
+  position: absolute;
+  top: 105px;
+  left: 30px;
+  z-index: 1;
+  color: #202020;
+  font-size: 60px;
+  font-weight: 600;
+  letter-spacing: -1px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.price-card--base .price-card__price { color: #fff; }
+
+.price-card__per {
+  position: absolute;
+  top: 176px;
+  left: 31px;
+  z-index: 1;
+  color: #5b5454;
+  font-size: 15px;
+  font-weight: 300;
+  line-height: 1.3;
+}
+
+.price-card--base .price-card__per { color: #edf3ff; }
+
+.price-card__benefits {
+  position: absolute;
+  top: 215px;
+  left: 30px;
+  z-index: 1;
+  width: 300px;
+}
+
+.price-card__benefits li {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 53px;
+  padding: 8px 10px 8px 28px;
+  border-bottom: 1px solid rgb(64 64 64 / 12%);
+  color: inherit;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.price-card__benefits li::before,
+.price-wl__benefits li::before {
+  position: absolute;
+  left: 3px;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #5980e2;
+  content: '';
+  transform: translateY(-50%);
+}
+
+.price-card__benefits li:nth-child(1) { min-height: 49px; }
+.price-card__benefits li:nth-child(2) { min-height: 76px; }
+.price-card__benefits li:nth-child(5) { border-bottom: 0; }
+
+.price-card--base .price-card__benefits li {
+  border-color: rgb(255 255 255 / 19%);
+}
+
+.price-card--base .price-card__benefits li::before { background: #fff; }
+
+.price-card__cta,
+.price-wl__cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  border-radius: 60px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.price-card__cta {
+  position: absolute;
+  left: 24px;
+  bottom: 72px;
+  z-index: 2;
+  width: 300px;
+  height: 70px;
+}
+
+.price-card__cta--blue,
+.price-wl__cta {
+  background: var(--grad-cta);
+  color: #fff;
+}
+
+.price-card__cta--light {
+  background: #fff;
+  color: #2563eb;
+}
+
+.price-card__cta span,
+.price-wl__cta span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 27px;
+  height: 27px;
+  margin-left: 2px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 13%);
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+.price-card__cta--light span {
+  background: #376add;
+  color: #fff;
+}
+
+.price-card__base-fox-wrap {
+  position: absolute;
+  top: -105px;
+  left: 176px;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 349.593px;
+  height: 369.517px;
+  max-width: none;
+  mix-blend-mode: soft-light;
+}
+
+.price-card__base-fox {
+  width: 205.152px;
+  height: 308.159px;
+  max-width: none;
+  transform: rotate(-37deg);
+}
+
+.price-wl {
+  position: absolute;
+  top: 1064px;
+  left: 338px;
+  width: 1160px;
+  height: 422px;
+  overflow: hidden;
+  border-radius: 30px;
+  background: #fff;
+}
+
+.price-wl__name {
+  position: absolute;
+  top: 76px;
+  left: 30px;
+  color: #1c274c;
+  font-size: 25px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.price-wl__benefits {
+  position: absolute;
+  top: 194px;
+  left: 30px;
+  width: 300px;
+}
+
+.price-wl__benefits li {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 53px;
+  padding: 8px 10px 8px 28px;
+  border-bottom: 1px solid rgb(64 64 64 / 12%);
+  color: #0c2950;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.price-wl__benefits li:nth-child(2) { min-height: 72px; }
+.price-wl__benefits li:nth-child(3) { min-height: 75px; border-bottom: 0; }
+
+.price-wl__visual {
+  position: absolute;
+  top: 33px;
+  left: 368px;
+  width: 430px;
+  height: 355px;
+}
+
+.price-wl__visual > img {
+  width: 408px;
+  max-width: none;
+}
+
+.price-wl__note {
+  position: absolute;
+  bottom: 0;
+  left: 25px;
+  width: 194px;
+  min-height: 160px;
+  padding: 18px 17px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 12px 33px rgb(39 79 158 / 14%);
+  color: #0c2950;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.price-wl__note::before {
+  position: absolute;
+  top: 11px;
+  left: 23px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #5b84f5;
+  content: '';
+}
+
+.price-wl__note p { margin-top: 21px; }
+
+.price-wl__note span {
+  display: block;
+  margin-top: 10px;
+  font-weight: 300;
+}
+
+.price-wl__right {
+  position: absolute;
+  top: 76px;
+  right: 30px;
+  width: 296px;
+}
+
+.price-wl__price {
+  color: #202020;
+  font-size: 60px;
+  font-weight: 600;
+  letter-spacing: -1px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.price-wl__per {
+  margin-top: 8px;
+  color: #5b5454;
+  font-size: 15px;
+  font-weight: 300;
+  line-height: 1.3;
+}
+
+.price-wl__trial {
+  margin-top: 24px;
+  color: #0c2950;
+  font-size: 17px;
+  font-weight: 400;
+  line-height: 1.25;
+}
+
+.price-wl__trial strong { font-weight: 600; }
+
+.price-wl__cta {
+  position: absolute;
+  top: 239px;
+  left: 0;
+  width: 296px;
+  height: 70px;
 }
