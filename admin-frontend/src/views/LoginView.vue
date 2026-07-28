@@ -1,7 +1,7 @@
 <template>
   <main class="auth-page">
     <section class="auth-aside">
-      <div class="auth-aside__brand"><span class="brand__mark">A</span><strong>AdMirra</strong></div>
+      <div class="auth-aside__brand"><strong>AdMirra</strong></div>
       <div class="auth-aside__copy">
         <span class="eyebrow eyebrow--light">Internal operations</span>
         <h1>Всё важное о сервисе — в одном месте.</h1>

@@ -2,7 +2,6 @@
   <div class="admin-shell">
     <aside class="sidebar">
       <RouterLink class="brand" :to="auth.homeRoute">
-        <span class="brand__mark">A</span>
         <span><strong>AdMirra</strong><small>внутренняя панель</small></span>
       </RouterLink>
 
