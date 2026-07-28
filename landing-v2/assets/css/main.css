@@ -1772,12 +1772,12 @@ button {
   pointer-events: none;
   user-select: none;
 }
-.cta-deco--send     { left: 164px;  top: -22px; width: 226px; }
-.cta-deco--calendar { left: 1304px; top: 18px;  width: 241px; }
-.cta-deco--cpc      { left: 20px;   top: 158px; width: 350px; }
-.cta-deco--metrics  { left: 1515px; top: 126px; width: 289px; }
-.cta-deco--pie      { left: 1283px; top: 290px; width: 570px; }
-.cta-deco--bars     { left: -42px;  top: 211px; width: 571px; }
+.cta-deco--send     { left: 131px;  top: 3px;   width: 256px; }
+.cta-deco--calendar { left: 1407px; top: -1px;  width: 163px; }
+.cta-deco--cpc      { left: -6px;   top: 115px; width: 350px; }
+.cta-deco--metrics  { left: 1489px; top: 109px; width: 301px; }
+.cta-deco--pie      { left: 1352px; top: 350px; width: 486px; }
+.cta-deco--bars     { left: -1px;   top: 218px; width: 625px; }
 
 /* --------------------------------------------------------------------------
    Блог «Наш блог»
