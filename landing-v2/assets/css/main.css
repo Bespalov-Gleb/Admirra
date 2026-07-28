@@ -1768,12 +1768,12 @@ button {
   pointer-events: none;
   user-select: none;
 }
-.cta-deco--send     { left: 255px;  top: -4px;  width: 124px; }
-.cta-deco--calendar { left: 1414px; top: 52px;  width: 91px;  }
-.cta-deco--cpc      { left: 36px;   top: 212px; width: 262px; }
-.cta-deco--metrics  { left: 1588px; top: 140px; width: 296px; }
-.cta-deco--pie      { left: 1470px; top: 314px; width: 534px; }
-.cta-deco--bars     { left: -150px; top: 360px; width: 502px; }
+.cta-deco--send     { left: 164px;  top: -22px; width: 226px; }
+.cta-deco--calendar { left: 1304px; top: 18px;  width: 241px; }
+.cta-deco--cpc      { left: 20px;   top: 158px; width: 350px; }
+.cta-deco--metrics  { left: 1515px; top: 126px; width: 289px; }
+.cta-deco--pie      { left: 1283px; top: 290px; width: 570px; }
+.cta-deco--bars     { left: -42px;  top: 211px; width: 571px; }
 
 /* --------------------------------------------------------------------------
    Блог «Наш блог»
