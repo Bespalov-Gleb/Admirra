@@ -1564,7 +1564,7 @@ button {
 }
 
 .faq__title {
-  font-weight: 300;
+  font-weight: 500;   /* Gilroy Medium по Figma */
 }
 
 .faq__body {
@@ -1588,10 +1588,14 @@ button {
   width: 561px;
 }
 
+/* Из Figma: свёрнутый пункт — белая карточка с рамкой rgba(148,172,205,0.3),
+   скругление 15. Раскрытый — та же рамка, но строка вопроса подсвечена #f6f9ff,
+   ответ на белом. */
 .faq-item {
   width: 561px;
-  border: 1px solid transparent;
+  border: 1px solid rgba(148, 172, 205, 0.3);
   border-radius: 15px;
+  background: #fff;
   overflow: hidden;
 }
 
@@ -1599,21 +1603,15 @@ button {
   margin-top: 13px;
 }
 
-.faq-item[open] {
-  border-color: rgba(148, 172, 205, 0.3);
-  background: #fff;
-}
-
 .faq-item__q {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  height: 62px;
-  padding: 0 11px 0 21px;
-  background: #f6f9ff;
+  height: 60px;
+  padding: 0 10px 0 21px;
   border-radius: 15px;
-  color: #1c274c;
+  color: #0c2950;
   font-size: 15px;
   font-weight: 500;
   line-height: 1.3;
@@ -1621,21 +1619,33 @@ button {
   cursor: pointer;
 }
 
+.faq-item[open] .faq-item__q { background: #f6f9ff; }
+
 .faq-item__q::-webkit-details-marker { display: none; }
 
+/* Кнопка-плюс: светлый ореол #f6f9ff (40) + сплошной круг #5171d0 (26) с плюсом. */
 .faq-item__toggle {
   flex: 0 0 auto;
-  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 40px;
   height: 40px;
+  border-radius: 50%;
+  background: #f6f9ff;
+}
+
+.faq-item__toggle-dot {
+  position: relative;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   background: #5171d0;
 }
 
-/* Плюс из двух перекладин; при раскрытии вертикальная скрывается → получается
-   минус (лёгкая индикация состояния поверх точного вида макета). */
-.faq-item__toggle::before,
-.faq-item__toggle::after {
+/* Плюс из двух перекладин; при раскрытии вертикальная скрывается → минус. */
+.faq-item__toggle-dot::before,
+.faq-item__toggle-dot::after {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -1643,13 +1653,13 @@ button {
   content: '';
   transform: translate(-50%, -50%);
 }
-.faq-item__toggle::before { width: 13px; height: 1.6px; }
-.faq-item__toggle::after  { width: 1.6px; height: 13px; }
-.faq-item[open] .faq-item__toggle::after { opacity: 0; }
+.faq-item__toggle-dot::before { width: 11px; height: 1.6px; }
+.faq-item__toggle-dot::after  { width: 1.6px; height: 11px; }
+.faq-item[open] .faq-item__toggle-dot::after { opacity: 0; }
 
 .faq-item__a {
   margin: 0;
-  padding: 9px 21px 22px;
+  padding: 6px 21px 22px;
   color: #0c2950;
   font-size: 15px;
   font-weight: 300;
@@ -1693,7 +1703,7 @@ button {
   text-align: center;
   color: #0c2950;
   font-size: 55px;
-  font-weight: 600;
+  font-weight: 500;   /* Gilroy Medium по Figma (было 600 — казалось слишком тёмным) */
   line-height: 1.1;
 }
 
@@ -1717,16 +1727,28 @@ button {
   z-index: 2;
 }
 
+/* Белая полупрозрачная капсула (rgba 255/.55, скругление 24) — уходит под
+   кнопку и выступает снизу, где лежит подпись. Из Figma: 409×118, y370. */
 .cta-band__note {
   position: absolute;
-  top: 452px;
-  left: 0;
-  right: 0;
+  top: 370px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 409px;
+  height: 118px;
+  padding-bottom: 22px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.55);
   text-align: center;
   color: #0c2950;
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 500;
   line-height: 1.3;
+  text-shadow: 0 0 16px #fff;
 }
 
 .cta-band__note b {
@@ -1796,7 +1818,7 @@ button {
 .blog__title {
   color: #0c2950;
   font-size: 55px;
-  font-weight: 300;
+  font-weight: 500;   /* Gilroy Medium по Figma */
   line-height: 1.1;
 }
 
@@ -1895,7 +1917,7 @@ button {
   justify-content: space-between;
   max-width: 1160px;
   margin-inline: auto;
-  padding: 37px 24px 0;
+  padding: 37px 0 0;
 }
 
 .footer__brand {
@@ -1923,28 +1945,41 @@ button {
   font-weight: 400;
 }
 
-.footer__field input {
-  width: 223px;
+/* Единая капсула-пилюля: поле во всю ширину, градиентная кнопка на правом
+   конце (перекрывает поле), обе скруглены на 60 (из Figma). */
+.footer__capsule {
+  position: relative;
+  display: block;
+  width: 338px;
   height: 50px;
-  padding-inline: 17px;
-  border: 1px solid rgba(148, 172, 205, 0.3);
-  border-radius: 12px;
+}
+
+.footer__field {
+  width: 100%;
+  height: 50px;
+  padding: 0 180px 0 17px;
+  border: 1px solid #d9d9d9;
+  border-radius: 60px;
   background: #fff;
   font-family: var(--font-base);
-  font-size: 14px;
+  font-size: 12px;
+  font-weight: 500;
   color: #1c274c;
 }
 
-.footer__field input::placeholder { color: #a0a7b8; }
+.footer__field::placeholder { color: rgba(105, 105, 105, 0.56); }
 
 .footer__subscribe-btn {
+  position: absolute;
+  right: 0;
+  top: 0;
   width: 170px;
   height: 50px;
-  border-radius: 12px;
+  border-radius: 60px;
   color: #fff;
-  font-size: 12px;
+  font-size: 14.75px;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 1.475px;
   text-transform: uppercase;
 }
 
@@ -1953,18 +1988,18 @@ button {
   justify-content: center;
   gap: 25px;
   margin-top: 31px;
-  padding: 31px 24px;
-  border-top: 1px solid rgba(148, 172, 205, 0.28);
+  padding: 31px 0;
+  border-top: 1px solid #dde1e4;
 }
 
 .footer__nav a {
-  color: #a0a7b8;
-  font-size: 16px;
+  color: #1c274c;
+  font-size: 15px;
   font-weight: 400;
   transition: color 0.15s ease;
 }
 
-.footer__nav a:hover { color: #1c274c; }
+.footer__nav a:hover { color: var(--c-brand); }
 
 .footer__bottom {
   background: #fff;
@@ -1976,13 +2011,12 @@ button {
   max-width: 1160px;
   min-height: 118px;
   margin-inline: auto;
-  padding-inline: 24px;
 }
 
 .footer__col-title {
   margin-bottom: 25px;
   color: #1c274c;
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 600;
 }
 
@@ -1991,28 +2025,29 @@ button {
 .footer__col a,
 .footer__center .footer__tagline,
 .footer__center .footer__copy {
-  color: #7c8aa5;
-  font-size: 16px;
+  color: #1c274c;
+  font-size: 15px;
   font-weight: 400;
 }
 
 .footer__col a { transition: color 0.15s ease; }
-.footer__col a:hover { color: #1c274c; }
+.footer__col a:hover { color: var(--c-brand); }
 
-/* Колонки спозиционированы по x-координатам макета (контейнер 1160). */
-.footer__col--res      { position: absolute; left: 24px;  top: 0; }
-.footer__col--contacts { position: absolute; left: 196px; top: 0; }
-.footer__col--docs     { position: absolute; right: 24px; top: 0; width: 340px; }
+/* Колонки спозиционированы по x-координатам макета (контейнер 1160 = x380..1540):
+   Ресурсы x380, Контакты x552, Документы x1210; АдМирра — по центру блока. */
+.footer__col--res      { position: absolute; left: 0;    top: 0; }
+.footer__col--contacts { position: absolute; left: 172px; top: 0; }
+.footer__col--docs     { position: absolute; left: 830px; top: 0; width: 370px; }
 
 .footer__center {
   position: absolute;
-  left: 0;
-  right: 0;
+  left: 290px;
   top: 0;
+  width: 524px;
   text-align: center;
 }
 
 .footer__center .footer__col-title { margin-bottom: 20px; }
-.footer__tagline { margin-bottom: 22px; }
+.footer__tagline { margin-bottom: 22px; white-space: nowrap; }
 .footer__pay { display: inline-block; height: 19px; width: auto; margin-bottom: 22px; }
 .footer__copy { font-size: 15px; }
