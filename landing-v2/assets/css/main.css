@@ -1101,50 +1101,40 @@ button {
   align-items: center;
   justify-content: center;
   height: 110px;
-  border: 1px solid #e5ebf8;
+  border: 1px solid rgba(148, 172, 205, 0.22);
   border-radius: 30px;
   background: #fff;
 }
 
-.integration-card > img {
+/* Логотипы — единое изображение (иконка + название), как в макете. Ширина
+   задана точно по Figma, высота считается по пропорции. */
+.integration-card__logo {
+  height: auto;
   object-fit: contain;
 }
 
-.integration-card:nth-child(1) > img { width: 222px; }
-.integration-card:nth-child(2) > img { width: 185px; }
-.integration-card:nth-child(3) > img { width: 247px; }
-.integration-card:nth-child(4) > img { width: 164px; }
+.integration-card:nth-child(1) .integration-card__logo { width: 222px; }
+.integration-card:nth-child(2) .integration-card__logo { width: 185px; }
+.integration-card:nth-child(3) .integration-card__logo { width: 247px; }
+.integration-card:nth-child(4) .integration-card__logo { width: 164px; }
+.integration-card:nth-child(5) .integration-card__logo { width: 122px; }
+.integration-card:nth-child(6) .integration-card__logo { width: 132px; }
 
+/* Карточки «Скоро»: логотип, вертикальный разделитель и подпись. Зазоры по
+   15 px с каждой стороны разделителя (из Figma). */
 .integration-card--coming {
-  gap: 13px;
-}
-
-.integration-card--coming > img {
-  width: 40px;
-  height: 40px;
-  /* У исходников Figma широкий прозрачный холст справа от знака. Показываем
-     левую, фактически занятую логотипом часть, не уменьшая сам знак. */
-  object-fit: cover;
-  object-position: left center;
-}
-
-.integration-card__brand {
-  color: #000;
-  font-size: 33px;
-  font-weight: 600;
-  letter-spacing: -1px;
-  line-height: 1;
+  gap: 15px;
 }
 
 .integration-card__soon {
   display: inline-flex;
   align-items: center;
-  height: 25px;
+  height: 21px;
   padding-left: 15px;
   border-left: 1px solid #b8c8ef;
-  color: #152c61;
+  color: #1c274c;
   font-size: 20px;
-  font-weight: 500;
+  font-weight: 600;
   line-height: 1;
 }
 
@@ -1266,6 +1256,11 @@ button {
 
 .price-card--base .price-card__name::before { background: #fff; }
 .price-card--base .price-card__name::after { background: #cfe3ff; }
+
+/* В White Label тумблер стоит НАД заголовком (в Figma: тумблер y40, заголовок
+   y77), а не слева от него, как в тарифных карточках. */
+.price-wl__name::before { left: 0;  top: -37px; }
+.price-wl__name::after  { left: 6px; top: -37px; }
 
 .price-card__price {
   position: absolute;
