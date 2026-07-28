@@ -862,5 +862,58 @@
   </script>
   -->
 
+  <!-- DEV-редактор декора CTA. Активируется ТОЛЬКО при открытии страницы с #edit
+       (например http://127.0.0.1:8899/index.html#edit). На обычный просмотр не
+       влияет. Тащи карточку — двигать, колесо над ней — размер. Панель справа
+       показывает готовый CSS для .cta-deco — скопируй и пришли. -->
+  <script>
+  if (location.hash.indexOf('edit') !== -1) {
+    (function () {
+      var decos = document.querySelectorAll('.cta-deco');
+      var panel = document.createElement('pre');
+      panel.style.cssText = 'position:fixed;top:10px;right:10px;z-index:99999;background:#0c2950;color:#8ff;padding:12px 14px;font:12px/1.5 monospace;border-radius:8px;max-height:90vh;overflow:auto;white-space:pre;box-shadow:0 8px 30px rgba(0,0,0,.3)';
+      document.body.appendChild(panel);
+      function css(el){ return (el.style.width||el.getAttribute('data-w')||''); }
+      function render(){
+        var out = '/* CTA decor */\n';
+        decos.forEach(function(el){
+          var cls = Array.prototype.filter.call(el.classList, function(c){ return c.indexOf('cta-deco--')===0; })[0];
+          var cs = getComputedStyle(el);
+          var l = Math.round(parseFloat(el.style.left || cs.left));
+          var t = Math.round(parseFloat(el.style.top || cs.top));
+          var w = Math.round(parseFloat(el.style.width || cs.width));
+          out += '.' + cls + ' { left: ' + l + 'px; top: ' + t + 'px; width: ' + w + 'px; }\n';
+        });
+        panel.textContent = out;
+      }
+      var active = null, sx, sy, sl, st;
+      decos.forEach(function (el) {
+        el.style.pointerEvents = 'auto';
+        el.style.cursor = 'grab';
+        el.addEventListener('mousedown', function (v) {
+          active = el; sx = v.clientX; sy = v.clientY;
+          sl = parseFloat(getComputedStyle(el).left);
+          st = parseFloat(getComputedStyle(el).top);
+          v.preventDefault();
+        });
+        el.addEventListener('wheel', function (v) {
+          v.preventDefault();
+          var w = parseFloat(el.style.width) || el.offsetWidth;
+          el.style.width = Math.max(20, w - (v.deltaY > 0 ? 1 : -1) * 6) + 'px';
+          render();
+        }, { passive: false });
+      });
+      window.addEventListener('mousemove', function (v) {
+        if (!active) return;
+        active.style.left = (sl + v.clientX - sx) + 'px';
+        active.style.top = (st + v.clientY - sy) + 'px';
+        render();
+      });
+      window.addEventListener('mouseup', function () { active = null; });
+      render();
+    })();
+  }
+  </script>
+
 </body>
 </html>
