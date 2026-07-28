@@ -611,6 +611,9 @@ button {
   letter-spacing: 4px;
   text-transform: uppercase;
   color: #5b84f5;
+  /* В Figma эйбрау — Gilroy Bold. В проекте нет bold-файла (только до semibold),
+     поэтому утолщаем обводкой того же цвета до нужной жирности. */
+  -webkit-text-stroke: 0.6px #5b84f5;
 }
 
 .section-title {
@@ -1060,7 +1063,7 @@ button {
    -------------------------------------------------------------------------- */
 
 .integrations {
-  padding-top: 134px;
+  padding-top: 30px;
   padding-bottom: 90px;
   overflow: hidden;
 }
@@ -1454,14 +1457,15 @@ button {
 
 .price-wl__visual {
   position: absolute;
-  top: 33px;
-  left: 368px;
-  width: 430px;
-  height: 355px;
+  top: 15px;
+  left: 356px;
+  width: 431px;
+  height: auto;
 }
 
 .price-wl__visual > img {
-  width: 408px;
+  width: 431px;
+  height: auto;
   max-width: none;
 }
 
@@ -2023,7 +2027,7 @@ button {
   line-height: 1;
 }
 
-.footer__col ul { display: flex; flex-direction: column; gap: 21px; }
+.footer__col ul { display: flex; flex-direction: column; gap: 21px; line-height: 1; }
 
 .footer__col a,
 .footer__center .footer__tagline,
@@ -2043,17 +2047,21 @@ button {
 .footer__col--contacts { position: absolute; left: 172px; top: 0; }
 .footer__col--docs     { position: absolute; left: 830px; top: 0; width: 370px; }
 
+/* Флекс-колонка вместо потока: без схлопывания отступов, строки (тэглайн →
+   платёжки → копирайт) встают на тот же вертикальный ритм, что боковые
+   колонки. Раньше inline-block у платёжек накладывал копирайт на них. */
 .footer__center {
   position: absolute;
   left: 290px;
   top: 0;
   width: 524px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
 }
 
 .footer__center .footer__col-title { margin-bottom: 20px; }
 .footer__tagline { margin: 0 0 21px; white-space: nowrap; }
-/* Иконки оплаты на 4 px выше строки текста (19 vs 15) — отрицательный отступ
-   держит следующую строку (копирайт) на общем шаге 36. */
-.footer__pay { display: inline-block; height: 19px; width: auto; margin: -2px 0 19px; }
-.footer__copy { font-size: 15px; }
+.footer__pay { display: block; height: 19px; width: auto; margin: 0 0 17px; }
+.footer__copy { margin: 0; font-size: 15px; }
