@@ -75,7 +75,8 @@
   <link rel="preload" href="/landing-new/assets/fonts/gilroy-medium.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/landing-new/assets/img/hero-dashboard.webp" as="image" type="image/webp" fetchpriority="high">
 
-  <link rel="stylesheet" href="/landing-new/assets/css/main.css?v=how-report-1">
+  <link rel="stylesheet" href="/landing-new/assets/css/main.css?v=mobile-layout-2">
+  <script src="/landing-new/assets/js/main.js?v=mobile-menu-1" defer></script>
 </head>
 <body>
 
@@ -107,6 +108,25 @@
         <a class="btn btn--gradient" href="/signup">Демо версия</a>
         <a class="btn btn--dark" href="/signin">Войти</a>
       </div>
+
+      <button class="site-header__burger" type="button"
+              aria-label="Открыть меню" aria-controls="mobile-nav" aria-expanded="false">
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+      </button>
+
+      <nav class="mobile-nav" id="mobile-nav" aria-label="Мобильная навигация" hidden>
+        <a href="#audience">Для кого</a>
+        <a href="#dashboard">Пример дашборда</a>
+        <a href="#features">Возможности</a>
+        <a href="#integrations">Интеграции</a>
+        <a href="#pricing">Цены</a>
+        <div class="mobile-nav__actions">
+          <a class="mobile-nav__signin" href="/signin">Войти</a>
+          <a class="mobile-nav__signup" href="/signup">Попробовать бесплатно</a>
+        </div>
+      </nav>
     </div>
   </header>
 
@@ -125,8 +145,8 @@
     </h1>
 
     <p class="hero__lead">
-      AdMirra сводит рекламные кабинеты в один дашборд, сама замечает, когда заявки<br>
-      дорожают, и собирает за вас отчёты, которые не стыдно<br>
+      AdMirra сводит рекламные кабинеты в один дашборд, сама замечает, когда заявки <br>
+      дорожают, и собирает за вас отчёты, которые не стыдно <br>
       отправить клиенту. Для тех, кто ведёт не один проект.
     </p>
 
@@ -143,8 +163,8 @@
         </span>
       </a>
       <p class="hero__note">
-        <b>14 дней бесплатно —</b><br>
-        настройка за 5 минут<br>
+        <b>14 дней бесплатно —</b> <br>
+        настройка за 5 минут <br>
         · без выгрузок в Excel
       </p>
     </div>
@@ -180,22 +200,22 @@
         <li class="aud-card">
           <img class="aud-card__ico" src="/landing-new/assets/icons/aud-agency.png" width="35" height="41" alt="" aria-hidden="true">
           <div class="aud-card__body">
-            <strong class="aud-card__title">Рекламным<br>агентствам</strong>
-            <p>Десятки клиентов, Яндекс.Директ,<br>VK Реклама и Авито Реклама —<br>в одном окне. Меньше рутины,<br>больше проектов на специалиста.</p>
+            <strong class="aud-card__title">Рекламным <br>агентствам</strong>
+            <p>Десятки клиентов, Яндекс.Директ, <br>VK Реклама и Авито Реклама — <br>в одном окне. Меньше рутины, <br>больше проектов на специалиста.</p>
           </div>
         </li>
         <li class="aud-card">
           <img class="aud-card__ico" src="/landing-new/assets/icons/aud-specialist.png" width="33" height="39" alt="" aria-hidden="true">
           <div class="aud-card__body">
-            <strong class="aud-card__title">Специалистам<br>по контексту и таргету</strong>
-            <p>Ведёте пул проектов сами?<br>Система следит за просадками,<br>а отчёты собираются<br>без вечеров в Excel.</p>
+            <strong class="aud-card__title">Специалистам <br>по контексту и таргету</strong>
+            <p>Ведёте пул проектов сами? <br>Система следит за просадками, <br>а отчёты собираются <br>без вечеров в Excel.</p>
           </div>
         </li>
         <li class="aud-card">
           <img class="aud-card__ico" src="/landing-new/assets/icons/aud-inhouse.png" width="39" height="38" alt="" aria-hidden="true">
           <div class="aud-card__body">
-            <strong class="aud-card__title">Инхаус-командам<br>с пулом кампаний</strong>
-            <p>Разные услуги, филиалы или<br>товары в одном кабинете —<br>видно, что именно проседает,<br>а не среднее по больнице.</p>
+            <strong class="aud-card__title">Инхаус-командам <br>с пулом кампаний</strong>
+            <p>Разные услуги, филиалы или <br>товары в одном кабинете — <br>видно, что именно проседает, <br>а не среднее по больнице.</p>
           </div>
         </li>
       </ul>
@@ -217,13 +237,13 @@
       <p class="eyebrow">Знакомо?</p>
 
       <h2 class="section-title">
-        <span class="section-title--soft">Реклама в Яндекс.Директе, VK Рекламе</span><br>
-        <span class="section-title--soft">и Авито Рекламе.</span> Клиентов много.<br>
+        <span class="section-title--soft">Реклама в Яндекс.Директе, VK Рекламе</span> <br>
+        <span class="section-title--soft">и Авито Рекламе.</span> Клиентов много. <br>
         А времени и нервов — нет
       </h2>
 
       <p class="section-lead">
-        Если хоть одно узнаёте — дальше можно не читать описание,<br>
+        Если хоть одно узнаёте — дальше можно не читать описание, <br>
         просто подключайте кабинеты.
       </p>
 
@@ -231,42 +251,42 @@
         <li class="pain-card">
           <img class="pain-card__ico" src="/landing-new/assets/icons/pain-1.png" width="75" height="75" alt="" aria-hidden="true">
           <div class="pain-card__body">
-            <p class="pain-card__quote">«Яндекс.Директ в одной вкладке,<br>VK Реклама — в другой, Авито Реклама<br>— в третьей. А клиент хочет одну цифру<br>по заявкам. Сводишь руками.»</p>
+            <p class="pain-card__quote">«Яндекс.Директ в одной вкладке, <br>VK Реклама — в другой, Авито Реклама <br>— в третьей. А клиент хочет одну цифру <br>по заявкам. Сводишь руками.»</p>
             <p class="pain-card__tag pain-card__tag--blue">// разрозненные кабинеты</p>
           </div>
         </li>
         <li class="pain-card">
           <img class="pain-card__ico" src="/landing-new/assets/icons/pain-2.png" width="75" height="75" alt="" aria-hidden="true">
           <div class="pain-card__body">
-            <p class="pain-card__quote">«В одном кабинете — и разные<br>услуги, и филиалы, и товары. А<br>клиенту нужен отчёт с разбивкой.<br>Собираешь вручную каждый раз.»</p>
+            <p class="pain-card__quote">«В одном кабинете — и разные <br>услуги, и филиалы, и товары. А <br>клиенту нужен отчёт с разбивкой. <br>Собираешь вручную каждый раз.»</p>
             <p class="pain-card__tag pain-card__tag--cyan">// нет разбивки внутри проекта</p>
           </div>
         </li>
         <li class="pain-card">
           <img class="pain-card__ico pain-card__ico--sm" src="/landing-new/assets/icons/pain-3.png" width="60" height="60" alt="" aria-hidden="true">
           <div class="pain-card__body">
-            <p class="pain-card__quote">«О том, что стоимость лида<br>или расходы улетели в потолок,<br>узнаёшь от клиента. А не первым.»</p>
+            <p class="pain-card__quote">«О том, что стоимость лида <br>или расходы улетели в потолок, <br>узнаёшь от клиента. А не первым.»</p>
             <p class="pain-card__tag pain-card__tag--red">// реакция постфактум</p>
           </div>
         </li>
         <li class="pain-card">
           <img class="pain-card__ico pain-card__ico--sm" src="/landing-new/assets/icons/pain-4.png" width="60" height="60" alt="" aria-hidden="true">
           <div class="pain-card__body">
-            <p class="pain-card__quote">«Каждую неделю —<br>вечер в Excel ради отчётов.<br>И так по каждому клиенту.»</p>
+            <p class="pain-card__quote">«Каждую неделю — <br>вечер в Excel ради отчётов. <br>И так по каждому клиенту.»</p>
             <p class="pain-card__tag pain-card__tag--green">// ручная отчётность</p>
           </div>
         </li>
         <li class="pain-card">
           <img class="pain-card__ico pain-card__ico--sm" src="/landing-new/assets/icons/pain-5.png" width="59" height="59" alt="" aria-hidden="true">
           <div class="pain-card__body">
-            <p class="pain-card__quote">«У каждого спеца отчёт<br>в своём формате. Клиент<br>путается, ты краснеешь.»</p>
+            <p class="pain-card__quote">«У каждого спеца отчёт <br>в своём формате. Клиент <br>путается, ты краснеешь.»</p>
             <p class="pain-card__tag pain-card__tag--purple">// разнобой в отчётах</p>
           </div>
         </li>
         <li class="pain-card">
           <img class="pain-card__ico pain-card__ico--sm" src="/landing-new/assets/icons/pain-6.png" width="61" height="61" alt="" aria-hidden="true">
           <div class="pain-card__body">
-            <p class="pain-card__quote">«На встрече спрашивают<br>«сколько лидов за неделю и по какой<br>цене» — а ты не можешь ответить<br>в моменте, разгребая таблицы.»</p>
+            <p class="pain-card__quote">«На встрече спрашивают <br>«сколько лидов за неделю и по какой <br>цене» — а ты не можешь ответить <br>в моменте, разгребая таблицы.»</p>
             <p class="pain-card__tag pain-card__tag--blue">// нет цифр под рукой</p>
           </div>
         </li>
@@ -283,7 +303,7 @@
       <h2 class="section-title how__title">Подключил → увидел → отправил</h2>
 
       <p class="section-lead">
-        Никаких выгрузок, коннекторов и сведения таблиц.<br>
+        Никаких выгрузок, коннекторов и сведения таблиц. <br>
         Три шага, и дальше система работает за вас.
       </p>
 
@@ -292,9 +312,9 @@
           <span class="how-card__dot" aria-hidden="true"></span>
           <h3 class="how-card__title">Подключаете кабинеты</h3>
           <p class="how-card__text">
-            Подключаете Яндекс.Директ, VK Рекламу<br>
-            и Авито Рекламу в пару кликов,<br>
-            без передачи паролей. Выбираете<br>
+            Подключаете Яндекс.Директ, VK Рекламу <br>
+            и Авито Рекламу в пару кликов, <br>
+            без передачи паролей. Выбираете <br>
             счётчик Яндекс.Метрики и цели. 5 минут.
           </p>
           <ul class="how-card__tags">
@@ -310,12 +330,12 @@
 
         <li class="how-card">
           <span class="how-card__dot" aria-hidden="true"></span>
-          <h3 class="how-card__title">Данные сводятся,<br>детектор следит</h3>
+          <h3 class="how-card__title">Данные сводятся, <br>детектор следит</h3>
           <p class="how-card__text">
-            Единый дашборд по всем проектам<br>
-            сразу. Как только заявки дорожают,<br>
-            конверсии падают или идём<br>
-            не по плану KPI — на проекте<br>
+            Единый дашборд по всем проектам <br>
+            сразу. Как только заявки дорожают, <br>
+            конверсии падают или идём <br>
+            не по плану KPI — на проекте <br>
             появляется уведомление.
           </p>
           <div class="how-card__art">
@@ -326,11 +346,11 @@
 
         <li class="how-card">
           <span class="how-card__dot" aria-hidden="true"></span>
-          <h3 class="how-card__title">Отправляете<br>отчёт клиенту</h3>
+          <h3 class="how-card__title">Отправляете <br>отчёт клиенту</h3>
           <p class="how-card__text">
-            Проверили на предпросмотре,<br>
-            поправили AI-комментарий, утвердили<br>
-            — отчёт ушёл в Telegram, MAX<br>
+            Проверили на предпросмотре, <br>
+            поправили AI-комментарий, утвердили <br>
+            — отчёт ушёл в Telegram, MAX <br>
             или на почту клиенту по проекту.
           </p>
           <ul class="how-card__tags">
@@ -355,8 +375,8 @@
       <header class="features__head">
         <p class="eyebrow">Что внутри</p>
         <h2 class="section-title features__title">
-          <span class="section-title--soft">Не «ещё один дашборд».</span><br>
-          Инструмент, который ведёт клиента —<br>
+          <span class="section-title--soft">Не «ещё один дашборд».</span> <br>
+          Инструмент, который ведёт клиента — <br>
           от первой встречи до отчёта
         </h2>
       </header>
@@ -364,8 +384,8 @@
       <div class="feature feature--dashboard feature--text-left">
         <div class="feature__text">
           <p class="badge">Единый дашборд</p>
-          <h3 class="feature__title">Яндекс.Директ, VK Реклама<br>и Авито Реклама — в одной<br>картине, по всем клиентам</h3>
-          <p class="feature__lead">Расход, заявки, CPL и лучшие кампании — сведены<br>автоматически. Кросс-проектный обзор показывает, у<br>кого из клиентов всё ровно, а кому нужно внимание<br>прямо сейчас.</p>
+          <h3 class="feature__title">Яндекс.Директ, VK Реклама <br>и Авито Реклама — в одной <br>картине, по всем клиентам</h3>
+          <p class="feature__lead">Расход, заявки, CPL и лучшие кампании — сведены <br>автоматически. Кросс-проектный обзор показывает, у <br>кого из клиентов всё ровно, а кому нужно внимание <br>прямо сейчас.</p>
           <ul class="feature__list">
             <li>Все рекламные источники в одних метриках, без ручного сведения</li>
             <li>Виден остаток бюджета по каждому кабинету</li>
@@ -380,8 +400,8 @@
       <div class="feature feature--detector feature--text-right">
         <div class="feature__text">
           <p class="badge">Детектор просадки · узнаёте первым</p>
-          <h3 class="feature__title">Система сама замечает, что<br>пошло не так</h3>
-          <p class="feature__lead">Детектор каждый день сравнивает показатели с планом<br>на период и пишет человеческим языком, что случилось,<br>как только заявки дорожают или конверсии падают.<br>Вы реагируете до того, как позвонит клиент.</p>
+          <h3 class="feature__title">Система сама замечает, что <br>пошло не так</h3>
+          <p class="feature__lead">Детектор каждый день сравнивает показатели с планом <br>на период и пишет человеческим языком, что случилось, <br>как только заявки дорожают или конверсии падают. <br>Вы реагируете до того, как позвонит клиент.</p>
           <ul class="feature__list">
             <li>Сравнивает факт с планом на период, а не просто «со вчера»</li>
             <li>Целевая стоимость заявки по каждой цели — контроль включается тумблером</li>
@@ -395,8 +415,8 @@
       <div class="feature feature--directions feature--text-left">
         <div class="feature__text">
           <p class="badge">Направления</p>
-          <h3 class="feature__title">Видно, что именно<br>проседает — услуга, филиал<br>или товар</h3>
-          <p class="feature__lead">Один рекламный кабинет, но внутри — разные услуги,<br>филиалы или товары. AdMirra делит кампании на<br>направления автоматически, по словам в их названиях,<br>которые вы и так проставляете. Понятная разбивка по<br>стоимости лида.</p>
+          <h3 class="feature__title">Видно, что именно <br>проседает — услуга, филиал <br>или товар</h3>
+          <p class="feature__lead">Один рекламный кабинет, но внутри — разные услуги, <br>филиалы или товары. AdMirra делит кампании на <br>направления автоматически, по словам в их названиях, <br>которые вы и так проставляете. Понятная разбивка по <br>стоимости лида.</p>
           <ul class="feature__list">
             <li>Группировка по слову в названии кампании, а не вручную</li>
             <li>Отчёт и флажки работают в разрезе направления</li>
@@ -410,8 +430,8 @@
       <div class="feature feature--ai feature--text-right">
         <div class="feature__text">
           <p class="badge">AI-помощник</p>
-          <h3 class="feature__title">AI берёт на себя рутину<br>объяснений</h3>
-          <p class="feature__lead">Не абстрактный «ИИ-агент», а два рабочих инструмента<br>под реальные задачи: спросить про свои проекты<br>человеческим языком и получить готовый связный<br>комментарий к отчёту.</p>
+          <h3 class="feature__title">AI берёт на себя рутину <br>объяснений</h3>
+          <p class="feature__lead">Не абстрактный «ИИ-агент», а два рабочих инструмента <br>под реальные задачи: спросить про свои проекты <br>человеческим языком и получить готовый связный <br>комментарий к отчёту.</p>
           <ul class="feature__list">
             <li>AI-ассистент (чат) — спросить про метрики, кампании и клиентов</li>
             <li>Авто-комментарий к отчёту — связное «что произошло за период и почему», а не пересказ таблицы. Цифры из ваших данных, AI только формулирует</li>
@@ -424,8 +444,8 @@
       <div class="feature feature--reports feature--text-left">
         <div class="feature__text">
           <p class="badge">Отчёты клиенту</p>
-          <h3 class="feature__title">Собираются сами.<br>Но уходят только<br>с вашей проверкой</h3>
-          <p class="feature__lead">Расписание готовит отчёт и кладёт в очередь на<br>одобрение — оно не отправляет за вас. Вы открываете<br>предпросмотр, правите AI-комментарий, утверждаете, и<br>клиент получает ровно то, что вы проверили. Одним<br>снимком, без расхождений между PDF, картинкой и<br>текстом.</p>
+          <h3 class="feature__title">Собираются сами. <br>Но уходят только <br>с вашей проверкой</h3>
+          <p class="feature__lead">Расписание готовит отчёт и кладёт в очередь на <br>одобрение — оно не отправляет за вас. Вы открываете <br>предпросмотр, правите AI-комментарий, утверждаете, и <br>клиент получает ровно то, что вы проверили. Одним <br>снимком, без расхождений между PDF, картинкой и <br>текстом.</p>
           <ul class="feature__list">
             <li>Предпросмотр между «сформировать» и «отправить»</li>
             <li>Telegram, MAX, e-mail. Короткая выжимка + PDF + картинка</li>
@@ -440,8 +460,8 @@
       <div class="feature feature--white-label feature--text-right">
         <div class="feature__text">
           <p class="badge">White Label</p>
-          <h3 class="feature__title">Клиент видит ваш бренд,<br>а не AdMirra</h3>
-          <p class="feature__lead">Логотип агентства, фирменный цвет, шапка PDF и<br>собственный домен для ссылок на отчёты. Для клиента<br>это ваша система аналитики — а вы не платите за<br>разработку своей. Подключается на отдельном тарифе<br>White Label.</p>
+          <h3 class="feature__title">Клиент видит ваш бренд, <br>а не AdMirra</h3>
+          <p class="feature__lead">Логотип агентства, фирменный цвет, шапка PDF и <br>собственный домен для ссылок на отчёты. Для клиента <br>это ваша система аналитики — а вы не платите за <br>разработку своей. Подключается на отдельном тарифе <br>White Label.</p>
           <ul class="feature__list">
             <li>Отчёты и КП без логотипа сервиса</li>
             <li>Свой домен вида reports.вашеагентство.ru</li>
@@ -495,7 +515,7 @@
       <header class="pricing__head">
         <p class="eyebrow pricing__eyebrow">Тарифы</p>
         <h2 class="pricing__title" id="pricing-title">
-          Платите за число<br>
+          Платите за число <br>
           проектов, <span>а не за «фичи»</span>
         </h2>
         <p class="pricing__lead">Выберите подходящий тариф в зависимости от количества проектов и задач аналитики.</p>
@@ -511,7 +531,7 @@
             <li>Каналы: Яндекс.Директ, ВК</li>
             <li>1 пользователь</li>
             <li>30 AI-запросов в месяц</li>
-            <li>Экспорт и отправка<br>по расписанию</li>
+            <li>Экспорт и отправка <br>по расписанию</li>
           </ul>
           <a class="price-card__cta price-card__cta--blue" href="/signup">Попробовать бесплатно <span aria-hidden="true">↗</span></a>
         </article>
@@ -525,10 +545,10 @@
           <p class="price-card__per">798 ₽/проект в месяц</p>
           <ul class="price-card__benefits">
             <li>5 проектов · до 10 кабинетов</li>
-            <li>Все подключения,<br>включая Авито Рекламу</li>
+            <li>Все подключения, <br>включая Авито Рекламу</li>
             <li>До 5 пользователей</li>
             <li>120 AI-запросов в месяц</li>
-            <li>Экспорт и отправка<br>по расписанию</li>
+            <li>Экспорт и отправка <br>по расписанию</li>
           </ul>
           <a class="price-card__cta price-card__cta--light" href="/signup">Попробовать бесплатно <span aria-hidden="true">↗</span></a>
         </article>
@@ -539,10 +559,10 @@
           <p class="price-card__per">660 ₽/проект в месяц</p>
           <ul class="price-card__benefits">
             <li>15 проектов · до 30 кабинетов</li>
-            <li>Все подключения,<br>включая Авито Рекламу</li>
+            <li>Все подключения, <br>включая Авито Рекламу</li>
             <li>До 10 пользователей</li>
             <li>450 AI-запросов в месяц</li>
-            <li>Экспорт и отправка<br>по расписанию</li>
+            <li>Экспорт и отправка <br>по расписанию</li>
           </ul>
           <a class="price-card__cta price-card__cta--blue" href="/signup">Попробовать бесплатно <span aria-hidden="true">↗</span></a>
         </article>
@@ -550,11 +570,11 @@
 
       <article class="price-wl" aria-labelledby="price-wl">
         <div class="price-wl__left">
-          <h3 class="price-wl__name" id="price-wl">White Label —<br>ваш бренд<br>на платформе</h3>
+          <h3 class="price-wl__name" id="price-wl">White Label — <br>ваш бренд <br>на платформе</h3>
           <ul class="price-wl__benefits">
             <li>Отчеты без логотипа сервиса</li>
-            <li>Брендирование<br>и собственный домен</li>
-            <li>Персональные доработки<br>по согласованию</li>
+            <li>Брендирование <br>и собственный домен</li>
+            <li>Персональные доработки <br>по согласованию</li>
           </ul>
         </div>
 
@@ -566,7 +586,7 @@
         <div class="price-wl__right">
           <p class="price-wl__price">25 900 ₽</p>
           <p class="price-wl__per">259 руб/проект</p>
-          <p class="price-wl__trial"><strong>14 дней бесплатно<br>на любом тарифе</strong><br>настройка за 5 минут</p>
+          <p class="price-wl__trial"><strong>14 дней бесплатно <br>на любом тарифе</strong> <br>настройка за 5 минут</p>
           <a class="price-wl__cta" href="/signup">Оставить заявку на WL <span aria-hidden="true">↗</span></a>
         </div>
       </article>
@@ -625,8 +645,8 @@
       <img class="cta-deco cta-deco--pie"      src="/landing-new/assets/img/cta-pie.png"      width="1026" height="485" alt="" aria-hidden="true" loading="lazy">
       <img class="cta-deco cta-deco--bars"     src="/landing-new/assets/img/cta-bars.webp"     width="1195" height="697" alt="" aria-hidden="true" loading="lazy">
 
-      <h2 class="cta-band__title" id="cta-band-title">Подключите кабинеты и увидите всех<br>клиентов в одной панели</h2>
-      <p class="cta-band__lead">Яндекс.Директ, VK Реклама и Авито Реклама сведутся<br>за пять минут. Детектор начнёт следить за просадками с первого дня.</p>
+      <h2 class="cta-band__title" id="cta-band-title">Подключите кабинеты и увидите всех <br>клиентов в одной панели</h2>
+      <p class="cta-band__lead">Яндекс.Директ, VK Реклама и Авито Реклама сведутся <br>за пять минут. Детектор начнёт следить за просадками с первого дня.</p>
       <a class="btn-cta cta-band__cta" href="/signup">
         Попробовать бесплатно
         <span class="btn-cta__arrow" aria-hidden="true">

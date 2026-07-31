@@ -266,6 +266,7 @@ button {
 }
 
 .site-header__inner {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 67.5px;
@@ -320,6 +321,46 @@ button {
 /* Кнопки шапки в Figma фиксированной ширины: 145 и 150. */
 .site-header__actions .btn--gradient { width: 130.5px; padding-inline: 0; }
 .site-header__actions .btn--dark { width: 135px; padding-inline: 0; }
+
+/* На десктопе мобильная навигация полностью отсутствует из раскладки. */
+.site-header__burger,
+.mobile-nav {
+  display: none;
+}
+
+.site-header__burger {
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 4.5px;
+  width: 39.6px;
+  height: 39.6px;
+  border-radius: 50%;
+  background: var(--grad-cta);
+  color: #fff;
+}
+
+.site-header__burger span {
+  width: 16.2px;
+  height: 1.8px;
+  border-radius: 2px;
+  background: currentColor;
+  transform-origin: center;
+  transition: transform 180ms ease, opacity 150ms ease;
+}
+
+.site-header__burger[aria-expanded="true"] span:nth-child(1) {
+  transform: translateY(6.3px) rotate(45deg);
+}
+
+.site-header__burger[aria-expanded="true"] span:nth-child(2) {
+  opacity: 0;
+}
+
+.site-header__burger[aria-expanded="true"] span:nth-child(3) {
+  transform: translateY(-6.3px) rotate(-45deg);
+}
 
 /* --------------------------------------------------------------------------
    Первый экран
@@ -2830,18 +2871,84 @@ button {
 @media (max-width: 690px) {
   :root { --gutter: 14.4px; }
 
+  /* Все составные блоки могут сжиматься до ширины мобильного viewport.
+     Явный min-width: 0 особенно важен для grid/flex-детей: без него длинный
+     текст сохранял intrinsic-width и визуально упирался в правый край. */
+  .page,
+  .features,
+  .features__inner,
+  .features__head,
+  .feature,
+  .feature__text,
+  .feature__title,
+  .feature__lead,
+  .feature__list,
+  .pain-card__body,
+  .footer__top,
+  .footer__subscribe {
+    min-width: 0;
+  }
+
   .site-header { padding: 10.8px 14.4px 0; }
   .site-header__inner { min-height: 54px; padding: 10.8px 14.4px; }
   .site-header__logo img { width: 106.2px; height: auto; }
   .site-nav,
-  .site-header__actions .btn--dark { display: none; }
-  .site-header__actions { margin-left: auto; }
-  .site-header__actions .btn--gradient { width: auto; padding-inline: 16.2px; }
+  .site-header__actions { display: none; }
+  .site-header__burger { display: flex; margin-left: auto; }
+  .mobile-nav:not([hidden]) {
+    position: absolute;
+    top: calc(100% + 8.1px);
+    right: 0;
+    left: 0;
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    gap: 2.7px;
+    padding: 10.8px;
+    border: 1px solid rgba(148, 172, 205, 0.24);
+    border-radius: 21.6px;
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 21.6px 43.2px rgba(34, 64, 121, 0.18);
+  }
+  .mobile-nav > a {
+    display: flex;
+    align-items: center;
+    min-height: 43.2px;
+    padding-inline: 14.4px;
+    border-radius: 12.6px;
+    color: #1c274c;
+    font-size: 14.4px;
+    font-weight: 500;
+  }
+  .mobile-nav > a:active { background: #f0f4ff; }
+  .mobile-nav__actions {
+    display: grid;
+    grid-template-columns: minmax(0, .78fr) minmax(0, 1.22fr);
+    gap: 8.1px;
+    margin-top: 7.2px;
+  }
+  .mobile-nav__signin,
+  .mobile-nav__signup {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 46.8px;
+    padding-inline: 12.6px;
+    border-radius: 23.4px;
+    color: #fff;
+    font-size: 10.8px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-align: center;
+    text-transform: uppercase;
+  }
+  .mobile-nav__signin { background: var(--c-dark); }
+  .mobile-nav__signup { background: var(--grad-cta); }
 
   .hero__title { margin-top: 55.8px; padding-inline: 14.4px; font-size: clamp(30.6px, 9vw, 40.5px); }
   .hero__lead { margin-top: 27px; padding-inline: 18px; font-size: 16.2px; }
   .hero__cta { flex-direction: column; align-items: center; gap: 12.6px; padding-inline: 14.4px; }
-  .btn-cta { width: min(100%, 380.7px); height: 68.4px; padding-inline: 25.2px; font-size: 12.6px; }
+  .btn-cta { justify-content: center; width: min(100%, 380.7px); height: 68.4px; padding-inline: 25.2px; font-size: 12.6px; }
   .hero__note { width: min(100%, 279px); height: auto; min-height: 73.8px; margin-left: 0; padding: 16.2px 21.6px; text-align: center; }
   .hero__chips { flex-direction: column; align-items: center; gap: 7.2px; padding-inline: 14.4px; }
   .hero__chips li:nth-child(n) { width: min(100%, 287.1px); }
@@ -2869,36 +2976,79 @@ button {
   .pains .section-title br,
   .pains .section-lead br { display: none; }
   .pain-card { min-height: 165.6px; height: auto; padding-right: 16.2px; padding-bottom: 52.2px; border-radius: 21.6px; }
-  .pain-card__quote { font-size: 16.2px; }
+  .pain-card__body { flex: 1 1 auto; }
+  .pain-card__quote { max-width: 100%; overflow-wrap: break-word; font-size: 16.2px; }
   .pain-card__quote br { display: none; }
-  .pain-card__tag { top: auto; bottom: 20.7px; font-size: 12.6px; }
+  .pain-card__tag { top: auto; right: 16.2px; bottom: 20.7px; max-width: calc(100% - 127.8px); font-size: 12.6px; }
 
   .how { padding-top: 64.8px; padding-bottom: 72px; }
   .how-card { border-radius: 21.6px; }
 
-  .features { padding-inline: 14.4px; padding-bottom: 28.8px; }
-  .features__inner { padding: 43.2px 21.6px 57.6px; border-radius: 21.6px; }
+  .features { width: 100%; padding-inline: 14.4px; padding-bottom: 28.8px; }
+  .features__inner { width: 100%; max-width: 100%; padding: 43.2px 21.6px 57.6px; border-radius: 21.6px; }
   .features__head { margin-bottom: 48.6px; }
+  .features__title,
+  .feature,
+  .feature__text,
+  .feature__title,
+  .feature__lead,
+  .feature__list {
+    width: 100%;
+    max-width: 100%;
+  }
+  .feature,
+  .feature--text-right { grid-template-columns: minmax(0, 1fr); }
+  .features__title,
+  .feature__title,
+  .feature__lead,
+  .feature__list li {
+    white-space: normal;
+    overflow-wrap: break-word;
+  }
   .features__title br { display: none; }
   .feature + .feature { margin-top: 57.6px; }
-  .badge { height: auto; min-height: 37.8px; padding: 12.6px 16.2px; margin-bottom: 22.5px; font-size: 9.9px; letter-spacing: 1.98px; }
+  .badge {
+    max-width: 100%;
+    height: auto;
+    min-height: 37.8px;
+    padding: 12.6px 16.2px;
+    margin-bottom: 22.5px;
+    white-space: normal;
+    text-align: center;
+    font-size: 9.9px;
+    line-height: 1.25;
+    letter-spacing: 1.6px;
+  }
   .feature__title { margin-bottom: 21.6px; font-size: clamp(24.3px, 7.6vw, 29.7px); line-height: 1.14; }
   .feature__title br,
   .feature__lead br { display: none; }
   .feature__lead,
   .feature__list li { font-size: 14.4px; }
   .feature__list { gap: 14.4px; }
-  .feat-illu { width: 100%; }
+  .feat-illu { justify-self: center; width: min(100%, 288px); max-width: 288px; }
 
   .integrations { padding: 57.6px 0; }
-  .integrations__rail { width: max-content; margin: 30.6px 14.4px 0; padding-right: 14.4px; }
-  .integration-card { flex-basis: 243px; height: 86.4px; border-radius: 21.6px; }
+  .integrations__rail {
+    width: 100%;
+    margin: 30.6px 0 0;
+    padding: 0 14.4px 8px;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scroll-padding-inline: 14.4px;
+    scroll-snap-type: inline mandatory;
+    scrollbar-width: none;
+  }
+  .integrations__rail::-webkit-scrollbar { display: none; }
+  .integration-card { flex-basis: 243px; height: 86.4px; border-radius: 21.6px; scroll-snap-align: start; }
 
   .pricing { padding: 0 14.4px 21.6px; }
   .pricing__inner { padding: 43.2px 18px; border-radius: 21.6px; }
   .pricing__head { text-align: left; }
   .pricing__cards { grid-template-columns: 1fr; margin-top: 34.2px; }
-  .price-card { max-width: 324px; justify-self: center; }
+  .price-card { width: 100%; max-width: none; justify-self: stretch; }
+  .price-card__benefits { width: calc(100% - 54px); }
+  .price-card__cta { right: 21.6px; left: 21.6px; width: auto; }
+  .price-card__base-fox-wrap { right: -63px; left: auto; }
   .price-wl { grid-template-columns: 1fr; min-height: 0; padding: 50.4px 21.6px 25.2px; border-radius: 21.6px; }
   .price-wl__right { display: block; }
   .price-wl__cta { width: 100%; margin-top: 21.6px; }
@@ -2920,7 +3070,7 @@ button {
   .cta-band__title br,
   .cta-band__lead br { display: none; }
   .cta-band__lead { margin: 25.2px 0 27px; font-size: 15.3px; }
-  .cta-band__cta { margin-inline: auto; }
+  .cta-band__cta { width: 100%; max-width: none; margin-inline: auto; }
   .cta-band__note { width: 100%; height: auto; min-height: 77.4px; margin-top: -7.2px; padding: 24.3px 16.2px 14.4px; }
   .cta-deco { display: none; }
 
@@ -2934,9 +3084,20 @@ button {
   .about-seo__title { font-size: 16.2px; }
   .about-seo__text { font-size: 12.6px; }
 
-  .footer__top { flex-direction: column; align-items: flex-start; gap: 25.2px; }
-  .footer__subscribe { width: 100%; }
+  .footer__top { width: 100%; flex-direction: column; align-items: flex-start; gap: 25.2px; padding-inline: 14.4px; }
+  .footer__subscribe { width: 100%; flex-direction: column; align-items: flex-start; gap: 12.6px; }
+  .footer__capsule { width: min(100%, 304.2px); }
   .footer__cols { grid-template-columns: 1fr 1fr; }
+  .footer__col,
+  .footer__center { min-width: 0; }
+  .footer__col a,
+  .footer__tagline,
+  .footer__copy { overflow-wrap: anywhere; }
   .footer__center { grid-column: 1 / -1; }
   .footer__nav { flex-wrap: wrap; justify-content: flex-start; padding-inline: 14.4px; }
+}
+
+@media (max-width: 480px) {
+  .footer__cols { grid-template-columns: 1fr; gap: 28.8px; }
+  .footer__center { grid-column: auto; }
 }
