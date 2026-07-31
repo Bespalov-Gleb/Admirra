@@ -379,12 +379,18 @@ button {
   pointer-events: none;
 }
 
-.hero__ico--yd > img,
-.hero__ico--avito > img {
+.hero__ico--yd > img {
   inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.hero__ico--avito > img {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 /* В макете исходник VK увеличен внутри круглого окна 30×30:
