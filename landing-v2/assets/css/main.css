@@ -152,6 +152,17 @@ button {
   --c-accent-soft: #5171d0;
   --c-accent-pale: #bccbf7;
 
+  /* Aurora / mesh — выбранный вариант №2 из галереи паттернов.
+     Базовый градиент и сетка едины для всех крупных голубых поверхностей,
+     а положения цветных пятен задаются отдельно у каждой секции. */
+  --aurora-surface: linear-gradient(160deg, #e9eefb 0%, #d7e0f7 55%, #c7d3f2 100%);
+  --aurora-dot-grid: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.25) 0,
+    rgba(255, 255, 255, 0.25) 0.9px,
+    transparent 1.35px
+  );
+
   /* В Figma градиент задан справа налево (gradientTransform переворачивает ось),
      поэтому позиции стопов здесь зеркальны исходным: 1 − p. */
   --grad-cta: linear-gradient(90deg,
@@ -230,30 +241,21 @@ button {
    -------------------------------------------------------------------------- */
 
 /* --------------------------------------------------------------------------
-   Подложка первого экрана.
-
-   Из макета: вертикальный градиент от #e5eaf8 вверху, темнеет до #d9dff9
-   примерно к 36 % высоты, затем светлеет и уходит в белый к низу блока
-   (высота блока ≈ 1240 px при ширине макета 1920).
-
-   Поверх градиента — два слоя узора, снятые с макета измерением:
-   квадратные точки 2,5 px с шагом 12,5 px и «плюсики» 13 px с шагом 125 px
-   (ровно 10 ячеек сетки точек). Оба слоя — SVG в data-URI: масштабируются
-   без потерь и не добавляют сетевых запросов.
+   Подложка первого экрана — Aurora mesh. Цветные пятна повторяют выбранный
+   вариант №2; дополнительный верхний слой мягко растворяет фон в белом перед
+   следующей секцией.
    -------------------------------------------------------------------------- */
 
 .hero-wrap {
   position: relative;
-  background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='125' height='125'%3E%3Cpath d='M53 43h3v5h5v3h-5v5h-3v-5h-5v-3h5z' fill='%23fff' fill-opacity='.75'/%3E%3C/svg%3E"),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='25' height='25'%3E%3Cg fill='%23fff' fill-opacity='.5'%3E%3Crect x='0' y='0' width='2.5' height='2.5'/%3E%3Crect x='12.5' y='12.5' width='2.5' height='2.5'/%3E%3Crect x='12.5' y='0' width='2.5' height='2.5'/%3E%3Crect x='0' y='12.5' width='2.5' height='2.5'/%3E%3C/g%3E%3C/svg%3E"),
-    linear-gradient(180deg,
-      #e5eaf8 0%,
-      #d9dff9 36%,
-      #eef2f8 92%,
-      #ffffff 100%);
-  background-size: 112.5px 112.5px, 22.5px 22.5px, 100% 100%;
-  background-repeat: repeat, repeat, no-repeat;
+  background:
+    linear-gradient(180deg, transparent 0%, transparent 78%, #fff 100%),
+    var(--aurora-dot-grid) 0 0 / 30.6px 30.6px,
+    radial-gradient(60% 80% at 12% 20%, rgba(37, 99, 235, 0.38), transparent 60%),
+    radial-gradient(55% 75% at 92% 30%, rgba(6, 181, 212, 0.34), transparent 60%),
+    radial-gradient(70% 90% at 70% 110%, rgba(31, 157, 228, 0.34), transparent 60%),
+    var(--aurora-surface);
+  background-repeat: no-repeat, repeat, no-repeat, no-repeat, no-repeat, no-repeat;
 }
 
 .site-header {
@@ -698,15 +700,12 @@ button {
   overflow: hidden;
   text-align: center;
   background:
-    /* Размытые эллипсы подсветки из макета (LAYER_BLUR 500) — воспроизводим
-       радиальными градиентами, это дешевле и визуально неотличимо. */
-    radial-gradient(circle at 12% 45%, rgba(213, 220, 249, 0.9) 0%, rgba(213, 220, 249, 0) 55%),
-    radial-gradient(circle at 53% 0%, rgba(255, 255, 255, 0.46) 0%, rgba(255, 255, 255, 0) 45%),
-    radial-gradient(circle at 88% 55%, rgba(220, 230, 245, 0.95) 0%, rgba(220, 230, 245, 0) 60%),
-    /* Тот же точечный узор, что на первом экране, приглушённый до 54 %. */
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='25' height='25'%3E%3Cg fill='%23fff' fill-opacity='.45'%3E%3Crect x='0' y='0' width='2.5' height='2.5'/%3E%3Crect x='12.5' y='12.5' width='2.5' height='2.5'/%3E%3Crect x='12.5' y='0' width='2.5' height='2.5'/%3E%3Crect x='0' y='12.5' width='2.5' height='2.5'/%3E%3C/g%3E%3C/svg%3E"),
-    #f0f4f8;
-  background-size: auto, auto, auto, 22.5px 22.5px, auto;
+    var(--aurora-dot-grid) 0 0 / 30.6px 30.6px,
+    radial-gradient(62% 82% at 8% 20%, rgba(37, 99, 235, 0.38), transparent 60%),
+    radial-gradient(58% 78% at 93% 28%, rgba(6, 181, 212, 0.34), transparent 60%),
+    radial-gradient(72% 92% at 64% 112%, rgba(31, 157, 228, 0.34), transparent 60%),
+    var(--aurora-surface);
+  background-repeat: repeat, no-repeat, no-repeat, no-repeat, no-repeat;
 }
 
 /* Надзаголовок стоит на 69 px от верха блока, H2 — на 120, то есть между
@@ -970,13 +969,13 @@ button {
   border-radius: 27px;
   overflow: hidden;
   background:
-    radial-gradient(circle at 10% 12%, rgba(213, 220, 249, 0.85) 0%, rgba(213, 220, 249, 0) 42%),
-    radial-gradient(circle at 55% 0%, rgba(255, 255, 255, 0.46) 0%, rgba(255, 255, 255, 0) 30%),
-    radial-gradient(circle at 92% 30%, rgba(220, 230, 245, 0.9) 0%, rgba(220, 230, 245, 0) 45%),
-    radial-gradient(circle at 8% 78%, rgba(220, 230, 245, 0.9) 0%, rgba(220, 230, 245, 0) 45%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='25' height='25'%3E%3Cg fill='%23fff' fill-opacity='.45'%3E%3Crect x='0' y='0' width='2.5' height='2.5'/%3E%3Crect x='12.5' y='12.5' width='2.5' height='2.5'/%3E%3Crect x='12.5' y='0' width='2.5' height='2.5'/%3E%3Crect x='0' y='12.5' width='2.5' height='2.5'/%3E%3C/g%3E%3C/svg%3E"),
-    #f0f4f8;
-  background-size: auto, auto, auto, auto, 22.5px 22.5px, auto;
+    var(--aurora-dot-grid) 0 0 / 30.6px 30.6px,
+    radial-gradient(68% 28% at 6% 8%, rgba(37, 99, 235, 0.38), transparent 60%),
+    radial-gradient(62% 26% at 94% 27%, rgba(6, 181, 212, 0.34), transparent 60%),
+    radial-gradient(72% 30% at 8% 57%, rgba(31, 157, 228, 0.34), transparent 60%),
+    radial-gradient(64% 28% at 95% 87%, rgba(37, 99, 235, 0.30), transparent 60%),
+    var(--aurora-surface);
+  background-repeat: repeat, no-repeat, no-repeat, no-repeat, no-repeat, no-repeat;
 }
 
 .features__head {
@@ -1214,11 +1213,12 @@ button {
   overflow: hidden;
   border-radius: 27px;
   background:
-    radial-gradient(630px 702px at 6% 90%, rgba(197, 205, 249, 0.82), transparent 72%),
-    radial-gradient(729px 666px at 95% 40%, rgba(227, 237, 247, 0.88), transparent 70%),
-    radial-gradient(468px 504px at 49% 0%, rgba(255, 255, 255, 0.65), transparent 82%),
-    #dce5f7;
-  background-size: auto;
+    var(--aurora-dot-grid) 0 0 / 30.6px 30.6px,
+    radial-gradient(62% 82% at 8% 18%, rgba(37, 99, 235, 0.38), transparent 60%),
+    radial-gradient(58% 78% at 94% 35%, rgba(6, 181, 212, 0.34), transparent 60%),
+    radial-gradient(72% 92% at 66% 110%, rgba(31, 157, 228, 0.34), transparent 60%),
+    var(--aurora-surface);
+  background-repeat: repeat, no-repeat, no-repeat, no-repeat, no-repeat;
 }
 
 .pricing__head {
@@ -1743,12 +1743,12 @@ button {
   overflow: hidden;
   border-radius: 27px;
   background:
-    radial-gradient(684px 558px at 8% 20%, rgba(213, 220, 249, 0.9) 0%, rgba(213, 220, 249, 0) 60%),
-    radial-gradient(738px 630px at 95% 85%, rgba(220, 230, 245, 0.95) 0%, rgba(220, 230, 245, 0) 62%),
-    radial-gradient(504px 414px at 50% 4%, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 70%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='25' height='25'%3E%3Cg fill='%23fff' fill-opacity='.45'%3E%3Crect x='0' y='0' width='2.5' height='2.5'/%3E%3Crect x='12.5' y='12.5' width='2.5' height='2.5'/%3E%3Crect x='12.5' y='0' width='2.5' height='2.5'/%3E%3Crect x='0' y='12.5' width='2.5' height='2.5'/%3E%3C/g%3E%3C/svg%3E"),
-    #dbe2f9;
-  background-size: auto, auto, auto, 22.5px 22.5px, auto;
+    var(--aurora-dot-grid) 0 0 / 30.6px 30.6px,
+    radial-gradient(64% 86% at 8% 18%, rgba(37, 99, 235, 0.38), transparent 60%),
+    radial-gradient(58% 80% at 94% 28%, rgba(6, 181, 212, 0.34), transparent 60%),
+    radial-gradient(74% 94% at 68% 112%, rgba(31, 157, 228, 0.34), transparent 60%),
+    var(--aurora-surface);
+  background-repeat: repeat, no-repeat, no-repeat, no-repeat, no-repeat;
 }
 
 .cta-band__title {
