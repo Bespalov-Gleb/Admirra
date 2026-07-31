@@ -212,7 +212,7 @@
 <script setup>
 import FullScreenLayout from '@/layouts/FullScreenLayout.vue'
 import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { reachGoal } from '@/utils/metrika'
 import { useAuth } from '@/composables/useAuth'
 import { useOAuthLogin } from '@/composables/useOAuthLogin'
@@ -222,6 +222,7 @@ import authHero from '@/assets/imgs/auth/auth.webp'
 import payMethods from '@/assets/imgs/auth/pay.png'
 
 const router = useRouter()
+const route = useRoute()
 const { register, checkAuth, fetchCurrentUser, setToken, getErrorMessage } = useAuth()
 const { startYandexLogin, startVkLogin, startMaxLogin } = useOAuthLogin()
 const showPassword = ref(false)
@@ -239,8 +240,13 @@ const registerForm = reactive({
 
 const errorMessage = ref('')
 
-// Цель «Начало регистрации» — открыл форму
-onMounted(() => reachGoal('signup_start'))
+// Цель «Начало регистрации» — открыл форму. Email из формы подписки на
+// лендинге переносим в регистрацию, чтобы пользователь не вводил его дважды.
+onMounted(() => {
+  reachGoal('signup_start')
+  const email = String(route.query.email || '').trim()
+  if (email) registerForm.email = email
+})
 
 const reuseProviderSession = async (provider) => {
   if (getAuthProvider() !== provider) return false

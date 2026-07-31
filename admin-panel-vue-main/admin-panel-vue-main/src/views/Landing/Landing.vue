@@ -1,6 +1,6 @@
 <template>
   <iframe
-    src="/admirra/index.html"
+    src="/landing-new/index.html"
     class="absolute inset-0 w-full h-full border-0"
     title="AdMirra — главная"
   />

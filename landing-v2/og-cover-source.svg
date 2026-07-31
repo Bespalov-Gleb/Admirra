@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#eef3ff"/>
+      <stop offset="0.55" stop-color="#dbe4f8"/>
+      <stop offset="1" stop-color="#d2e5f6"/>
+    </linearGradient>
+    <radialGradient id="blue" cx="0" cy="0" r="1" gradientTransform="translate(80 90) rotate(28) scale(610 430)">
+      <stop stop-color="#3765f1" stop-opacity=".42"/>
+      <stop offset="1" stop-color="#3765f1" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="cyan" cx="0" cy="0" r="1" gradientTransform="translate(1110 90) rotate(145) scale(580 420)">
+      <stop stop-color="#12c4d4" stop-opacity=".36"/>
+      <stop offset="1" stop-color="#12c4d4" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="button" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#2563eb"/>
+      <stop offset=".68" stop-color="#1f9de4"/>
+      <stop offset="1" stop-color="#06b5d4"/>
+    </linearGradient>
+    <pattern id="dots" width="28" height="28" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.2" fill="#fff" opacity=".42"/>
+    </pattern>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="180%">
+      <feDropShadow dx="0" dy="24" stdDeviation="25" flood-color="#1f4086" flood-opacity=".24"/>
+    </filter>
+    <clipPath id="screenClip"><rect x="0" y="0" width="660" height="462" rx="22"/></clipPath>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#blue)"/>
+  <rect width="1200" height="630" fill="url(#cyan)"/>
+  <rect width="1200" height="630" fill="url(#dots)"/>
+
+  <image href="assets/img/logo.png" x="70" y="58" width="212" height="45" preserveAspectRatio="xMinYMid meet"/>
+
+  <text x="70" y="200" fill="#16213e" font-family="Arial, sans-serif" font-size="52" font-weight="700">
+    <tspan x="70" dy="0">Аналитика рекламы</tspan>
+    <tspan x="70" dy="58">и автоотчёты</tspan>
+    <tspan x="70" dy="58">для агентств</tspan>
+  </text>
+  <text x="70" y="405" fill="#425277" font-family="Arial, sans-serif" font-size="25">
+    <tspan x="70" dy="0">Яндекс.Директ, VK Реклама</tspan>
+    <tspan x="70" dy="34">и Авито Реклама — в одной панели.</tspan>
+  </text>
+  <rect x="70" y="494" width="238" height="56" rx="28" fill="url(#button)"/>
+  <text x="189" y="530" text-anchor="middle" fill="#fff" font-family="Arial, sans-serif" font-size="20" font-weight="700">14 дней бесплатно</text>
+
+  <g transform="translate(613 82) rotate(-2 330 231)" filter="url(#shadow)">
+    <rect x="-14" y="-14" width="688" height="490" rx="32" fill="#fff" fill-opacity=".82" stroke="#fff" stroke-opacity=".9"/>
+    <g clip-path="url(#screenClip)">
+      <image href="assets/img/hero-dashboard.png" x="0" y="0" width="660" height="462" preserveAspectRatio="xMidYMid slice"/>
+    </g>
+  </g>
+</svg>
