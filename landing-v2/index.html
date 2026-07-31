@@ -43,9 +43,6 @@
 </head>
 <body>
 
-  <!-- Полотно фиксированной ширины 1920. Масштабируется под ширину окна через
-       zoom (см. скрипт внизу) — макет свёрстан абсолютами под 1920, поэтому
-       вместо переверстки всех секций пропорционально ужимаем всё полотно. -->
   <div class="page">
 
   <!-- Первый экран и шапка лежат на одной подложке: в макете это единый
@@ -55,7 +52,7 @@
   <header class="site-header">
     <div class="site-header__inner">
       <a class="site-header__logo" href="/" aria-label="AdMirra — на главную">
-        <img src="/assets/img/logo.png" width="146" height="31"
+        <img src="/assets/img/logo.png" width="131" height="28"
              alt="AdMirra — аналитика рекламы для агентств">
       </a>
 
@@ -82,9 +79,9 @@
       <!-- Пробелы между иконкой и следующим словом убраны намеренно: перенос
            строки в разметке даёт пробел ~14 px поверх заданного margin, и строка
            расползается. Зазор задаётся только через margin у .hero__ico. -->
-      <b>Яндекс.Директ</b><img class="hero__ico hero__ico--yd" src="/assets/icons/yandex-direct.png" width="30" height="30" alt="" aria-hidden="true"
-      ><b>VK Реклама</b><img class="hero__ico hero__ico--vk" src="/assets/icons/vk-ads.png" width="30" height="30" alt="" aria-hidden="true"><br
-      ><b>и Авито Реклама</b><img class="hero__ico hero__ico--avito" src="/assets/icons/avito.png" width="30" height="30" alt="" aria-hidden="true"
+      <b>Яндекс.Директ</b><span class="hero__ico hero__ico--yd" aria-hidden="true"><img src="/assets/icons/yandex-direct.png" width="1200" height="1200" alt=""></span
+      ><b>VK Реклама</b><span class="hero__ico hero__ico--vk" aria-hidden="true"><img src="/assets/icons/vk-ads.png" width="1280" height="1280" alt=""></span><br
+      ><b>и Авито Реклама</b><span class="hero__ico hero__ico--avito" aria-hidden="true"><img src="/assets/icons/avito.png" width="167" height="172" alt=""></span
       ><span class="hero__title-soft">— в одной панели</span>
     </h1>
 
@@ -100,8 +97,8 @@
       <a class="btn-cta" href="#demo">
         Подключить кабинеты
         <span class="btn-cta__arrow" aria-hidden="true">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M2 12L12 2M12 2H4.5M12 2V9.5" stroke="#fff" stroke-width="1.5"
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+            <path d="M2 12L12 2M12 2H4.5M12 2V9.5" stroke="#fff" stroke-width="1"
                   stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </span>
@@ -123,14 +120,14 @@
          плавающие карточки. Дашборд — LCP-элемент, грузится сразу. -->
     <div class="hero__shot">
       <div class="hero__tablet">
-        <img class="hero__screen" src="/assets/img/hero-dashboard.png" width="1089" height="756"
+        <img class="hero__screen" src="/assets/img/hero-dashboard.png" width="980" height="680"
              fetchpriority="high" decoding="async"
              alt="Дашборд AdMirra: реклама Яндекс.Директ, VK Реклама и Авито Реклама в одной панели">
       </div>
-      <img class="hero__card hero__card--tl" src="/assets/img/hero-card-tl.png" width="269" height="114" alt="" aria-hidden="true">
-      <img class="hero__card hero__card--tr" src="/assets/img/hero-card-tr.png" width="299" height="196" alt="" aria-hidden="true">
-      <img class="hero__card hero__card--r"  src="/assets/img/hero-card-r.png"  width="352" height="250" alt="" aria-hidden="true">
-      <img class="hero__card hero__card--l"  src="/assets/img/hero-card-l.png"  width="241" height="193" alt="" aria-hidden="true">
+      <img class="hero__card hero__card--tl" src="/assets/img/hero-card-tl.png" width="242" height="103" alt="" aria-hidden="true">
+      <img class="hero__card hero__card--tr" src="/assets/img/hero-card-tr.png" width="269" height="176" alt="" aria-hidden="true">
+      <img class="hero__card hero__card--r"  src="/assets/img/hero-card-r.png"  width="317" height="225" alt="" aria-hidden="true">
+      <img class="hero__card hero__card--l"  src="/assets/img/hero-card-l.png"  width="217" height="174" alt="" aria-hidden="true">
     </div>
   </section>
 
@@ -142,21 +139,21 @@
     <div class="container">
       <ul class="audience__grid">
         <li class="aud-card">
-          <img class="aud-card__ico" src="/assets/icons/aud-agency.png" width="39" height="46" alt="" aria-hidden="true">
+          <img class="aud-card__ico" src="/assets/icons/aud-agency.png" width="35" height="41" alt="" aria-hidden="true">
           <div class="aud-card__body">
             <strong class="aud-card__title">Рекламным<br>агентствам</strong>
             <p>Десятки клиентов, Яндекс.Директ,<br>VK Реклама и Авито Реклама —<br>в одном окне. Меньше рутины,<br>больше проектов на специалиста.</p>
           </div>
         </li>
         <li class="aud-card">
-          <img class="aud-card__ico" src="/assets/icons/aud-specialist.png" width="37" height="43" alt="" aria-hidden="true">
+          <img class="aud-card__ico" src="/assets/icons/aud-specialist.png" width="33" height="39" alt="" aria-hidden="true">
           <div class="aud-card__body">
             <strong class="aud-card__title">Специалистам<br>по контексту и таргету</strong>
             <p>Ведёте пул проектов сами?<br>Система следит за просадками,<br>а отчёты собираются<br>без вечеров в Excel.</p>
           </div>
         </li>
         <li class="aud-card">
-          <img class="aud-card__ico" src="/assets/icons/aud-inhouse.png" width="43" height="42" alt="" aria-hidden="true">
+          <img class="aud-card__ico" src="/assets/icons/aud-inhouse.png" width="39" height="38" alt="" aria-hidden="true">
           <div class="aud-card__body">
             <strong class="aud-card__title">Инхаус-командам<br>с пулом кампаний</strong>
             <p>Разные услуги, филиалы или<br>товары в одном кабинете —<br>видно, что именно проседает,<br>а не среднее по больнице.</p>
@@ -173,10 +170,10 @@
     <div class="pains__inner">
       <!-- Декоративные «плавающие» карточки-скриншоты по краям панели.
            overflow:hidden у .pains__inner подрезает их по границе блока, как в макете. -->
-      <img class="pains__decor pains__decor--tl" src="/assets/img/pains-decor-tl.png" width="223" height="167" alt="" aria-hidden="true" loading="lazy">
-      <img class="pains__decor pains__decor--tr" src="/assets/img/pains-decor-tr.png" width="239" height="191" alt="" aria-hidden="true" loading="lazy">
-      <img class="pains__decor pains__decor--bl" src="/assets/img/pains-decor-bl.png" width="212" height="80" alt="" aria-hidden="true" loading="lazy">
-      <img class="pains__decor pains__decor--br" src="/assets/img/pains-decor-br.png" width="143" height="130" alt="" aria-hidden="true" loading="lazy">
+      <img class="pains__decor pains__decor--tl" src="/assets/img/pains-decor-tl.png" width="201" height="150" alt="" aria-hidden="true" loading="lazy">
+      <img class="pains__decor pains__decor--tr" src="/assets/img/pains-decor-tr.png" width="215" height="172" alt="" aria-hidden="true" loading="lazy">
+      <img class="pains__decor pains__decor--bl" src="/assets/img/pains-decor-bl.png" width="191" height="72" alt="" aria-hidden="true" loading="lazy">
+      <img class="pains__decor pains__decor--br" src="/assets/img/pains-decor-br.png" width="129" height="117" alt="" aria-hidden="true" loading="lazy">
 
       <p class="eyebrow">Знакомо?</p>
 
@@ -193,42 +190,42 @@
 
       <ul class="pains__grid">
         <li class="pain-card">
-          <img class="pain-card__ico" src="/assets/icons/pain-1.png" width="83" height="83" alt="" aria-hidden="true">
+          <img class="pain-card__ico" src="/assets/icons/pain-1.png" width="75" height="75" alt="" aria-hidden="true">
           <div class="pain-card__body">
             <p class="pain-card__quote">«Яндекс.Директ в одной вкладке,<br>VK Реклама — в другой, Авито Реклама<br>— в третьей. А клиент хочет одну цифру<br>по заявкам. Сводишь руками.»</p>
             <p class="pain-card__tag pain-card__tag--blue">// разрозненные кабинеты</p>
           </div>
         </li>
         <li class="pain-card">
-          <img class="pain-card__ico" src="/assets/icons/pain-2.png" width="83" height="83" alt="" aria-hidden="true">
+          <img class="pain-card__ico" src="/assets/icons/pain-2.png" width="75" height="75" alt="" aria-hidden="true">
           <div class="pain-card__body">
             <p class="pain-card__quote">«В одном кабинете — и разные<br>услуги, и филиалы, и товары. А<br>клиенту нужен отчёт с разбивкой.<br>Собираешь вручную каждый раз.»</p>
             <p class="pain-card__tag pain-card__tag--cyan">// нет разбивки внутри проекта</p>
           </div>
         </li>
         <li class="pain-card">
-          <img class="pain-card__ico pain-card__ico--sm" src="/assets/icons/pain-3.png" width="67" height="67" alt="" aria-hidden="true">
+          <img class="pain-card__ico pain-card__ico--sm" src="/assets/icons/pain-3.png" width="60" height="60" alt="" aria-hidden="true">
           <div class="pain-card__body">
             <p class="pain-card__quote">«О том, что стоимость лида<br>или расходы улетели в потолок,<br>узнаёшь от клиента. А не первым.»</p>
             <p class="pain-card__tag pain-card__tag--red">// реакция постфактум</p>
           </div>
         </li>
         <li class="pain-card">
-          <img class="pain-card__ico pain-card__ico--sm" src="/assets/icons/pain-4.png" width="67" height="67" alt="" aria-hidden="true">
+          <img class="pain-card__ico pain-card__ico--sm" src="/assets/icons/pain-4.png" width="60" height="60" alt="" aria-hidden="true">
           <div class="pain-card__body">
             <p class="pain-card__quote">«Каждую неделю —<br>вечер в Excel ради отчётов.<br>И так по каждому клиенту.»</p>
             <p class="pain-card__tag pain-card__tag--green">// ручная отчётность</p>
           </div>
         </li>
         <li class="pain-card">
-          <img class="pain-card__ico pain-card__ico--sm" src="/assets/icons/pain-5.png" width="66" height="66" alt="" aria-hidden="true">
+          <img class="pain-card__ico pain-card__ico--sm" src="/assets/icons/pain-5.png" width="59" height="59" alt="" aria-hidden="true">
           <div class="pain-card__body">
             <p class="pain-card__quote">«У каждого спеца отчёт<br>в своём формате. Клиент<br>путается, ты краснеешь.»</p>
             <p class="pain-card__tag pain-card__tag--purple">// разнобой в отчётах</p>
           </div>
         </li>
         <li class="pain-card">
-          <img class="pain-card__ico pain-card__ico--sm" src="/assets/icons/pain-6.png" width="68" height="68" alt="" aria-hidden="true">
+          <img class="pain-card__ico pain-card__ico--sm" src="/assets/icons/pain-6.png" width="61" height="61" alt="" aria-hidden="true">
           <div class="pain-card__body">
             <p class="pain-card__quote">«На встрече спрашивают<br>«сколько лидов за неделю и по какой<br>цене» — а ты не можешь ответить<br>в моменте, разгребая таблицы.»</p>
             <p class="pain-card__tag pain-card__tag--blue">// нет цифр под рукой</p>
@@ -267,8 +264,8 @@
             <li class="tag tag--avito">Avito</li>
           </ul>
           <div class="how-card__art">
-            <img class="how-art how-art--1a" src="/assets/img/how-1-illustration.png" width="720" height="738" alt="" aria-hidden="true" loading="lazy">
-            <img class="how-art how-art--1b" src="/assets/img/how-1-card.png" width="604" height="542" alt="" aria-hidden="true" loading="lazy">
+            <img class="how-art how-art--1a" src="/assets/img/how-1-illustration.png" width="648" height="664" alt="" aria-hidden="true" loading="lazy">
+            <img class="how-art how-art--1b" src="/assets/img/how-1-card.png" width="544" height="488" alt="" aria-hidden="true" loading="lazy">
           </div>
         </li>
 
@@ -283,8 +280,8 @@
             появляется уведомление.
           </p>
           <div class="how-card__art">
-            <img class="how-art how-art--2a" src="/assets/img/how-2-dashboard.png" width="720" height="294" alt="" aria-hidden="true" loading="lazy">
-            <img class="how-art how-art--2b" src="/assets/img/how-2-badges.png" width="584" height="331" alt="" aria-hidden="true" loading="lazy">
+            <img class="how-art how-art--2a" src="/assets/img/how-2-dashboard.png" width="648" height="265" alt="" aria-hidden="true" loading="lazy">
+            <img class="how-art how-art--2b" src="/assets/img/how-2-badges.png" width="526" height="298" alt="" aria-hidden="true" loading="lazy">
           </div>
         </li>
 
@@ -303,8 +300,8 @@
             <li class="tag tag--mail">E-mail</li>
           </ul>
           <div class="how-card__art">
-            <img class="how-art how-art--3b" src="/assets/img/how-3-paper.png" width="720" height="602" alt="" aria-hidden="true" loading="lazy">
-            <img class="how-art how-art--3a" src="/assets/img/how-3-report.png" width="720" height="324" alt="" aria-hidden="true" loading="lazy">
+            <img class="how-art how-art--3b" src="/assets/img/how-3-paper.png" width="648" height="542" alt="" aria-hidden="true" loading="lazy">
+            <img class="how-art how-art--3a" src="/assets/img/how-3-report.png" width="648" height="292" alt="" aria-hidden="true" loading="lazy">
           </div>
         </li>
       </ol>
@@ -325,7 +322,7 @@
         </h2>
       </header>
 
-      <div class="feature feature--text-left">
+      <div class="feature feature--dashboard feature--text-left">
         <div class="feature__text">
           <p class="badge">Единый дашборд</p>
           <h3 class="feature__title">Яндекс.Директ, VK Реклама<br>и Авито Реклама — в одной<br>картине, по всем клиентам</h3>
@@ -337,9 +334,10 @@
             <li>Все проекты агентства — на одном экране</li>
           </ul>
         </div>
+        <img class="feat-illu feat-illu--dashboard" src="/assets/img/feat-illu-1.png" width="1356" height="950" alt="" aria-hidden="true" loading="lazy">
       </div>
 
-      <div class="feature feature--text-right">
+      <div class="feature feature--detector feature--text-right">
         <div class="feature__text">
           <p class="badge">Детектор просадки · узнаёте первым</p>
           <h3 class="feature__title">Система сама замечает, что<br>пошло не так</h3>
@@ -350,9 +348,10 @@
             <li>Не нужен мониторинг на каком-то проекте — выключается одним переключателем</li>
           </ul>
         </div>
+        <img class="feat-illu feat-illu--detector" src="/assets/img/feat-illu-2.png" width="1356" height="950" alt="" aria-hidden="true" loading="lazy">
       </div>
 
-      <div class="feature feature--text-left">
+      <div class="feature feature--directions feature--text-left">
         <div class="feature__text">
           <p class="badge">Направления</p>
           <h3 class="feature__title">Видно, что именно<br>проседает — услуга, филиал<br>или товар</h3>
@@ -363,9 +362,10 @@
             <li>Ярлык настраивается под клиента: услуги, филиалы, товары, бренды</li>
           </ul>
         </div>
+        <img class="feat-illu feat-illu--directions" src="/assets/img/feat-illu-3.png" width="1356" height="950" alt="" aria-hidden="true" loading="lazy">
       </div>
 
-      <div class="feature feature--text-right">
+      <div class="feature feature--ai feature--text-right">
         <div class="feature__text">
           <p class="badge">AI-помощник</p>
           <h3 class="feature__title">AI берёт на себя рутину<br>объяснений</h3>
@@ -375,9 +375,10 @@
             <li>Авто-комментарий к отчёту — связное «что произошло за период и почему», а не пересказ таблицы. Цифры из ваших данных, AI только формулирует</li>
           </ul>
         </div>
+        <img class="feat-illu feat-illu--ai" src="/assets/img/feat-illu-4.png" width="1356" height="950" alt="" aria-hidden="true" loading="lazy">
       </div>
 
-      <div class="feature feature--text-left">
+      <div class="feature feature--reports feature--text-left">
         <div class="feature__text">
           <p class="badge">Отчёты клиенту</p>
           <h3 class="feature__title">Собираются сами.<br>Но уходят только<br>с вашей проверкой</h3>
@@ -389,9 +390,10 @@
             <li>Доверяете клиенту автоотправку — включается на проекте</li>
           </ul>
         </div>
+        <img class="feat-illu feat-illu--reports" src="/assets/img/feat-illu-5.png" width="1356" height="950" alt="" aria-hidden="true" loading="lazy">
       </div>
 
-      <div class="feature feature--text-right">
+      <div class="feature feature--white-label feature--text-right">
         <div class="feature__text">
           <p class="badge">White Label</p>
           <h3 class="feature__title">Клиент видит ваш бренд,<br>а не AdMirra</h3>
@@ -402,18 +404,7 @@
             <li>Платформа как ваша собственная система аналитики</li>
           </ul>
         </div>
-      </div>
-
-      <!-- Иллюстрации выложены абсолютным слоем по координатам из Figma
-           (section-relative). Каждая — стопка из 3 дашбордов, собранная в один
-           2× PNG с прозрачностью. Декоративны → aria-hidden, lazy. -->
-      <div class="features__art" aria-hidden="true">
-        <img class="feat-illu" style="left:819px;top:363px;width:752px"  src="/assets/img/feat-illu-1.png" width="1507" height="1055" alt="" loading="lazy">
-        <img class="feat-illu" style="left:299px;top:979px;width:662px"  src="/assets/img/feat-illu-2.png" width="1507" height="1055" alt="" loading="lazy">
-        <img class="feat-illu" style="left:819px;top:1519px;width:752px" src="/assets/img/feat-illu-3.png" width="1507" height="1055" alt="" loading="lazy">
-        <img class="feat-illu" style="left:313px;top:2101px;width:593px" src="/assets/img/feat-illu-4.png" width="1507" height="1055" alt="" loading="lazy">
-        <img class="feat-illu" style="left:771px;top:2581px;width:802px" src="/assets/img/feat-illu-5.png" width="1507" height="1055" alt="" loading="lazy">
-        <img class="feat-illu" style="left:302px;top:3245px;width:593px" src="/assets/img/feat-illu-6.png" width="1507" height="1055" alt="" loading="lazy">
+        <img class="feat-illu feat-illu--white-label" src="/assets/img/feat-illu-6.png" width="1356" height="950" alt="" aria-hidden="true" loading="lazy">
       </div>
     </div>
   </section>
@@ -431,23 +422,23 @@
 
     <ul class="integrations__rail" aria-label="Поддерживаемые интеграции">
       <li class="integration-card">
-        <img class="integration-card__logo" src="/assets/img/integration-yandex-direct.png" width="222" height="30" alt="Яндекс Директ">
+        <img class="integration-card__logo" src="/assets/img/integration-yandex-direct.png" width="200" height="27" alt="Яндекс Директ">
       </li>
       <li class="integration-card">
-        <img class="integration-card__logo" src="/assets/img/integration-vk.png" width="185" height="35" alt="VK Реклама">
+        <img class="integration-card__logo" src="/assets/img/integration-vk.png" width="167" height="32" alt="VK Реклама">
       </li>
       <li class="integration-card">
-        <img class="integration-card__logo" src="/assets/img/integration-metrika.png" width="247" height="30" alt="Яндекс Метрика">
+        <img class="integration-card__logo" src="/assets/img/integration-metrika.png" width="222" height="27" alt="Яндекс Метрика">
       </li>
       <li class="integration-card">
-        <img class="integration-card__logo" src="/assets/img/integration-telegram.png" width="164" height="50" alt="Telegram">
+        <img class="integration-card__logo" src="/assets/img/integration-telegram.png" width="148" height="45" alt="Telegram">
       </li>
       <li class="integration-card integration-card--coming">
-        <img class="integration-card__logo" src="/assets/img/integration-max.png" width="122" height="40" alt="MAX">
+        <img class="integration-card__logo" src="/assets/img/integration-max.png" width="110" height="36" alt="MAX">
         <span class="integration-card__soon">Скоро</span>
       </li>
       <li class="integration-card integration-card--coming">
-        <img class="integration-card__logo" src="/assets/img/integration-avito.png" width="132" height="33" alt="Avito">
+        <img class="integration-card__logo" src="/assets/img/integration-avito.png" width="119" height="30" alt="Avito">
         <span class="integration-card__soon">Скоро</span>
       </li>
     </ul>
@@ -482,7 +473,7 @@
 
         <article class="price-card price-card--base" aria-labelledby="price-base">
           <div class="price-card__base-fox-wrap" aria-hidden="true">
-            <img class="price-card__base-fox" src="/assets/img/pricing-base-fox.png" width="682" height="1024" alt="">
+            <img class="price-card__base-fox" src="/assets/img/pricing-base-fox.png" width="614" height="922" alt="">
           </div>
           <h3 class="price-card__name" id="price-base">Базовый</h3>
           <p class="price-card__price">3 990 ₽</p>
@@ -523,7 +514,7 @@
         </div>
 
         <div class="price-wl__visual" aria-hidden="true">
-          <img src="/assets/img/pricing-wl.png" width="924" height="804" alt="">
+          <img src="/assets/img/pricing-wl.png" width="832" height="724" alt="">
         </div>
 
         <div class="price-wl__right">
@@ -545,7 +536,7 @@
     </header>
 
     <div class="faq__body">
-      <img class="faq__visual" src="/assets/img/faq-login-visual.png" width="574" height="515" alt="" aria-hidden="true" loading="lazy">
+      <img class="faq__visual" src="/assets/img/faq-login-visual.png" width="517" height="464" alt="" aria-hidden="true" loading="lazy">
 
       <div class="faq__list">
         <details class="faq-item" open>
@@ -581,20 +572,20 @@
        Декор обрезается краями панели (overflow: hidden). -->
   <section class="cta-band" aria-labelledby="cta-band-title">
     <div class="cta-band__inner">
-      <img class="cta-deco cta-deco--send"     src="/assets/img/cta-send.png"     width="440"  height="243" alt="" aria-hidden="true" loading="lazy">
-      <img class="cta-deco cta-deco--calendar" src="/assets/img/cta-calendar.png" width="256"  height="198" alt="" aria-hidden="true" loading="lazy">
-      <img class="cta-deco cta-deco--cpc"      src="/assets/img/cta-cpc.png"      width="749"  height="533" alt="" aria-hidden="true" loading="lazy">
-      <img class="cta-deco cta-deco--metrics"  src="/assets/img/cta-metrics.png"  width="750"  height="504" alt="" aria-hidden="true" loading="lazy">
-      <img class="cta-deco cta-deco--pie"      src="/assets/img/cta-pie.png"      width="1140" height="539" alt="" aria-hidden="true" loading="lazy">
-      <img class="cta-deco cta-deco--bars"     src="/assets/img/cta-bars.png"     width="1328" height="774" alt="" aria-hidden="true" loading="lazy">
+      <img class="cta-deco cta-deco--send"     src="/assets/img/cta-send.png"     width="396"  height="219" alt="" aria-hidden="true" loading="lazy">
+      <img class="cta-deco cta-deco--calendar" src="/assets/img/cta-calendar.png" width="230"  height="178" alt="" aria-hidden="true" loading="lazy">
+      <img class="cta-deco cta-deco--cpc"      src="/assets/img/cta-cpc.png"      width="674"  height="480" alt="" aria-hidden="true" loading="lazy">
+      <img class="cta-deco cta-deco--metrics"  src="/assets/img/cta-metrics.png"  width="675"  height="454" alt="" aria-hidden="true" loading="lazy">
+      <img class="cta-deco cta-deco--pie"      src="/assets/img/cta-pie.png"      width="1026" height="485" alt="" aria-hidden="true" loading="lazy">
+      <img class="cta-deco cta-deco--bars"     src="/assets/img/cta-bars.png"     width="1195" height="697" alt="" aria-hidden="true" loading="lazy">
 
       <h2 class="cta-band__title" id="cta-band-title">Подключите кабинеты и увидите всех<br>клиентов в одной панели</h2>
       <p class="cta-band__lead">Яндекс.Директ, VK Реклама и Авито Реклама сведутся<br>за пять минут. Детектор начнёт следить за просадками с первого дня.</p>
       <a class="btn-cta cta-band__cta" href="#demo">
         Попробовать бесплатно
         <span class="btn-cta__arrow" aria-hidden="true">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M2 12L12 2M12 2H4.5M12 2V9.5" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+            <path d="M2 12L12 2M12 2H4.5M12 2V9.5" stroke="#fff" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </span>
       </a>
@@ -614,7 +605,7 @@
       <ul class="blog__grid">
         <li class="blog-card">
           <div class="blog-card__cover">
-            <img src="/assets/img/blog-cover.png" width="330" height="172" alt="" aria-hidden="true" loading="lazy">
+            <img src="/assets/img/blog-cover.png" width="297" height="155" alt="" aria-hidden="true" loading="lazy">
             <span class="blog-card__tags">
               <span class="blog-card__tag">Аналитика</span>
               <span class="blog-card__tag">25 марта 2026</span>
@@ -626,7 +617,7 @@
         </li>
         <li class="blog-card">
           <div class="blog-card__cover">
-            <img src="/assets/img/blog-cover.png" width="330" height="172" alt="" aria-hidden="true" loading="lazy">
+            <img src="/assets/img/blog-cover.png" width="297" height="155" alt="" aria-hidden="true" loading="lazy">
             <span class="blog-card__tags">
               <span class="blog-card__tag">Аналитика</span>
               <span class="blog-card__tag">25 марта 2026</span>
@@ -638,7 +629,7 @@
         </li>
         <li class="blog-card">
           <div class="blog-card__cover">
-            <img src="/assets/img/blog-cover.png" width="330" height="172" alt="" aria-hidden="true" loading="lazy">
+            <img src="/assets/img/blog-cover.png" width="297" height="155" alt="" aria-hidden="true" loading="lazy">
             <span class="blog-card__tags">
               <span class="blog-card__tag">Аналитика</span>
               <span class="blog-card__tag">25 марта 2026</span>
@@ -658,12 +649,12 @@
     <div class="footer__top">
       <div class="footer__brand">
         <a class="footer__logo" href="/" aria-label="AdMirra — на главную">
-          <img src="/assets/img/footer-logo.png" width="146" height="31" alt="AdMirra">
+          <img src="/assets/img/footer-logo.png" width="131" height="28" alt="AdMirra">
         </a>
         <ul class="footer__social" aria-label="Мы в соцсетях">
-          <li><a href="#" aria-label="MAX"><img src="/assets/img/footer-soc-1.png" width="24" height="24" alt=""></a></li>
-          <li><a href="#" aria-label="Telegram"><img src="/assets/img/footer-soc-2.png" width="24" height="24" alt=""></a></li>
-          <li><a href="#" aria-label="ВКонтакте"><img src="/assets/img/footer-soc-3.png" width="24" height="24" alt=""></a></li>
+          <li><a href="#" aria-label="MAX"><img src="/assets/img/footer-soc-1.png" width="22" height="22" alt=""></a></li>
+          <li><a href="#" aria-label="Telegram"><img src="/assets/img/footer-soc-2.png" width="22" height="22" alt=""></a></li>
+          <li><a href="#" aria-label="ВКонтакте"><img src="/assets/img/footer-soc-3.png" width="22" height="22" alt=""></a></li>
         </ul>
       </div>
 
@@ -707,7 +698,7 @@
         <div class="footer__center">
           <p class="footer__col-title">АдМирра</p>
           <p class="footer__tagline">Автоматические отчёты и маркетинговые дашборды</p>
-          <img class="footer__pay" src="/assets/img/footer-pay.png" width="99" height="19" alt="VISA, Mastercard, МИР">
+          <img class="footer__pay" src="/assets/img/footer-pay.png" width="89" height="17" alt="VISA, Mastercard, МИР">
           <p class="footer__copy">© 2026 Все права защищены</p>
         </div>
 
@@ -869,23 +860,6 @@
   </script>
   -->
 
-  <!-- Масштабирование полотна под ширину окна. Макет фиксированной ширины 1920;
-       zoom пропорционально ужимает всё под доступную ширину. -->
-  <script>
-  (function () {
-    var page = document.querySelector('.page');
-    if (!page) return;
-    var DESIGN = 1920;
-    function fit() {
-      var w = document.documentElement.clientWidth;
-      page.style.zoom = w >= DESIGN ? '' : (w / DESIGN);
-    }
-    fit();
-    window.addEventListener('resize', fit);
-    window.addEventListener('orientationchange', fit);
-  })();
-  </script>
-
   <!-- DEV-редактор декора CTA. Активируется ТОЛЬКО при открытии страницы с #edit
        (например http://127.0.0.1:8899/index.html#edit). На обычный просмотр не
        влияет. Тащи карточку — двигать, колесо над ней — размер. Панель справа
@@ -893,15 +867,15 @@
   <script>
   if (location.hash.indexOf('edit') !== -1) {
     (function () {
-      var decos = document.querySelectorAll('.cta-deco');
+      var decos = document.querySelectorAll('.cta-deco, .how-art');
       var panel = document.createElement('pre');
       panel.style.cssText = 'position:fixed;top:10px;right:10px;z-index:99999;background:#0c2950;color:#8ff;padding:12px 14px;font:12px/1.5 monospace;border-radius:8px;max-height:90vh;overflow:auto;white-space:pre;box-shadow:0 8px 30px rgba(0,0,0,.3)';
       document.body.appendChild(panel);
       function css(el){ return (el.style.width||el.getAttribute('data-w')||''); }
       function render(){
-        var out = '/* CTA decor */\n';
+        var out = '';
         decos.forEach(function(el){
-          var cls = Array.prototype.filter.call(el.classList, function(c){ return c.indexOf('cta-deco--')===0; })[0];
+          var cls = Array.prototype.filter.call(el.classList, function(c){ return c.indexOf('cta-deco--')===0 || c.indexOf('how-art--')===0; })[0];
           var cs = getComputedStyle(el);
           var l = Math.round(parseFloat(el.style.left || cs.left));
           var t = Math.round(parseFloat(el.style.top || cs.top));
