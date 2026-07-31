@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AdMirra — паттерны для голубых блоков</title>
+<style>
+  :root{
+    --lav1:#e9eefb; --lav2:#d7e0f7; --lav3:#c7d3f2;
+    --brand:#2563eb; --mid:#1f9de4; --cyan:#06b5d4; --ink:#0c2950;
+  }
+  *{box-sizing:border-box;margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif}
+  body{background:#0e1524;color:#e8eefc;padding:40px;display:grid;gap:36px;
+       grid-template-columns:repeat(2,1fr);max-width:1520px;margin:0 auto}
+  .head{grid-column:1/-1;text-align:center;padding-bottom:4px}
+  .head h1{font-size:24px;font-weight:600}
+  .head p{margin-top:8px;color:#93a2c4;font-size:14px}
+  figure{margin:0}
+  figcaption{margin-top:12px;font-size:13px;color:#aab8d8;line-height:1.5}
+  figcaption b{color:#eaf1ff}
+  .panel{
+    position:relative;height:340px;border-radius:26px;overflow:hidden;
+    display:flex;flex-direction:column;justify-content:center;padding:0 54px;
+    background:linear-gradient(160deg,var(--lav1),var(--lav2) 55%,var(--lav3));
+    box-shadow:0 20px 50px rgba(0,0,0,.35);
+  }
+  .panel .eyebrow{font-size:12px;font-weight:700;letter-spacing:3px;text-transform:uppercase;
+    color:#5b84f5;position:relative;z-index:3}
+  .panel h2{position:relative;z-index:3;margin-top:14px;color:var(--ink);
+    font-size:34px;font-weight:600;line-height:1.15;max-width:560px}
+  .panel .sub{position:relative;z-index:3;margin-top:14px;color:#3a4a6b;font-size:15px;max-width:460px}
+  .tag{position:absolute;top:14px;right:16px;z-index:5;background:rgba(12,41,80,.8);
+    color:#cfe0ff;font-size:11px;font-weight:600;padding:5px 10px;border-radius:20px}
+
+  /* ---------- 1. DOT-GRID с радиальным затуханием (Linear/Vercel) ---------- */
+  .p1::before{content:"";position:absolute;inset:0;z-index:1;
+    background-image:radial-gradient(rgba(37,99,235,.28) 1.4px, transparent 1.5px);
+    background-size:26px 26px;
+    -webkit-mask-image:radial-gradient(120% 120% at 80% 15%, #000 0%, transparent 65%);
+            mask-image:radial-gradient(120% 120% at 80% 15%, #000 0%, transparent 65%);}
+
+  /* ---------- 2. MESH / AURORA (Stripe, «вау») ---------- */
+  .p2{background:
+      radial-gradient(60% 80% at 12% 20%, rgba(37,99,235,.38), transparent 60%),
+      radial-gradient(55% 75% at 92% 30%, rgba(6,181,212,.34), transparent 60%),
+      radial-gradient(70% 90% at 70% 110%, rgba(31,157,228,.34), transparent 60%),
+      linear-gradient(160deg,var(--lav1),var(--lav2) 55%,var(--lav3));}
+  .p2::before{content:"";position:absolute;inset:0;z-index:1;
+    background-image:radial-gradient(rgba(255,255,255,.5) 1px, transparent 1.5px);
+    background-size:34px 34px;opacity:.5}
+
+  /* ---------- 3. ДИАГОНАЛЬНЫЕ ХЕЙРЛАЙНЫ ---------- */
+  .p3::before{content:"";position:absolute;inset:0;z-index:1;
+    background-image:repeating-linear-gradient(135deg,
+      rgba(37,99,235,.10) 0 1px, transparent 1px 22px);}
+  .p3::after{content:"";position:absolute;inset:0;z-index:1;
+    background:radial-gradient(90% 90% at 85% 10%, rgba(6,181,212,.22), transparent 55%)}
+
+  /* ---------- 4. GRAIN / ЗЕРНО поверх градиента (премиум) ---------- */
+  .p4{background:
+      radial-gradient(70% 90% at 85% 12%, rgba(6,181,212,.28), transparent 55%),
+      linear-gradient(160deg,var(--lav1),var(--lav2) 55%,var(--lav3));}
+  .p4::before{content:"";position:absolute;inset:0;z-index:1;opacity:.5;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+    mix-blend-mode:soft-light}
+
+  /* ---------- 5. GLOW-ORBS / прожекторы ---------- */
+  .p5{background:linear-gradient(160deg,#eef2fc,#dbe4f8 60%,#cbd6f0)}
+  .p5::before{content:"";position:absolute;inset:0;z-index:1;
+    background:
+      radial-gradient(closest-side at 18% 22%, rgba(37,99,235,.5), transparent),
+      radial-gradient(closest-side at 88% 78%, rgba(6,181,212,.45), transparent);
+    filter:blur(14px)}
+
+  /* ---------- 6. КОНЦЕНТРИЧЕСКИЕ КОЛЬЦА / радар ---------- */
+  .p6::before{content:"";position:absolute;z-index:1;
+    width:900px;height:900px;right:-260px;top:-360px;border-radius:50%;
+    background:repeating-radial-gradient(circle,
+      rgba(37,99,235,.16) 0 1px, transparent 1px 46px);
+    -webkit-mask-image:radial-gradient(closest-side,#000 60%,transparent);
+            mask-image:radial-gradient(closest-side,#000 60%,transparent)}
+</style>
+</head>
+<body>
+  <div class="head">
+    <h1>Паттерны для голубых блоков — 6 вариантов</h1>
+    <p>Тонко, но с акцентом. Выбери понравившийся (можно смешивать) — впишу в реальные секции.</p>
+  </div>
+
+  <figure><div class="panel p1"><span class="tag">1 · Dot-grid fade</span>
+    <span class="eyebrow">Интеграции</span><h2>Подключается к тому, чем вы уже пользуетесь</h2></div>
+    <figcaption><b>1 · Точечная сетка с затуханием.</b> Стиль Linear/Vercel — очень сдержанно, точки тают к краям.</figcaption></figure>
+
+  <figure><div class="panel p2"><span class="tag">2 · Mesh / Aurora</span>
+    <span class="eyebrow">Интеграции</span><h2>Подключается к тому, чем вы уже пользуетесь</h2></div>
+    <figcaption><b>2 · Mesh-градиент (aurora).</b> Стиль Stripe — мягкие цветные пятна бренд-палитры. Самый «вау».</figcaption></figure>
+
+  <figure><div class="panel p3"><span class="tag">3 · Diagonal lines</span>
+    <span class="eyebrow">Интеграции</span><h2>Подключается к тому, чем вы уже пользуетесь</h2></div>
+    <figcaption><b>3 · Диагональные хейрлайны + подсветка угла.</b> Техно-минимализм.</figcaption></figure>
+
+  <figure><div class="panel p4"><span class="tag">4 · Grain + gradient</span>
+    <span class="eyebrow">Интеграции</span><h2>Подключается к тому, чем вы уже пользуетесь</h2></div>
+    <figcaption><b>4 · Зерно поверх градиента.</b> Премиум-текстура, «плёночный» матовый эффект.</figcaption></figure>
+
+  <figure><div class="panel p5"><span class="tag">5 · Glow orbs</span>
+    <span class="eyebrow">Интеграции</span><h2>Подключается к тому, чем вы уже пользуетесь</h2></div>
+    <figcaption><b>5 · Свечения-прожекторы.</b> Крупные мягкие блики в углах — глубина и объём.</figcaption></figure>
+
+  <figure><div class="panel p6"><span class="tag">6 · Concentric rings</span>
+    <span class="eyebrow">Интеграции</span><h2>Подключается к тому, чем вы уже пользуетесь</h2></div>
+    <figcaption><b>6 · Концентрические кольца (радар).</b> Аккуратный акцент из угла.</figcaption></figure>
+</body>
+</html>

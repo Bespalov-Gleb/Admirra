@@ -76,7 +76,7 @@ html, body {
 body {
   margin: 0;
   font-family: var(--font-base);
-  font-size: 16px;
+  font-size: 14.4px;
   line-height: 1.5;
   color: var(--c-text);
   background: var(--c-bg);
@@ -84,18 +84,12 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* --------------------------------------------------------------------------
-   Адаптивность фикс-макета.
-
-   Весь лендинг свёрстан абсолютами под ширину 1920. Вместо переверстки каждой
-   секции пропорционально ужимаем всё полотно под ширину окна через zoom
-   (значение ставит скрипт в конце страницы). zoom масштабирует и layout-бокс,
-   поэтому — в отличие от transform — не требует компенсации высоты и сохраняет
-   работу sticky-шапки и скролла. На экранах ≥1920 масштаб 1, полотно по центру.
-   -------------------------------------------------------------------------- */
+/* Корневой контейнер всегда совпадает с viewport. Никакого zoom/transform:
+   плотность 90% заложена непосредственно в размеры компонентов ниже, поэтому
+   центр страницы и sticky-элементы остаются в обычной геометрии браузера. */
 .page {
-  width: 1920px;
-  margin-inline: auto;
+  width: 100%;
+  min-width: 0;
 }
 
 h1, h2, h3, h4, p, figure, blockquote, dl, dd {
@@ -165,11 +159,11 @@ button {
     var(--c-brand-mid) 68.26%,
     var(--c-brand-cyan) 100%);
 
-  --container: 1160px;
-  --gutter: 24px;
+  --container: 1044px;
+  --gutter: 21.6px;
 
-  --r-pill: 999px;
-  --r-card: 24px;
+  --r-pill: 899.1px;
+  --r-card: 21.6px;
 }
 
 /* --------------------------------------------------------------------------
@@ -207,12 +201,12 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  height: 40px;
-  padding-inline: 33px;
+  gap: 9px;
+  height: 36px;
+  padding-inline: 29.7px;
   border-radius: var(--r-pill);
   font-family: var(--font-base);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
   line-height: 1;
   letter-spacing: 0.1em;
@@ -258,7 +252,7 @@ button {
       #d9dff9 36%,
       #eef2f8 92%,
       #ffffff 100%);
-  background-size: 125px 125px, 25px 25px, 100% 100%;
+  background-size: 112.5px 112.5px, 22.5px 22.5px, 100% 100%;
   background-repeat: repeat, repeat, no-repeat;
 }
 
@@ -266,18 +260,18 @@ button {
   position: sticky;
   top: 0;
   z-index: 50;
-  padding-top: 35px;
+  padding-top: 31.5px;
 }
 
 .site-header__inner {
   display: flex;
   align-items: center;
-  gap: 75px;
+  gap: 67.5px;
   width: fit-content;
   max-width: 100%;
-  min-height: 76px;
+  min-height: 68.4px;
   margin-inline: auto;
-  padding: 18px 35px;
+  padding: 16.2px 31.5px;
   background: var(--c-surface);
   border-radius: var(--r-pill);
 }
@@ -290,18 +284,18 @@ button {
    292×62 — это ровно @2x от макетных 146×31, поэтому размер задаём явно:
    и чёткость на retina, и защита от CLS (§8 ТЗ). */
 .site-header__logo img {
-  width: 146px;
-  height: 31px;
+  width: 131.4px;
+  height: 27.9px;
 }
 
 .site-nav {
   display: flex;
   align-items: center;
-  gap: 25px;
+  gap: 22.5px;
 }
 
 .site-nav__link {
-  font-size: 13px;
+  font-size: 11.7px;
   font-weight: 500;
   line-height: 1;
   color: var(--c-text-muted);
@@ -317,13 +311,13 @@ button {
 .site-header__actions {
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: 13.5px;
   flex: 0 0 auto;
 }
 
 /* Кнопки шапки в Figma фиксированной ширины: 145 и 150. */
-.site-header__actions .btn--gradient { width: 145px; padding-inline: 0; }
-.site-header__actions .btn--dark { width: 150px; padding-inline: 0; }
+.site-header__actions .btn--gradient { width: 130.5px; padding-inline: 0; }
+.site-header__actions .btn--dark { width: 135px; padding-inline: 0; }
 
 /* --------------------------------------------------------------------------
    Первый экран
@@ -342,9 +336,9 @@ button {
 }
 
 .hero__title {
-  margin: 89px auto 0;
-  max-width: 980px;
-  font-size: 55px;
+  margin: 80.1px auto 0;
+  max-width: 882px;
+  font-size: 49.5px;
   font-weight: 600;
   line-height: 1.1;
   letter-spacing: 0;
@@ -361,52 +355,80 @@ button {
   font-weight: 600;
 }
 
-/* Иконки площадок стоят прямо в строке заголовка, 30×30. */
+/* Иконки площадок стоят прямо в строке заголовка. В Figma их внешний
+   контейнер 30×30; здесь он масштабирован до 27×27 вместе со всем лендингом.
+   Внутренний кроп у VK отличается от Яндекса и Авито — сохраняем отдельно. */
 .hero__ico {
   display: inline-block;
-  width: 30px;
-  height: 30px;
-  /* В макете иконки лежат поверх литеральных пробелов, поэтому их «след»
-     в каждой строке свой. Значения сняты измерением, задаются поштучно ниже. */
+  width: 27px;
+  height: 27px;
+  overflow: hidden;
   margin: 0;
+  border-radius: 50%;
   vertical-align: baseline;
   position: relative;
-  top: 3px;
+  top: 2.7px;
 }
 
-.hero__ico--yd    { margin: 0 29px 0 13px; }
-.hero__ico--vk    { margin: 0 0    0 15px; }
-.hero__ico--avito { margin: 0 22px 0 14px; }
+.hero__ico > img {
+  position: absolute;
+  display: block;
+  max-width: none;
+  pointer-events: none;
+}
+
+.hero__ico--yd > img,
+.hero__ico--avito > img {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* В макете исходник VK увеличен внутри круглого окна 30×30:
+   153.33% × 159.01%, смещение −26.67% / −28.32%. */
+.hero__ico--vk > img {
+  left: -26.67%;
+  top: -28.32%;
+  width: 153.33%;
+  height: 159.01%;
+}
+
+/* В макете иконки лежат поверх литеральных пробелов, поэтому их «след»
+   в каждой строке свой. Значения сняты измерением, задаются поштучно. */
+.hero__ico--yd    { margin: 0 26.1px 0 11.7px; }
+.hero__ico--vk    { margin: 0 0    0 13.5px; }
+.hero__ico--avito { margin: 0 19.8px 0 12.6px; }
 
 .hero__lead {
-  margin: 47px auto 0;
-  max-width: 839px;
-  font-size: 20px;
+  margin: 42.3px auto 0;
+  max-width: 755.1px;
+  font-size: 18px;
   font-weight: 300;
   line-height: 1.3;
   color: #0c2950;
   /* Белое свечение из макета: DROP_SHADOW белый, radius 16, режим overlay.
      Нужно, чтобы текст читался поверх узорчатой подложки. */
-  text-shadow: 0 0 16px #fff;
+  text-shadow: 0 0 14.4px #fff;
 }
 
 .hero__cta {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  margin-top: 48px;
+  margin-top: 43.2px;
 }
 
 .btn-cta {
   display: inline-flex;
   align-items: center;
-  gap: 20px;
-  width: 423px;
-  height: 100px;
-  padding: 30px 51px 30px 52px;
+  gap: 18px;
+  width: 380.7px;
+  height: 90px;
+  padding: 27px 45.9px 27px 46.8px;
   border-radius: var(--r-pill);
   background: var(--grad-cta);
-  font-size: 17px;
+  font-size: 15.3px;
   font-weight: 600;
   line-height: 1;
   letter-spacing: 0.1em;
@@ -426,30 +448,30 @@ button {
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.09);
-  backdrop-filter: blur(36.85px);
+  backdrop-filter: blur(33.165px);
 }
 
 /* Карточка уходит под кнопку: в макете их прямоугольники перекрываются
    на 61 px (кнопка 624..1047, карточка 986..1296). */
 .hero__note {
-  width: 310px;
-  height: 103px;
-  margin-left: -61px;
-  padding: 22px 31px 0 92px;
-  border-radius: 24px;
+  width: 279px;
+  height: 92.7px;
+  margin-left: -54.9px;
+  padding: 19.8px 27.9px 0 82.8px;
+  border-radius: 21.6px;
   background: rgba(255, 255, 255, 0.9);
   /* В макете текст ~16px, высота блока 103 = как у кнопки (100). При 18px
      три строки распирали капсулу до ~115 и она свисала ниже кнопки. */
-  font-size: 16px;
+  font-size: 14.4px;
   font-weight: 500;
   line-height: 1.2;
   text-align: left;
   color: #0c2950;
-  text-shadow: 0 0 16px #fff;
+  text-shadow: 0 0 14.4px #fff;
   z-index: 1;
 }
 
@@ -470,25 +492,25 @@ button {
   display: flex;
   justify-content: center;
   gap: 0;
-  margin-top: 33px;
+  margin-top: 29.7px;
 }
 
 .hero__chips li {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 40px;
+  height: 36px;
   border: 1px solid rgba(12, 41, 80, 0.26);
   border-radius: var(--r-pill);
-  font-size: 15px;
+  font-size: 13.5px;
   font-weight: 500;
   line-height: 1.1;
   color: #0c2950;
-  text-shadow: 0 0 16px #fff;
+  text-shadow: 0 0 14.4px #fff;
 }
 
-.hero__chips li:nth-child(1) { width: 306px; }
-.hero__chips li:nth-child(2) { width: 319px; }
+.hero__chips li:nth-child(1) { width: 275.4px; }
+.hero__chips li:nth-child(2) { width: 287.1px; }
 
 /* --------------------------------------------------------------------------
    «Для кого» — три карточки
@@ -506,14 +528,14 @@ button {
      на его точной позиции (y815) укороченным margin у .hero__shot, а
      недостающие 42 px пространства под ним возвращаем здесь — иначе все
      секции ниже (боли/как/возможности) уезжают на 42 px вверх. */
-  margin-top: 42px;
-  padding-bottom: 50px;
+  margin-top: 37.8px;
+  padding-bottom: 45px;
 }
 
 .audience__grid {
   display: grid;
-  grid-template-columns: repeat(3, 360px);
-  gap: 40px;
+  grid-template-columns: repeat(3, 324px);
+  gap: 36px;
   justify-content: center;
 }
 
@@ -521,16 +543,16 @@ button {
   display: flex;
   flex-direction: column;
   /* Высота карточки в макете фиксированная, а не по содержимому. */
-  height: 299px;
-  padding: 30px 28px 30px 30px;
+  height: 269.1px;
+  padding: 27px 25.2px 27px 27px;
   border: 1px solid rgba(148, 172, 205, 0.22);
-  border-radius: 30px;
+  border-radius: 27px;
 }
 
 /* В макете отступ 66 px отсчитывается от НИЗА рамки иконки (39×46), но сама
    графика занимает не всю рамку. Рамку задаём явно, чтобы текст встал ровно. */
 .aud-card__ico {
-  margin-bottom: 66px;
+  margin-bottom: 59.4px;
   object-fit: contain;
   object-position: left top;
 }
@@ -538,23 +560,23 @@ button {
 .aud-card__body {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
 }
 
 .aud-card__title {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
   line-height: 1.2;
   color: #1c274c;
 }
 
 .aud-card p {
-  font-size: 15px;
+  font-size: 13.5px;
   font-weight: 300;
   line-height: 1.3;
   color: #0c2950;
   /* То же белое свечение, что у остальных текстов на узорчатой подложке. */
-  text-shadow: 0 0 16px #fff;
+  text-shadow: 0 0 14.4px #fff;
 }
 
 
@@ -569,8 +591,8 @@ button {
    планшета (page 367,815). */
 .hero__shot {
   position: relative;
-  width: 1183px;
-  margin: 72px auto 0;
+  width: 1064.7px;
+  margin: 64.8px auto 0;
 }
 
 /* Корпус планшета — CSS-вектор: 1183×850, чёрный, радиус 44, безель 47.
@@ -578,36 +600,36 @@ button {
 .hero__tablet {
   position: relative;
   z-index: 2;               /* планшет перекрывает карточки — они выглядывают из-за краёв */
-  width: 1183px;
-  height: 850px;
-  padding: 47px;
-  border-radius: 44px;
+  width: 1064.7px;
+  height: 765px;
+  padding: 42.3px;
+  border-radius: 39.6px;
   background: #05070e;
-  box-shadow: 0 40px 80px rgba(16, 24, 45, 0.28);
+  box-shadow: 0 36px 72px rgba(16, 24, 45, 0.28);
 }
 
 .hero__screen {
   display: block;
-  width: 1089px;
-  height: 756px;
-  border-radius: 24px;
+  width: 980.1px;
+  height: 680.4px;
+  border-radius: 21.6px;
 }
 
 .hero__card {
   position: absolute;
   z-index: 1;               /* позади планшета */
   height: auto;
-  filter: drop-shadow(0 18px 40px rgba(22, 33, 62, 0.14));
+  filter: drop-shadow(0 16.2px 36px rgba(22, 33, 62, 0.14));
 }
 
 /* Смещения от угла корпуса (367,815): карточка page(x,y) → (x−367, y−815).
    Экспорт крупнее рамки узла на величину тени, поэтому подгоняется визуально. */
 /* z-порядок из Figma: «Разбивка» и «Расходы» — поверх планшета (z:3),
    «Подключённые» и AI-карточка — позади (z:1). */
-.hero__card--tl { left: -82px;  top: -78px; width: 269px; z-index: 1; }  /* «Подключённые каналы», page 285,737 */
-.hero__card--tr { left: 978px;  top: -76px; width: 299px; z-index: 3; }  /* «Расходы», page 1345,739 */
-.hero__card--r  { left: 1090px; top: 125px; width: 352px; z-index: 1; }  /* «AI-ассистент», page 1457,940 */
-.hero__card--l  { left: -209px; top: 224px; width: 241px; z-index: 3; }  /* «Разбивка по целям», page 158,1039 */
+.hero__card--tl { left: -73.8px;  top: -70.2px; width: 242.1px; z-index: 1; }  /* «Подключённые каналы», page 285,737 */
+.hero__card--tr { left: 880.2px;  top: -68.4px; width: 269.1px; z-index: 3; }  /* «Расходы», page 1345,739 */
+.hero__card--r  { left: 981px; top: 112.5px; width: 316.8px; z-index: 1; }  /* «AI-ассистент», page 1457,940 */
+.hero__card--l  { left: -188.1px; top: 201.6px; width: 216.9px; z-index: 3; }  /* «Разбивка по целям», page 158,1039 */
 
 /* --------------------------------------------------------------------------
    Общая типографика секций (используется в «Болях», «Как это работает» и далее)
@@ -619,10 +641,10 @@ button {
    -------------------------------------------------------------------------- */
 
 .eyebrow {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
   line-height: 1;
-  letter-spacing: 4px;
+  letter-spacing: 3.6px;
   text-transform: uppercase;
   color: #5b84f5;
   /* В Figma эйбрау — Gilroy Bold. В проекте нет bold-файла (только до semibold),
@@ -631,7 +653,7 @@ button {
 }
 
 .section-title {
-  font-size: 55px;
+  font-size: 49.5px;
   font-weight: 600;
   line-height: 1.1;
   color: #0c2950;
@@ -643,11 +665,11 @@ button {
 }
 
 .section-lead {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 300;
   line-height: 1.3;
   color: #0c2950;
-  text-shadow: 0 0 16px #fff;
+  text-shadow: 0 0 14.4px #fff;
 }
 
 /* --------------------------------------------------------------------------
@@ -664,15 +686,15 @@ button {
    -------------------------------------------------------------------------- */
 
 .pains {
-  padding-inline: 42px;
+  padding-inline: 37.8px;
 }
 
 .pains__inner {
   position: relative;
-  max-width: 1836px;
+  max-width: 1652.4px;
   margin-inline: auto;
-  padding: 69px 0 70px;
-  border-radius: 30px;
+  padding: 62.1px 0 63px;
+  border-radius: 27px;
   overflow: hidden;
   text-align: center;
   background:
@@ -684,7 +706,7 @@ button {
     /* Тот же точечный узор, что на первом экране, приглушённый до 54 %. */
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='25' height='25'%3E%3Cg fill='%23fff' fill-opacity='.45'%3E%3Crect x='0' y='0' width='2.5' height='2.5'/%3E%3Crect x='12.5' y='12.5' width='2.5' height='2.5'/%3E%3Crect x='12.5' y='0' width='2.5' height='2.5'/%3E%3Crect x='0' y='12.5' width='2.5' height='2.5'/%3E%3C/g%3E%3C/svg%3E"),
     #f0f4f8;
-  background-size: auto, auto, auto, 25px 25px, auto;
+  background-size: auto, auto, auto, 22.5px 22.5px, auto;
 }
 
 /* Надзаголовок стоит на 69 px от верха блока, H2 — на 120, то есть между
@@ -700,10 +722,10 @@ button {
   pointer-events: none;
   user-select: none;
 }
-.pains__decor--tl { left: -24px;  top: 190px;  width: 223px; }
-.pains__decor--tr { right: 1px;   top: 284px;  width: 239px; }
-.pains__decor--bl { left: 33px;   top: 1008px; width: 212px; }
-.pains__decor--br { right: 105px; top: 783px;  width: 143px; }
+.pains__decor--tl { left: -21.6px;  top: 171px;  width: 200.7px; }
+.pains__decor--tr { right: 1px;   top: 255.6px;  width: 215.1px; }
+.pains__decor--bl { left: 29.7px;   top: 907.2px; width: 190.8px; }
+.pains__decor--br { right: 94.5px; top: 704.7px;  width: 128.7px; }
 
 /* Текст и сетка должны лежать поверх декоративных карточек. */
 .pains .eyebrow,
@@ -712,22 +734,24 @@ button {
 .pains__grid { position: relative; z-index: 1; }
 
 .pains .eyebrow {
-  margin-bottom: 25px;
+  margin-bottom: 22.5px;
 }
 
 .pains .section-title {
-  margin-bottom: 26px;
+  margin-bottom: 23.4px;
 }
 
 .pains .section-lead {
-  margin-bottom: 35px;
+  margin-bottom: 31.5px;
 }
 
 .pains__grid {
   display: grid;
-  grid-template-columns: repeat(2, 568px);
-  gap: 24px;
+  grid-template-columns: repeat(2, minmax(0, 511.2px));
+  gap: 21.6px;
+  width: min(100%, 1044px);
   justify-content: center;
+  margin-inline: auto;
   text-align: left;
 }
 
@@ -735,13 +759,13 @@ button {
   position: relative;
   display: flex;
   align-items: flex-start;
-  gap: 21px;
-  width: 568px;
-  height: 184px;
-  padding: 21px 28px 30px 20px;
-  border-radius: 30px;
+  gap: 18.9px;
+  width: 100%;
+  height: 165.6px;
+  padding: 18.9px 25.2px 27px 18px;
+  border-radius: 27px;
   background: #fff;
-  box-shadow: 0 0 32.8px rgba(240, 240, 240, 0.27);
+  box-shadow: 0 0 29.52px rgba(240, 240, 240, 0.27);
 }
 
 .pain-card__ico {
@@ -750,34 +774,34 @@ button {
 
 /* У карточек 3-6 иконка меньше (67 против 83) — выравниваем по общей сетке. */
 .pain-card__ico--sm {
-  margin: 8px 8px 0 8px;
+  margin: 7.2px 7.2px 0 7.2px;
 }
 
 .pain-card__body {
   display: flex;
   flex-direction: column;
-  padding: 9px 0 0;
+  padding: 8.1px 0 0;
 }
 
 .pain-card__quote {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 500;
   line-height: 1.4;
   color: #1c274c;
 }
 
-/* Тег «// …» в макете стоит на фиксированной высоте 143 px от верха карточки
-   (одинаково во всех шести), а не подпирается к нижнему краю. Между цитатой и
-   тегом получается пробел, размер которого зависит от длины цитаты. */
-/* Тег «// …» идёт сразу за цитатой с единым зазором во всех карточках
-   (раньше был приколот к фиксированной высоте 143 — у коротких цитат зазор
-   получался большим и разным). */
+/* Подпись вынесена в самостоятельную строку с единым baseline. Добавляем
+   восемь пикселей воздуха относительно сырой Figma-координаты: в браузерном
+   рендере Gilroy её глифы визуально поджимались к последней строке цитаты. */
 .pain-card__tag {
-  margin-top: 16px;
-  font-size: 15px;
+  position: absolute;
+  top: 135.9px;
+  left: 111.6px;
+  margin: 0;
+  font-size: 13.5px;
   font-weight: 400;
   line-height: 1.3;
-  text-shadow: 0 0 16px #fff;
+  text-shadow: 0 0 14.4px #fff;
 }
 
 .pain-card__tag--blue   { color: #5b84f5; }
@@ -800,8 +824,8 @@ button {
    -------------------------------------------------------------------------- */
 
 .how {
-  padding-top: 107px;
-  padding-bottom: 120px;
+  padding-top: 96.3px;
+  padding-bottom: 108px;
 }
 
 /* Единственная секция, где заголовок не по центру. */
@@ -812,29 +836,29 @@ button {
 }
 
 .how .eyebrow {
-  margin-bottom: 26px;
+  margin-bottom: 23.4px;
 }
 
 .how__title {
-  margin-bottom: 23px;
+  margin-bottom: 20.7px;
 }
 
 .how .section-lead {
-  margin-bottom: 38px;
+  margin-bottom: 34.2px;
 }
 
 .how__grid {
   display: grid;
-  grid-template-columns: repeat(3, 360px);
-  gap: 38px;
+  grid-template-columns: repeat(3, 324px);
+  gap: 34.2px;
   justify-content: center;
 }
 
 .how-card {
   position: relative;
-  height: 450px;
-  padding: 40px 25px 0 30px;
-  border-radius: 30px;
+  height: 405px;
+  padding: 36px 22.5px 0 27px;
+  border-radius: 27px;
   background: #f6f9ff;
   overflow: hidden;
 }
@@ -842,24 +866,24 @@ button {
 /* Маркер из двух перекрывающихся кругов 12×12 (#bccbf7 и #5171d0). */
 .how-card__dot {
   display: block;
-  width: 18px;
-  height: 12px;
-  margin-bottom: 35px;
+  width: 16.2px;
+  height: 10.8px;
+  margin-bottom: 31.5px;
   background:
-    radial-gradient(circle 6px at 12px 6px, var(--c-accent-soft) 100%, transparent 0),
-    radial-gradient(circle 6px at 6px 6px, var(--c-accent-pale) 100%, transparent 0);
+    radial-gradient(circle 5.4px at 10.8px 5.4px, var(--c-accent-soft) 100%, transparent 0),
+    radial-gradient(circle 5.4px at 5.4px 5.4px, var(--c-accent-pale) 100%, transparent 0);
 }
 
 .how-card__title {
-  margin-bottom: 22px;
-  font-size: 22px;
+  margin-bottom: 19.8px;
+  font-size: 19.8px;
   font-weight: 600;
   line-height: 1.25;
   color: #1c274c;
 }
 
 .how-card__text {
-  font-size: 15px;
+  font-size: 13.5px;
   font-weight: 300;
   line-height: 1.3;
   color: #0c2950;
@@ -869,21 +893,21 @@ button {
 .how-card__tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
-  margin-top: 20px;
+  gap: 4.5px;
+  margin-top: 18px;
 }
 
 .tag {
   display: inline-flex;
   align-items: center;
-  height: 25px;
-  padding-inline: 10px;
-  border-radius: 38px;
+  height: 22.5px;
+  padding-inline: 9px;
+  border-radius: 34.2px;
   background: #fff;
-  font-size: 12px;
+  font-size: 10.8px;
   font-weight: 500;
   line-height: 1.1;
-  text-shadow: 0 0 10px #fff;
+  text-shadow: 0 0 9px #fff;
 }
 
 .tag--yd    { color: #a69354; }
@@ -909,12 +933,12 @@ button {
 /* Пользовательские экспорты сняты из Figma в 2×. Показываем их в половинном
    размере: так прозрачные поля и фактический контент совпадают с карточками
    360×450 без повторной обрезки фона. */
-.how-art--1a { left: 0;    top: 137px; width: 360px; height: auto; }
-.how-art--1b { left: 58px; top: 203px; width: 302px; height: auto; }
-.how-art--2a { left: 0;    top: 298px; width: 360px; height: auto; }
-.how-art--2b { left: 45px; top: 271px; width: 292px; height: auto; }
-.how-art--3b { left: 0;    top: 145px; width: 360px; height: auto; }
-.how-art--3a { left: 85px; top: 290px; width: 360px; height: auto; }
+.how-art--1a { left: 2px;  top: 108px; width: 324px; height: auto; }
+.how-art--1b { left: 52px; top: 183px; width: 272px; height: auto; }
+.how-art--2a { left: -2px; top: 275px; width: 420px; height: auto; }
+.how-art--2b { left: 74px; top: 243px; width: 269px; height: auto; }
+.how-art--3b { left: 0;    top: 145px; width: 324px; height: auto; }
+.how-art--3a { left: -8px; top: 267px; width: 324px; height: auto; }
 
 /* --------------------------------------------------------------------------
    «Возможности»
@@ -932,16 +956,18 @@ button {
    -------------------------------------------------------------------------- */
 
 .features {
-  padding-inline: 31px;
-  padding-bottom: 60px;
+  /* Та же внешняя геометрия, что у «Болей», «Тарифов» и CTA:
+     42px в Figma → 37.8px в принятой плотности 90%. */
+  padding-inline: 37.8px;
+  padding-bottom: 54px;
 }
 
 .features__inner {
   position: relative;
-  max-width: 1836px;
-  height: 3747px;   /* высота секции из Figma — контент позиционируется абсолютно */
+  max-width: 1652.4px;
+  height: 3372.3px;   /* высота секции из Figma — контент позиционируется абсолютно */
   margin-inline: auto;
-  border-radius: 30px;
+  border-radius: 27px;
   overflow: hidden;
   background:
     radial-gradient(circle at 10% 12%, rgba(213, 220, 249, 0.85) 0%, rgba(213, 220, 249, 0) 42%),
@@ -950,17 +976,17 @@ button {
     radial-gradient(circle at 8% 78%, rgba(220, 230, 245, 0.9) 0%, rgba(220, 230, 245, 0) 45%),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='25' height='25'%3E%3Cg fill='%23fff' fill-opacity='.45'%3E%3Crect x='0' y='0' width='2.5' height='2.5'/%3E%3Crect x='12.5' y='12.5' width='2.5' height='2.5'/%3E%3Crect x='12.5' y='0' width='2.5' height='2.5'/%3E%3Crect x='0' y='12.5' width='2.5' height='2.5'/%3E%3C/g%3E%3C/svg%3E"),
     #f0f4f8;
-  background-size: auto, auto, auto, auto, 25px 25px, auto;
+  background-size: auto, auto, auto, auto, 22.5px 22.5px, auto;
 }
 
 .features__head {
   position: absolute;
-  top: 94px;
-  left: 341px;
+  top: 84.6px;
+  left: 306.9px;
 }
 
 .features .eyebrow {
-  margin-bottom: 24px;
+  margin-bottom: 21.6px;
   text-align: left;
 }
 
@@ -974,17 +1000,23 @@ button {
    так текст встаёт ровно рядом со своей иллюстрацией (тоже абсолютной). */
 .feature {
   position: absolute;
-  width: 672px;
+  width: 604.8px;
+  isolation: isolate;
   /* Текст и непрозрачные капсулы всегда выше декоративных PNG. В Figma
      иллюстрации лежат рядом с копирайтом, а не могут визуально «выбеливать» его. */
   z-index: 1;
 }
-.feature:nth-of-type(1) { left: 343px;  top: 407px;  }  /* Единый дашборд */
-.feature:nth-of-type(2) { left: 1015px; top: 1006px; }  /* Детектор */
-.feature:nth-of-type(3) { left: 343px;  top: 1563px; }  /* Направления */
-.feature:nth-of-type(4) { left: 1015px; top: 2124px; }  /* AI */
-.feature:nth-of-type(5) { left: 343px;  top: 2614px; }  /* Отчёты */
-.feature:nth-of-type(6) { left: 1015px; top: 3256px; }  /* White Label */
+
+.feature__text {
+  position: relative;
+  z-index: 1;
+}
+.feature--dashboard   { left: 308.7px;  top: 366.3px;  }
+.feature--detector    { left: 913.5px; top: 905.4px; }
+.feature--directions  { left: 308.7px;  top: 1406.7px; }
+.feature--ai          { left: 913.5px; top: 1911.6px; }
+.feature--reports     { left: 308.7px;  top: 2352.6px; }
+.feature--white-label { left: 913.5px; top: 2930.4px; }
 
 .feature:last-child {
   margin-bottom: 0;
@@ -994,33 +1026,33 @@ button {
 .badge {
   display: inline-flex;
   align-items: center;
-  height: 47px;
-  padding-inline: 23px;
-  margin-bottom: 39px;
-  border-radius: 32.679px;
+  height: 42.3px;
+  padding-inline: 20.7px;
+  margin-bottom: 35.1px;
+  border-radius: 29.411px;
   background-color: rgb(247 249 255 / 100%);
   opacity: 1;
   font-family: 'Gilroy', sans-serif;
   /* Figma 1:132114: Gilroy Bold 13px, tracking 3px. */
-  font-size: 13px;
+  font-size: 11.7px;
   font-weight: 700;
   line-height: normal;
-  letter-spacing: 3px;
+  letter-spacing: 2.7px;
   text-transform: uppercase;
   color: #5b84f5;
 }
 
 .feature__title {
-  margin-bottom: 35px;
-  font-size: 33px;
+  margin-bottom: 31.5px;
+  font-size: 29.7px;
   font-weight: 600;
-  line-height: 37px;
+  line-height: 33.3px;
   color: #1c274c;
 }
 
 .feature__lead {
-  margin-bottom: 25px;
-  font-size: 17.86px;
+  margin-bottom: 22.5px;
+  font-size: 16.074px;
   font-weight: 500;
   line-height: 1.3;
   color: #0c2950;
@@ -1029,14 +1061,17 @@ button {
 .feature__list {
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 19.8px;
+  /* В Figma самая длинная строка списка занимает 465 px. Больше нельзя:
+     справа начинается иллюстрация первого блока. */
+  max-width: 418.5px;
 }
 
 /* Маркер — точка 4,76 px, отступ до текста 9,5 px. */
 .feature__list li {
   position: relative;
-  padding-left: 14.3px;
-  font-size: 17.86px;
+  padding-left: 12.87px;
+  font-size: 16.074px;
   font-weight: 300;
   line-height: 1.3;
   color: #0c2950;
@@ -1046,26 +1081,29 @@ button {
   content: "";
   position: absolute;
   left: 0;
-  top: 9px;
-  width: 4.76px;
-  height: 4.76px;
+  top: 8.1px;
+  width: 4.284px;
+  height: 4.284px;
   border-radius: 50%;
   background: #0c2950;
 }
 
-/* Иллюстрации — самостоятельный декоративный слой под текстом. */
-.features__art {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-}
-
 .feat-illu {
   position: absolute;
+  z-index: 0;
   height: auto;
+  pointer-events: none;
   /* Тень уже запечена в PNG (экспорт из Figma) — второй drop-shadow не нужен. */
 }
+/* Размеры и координаты рассчитаны по фактическим union-bounds слоёв Figma.
+   PNG имеют единый холст 1507×1055 и прозрачный inset 89×74, поэтому здесь
+   учитывается именно видимый контент, а не полный прозрачный canvas. */
+.feat-illu--dashboard   { left: 441.947px;  top: -44.288px; width: 681.98px; }
+.feat-illu--detector    { left: -631.185px; top: -29.421px; width: 599.157px; }
+.feat-illu--directions  { left: 441.947px;  top: -44.288px; width: 681.98px; }
+.feat-illu--ai          { left: -617.624px; top: -26.377px; width: 537.161px; }
+.feat-illu--reports     { left: 398.995px;  top: -33.874px; width: 726.498px; }
+.feat-illu--white-label { left: -627.524px; top: -15.577px; width: 537.161px; }
 
 /* --------------------------------------------------------------------------
    «Интеграции»
@@ -1077,8 +1115,8 @@ button {
    -------------------------------------------------------------------------- */
 
 .integrations {
-  padding-top: 30px;
-  padding-bottom: 90px;
+  padding-top: 27px;
+  padding-bottom: 81px;
   overflow: hidden;
 }
 
@@ -1087,7 +1125,7 @@ button {
 }
 
 .integrations__eyebrow {
-  margin-bottom: 31px;
+  margin-bottom: 27.9px;
 }
 
 .integrations__title {
@@ -1095,7 +1133,7 @@ button {
   flex-direction: column;
   align-items: center;
   color: #0c2950;
-  font-size: 55px;
+  font-size: 49.5px;
   font-weight: 300;
   line-height: 1.1;
 }
@@ -1106,20 +1144,20 @@ button {
 
 .integrations__rail {
   display: flex;
-  gap: 15px;
-  width: 1935px;
+  gap: 13.5px;
+  width: 1741.5px;
   /* (1920 − 1935) / 2 = −7.5: крайние карточки подрезаны так же, как в Figma. */
-  margin: 45px 0 0 calc(50% - 967.5px);
+  margin: 40.5px 0 0 calc(50% - 870.75px);
 }
 
 .integration-card {
   display: flex;
-  flex: 0 0 310px;
+  flex: 0 0 279px;
   align-items: center;
   justify-content: center;
-  height: 110px;
+  height: 99px;
   border: 1px solid rgba(148, 172, 205, 0.22);
-  border-radius: 30px;
+  border-radius: 27px;
   background: #fff;
 }
 
@@ -1130,27 +1168,27 @@ button {
   object-fit: contain;
 }
 
-.integration-card:nth-child(1) .integration-card__logo { width: 222px; }
-.integration-card:nth-child(2) .integration-card__logo { width: 185px; }
-.integration-card:nth-child(3) .integration-card__logo { width: 247px; }
-.integration-card:nth-child(4) .integration-card__logo { width: 164px; }
-.integration-card:nth-child(5) .integration-card__logo { width: 122px; }
-.integration-card:nth-child(6) .integration-card__logo { width: 132px; }
+.integration-card:nth-child(1) .integration-card__logo { width: 199.8px; }
+.integration-card:nth-child(2) .integration-card__logo { width: 166.5px; }
+.integration-card:nth-child(3) .integration-card__logo { width: 222.3px; }
+.integration-card:nth-child(4) .integration-card__logo { width: 147.6px; }
+.integration-card:nth-child(5) .integration-card__logo { width: 109.8px; }
+.integration-card:nth-child(6) .integration-card__logo { width: 118.8px; }
 
 /* Карточки «Скоро»: логотип, вертикальный разделитель и подпись. Зазоры по
    15 px с каждой стороны разделителя (из Figma). */
 .integration-card--coming {
-  gap: 15px;
+  gap: 13.5px;
 }
 
 .integration-card__soon {
   display: inline-flex;
   align-items: center;
-  height: 21px;
-  padding-left: 15px;
+  height: 18.9px;
+  padding-left: 13.5px;
   border-left: 1px solid #b8c8ef;
   color: #1c274c;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
   line-height: 1;
 }
@@ -1164,38 +1202,38 @@ button {
    -------------------------------------------------------------------------- */
 
 .pricing {
-  padding: 0 42px 40px;
+  padding: 0 37.8px 36px;
 }
 
 .pricing__inner {
   position: relative;
   width: 100%;
-  max-width: 1836px;
-  height: 1558px;
+  max-width: 1652.4px;
+  height: 1402.2px;
   margin-inline: auto;
   overflow: hidden;
-  border-radius: 30px;
+  border-radius: 27px;
   background:
-    radial-gradient(700px 780px at 6% 90%, rgba(197, 205, 249, 0.82), transparent 72%),
-    radial-gradient(810px 740px at 95% 40%, rgba(227, 237, 247, 0.88), transparent 70%),
-    radial-gradient(520px 560px at 49% 0%, rgba(255, 255, 255, 0.65), transparent 82%),
+    radial-gradient(630px 702px at 6% 90%, rgba(197, 205, 249, 0.82), transparent 72%),
+    radial-gradient(729px 666px at 95% 40%, rgba(227, 237, 247, 0.88), transparent 70%),
+    radial-gradient(468px 504px at 49% 0%, rgba(255, 255, 255, 0.65), transparent 82%),
     #dce5f7;
   background-size: auto;
 }
 
 .pricing__head {
   position: absolute;
-  top: 72px;
-  left: 338px;
+  top: 64.8px;
+  left: 304.2px;
 }
 
 .pricing__eyebrow {
-  margin-bottom: 31px;
+  margin-bottom: 27.9px;
 }
 
 .pricing__title {
   color: #0c2950;
-  font-size: 55px;
+  font-size: 49.5px;
   font-weight: 600;
   line-height: 1.1;
 }
@@ -1205,28 +1243,28 @@ button {
 }
 
 .pricing__lead {
-  margin-top: 31px;
+  margin-top: 27.9px;
   color: #0c2950;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 300;
   line-height: 1.3;
 }
 
 .pricing__cards {
   position: absolute;
-  top: 344px;
-  left: 338px;
+  top: 309.6px;
+  left: 304.2px;
   display: grid;
-  grid-template-columns: repeat(3, 360px);
-  gap: 40px;
+  grid-template-columns: repeat(3, 324px);
+  gap: 36px;
 }
 
 .price-card {
   position: relative;
-  width: 360px;
-  height: 680px;
+  width: 324px;
+  height: 612px;
   overflow: hidden;
-  border-radius: 30px;
+  border-radius: 27px;
   background: #fff;
   color: #0c2950;
 }
@@ -1238,11 +1276,11 @@ button {
 
 .price-card__name {
   position: absolute;
-  top: 40px;
-  left: 66px;
+  top: 36px;
+  left: 59.4px;
   z-index: 1;
   color: inherit;
-  font-size: 25px;
+  font-size: 22.5px;
   font-weight: 600;
   line-height: 1;
 }
@@ -1252,22 +1290,22 @@ button {
 .price-wl__name::before,
 .price-wl__name::after {
   position: absolute;
-  top: 3px;
-  width: 12px;
-  height: 12px;
+  top: 2.7px;
+  width: 10.8px;
+  height: 10.8px;
   border-radius: 50%;
   content: '';
 }
 
 .price-card__name::before,
 .price-wl__name::before {
-  left: -36px;
+  left: -32.4px;
   background: #bfcef5;
 }
 
 .price-card__name::after,
 .price-wl__name::after {
-  left: -30px;
+  left: -27px;
   background: #5278db;
 }
 
@@ -1276,16 +1314,16 @@ button {
 
 /* В White Label тумблер стоит НАД заголовком (в Figma: тумблер y40, заголовок
    y77), а не слева от него, как в тарифных карточках. */
-.price-wl__name::before { left: 0;  top: -37px; }
-.price-wl__name::after  { left: 6px; top: -37px; }
+.price-wl__name::before { left: 0;  top: -33.3px; }
+.price-wl__name::after  { left: 5.4px; top: -33.3px; }
 
 .price-card__price {
   position: absolute;
-  top: 105px;
-  left: 30px;
+  top: 94.5px;
+  left: 27px;
   z-index: 1;
   color: #202020;
-  font-size: 60px;
+  font-size: 54px;
   font-weight: 600;
   letter-spacing: -1px;
   line-height: 1;
@@ -1296,11 +1334,11 @@ button {
 
 .price-card__per {
   position: absolute;
-  top: 176px;
-  left: 31px;
+  top: 158.4px;
+  left: 27.9px;
   z-index: 1;
   color: #5b5454;
-  font-size: 15px;
+  font-size: 13.5px;
   font-weight: 300;
   line-height: 1.3;
 }
@@ -1309,21 +1347,21 @@ button {
 
 .price-card__benefits {
   position: absolute;
-  top: 215px;
-  left: 30px;
+  top: 193.5px;
+  left: 27px;
   z-index: 1;
-  width: 300px;
+  width: 270px;
 }
 
 .price-card__benefits li {
   position: relative;
   display: flex;
   align-items: center;
-  min-height: 53px;
-  padding: 8px 10px 8px 28px;
+  min-height: 47.7px;
+  padding: 7.2px 9px 7.2px 25.2px;
   border-bottom: 1px solid rgb(64 64 64 / 12%);
   color: inherit;
-  font-size: 17px;
+  font-size: 15.3px;
   font-weight: 500;
   line-height: 1.3;
 }
@@ -1331,18 +1369,18 @@ button {
 .price-card__benefits li::before,
 .price-wl__benefits li::before {
   position: absolute;
-  left: 3px;
+  left: 2.7px;
   top: 50%;
-  width: 9px;
-  height: 9px;
+  width: 8.1px;
+  height: 8.1px;
   border-radius: 50%;
   background: #5980e2;
   content: '';
   transform: translateY(-50%);
 }
 
-.price-card__benefits li:nth-child(1) { min-height: 49px; }
-.price-card__benefits li:nth-child(2) { min-height: 76px; }
+.price-card__benefits li:nth-child(1) { min-height: 44.1px; }
+.price-card__benefits li:nth-child(2) { min-height: 68.4px; }
 .price-card__benefits li:nth-child(5) { border-bottom: 0; }
 
 .price-card--base .price-card__benefits li {
@@ -1356,9 +1394,9 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-  border-radius: 60px;
-  font-size: 10px;
+  gap: 12.6px;
+  border-radius: 54px;
+  font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.1em;
   line-height: 1;
@@ -1367,11 +1405,11 @@ button {
 
 .price-card__cta {
   position: absolute;
-  left: 24px;
-  bottom: 72px;
+  left: 21.6px;
+  bottom: 64.8px;
   z-index: 2;
-  width: 300px;
-  height: 70px;
+  width: 270px;
+  height: 63px;
 }
 
 .price-card__cta--blue,
@@ -1390,12 +1428,12 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 27px;
-  height: 27px;
-  margin-left: 2px;
+  width: 24.3px;
+  height: 24.3px;
+  margin-left: 1.8px;
   border-radius: 50%;
   background: rgb(255 255 255 / 13%);
-  font-size: 14px;
+  font-size: 12.6px;
   letter-spacing: 0;
 }
 
@@ -1406,79 +1444,79 @@ button {
 
 .price-card__base-fox-wrap {
   position: absolute;
-  top: -105px;
-  left: 176px;
+  top: -94.5px;
+  left: 158.4px;
   z-index: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 349.593px;
-  height: 369.517px;
+  width: 314.634px;
+  height: 332.565px;
   max-width: none;
   mix-blend-mode: soft-light;
 }
 
 .price-card__base-fox {
-  width: 205.152px;
-  height: 308.159px;
+  width: 184.637px;
+  height: 277.343px;
   max-width: none;
   transform: rotate(-37deg);
 }
 
 .price-wl {
   position: absolute;
-  top: 1064px;
-  left: 338px;
-  width: 1160px;
-  height: 422px;
+  top: 957.6px;
+  left: 304.2px;
+  width: 1044px;
+  height: 379.8px;
   overflow: hidden;
-  border-radius: 30px;
+  border-radius: 27px;
   background: #fff;
 }
 
 .price-wl__name {
   position: absolute;
-  top: 76px;
-  left: 30px;
+  top: 68.4px;
+  left: 27px;
   color: #1c274c;
-  font-size: 25px;
+  font-size: 22.5px;
   font-weight: 600;
   line-height: 1.25;
 }
 
 .price-wl__benefits {
   position: absolute;
-  top: 194px;
-  left: 30px;
-  width: 300px;
+  top: 174.6px;
+  left: 27px;
+  width: 270px;
 }
 
 .price-wl__benefits li {
   position: relative;
   display: flex;
   align-items: center;
-  min-height: 53px;
-  padding: 8px 10px 8px 28px;
+  min-height: 47.7px;
+  padding: 7.2px 9px 7.2px 25.2px;
   border-bottom: 1px solid rgb(64 64 64 / 12%);
   color: #0c2950;
-  font-size: 17px;
+  font-size: 15.3px;
   font-weight: 500;
   line-height: 1.3;
 }
 
-.price-wl__benefits li:nth-child(2) { min-height: 72px; }
-.price-wl__benefits li:nth-child(3) { min-height: 75px; border-bottom: 0; }
+.price-wl__benefits li:nth-child(2) { min-height: 64.8px; }
+.price-wl__benefits li:nth-child(3) { min-height: 67.5px; border-bottom: 0; }
 
 .price-wl__visual {
   position: absolute;
-  top: 15px;
-  left: 356px;
-  width: 431px;
+  top: 13.5px;
+  left: 320.4px;
+  width: 387.9px;
   height: auto;
 }
 
 .price-wl__visual > img {
-  width: 431px;
+  width: 387.9px;
   height: auto;
   max-width: none;
 }
@@ -1486,48 +1524,48 @@ button {
 .price-wl__note {
   position: absolute;
   bottom: 0;
-  left: 25px;
-  width: 194px;
-  min-height: 160px;
-  padding: 18px 17px;
-  border-radius: 12px;
+  left: 22.5px;
+  width: 174.6px;
+  min-height: 144px;
+  padding: 16.2px 15.3px;
+  border-radius: 10.8px;
   background: #fff;
-  box-shadow: 0 12px 33px rgb(39 79 158 / 14%);
+  box-shadow: 0 10.8px 29.7px rgb(39 79 158 / 14%);
   color: #0c2950;
-  font-size: 12px;
+  font-size: 10.8px;
   font-weight: 500;
   line-height: 1.2;
 }
 
 .price-wl__note::before {
   position: absolute;
-  top: 11px;
-  left: 23px;
-  width: 9px;
-  height: 9px;
+  top: 9.9px;
+  left: 20.7px;
+  width: 8.1px;
+  height: 8.1px;
   border-radius: 50%;
   background: #5b84f5;
   content: '';
 }
 
-.price-wl__note p { margin-top: 21px; }
+.price-wl__note p { margin-top: 18.9px; }
 
 .price-wl__note span {
   display: block;
-  margin-top: 10px;
+  margin-top: 9px;
   font-weight: 300;
 }
 
 .price-wl__right {
   position: absolute;
-  top: 76px;
-  right: 30px;
-  width: 296px;
+  top: 68.4px;
+  right: 27px;
+  width: 266.4px;
 }
 
 .price-wl__price {
   color: #202020;
-  font-size: 60px;
+  font-size: 54px;
   font-weight: 600;
   letter-spacing: -1px;
   line-height: 1;
@@ -1535,17 +1573,17 @@ button {
 }
 
 .price-wl__per {
-  margin-top: 8px;
+  margin-top: 7.2px;
   color: #5b5454;
-  font-size: 15px;
+  font-size: 13.5px;
   font-weight: 300;
   line-height: 1.3;
 }
 
 .price-wl__trial {
-  margin-top: 24px;
+  margin-top: 21.6px;
   color: #0c2950;
-  font-size: 17px;
+  font-size: 15.3px;
   font-weight: 400;
   line-height: 1.25;
 }
@@ -1554,10 +1592,10 @@ button {
 
 .price-wl__cta {
   position: absolute;
-  top: 239px;
+  top: 215.1px;
   left: 0;
-  width: 296px;
-  height: 70px;
+  width: 266.4px;
+  height: 63px;
 }
 
 /* --------------------------------------------------------------------------
@@ -1570,7 +1608,7 @@ button {
    -------------------------------------------------------------------------- */
 
 .faq {
-  padding: 41px 0 50px;
+  padding: 36.9px 0 45px;
 }
 
 .faq__head {
@@ -1578,7 +1616,7 @@ button {
 }
 
 .faq .eyebrow {
-  margin-bottom: 30px;
+  margin-bottom: 27px;
 }
 
 .faq__title {
@@ -1587,50 +1625,50 @@ button {
 
 .faq__body {
   display: flex;
-  gap: 25px;
+  gap: 22.5px;
   align-items: flex-start;
   justify-content: center;
-  max-width: 1160px;
-  margin: 72px auto 0;
-  padding-inline: 24px;
+  max-width: 1044px;
+  margin: 64.8px auto 0;
+  padding-inline: 21.6px;
 }
 
 .faq__visual {
-  flex: 0 0 574px;
-  width: 574px;
+  flex: 0 0 516.6px;
+  width: 516.6px;
   height: auto;
 }
 
 .faq__list {
-  flex: 0 0 561px;
-  width: 561px;
+  flex: 0 0 504.9px;
+  width: 504.9px;
 }
 
 /* Из Figma: свёрнутый пункт — белая карточка с рамкой rgba(148,172,205,0.3),
    скругление 15. Раскрытый — та же рамка, но строка вопроса подсвечена #f6f9ff,
    ответ на белом. */
 .faq-item {
-  width: 561px;
+  width: 504.9px;
   border: 1px solid rgba(148, 172, 205, 0.3);
-  border-radius: 15px;
+  border-radius: 13.5px;
   background: #fff;
   overflow: hidden;
 }
 
 .faq-item + .faq-item {
-  margin-top: 13px;
+  margin-top: 11.7px;
 }
 
 .faq-item__q {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  height: 60px;
-  padding: 0 10px 0 21px;
-  border-radius: 15px;
+  gap: 14.4px;
+  height: 54px;
+  padding: 0 9px 0 18.9px;
+  border-radius: 13.5px;
   color: #0c2950;
-  font-size: 15px;
+  font-size: 13.5px;
   font-weight: 500;
   line-height: 1.3;
   list-style: none;
@@ -1647,16 +1685,16 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   background: #f6f9ff;
 }
 
 .faq-item__toggle-dot {
   position: relative;
-  width: 26px;
-  height: 26px;
+  width: 23.4px;
+  height: 23.4px;
   border-radius: 50%;
   background: #5171d0;
 }
@@ -1671,15 +1709,15 @@ button {
   content: '';
   transform: translate(-50%, -50%);
 }
-.faq-item__toggle-dot::before { width: 11px; height: 1.6px; }
-.faq-item__toggle-dot::after  { width: 1.6px; height: 11px; }
+.faq-item__toggle-dot::before { width: 9.9px; height: 1.44px; }
+.faq-item__toggle-dot::after  { width: 1.44px; height: 9.9px; }
 .faq-item[open] .faq-item__toggle-dot::after { opacity: 0; }
 
 .faq-item__a {
   margin: 0;
-  padding: 6px 21px 22px;
+  padding: 5.4px 18.9px 19.8px;
   color: #0c2950;
-  font-size: 15px;
+  font-size: 13.5px;
   font-weight: 300;
   line-height: 1.3;
 }
@@ -1693,53 +1731,53 @@ button {
    -------------------------------------------------------------------------- */
 
 .cta-band {
-  padding: 0 42px;
+  padding: 0 37.8px;
 }
 
 .cta-band__inner {
   position: relative;
   width: 100%;
-  max-width: 1836px;
-  height: 578px;
+  max-width: 1652.4px;
+  height: 520.2px;
   margin-inline: auto;
   overflow: hidden;
-  border-radius: 30px;
+  border-radius: 27px;
   background:
-    radial-gradient(760px 620px at 8% 20%, rgba(213, 220, 249, 0.9) 0%, rgba(213, 220, 249, 0) 60%),
-    radial-gradient(820px 700px at 95% 85%, rgba(220, 230, 245, 0.95) 0%, rgba(220, 230, 245, 0) 62%),
-    radial-gradient(560px 460px at 50% 4%, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 70%),
+    radial-gradient(684px 558px at 8% 20%, rgba(213, 220, 249, 0.9) 0%, rgba(213, 220, 249, 0) 60%),
+    radial-gradient(738px 630px at 95% 85%, rgba(220, 230, 245, 0.95) 0%, rgba(220, 230, 245, 0) 62%),
+    radial-gradient(504px 414px at 50% 4%, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 70%),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='25' height='25'%3E%3Cg fill='%23fff' fill-opacity='.45'%3E%3Crect x='0' y='0' width='2.5' height='2.5'/%3E%3Crect x='12.5' y='12.5' width='2.5' height='2.5'/%3E%3Crect x='12.5' y='0' width='2.5' height='2.5'/%3E%3Crect x='0' y='12.5' width='2.5' height='2.5'/%3E%3C/g%3E%3C/svg%3E"),
     #dbe2f9;
-  background-size: auto, auto, auto, 25px 25px, auto;
+  background-size: auto, auto, auto, 22.5px 22.5px, auto;
 }
 
 .cta-band__title {
   position: absolute;
-  top: 72px;
+  top: 64.8px;
   left: 0;
   right: 0;
   text-align: center;
   color: #0c2950;
-  font-size: 55px;
+  font-size: 49.5px;
   font-weight: 500;   /* Gilroy Medium по Figma (было 600 — казалось слишком тёмным) */
   line-height: 1.1;
 }
 
 .cta-band__lead {
   position: absolute;
-  top: 232px;
+  top: 208.8px;
   left: 0;
   right: 0;
   text-align: center;
   color: #0c2950;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 300;
   line-height: 1.3;
 }
 
 .cta-band__cta {
   position: absolute;
-  top: 329px;
+  top: 296.1px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 2;
@@ -1749,24 +1787,24 @@ button {
    кнопку и выступает снизу, где лежит подпись. Из Figma: 409×118, y370. */
 .cta-band__note {
   position: absolute;
-  top: 370px;
+  top: 333px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 1;
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  width: 409px;
-  height: 118px;
-  padding-bottom: 22px;
-  border-radius: 24px;
+  width: 368.1px;
+  height: 106.2px;
+  padding-bottom: 19.8px;
+  border-radius: 21.6px;
   background: rgba(255, 255, 255, 0.9);
   text-align: center;
   color: #0c2950;
-  font-size: 15px;
+  font-size: 13.5px;
   font-weight: 500;
   line-height: 1.3;
-  text-shadow: 0 0 16px #fff;
+  text-shadow: 0 0 14.4px #fff;
 }
 
 .cta-band__note b {
@@ -1786,12 +1824,12 @@ button {
   pointer-events: none;
   user-select: none;
 }
-.cta-deco--send     { left: 131px;  top: 3px;   width: 256px; }
-.cta-deco--calendar { left: 1407px; top: -1px;  width: 163px; }
-.cta-deco--cpc      { left: -6px;   top: 115px; width: 350px; }
-.cta-deco--metrics  { left: 1489px; top: 109px; width: 301px; }
-.cta-deco--pie      { left: 1352px; top: 350px; width: 486px; }
-.cta-deco--bars     { left: -1px;   top: 218px; width: 625px; }
+.cta-deco--send     { left: 118px;  top: 3px;   width: 230px; }
+.cta-deco--calendar { left: 1046px; top: -1px;  width: 147px; }
+.cta-deco--cpc      { left: -5px;   top: 104px; width: 315px; }
+.cta-deco--metrics  { left: 1089px; top: 98px;  width: 271px; }
+.cta-deco--pie      { left: 957px;  top: 315px; width: 437px; }
+.cta-deco--bars     { left: -1px;   top: 196px; width: 563px; }
 
 /* --------------------------------------------------------------------------
    Блог «Наш блог»
@@ -1805,63 +1843,63 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 60px;
-  padding-inline: 51px;
-  border-radius: 60px;
+  height: 54px;
+  padding-inline: 45.9px;
+  border-radius: 54px;
   background: #fff;
   color: #3361d0;
-  font-size: 12px;
+  font-size: 10.8px;
   font-weight: 600;
-  letter-spacing: 1.2px;
+  letter-spacing: 1.08px;
   line-height: 1;
   text-transform: uppercase;
   white-space: nowrap;
-  box-shadow: 0 6px 24px rgba(39, 79, 158, 0.06);
+  box-shadow: 0 5.4px 21.6px rgba(39, 79, 158, 0.06);
   transition: filter 0.15s ease, transform 0.15s ease;
 }
 
 .btn-pill-light:hover { transform: translateY(-1px); }
 
 .blog {
-  padding: 120px 0 130px;
+  padding: 108px 0 117px;
 }
 
 .blog__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 42px;
+  margin-bottom: 37.8px;
 }
 
 .blog__title {
   color: #0c2950;
-  font-size: 55px;
+  font-size: 49.5px;
   font-weight: 500;   /* Gilroy Medium по Figma */
   line-height: 1.1;
 }
 
 .blog__all {
-  height: 71px;
-  padding-inline: 52px;
+  height: 63.9px;
+  padding-inline: 46.8px;
 }
 
 .blog__grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 38px;
+  gap: 34.2px;
 }
 
 .blog-card {
   display: flex;
   flex-direction: column;
-  padding: 15px;
-  border-radius: 15px;
+  padding: 13.5px;
+  border-radius: 13.5px;
   background: #f6f9ff;
 }
 
 .blog-card__cover {
   position: relative;
-  border-radius: 15px;
+  border-radius: 13.5px;
   overflow: hidden;
   line-height: 0;
 }
@@ -1873,46 +1911,46 @@ button {
 
 .blog-card__tags {
   position: absolute;
-  top: 11px;
-  left: 11px;
+  top: 9.9px;
+  left: 9.9px;
   display: flex;
-  gap: 8px;
+  gap: 7.2px;
 }
 
 .blog-card__tag {
   display: inline-flex;
   align-items: center;
-  padding: 8px 13px;
-  border-radius: 15px;
+  padding: 7.2px 11.7px;
+  border-radius: 13.5px;
   background: #fff;
   color: #90ade8;
-  font-size: 11px;
+  font-size: 9.9px;
   font-weight: 600;
-  letter-spacing: 1.5px;
+  letter-spacing: 1.35px;
   line-height: 1;
   text-transform: uppercase;
 }
 
 .blog-card__title {
-  margin-top: 25px;
+  margin-top: 22.5px;
   color: #1c274c;
-  font-size: 17px;
+  font-size: 15.3px;
   font-weight: 600;
   line-height: 1.3;
 }
 
 .blog-card__excerpt {
-  margin-top: 12px;
+  margin-top: 10.8px;
   color: #7c8aa5;
-  font-size: 13px;
+  font-size: 11.7px;
   font-weight: 400;
   line-height: 1.4;
 }
 
 .blog-card__more {
   width: 100%;
-  height: 60px;
-  margin-top: 22px;
+  height: 54px;
+  margin-top: 19.8px;
 }
 
 /* --------------------------------------------------------------------------
@@ -1933,33 +1971,33 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  max-width: 1160px;
+  max-width: 1044px;
   margin-inline: auto;
-  padding: 37px 0 0;
+  padding: 33.3px 0 0;
 }
 
 .footer__brand {
   display: flex;
   align-items: center;
-  gap: 30px;
+  gap: 27px;
 }
 
 .footer__social {
   display: flex;
-  gap: 6px;
+  gap: 5.4px;
 }
 
-.footer__social img { width: 24px; height: 24px; }
+.footer__social img { width: 21.6px; height: 21.6px; }
 
 .footer__subscribe {
   display: flex;
   align-items: center;
-  gap: 25px;
+  gap: 22.5px;
 }
 
 .footer__subscribe-label {
   color: #1c274c;
-  font-size: 17px;
+  font-size: 15.3px;
   font-weight: 400;
 }
 
@@ -1968,19 +2006,19 @@ button {
 .footer__capsule {
   position: relative;
   display: block;
-  width: 338px;
-  height: 50px;
+  width: 304.2px;
+  height: 45px;
 }
 
 .footer__field {
   width: 100%;
-  height: 50px;
-  padding: 0 180px 0 17px;
+  height: 45px;
+  padding: 0 162px 0 15.3px;
   border: 1px solid #d9d9d9;
-  border-radius: 60px;
+  border-radius: 54px;
   background: #fff;
   font-family: var(--font-base);
-  font-size: 12px;
+  font-size: 10.8px;
   font-weight: 500;
   color: #1c274c;
 }
@@ -1991,28 +2029,28 @@ button {
   position: absolute;
   right: 0;
   top: 0;
-  width: 170px;
-  height: 50px;
-  border-radius: 60px;
+  width: 153px;
+  height: 45px;
+  border-radius: 54px;
   color: #fff;
-  font-size: 14.75px;
+  font-size: 13.275px;
   font-weight: 600;
-  letter-spacing: 1.475px;
+  letter-spacing: 1.328px;
   text-transform: uppercase;
 }
 
 .footer__nav {
   display: flex;
   justify-content: center;
-  gap: 25px;
-  margin-top: 31px;
-  padding: 31px 0;
+  gap: 22.5px;
+  margin-top: 27.9px;
+  padding: 27.9px 0;
   border-top: 1px solid #dde1e4;
 }
 
 .footer__nav a {
   color: #1c274c;
-  font-size: 15px;
+  font-size: 13.5px;
   font-weight: 400;
   transition: color 0.15s ease;
 }
@@ -2021,33 +2059,33 @@ button {
 
 .footer__bottom {
   background: #fff;
-  padding: 30px 0 31px;
+  padding: 27px 0 27.9px;
 }
 
 .footer__cols {
   position: relative;
-  max-width: 1160px;
-  min-height: 118px;
+  max-width: 1044px;
+  min-height: 106.2px;
   margin-inline: auto;
 }
 
 /* Единый вертикальный ритм строк (шаг 36): заголовок → строки. Так строки
    центрального блока «АдМирра» встают на одну линию с боковыми колонками. */
 .footer__col-title {
-  margin-bottom: 20px;
+  margin-bottom: 18px;
   color: #1c274c;
-  font-size: 15px;
+  font-size: 13.5px;
   font-weight: 600;
   line-height: 1;
 }
 
-.footer__col ul { display: flex; flex-direction: column; gap: 21px; line-height: 1; }
+.footer__col ul { display: flex; flex-direction: column; gap: 18.9px; line-height: 1; }
 
 .footer__col a,
 .footer__center .footer__tagline,
 .footer__center .footer__copy {
   color: #1c274c;
-  font-size: 15px;
+  font-size: 13.5px;
   font-weight: 400;
   line-height: 1;
 }
@@ -2058,24 +2096,404 @@ button {
 /* Колонки спозиционированы по x-координатам макета (контейнер 1160 = x380..1540):
    Ресурсы x380, Контакты x552, Документы x1210; АдМирра — по центру блока. */
 .footer__col--res      { position: absolute; left: 0;    top: 0; }
-.footer__col--contacts { position: absolute; left: 172px; top: 0; }
-.footer__col--docs     { position: absolute; left: 830px; top: 0; width: 370px; }
+.footer__col--contacts { position: absolute; left: 154.8px; top: 0; }
+.footer__col--docs     { position: absolute; left: 747px; top: 0; width: 333px; }
 
 /* Флекс-колонка вместо потока: без схлопывания отступов, строки (тэглайн →
    платёжки → копирайт) встают на тот же вертикальный ритм, что боковые
    колонки. Раньше inline-block у платёжек накладывал копирайт на них. */
 .footer__center {
   position: absolute;
-  left: 290px;
+  left: 261px;
   top: 0;
-  width: 524px;
+  width: 471.6px;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
 }
 
-.footer__center .footer__col-title { margin-bottom: 20px; }
-.footer__tagline { margin: 0 0 21px; white-space: nowrap; }
-.footer__pay { display: block; height: 19px; width: auto; margin: 0 0 17px; }
-.footer__copy { margin: 0; font-size: 15px; }
+.footer__center .footer__col-title { margin-bottom: 18px; }
+.footer__tagline { margin: 0 0 18.9px; white-space: nowrap; }
+.footer__pay { display: block; height: 17.1px; width: auto; margin: 0 0 15.3px; }
+.footer__copy {
+  /* Оптическое выравнивание с третьими строками соседних колонок:
+     FAQ / Поддержка / Согласие на обработку данных. */
+  margin: 1.8px 0 0;
+  font-size: 13.5px;
+}
+
+/* ======================================================================
+   Адаптивность
+
+   1728 физических px — эталон Figma 1920 px в плотности 90%. Ниже секции:
+   сетки перестраиваются, текст сохраняет читабельный размер, а арт-директед
+   блок «Что внутри» переходит из абсолютной композиции в последовательные
+   пары «текст + иллюстрация». Это исключает наложение текста на PNG.
+   ====================================================================== */
+
+@media (max-width: 1727px) {
+  .features { padding-inline: 37.8px; }
+
+  .features__inner {
+    max-width: 1652.4px;
+    height: auto;
+    padding: 68.4px clamp(32.4px, 7vw, 100.8px) 86.4px;
+  }
+
+  .features__head {
+    position: relative;
+    top: auto;
+    left: auto;
+    margin-bottom: 64.8px;
+  }
+
+  .feature,
+  .feature--dashboard,
+  .feature--detector,
+  .feature--directions,
+  .feature--ai,
+  .feature--reports,
+  .feature--white-label {
+    position: relative;
+    top: auto;
+    left: auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: "text art";
+    align-items: center;
+    column-gap: clamp(28.8px, 5vw, 79.2px);
+    width: 100%;
+    min-height: 279px;
+  }
+
+  .feature + .feature { margin-top: 82.8px; }
+  .feature--text-right { grid-template-areas: "art text"; }
+  .feature__text { grid-area: text; max-width: 594px; }
+
+  .feature__list { max-width: 486px; }
+
+  .feat-illu,
+  .feat-illu--dashboard,
+  .feat-illu--detector,
+  .feat-illu--directions,
+  .feat-illu--ai,
+  .feat-illu--reports,
+  .feat-illu--white-label {
+    position: relative;
+    top: auto;
+    left: auto;
+    grid-area: art;
+    justify-self: center;
+    width: min(100%, 612px);
+    max-width: 612px;
+  }
+
+  /* В двухколоночном режиме иллюстрации намеренно выходят за условную
+     половину сетки: именно так собраны слои в Figma. Ограничение по точному
+     desktop-размеру не даёт им разрастаться на широких экранах. */
+  .feat-illu--dashboard,
+  .feat-illu--directions {
+    width: min(140%, 681.98px);
+    max-width: 681.98px;
+  }
+  .feat-illu--detector {
+    width: min(140%, 599.157px);
+    max-width: 599.157px;
+    transform: translateX(-4.5%);
+  }
+  .feat-illu--ai {
+    width: min(140%, 537.161px);
+    max-width: 537.161px;
+    transform: translateX(-8.5%);
+  }
+  .feat-illu--reports {
+    width: min(150%, 726.498px);
+    max-width: 726.498px;
+    transform: translateX(-2.5%);
+  }
+  .feat-illu--white-label {
+    width: min(140%, 537.161px);
+    max-width: 537.161px;
+    transform: translateX(-10%);
+  }
+
+  /* На промежуточных desktop-ширинах абсолютная Figma-координата left:338px
+     сдвигала тарифы вправо. Сохраняем их эталонную ширину 1160px, но
+     центрируем уже обычной сеткой. */
+  .pricing { padding-inline: 37.8px; }
+  .pricing__inner {
+    height: auto;
+    padding: 64.8px clamp(21.6px, 6vw, 72px);
+  }
+  .pricing__head,
+  .pricing__cards {
+    position: relative;
+    top: auto;
+    left: auto;
+    width: min(100%, 1044px);
+    margin-inline: auto;
+  }
+  .pricing__cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    justify-content: center;
+    gap: 21.6px;
+    margin-top: 50.4px;
+  }
+  .price-card {
+    width: 100%;
+    max-width: 324px;
+    justify-self: center;
+  }
+  .price-wl {
+    position: relative;
+    top: auto;
+    left: auto;
+    display: grid;
+    grid-template-columns: minmax(216px, 1fr) minmax(234px, 1.25fr) minmax(207px, .85fr);
+    gap: 23.4px;
+    width: min(100%, 1044px);
+    height: auto;
+    min-height: 379.8px;
+    margin: 50.4px auto 0;
+    padding: 50.4px 27px 27px;
+  }
+  .price-wl__name,
+  .price-wl__benefits,
+  .price-wl__visual,
+  .price-wl__right,
+  .price-wl__cta {
+    position: relative;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    left: auto;
+  }
+  .price-wl__name { margin: 0 0 30.6px; }
+  .price-wl__benefits { width: auto; }
+  .price-wl__visual { width: 100%; align-self: center; }
+  .price-wl__visual > img { width: 100%; max-width: 387.9px; }
+  .price-wl__right { width: auto; }
+  .price-wl__cta { width: 100%; margin-top: 21.6px; }
+
+  /* Декор CTA привязан к краям самой панели, а не к координатам холста
+     1920px. Поэтому правые карточки остаются видны при любом desktop viewport. */
+  .cta-deco--calendar { left: auto; right: 14.5%; }
+  .cta-deco--metrics { left: auto; right: 2.5%; }
+  .cta-deco--pie { left: auto; right: 0; }
+}
+
+@media (max-width: 1151px) {
+  :root { --gutter: 18px; }
+
+  .site-header { padding: 18px 18px 0; }
+  .site-header__inner { width: 100%; gap: clamp(16.2px, 3vw, 37.8px); padding-inline: 23.4px; }
+  .site-nav { gap: 14.4px; }
+  .site-header__actions { gap: 9px; }
+  .site-header__actions .btn--gradient { width: 118.8px; }
+  .site-header__actions .btn--dark { width: 108px; }
+
+  .hero__shot { width: min(calc(100% - 36px), 1064.7px); }
+  .hero__tablet {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1183 / 850;
+    padding: 4%;
+    border-radius: 32.4px;
+  }
+  .hero__screen { width: 100%; height: auto; border-radius: 18px; }
+  .hero__card--tl { left: -6.93%; top: -9.18%; width: 22.74%; }
+  .hero__card--tr { left: 82.67%; top: -8.94%; width: 25.27%; }
+  .hero__card--r  { left: 92.14%; top: 14.71%; width: 29.76%; }
+  .hero__card--l  { left: -17.67%; top: 26.35%; width: 20.37%; }
+
+  .audience__grid,
+  .how__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 21.6px;
+  }
+  .aud-card { height: auto; min-height: 269.1px; }
+  .how-card { height: 405px; }
+
+  .pains,
+  .features,
+  .pricing,
+  .cta-band { padding-inline: 21.6px; }
+  .pains__inner { padding-inline: 21.6px; }
+
+  .faq__body { max-width: 100%; padding-inline: 21.6px; }
+  .faq__visual,
+  .faq__list,
+  .faq-item { width: 100%; }
+  .faq__visual { flex-basis: 48%; }
+  .faq__list { flex-basis: 48%; }
+
+  .cta-band { padding-inline: 21.6px; }
+}
+
+@media (max-width: 989px) {
+  .site-header__inner { gap: 18px; }
+  .site-nav__link { font-size: 10.8px; }
+
+  .hero__title,
+  .section-title,
+  .integrations__title,
+  .pricing__title,
+  .cta-band__title,
+  .blog__title { font-size: clamp(34.2px, 5.2vw, 49.5px); }
+
+  .audience__grid,
+  .how__grid { grid-template-columns: repeat(2, minmax(0, 324px)); justify-content: center; }
+
+  .pains__grid { grid-template-columns: minmax(0, 511.2px); }
+  .pains__decor { display: none; }
+
+  .features__inner { padding-inline: clamp(25.2px, 6vw, 54px); }
+  .feature,
+  .feature--text-right {
+    grid-template-columns: 1fr;
+    grid-template-areas: "text" "art";
+    row-gap: 27px;
+    min-height: 0;
+  }
+  .feature + .feature { margin-top: 72px; }
+  .feature__text { max-width: 594px; }
+  .feature__list { max-width: 540px; }
+  .feat-illu { justify-self: start; width: min(100%, 612px); }
+  .feat-illu--dashboard,
+  .feat-illu--detector,
+  .feat-illu--directions,
+  .feat-illu--ai,
+  .feat-illu--reports,
+  .feat-illu--white-label {
+    width: min(100%, 612px);
+    max-width: 612px;
+    transform: none;
+  }
+
+  .pricing__cards { grid-template-columns: repeat(2, minmax(270px, 1fr)); }
+  .price-wl { grid-template-columns: minmax(216px, 1fr) minmax(225px, 1fr); }
+  .price-wl__right { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; column-gap: 23.4px; align-items: end; }
+  .price-wl__cta { grid-column: 2; grid-row: 1 / span 3; align-self: end; margin: 0; }
+
+  .faq__body { flex-direction: column; align-items: center; }
+  .faq__visual,
+  .faq__list { flex-basis: auto; max-width: 504.9px; }
+
+  .footer__cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32.4px; min-height: 0; padding-inline: 21.6px; }
+  .footer__col--res,
+  .footer__col--contacts,
+  .footer__col--docs,
+  .footer__center { position: relative; top: auto; right: auto; bottom: auto; left: auto; width: auto; }
+  .footer__center { align-items: flex-start; text-align: left; }
+  .footer__tagline { white-space: normal; }
+}
+
+@media (max-width: 690px) {
+  :root { --gutter: 14.4px; }
+
+  .site-header { padding: 10.8px 14.4px 0; }
+  .site-header__inner { min-height: 54px; padding: 10.8px 14.4px; }
+  .site-header__logo img { width: 106.2px; height: auto; }
+  .site-nav,
+  .site-header__actions .btn--dark { display: none; }
+  .site-header__actions { margin-left: auto; }
+  .site-header__actions .btn--gradient { width: auto; padding-inline: 16.2px; }
+
+  .hero__title { margin-top: 55.8px; padding-inline: 14.4px; font-size: clamp(30.6px, 9vw, 40.5px); }
+  .hero__lead { margin-top: 27px; padding-inline: 18px; font-size: 16.2px; }
+  .hero__cta { flex-direction: column; align-items: center; gap: 12.6px; padding-inline: 14.4px; }
+  .btn-cta { width: min(100%, 380.7px); height: 68.4px; padding-inline: 25.2px; font-size: 12.6px; }
+  .hero__note { width: min(100%, 279px); height: auto; min-height: 73.8px; margin-left: 0; padding: 16.2px 21.6px; text-align: center; }
+  .hero__chips { flex-direction: column; align-items: center; gap: 7.2px; padding-inline: 14.4px; }
+  .hero__chips li:nth-child(n) { width: min(100%, 287.1px); }
+  .hero__shot { width: calc(100% - 28.8px); margin-top: 46.8px; }
+  .hero__card { display: none; }
+  .hero__tablet { border-radius: 19.8px; }
+  .hero__screen { border-radius: 12.6px; }
+
+  .eyebrow { font-size: 12.6px; letter-spacing: 2.43px; }
+  .section-title,
+  .integrations__title,
+  .pricing__title,
+  .cta-band__title,
+  .blog__title { font-size: clamp(28.8px, 9vw, 37.8px); }
+  .section-lead { font-size: 16.2px; }
+
+  .audience { padding-inline: 14.4px; }
+  .audience__grid,
+  .how__grid { grid-template-columns: minmax(0, 324px); }
+  .aud-card { min-height: 243px; }
+  .aud-card__ico { margin-bottom: 37.8px; }
+
+  .pains { padding-inline: 14.4px; }
+  .pains__inner { padding: 43.2px 14.4px; border-radius: 21.6px; }
+  .pains .section-title br,
+  .pains .section-lead br { display: none; }
+  .pain-card { min-height: 165.6px; height: auto; padding-right: 16.2px; padding-bottom: 52.2px; border-radius: 21.6px; }
+  .pain-card__quote { font-size: 16.2px; }
+  .pain-card__quote br { display: none; }
+  .pain-card__tag { top: auto; bottom: 20.7px; font-size: 12.6px; }
+
+  .how { padding-top: 64.8px; padding-bottom: 72px; }
+  .how-card { border-radius: 21.6px; }
+
+  .features { padding-inline: 14.4px; padding-bottom: 28.8px; }
+  .features__inner { padding: 43.2px 21.6px 57.6px; border-radius: 21.6px; }
+  .features__head { margin-bottom: 48.6px; }
+  .features__title br { display: none; }
+  .feature + .feature { margin-top: 57.6px; }
+  .badge { height: auto; min-height: 37.8px; padding: 12.6px 16.2px; margin-bottom: 22.5px; font-size: 9.9px; letter-spacing: 1.98px; }
+  .feature__title { margin-bottom: 21.6px; font-size: clamp(24.3px, 7.6vw, 29.7px); line-height: 1.14; }
+  .feature__title br,
+  .feature__lead br { display: none; }
+  .feature__lead,
+  .feature__list li { font-size: 14.4px; }
+  .feature__list { gap: 14.4px; }
+  .feat-illu { width: 100%; }
+
+  .integrations { padding: 57.6px 0; }
+  .integrations__rail { width: max-content; margin: 30.6px 14.4px 0; padding-right: 14.4px; }
+  .integration-card { flex-basis: 243px; height: 86.4px; border-radius: 21.6px; }
+
+  .pricing { padding: 0 14.4px 21.6px; }
+  .pricing__inner { padding: 43.2px 18px; border-radius: 21.6px; }
+  .pricing__head { text-align: left; }
+  .pricing__cards { grid-template-columns: 1fr; margin-top: 34.2px; }
+  .price-card { max-width: 324px; justify-self: center; }
+  .price-wl { grid-template-columns: 1fr; min-height: 0; padding: 50.4px 21.6px 25.2px; border-radius: 21.6px; }
+  .price-wl__right { display: block; }
+  .price-wl__cta { width: 100%; margin-top: 21.6px; }
+  .price-wl__visual { order: -1; }
+
+  .faq { padding-inline: 14.4px; }
+  .faq__body { margin-top: 39.6px; padding: 0; }
+  .faq__visual { display: none; }
+  .faq__list { max-width: none; }
+  .faq-item { border-radius: 10.8px; }
+  .faq-item__q { min-height: 54px; height: auto; padding: 10.8px; font-size: 12.6px; }
+
+  .cta-band { padding-inline: 14.4px; }
+  .cta-band__inner { height: auto; min-height: 450px; padding: 52.2px 18px 39.6px; border-radius: 21.6px; }
+  .cta-band__title,
+  .cta-band__lead,
+  .cta-band__cta,
+  .cta-band__note { position: relative; top: auto; right: auto; bottom: auto; left: auto; transform: none; }
+  .cta-band__title br,
+  .cta-band__lead br { display: none; }
+  .cta-band__lead { margin: 25.2px 0 27px; font-size: 15.3px; }
+  .cta-band__cta { margin-inline: auto; }
+  .cta-band__note { width: 100%; height: auto; min-height: 77.4px; margin-top: -7.2px; padding: 24.3px 16.2px 14.4px; }
+  .cta-deco { display: none; }
+
+  .blog { padding: 64.8px 0; }
+  .blog__head { align-items: flex-start; flex-direction: column; gap: 21.6px; }
+  .blog__all { height: 52.2px; padding-inline: 27px; }
+  .blog__grid { grid-template-columns: 1fr; gap: 18px; }
+
+  .footer__top { flex-direction: column; align-items: flex-start; gap: 25.2px; }
+  .footer__subscribe { width: 100%; }
+  .footer__cols { grid-template-columns: 1fr 1fr; }
+  .footer__center { grid-column: 1 / -1; }
+  .footer__nav { flex-wrap: wrap; justify-content: flex-start; padding-inline: 14.4px; }
+}
