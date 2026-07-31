@@ -165,10 +165,10 @@ button {
 
   /* В Figma градиент задан справа налево (gradientTransform переворачивает ось),
      поэтому позиции стопов здесь зеркальны исходным: 1 − p. */
-  --grad-cta: linear-gradient(105deg,
-    #11254f 0%,
-    #1f4eb7 58%,
-    #146f89 100%);
+  --grad-cta: linear-gradient(90deg,
+    var(--c-brand) 3.84%,
+    var(--c-brand-mid) 68.26%,
+    var(--c-brand-cyan) 100%);
 
   --container: 1044px;
   --gutter: 21.6px;
