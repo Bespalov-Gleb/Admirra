@@ -10,6 +10,7 @@ const state = reactive({
   _resolve: null,
 })
 
+// result: 'buy' — докупить слот, 'confirm' — добавить в запас, false — отмена.
 function close(result = false) {
   state.open = false
   const resolve = state._resolve
@@ -18,8 +19,7 @@ function close(result = false) {
   if (resolve) resolve(result)
 }
 
-// Показать модалку «добавить в запас» и дождаться решения пользователя.
-// true — согласился добавить сверх лимита, false — отменил / ушёл в тарифы.
+// Показать модалку и дождаться решения пользователя (см. коды в close()).
 function requestOverflowConfirm(detail) {
   return new Promise((resolve) => {
     state.detail = detail || {}

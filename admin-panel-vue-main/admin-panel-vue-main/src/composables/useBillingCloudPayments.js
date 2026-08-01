@@ -46,6 +46,12 @@ export async function payWithCloudPayments(payload) {
     plan_code: payload.plan_code,
     billing_period: payload.billing_period || 'month',
   }
+  // Докупка слотов (§8.6): маркер в JsonData, по нему webhook отличает платёж за
+  // слоты от оплаты тарифа.
+  if (payload.purpose) {
+    data.purpose = payload.purpose
+    data.slot_count = Number(payload.slot_count) || 1
+  }
   if (payload.recurrent?.interval) {
     data.cloudPayments = {
       recurrent: {

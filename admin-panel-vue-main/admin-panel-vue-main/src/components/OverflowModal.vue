@@ -16,7 +16,15 @@
 
         <div class="ovf-actions">
           <template v-if="state.mode === 'confirm'">
-            <button class="ovf-btn ovf-btn--primary" type="button" @click="onConfirm">
+            <button v-if="canBuySlot" class="ovf-btn ovf-btn--primary" type="button" @click="onBuy">
+              Докупить проект — {{ slotPrice }} ₽/мес
+            </button>
+            <button
+              class="ovf-btn"
+              :class="canBuySlot ? 'ovf-btn--ghost' : 'ovf-btn--primary'"
+              type="button"
+              @click="onConfirm"
+            >
               Добавить пока так
             </button>
             <button class="ovf-btn ovf-btn--ghost" type="button" @click="goToPlans">
@@ -51,7 +59,11 @@ const suggestedLabel = computed(() => {
   return code && PLAN_NAMES[code] ? `Перейти на ${PLAN_NAMES[code]}` : 'Посмотреть тарифы'
 })
 
-const onConfirm = () => close(true)
+const slotPrice = computed(() => Number(state.detail?.slot_price || 0))
+const canBuySlot = computed(() => slotPrice.value > 0 && Number(state.detail?.slots_until_parity || 0) > 0)
+
+const onConfirm = () => close('confirm')
+const onBuy = () => close('buy')
 const onCancel = () => close(false)
 const goToPlans = () => {
   close(false)

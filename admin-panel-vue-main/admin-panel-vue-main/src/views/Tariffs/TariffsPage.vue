@@ -63,6 +63,22 @@
           <em>Все каналы доступны</em>
         </div>
 
+        <!-- Докупленные слоты проектов (§8.5): состав и управление -->
+        <div v-if="showSlotRow" class="slot-row">
+          <span class="slot-row__text">
+            Докупленные слоты: <strong>{{ purchasedSlots }}</strong>
+            <template v-if="slotPrice"> × {{ slotPrice }} ₽ = {{ slotsMonthly }} ₽/мес</template>
+          </span>
+          <div class="slot-row__actions">
+            <button type="button" class="slot-btn slot-btn--add" :disabled="buyingSlot" @click="buyMoreSlots">
+              {{ buyingSlot ? 'Оплата…' : 'Добавить' }}
+            </button>
+            <button v-if="purchasedSlots > 0" type="button" class="slot-btn" @click="reduceSlots">
+              Уменьшить
+            </button>
+          </div>
+        </div>
+
         <!-- Карта и автопродление на бэкенде — одно состояние, а не два: отмена
              автопродления там же обнуляет маску карты (billing.py). Поэтому и в
              интерфейсе это один блок с одним действием. Раньше блоков было два,
@@ -283,6 +299,7 @@ import api from '@/api/axios'
 import { useAuth } from '@/composables/useAuth'
 import { useToaster } from '@/composables/useToaster'
 import { payWithCloudPayments } from '@/composables/useBillingCloudPayments'
+import { purchaseSlots } from '@/utils/purchaseSlots'
 import { reachGoal } from '@/utils/metrika'
 
 // Ранги тарифов для определения апгрейда/понижения. Старые коды (basic/standard)
@@ -691,6 +708,45 @@ async function reloadSubscription() {
     const { data } = await api.get('billing/subscription')
     subscription.value = { ...subscription.value, ...data }
   } catch { /* не критично: подтянется при следующем открытии */ }
+}
+
+// --- Докупленные слоты (§8.5/§8.6) ---
+const buyingSlot = ref(false)
+const purchasedSlots = computed(() => Number(subscription.value?.purchased_slots || 0))
+const slotPrice = computed(() => Number(subscription.value?.slot_price || 0))
+const slotsMonthly = computed(() => purchasedSlots.value * slotPrice.value)
+const showSlotRow = computed(() => purchasedSlots.value > 0 || Boolean(subscription.value?.over_limit))
+
+const errText = (e, fallback) => {
+  const d = e?.response?.data?.detail
+  return (d && typeof d === 'object' ? d.message : d) || fallback
+}
+
+async function buyMoreSlots() {
+  if (buyingSlot.value) return
+  buyingSlot.value = true
+  try {
+    const res = await purchaseSlots(1)
+    if (res?.status === 'success') {
+      toaster.success('Слот докуплен')
+      reloadSubscription()
+      setTimeout(reloadSubscription, 4000)
+    }
+  } catch (e) {
+    toaster.error(errText(e, 'Не удалось докупить слот'))
+  } finally {
+    buyingSlot.value = false
+  }
+}
+
+async function reduceSlots() {
+  try {
+    await api.post('billing/slots/reduce', { count: 1 })
+    toaster.success('Слот убран')
+    reloadSubscription()
+  } catch (e) {
+    toaster.error(errText(e, 'Не удалось уменьшить число слотов'))
+  }
 }
 
 // Привязка/замена карты в CloudPayments — это оплата: отдельной операции «привязать
@@ -1465,6 +1521,37 @@ function onContactWl() {
   background: rgba(255, 255, 255, 0.9);
   color: #2563eb;
 }
+
+/* Строка докупленных слотов в блоке «Подписка» (§8.5). */
+.slot-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.2rem;
+  margin-top: 1.2rem;
+  padding: 1rem 1.4rem;
+  border: 1px solid rgba(148, 172, 205, 0.3);
+  border-radius: 1rem;
+  background: #f6f9ff;
+  color: #0c2950;
+  font-size: 1.15rem;
+}
+
+.slot-row__actions { display: flex; gap: 0.6rem; }
+
+.slot-btn {
+  padding: 0.5rem 1.1rem;
+  border: 1px solid #cbd6ea;
+  border-radius: 0.7rem;
+  background: #fff;
+  color: #334155;
+  font-size: 1.05rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.slot-btn--add { background: #2563eb; border-color: #2563eb; color: #fff; }
+.slot-btn:disabled { opacity: 0.6; cursor: default; }
 
 
 .plan-title {

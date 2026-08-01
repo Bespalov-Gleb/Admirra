@@ -103,6 +103,11 @@ class BillingConfig:
     plan_basic_max_clients: int
     plan_standard_max_clients: int
     ai_period_days: int
+    # Цена докупаемого слота проекта (§8.1). Переопределяема через env, чтобы на
+    # проде выставить тестовый минимум для проверки оплаты без риска.
+    slot_price_start_rub: int
+    slot_price_agency_rub: int
+    slot_price_pro_rub: int
 
 
 @dataclass
@@ -350,6 +355,11 @@ def get_config() -> Config:
             plan_basic_max_clients=int(_env("BILLING_PLAN_BASIC_MAX_CLIENTS", "10")),
             plan_standard_max_clients=int(_env("BILLING_PLAN_STANDARD_MAX_CLIENTS", "-1")),
             ai_period_days=int(_env("BILLING_AI_PERIOD_DAYS", "30")),
+            # Дефолты = §8.1 (Старт 1100 / Агентство 800 / Про 650). На проде
+            # переопределяются тестовым минимумом через BILLING_SLOT_PRICE_*.
+            slot_price_start_rub=int(_env("BILLING_SLOT_PRICE_START_RUB", "1100")),
+            slot_price_agency_rub=int(_env("BILLING_SLOT_PRICE_AGENCY_RUB", "800")),
+            slot_price_pro_rub=int(_env("BILLING_SLOT_PRICE_PRO_RUB", "650")),
         ),
         cloudpayments=CloudPaymentsConfig(
             public_id=_env("CLOUDPAYMENTS_PUBLIC_ID"),

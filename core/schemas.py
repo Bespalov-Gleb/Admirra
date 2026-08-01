@@ -1307,6 +1307,31 @@ class BillingSubscribeResponse(BaseModel):
     # в вебхуке. Без него у платежа не было ключа, по которому его можно
     # опознать — повторный клик просто создавал второй независимый платёж.
     invoice_id: Optional[str] = None
+    # Докупка слотов (§8.6): маркер для JsonData виджета.
+    purpose: Optional[str] = None
+    slot_count: int = 0
+
+
+class BillingSlotQuoteRequest(BaseModel):
+    count: int = 1
+
+
+class BillingSlotQuoteResponse(BaseModel):
+    """Расчёт докупки слотов (§8.1, §8.6) до подтверждения."""
+    count: int
+    unit_price: int
+    remaining_days: int
+    period_days: int
+    amount: int                    # к списанию сейчас (пропорция за остаток периода)
+    effective_limit_after: int     # эффективный лимит проектов после докупки
+    monthly_after: int             # регулярный платёж после докупки (тариф + слоты)
+    slots_until_parity: int
+    can_buy: bool
+    suggested_plan: Optional[str] = None
+
+
+class BillingSlotReduceRequest(BaseModel):
+    count: int = 1
 
 
 class CloudPaymentsWebhookResponse(BaseModel):

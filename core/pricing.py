@@ -121,6 +121,14 @@ _PRICE_ENV_ATTR: Dict[str, str] = {
     "pro": "plan_standard_price_rub",
 }
 
+# Цена докупаемого слота — тоже переопределяема (§8.1), чтобы на проде поставить
+# тестовый минимум для проверки оплаты.
+_SLOT_PRICE_ENV_ATTR: Dict[str, str] = {
+    "start": "slot_price_start_rub",
+    "agency": "slot_price_agency_rub",
+    "pro": "slot_price_pro_rub",
+}
+
 
 def build_price_book(billing_cfg=None) -> Dict[str, PlanSpec]:
     """Собирает прайс-бук, накладывая переопределения цен из конфига поверх
@@ -131,13 +139,20 @@ def build_price_book(billing_cfg=None) -> Dict[str, PlanSpec]:
 
     book: Dict[str, PlanSpec] = {}
     for code, spec in _BASE_SPECS.items():
+        updated = spec
+        # Переопределение цены тарифа.
         attr = _PRICE_ENV_ATTR.get(code)
         override = getattr(billing_cfg, attr, None) if attr else None
         if override is not None and int(override) != spec.price_month:
             month = int(override)
-            book[code] = replace(spec, price_month=month, price_year=yearly_from_monthly(month))
-        else:
-            book[code] = spec
+            updated = replace(updated, price_month=month, price_year=yearly_from_monthly(month))
+        # Переопределение цены слота.
+        slot_attr = _SLOT_PRICE_ENV_ATTR.get(code)
+        slot_override = getattr(billing_cfg, slot_attr, None) if slot_attr else None
+        if slot_override is not None and int(slot_override) != spec.extra_project_price_month:
+            sp = int(slot_override)
+            updated = replace(updated, extra_project_price_month=sp, extra_project_price_year=yearly_from_monthly(sp))
+        book[code] = updated
     return book
 
 

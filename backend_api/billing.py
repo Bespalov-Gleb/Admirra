@@ -549,6 +549,143 @@ async def subscribe(
     )
 
 
+# --- Докупка слотов проектов (§8.6) ---
+
+def _slot_unit_price(plan) -> int:
+    return int(pricing.resolve_plan(plan.code, get_config().billing).extra_project_price_month)
+
+
+def _slot_remaining_days(plan, sub):
+    from datetime import timezone as _tz
+    now = SubscriptionService._now()
+    period_days = int(getattr(plan, "period_days", 30) or 30)
+    end = getattr(sub, "current_period_end", None)
+    if end is not None:
+        if end.tzinfo is None:
+            end = end.replace(tzinfo=_tz.utc)
+        remaining = max(0, (end - now).days)
+    else:
+        remaining = period_days
+    return remaining, period_days
+
+
+def _slot_proration_amount(plan, sub, count: int) -> int:
+    # Пропорция за остаток периода (§8.6): цена слота × остаток дней / длина периода.
+    unit = _slot_unit_price(plan)
+    remaining, period_days = _slot_remaining_days(plan, sub)
+    amt = unit * count if period_days <= 0 else round(unit * count * remaining / period_days)
+    return max(1, int(amt))
+
+
+@router.post("/slots/quote", response_model=schemas.BillingSlotQuoteResponse)
+def slots_quote(
+    body: schemas.BillingSlotQuoteRequest,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    plan = SubscriptionService.get_user_plan(db, current_user)
+    sub = SubscriptionService.get_user_subscription(db, current_user.id)
+    count = max(1, int(body.count or 1))
+    unit = _slot_unit_price(plan)
+    remaining, period_days = _slot_remaining_days(plan, sub)
+    slots_now = SubscriptionService._purchased_slots(sub)
+    parity = pricing.slots_until_parity(plan.code, slots_now)
+    can_buy = unit > 0 and parity > 0 and count <= parity
+    return schemas.BillingSlotQuoteResponse(
+        count=count,
+        unit_price=unit,
+        remaining_days=remaining,
+        period_days=period_days,
+        amount=_slot_proration_amount(plan, sub, count),
+        effective_limit_after=int(plan.max_projects) + slots_now + count,
+        monthly_after=int(plan.price_rub) + (slots_now + count) * unit,
+        slots_until_parity=parity,
+        can_buy=can_buy,
+        suggested_plan=pricing.next_plan_code(plan.code) if not can_buy else None,
+    )
+
+
+@router.post("/slots/purchase", response_model=schemas.BillingSubscribeResponse)
+def slots_purchase(
+    body: schemas.BillingSlotQuoteRequest,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    plan = SubscriptionService.get_user_plan(db, current_user)
+    sub = SubscriptionService.ensure_default_subscription(db, current_user)
+    cfg = get_config()
+    if not cfg.cloudpayments.public_id:
+        raise HTTPException(status_code=500, detail="CLOUDPAYMENTS_PUBLIC_ID не настроен")
+    count = max(1, int(body.count or 1))
+    unit = _slot_unit_price(plan)
+    parity = pricing.slots_until_parity(plan.code, SubscriptionService._purchased_slots(sub))
+    if unit <= 0 or parity <= 0 or count > parity:
+        # Достигнут паритет со старшим тарифом — докупка невыгодна (§8.1).
+        raise HTTPException(status_code=409, detail={
+            "reason": "parity",
+            "suggested_plan": pricing.next_plan_code(plan.code),
+            "message": "Докупка достигла паритета — выгоднее перейти на старший тариф.",
+        })
+    amount = _slot_proration_amount(plan, sub, count)
+    description = f"Докупка {count} слот(ов) проекта (тариф {plan.name})"
+    receipt = _build_cloudpayments_receipt(
+        amount=amount, description=description, customer_email=current_user.email or "", cfg=cfg,
+    )
+    invoice_id = f"slot-{sub.id}-{count}-{int(SubscriptionService._now().timestamp())}"
+    return schemas.BillingSubscribeResponse(
+        public_id=cfg.cloudpayments.public_id,
+        amount=amount,
+        currency=cfg.cloudpayments.currency,
+        description=description,
+        account_id=str(current_user.id),
+        email=current_user.email or "",
+        plan_code=plan.code,
+        billing_period="month",
+        trial_days=0,
+        recurrent=None,          # разовая пропорция; рекуррент-итог — доработка
+        receipt=receipt,
+        invoice_id=invoice_id,
+        purpose="slot_purchase",
+        slot_count=count,
+    )
+
+
+@router.post("/slots/reduce")
+def slots_reduce(
+    body: schemas.BillingSlotReduceRequest,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    plan = SubscriptionService.get_user_plan(db, current_user)
+    sub = SubscriptionService.get_user_subscription(db, current_user.id)
+    count = max(1, int(body.count or 1))
+    slots = SubscriptionService._purchased_slots(sub)
+    new_slots = max(0, slots - count)
+    total = SubscriptionService.count_project_slots(db, current_user.id)
+    new_effective = int(plan.max_projects) + new_slots
+    if total > new_effective:
+        raise HTTPException(status_code=409, detail={
+            "reason": "usage_exceeds",
+            "message": f"После уменьшения останется {new_effective} лимит, а используется {total}. "
+                       "Сначала уберите лишние проекты или поставьте на паузу.",
+        })
+    locked = (
+        db.query(models.Subscription)
+        .filter(models.Subscription.id == sub.id)
+        .with_for_update()
+        .first()
+    )
+    if locked is not None:
+        locked.purchased_project_slots = new_slots
+    log_history_event(
+        db, actor=current_user, event_type="billing", action="slot_removed",
+        description=f"Уменьшено слотов до {new_slots}", target_type="subscription",
+        target_id=str(sub.id), meta={"from": slots, "to": new_slots},
+    )
+    db.commit()
+    return {"purchased_slots": new_slots}
+
+
 @router.post("/autorenew/cancel")
 async def cancel_autorenew(
     current_user: models.User = Depends(security.get_current_user),
@@ -749,6 +886,36 @@ async def cloudpayments_webhook(
         logger.info(
             "CloudPayments webhook: повторная доставка транзакции %s — пропущена",
             data.get("TransactionId"),
+        )
+        db.commit()
+        return schemas.CloudPaymentsWebhookResponse(code=0)
+
+    # §8.6: докупка слотов — отдельный флоу, опознаётся маркером purpose в JsonData.
+    # Идемпотентность уже обеспечена _record_billing_event выше. Строку подписки
+    # блокируем (FOR UPDATE), чтобы одновременные покупки не разъехались.
+    if outcome == "pay" and str(json_data.get("purpose") or "") == "slot_purchase":
+        try:
+            add = max(1, int(json_data.get("slot_count") or 1))
+        except (TypeError, ValueError):
+            add = 1
+        locked = (
+            db.query(models.Subscription)
+            .filter(models.Subscription.id == sub.id)
+            .with_for_update()
+            .first()
+        )
+        if locked is not None:
+            locked.purchased_project_slots = int(locked.purchased_project_slots or 0) + add
+            # Докупка могла закрыть превышение — сбрасываем состояние.
+            used = SubscriptionService.count_project_slots(db, user.id)
+            if used <= SubscriptionService.effective_projects_limit(plan, locked):
+                locked.overflow_since = None
+                locked.overflow_periods_count = 0
+        log_history_event(
+            db, actor=user, event_type="billing", action="slot_purchased",
+            description=f"Докуплено слотов: {add}", target_type="subscription",
+            target_id=str(sub.id),
+            meta={"count": add, "amount": str(paid) if paid is not None else None},
         )
         db.commit()
         return schemas.CloudPaymentsWebhookResponse(code=0)
