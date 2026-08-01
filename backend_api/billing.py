@@ -730,7 +730,13 @@ async def cloudpayments_webhook(
     if outcome == "pay" and not is_downgrade:
         # Понижение вступает в силу в конце оплаченного периода, поэтому здесь
         # тариф не меняем — см. ветку ниже, где выставляется pending_plan_code.
+        plan_changed = prev_plan_code != new_plan_code
         sub.plan_code = plan.code
+        # §7.2: фиксируем версию прайса при первой оплате и при смене тарифа.
+        # На обычном продлении (тот же тариф) версию НЕ трогаем — аккаунт остаётся
+        # на своей цене, пока сам не сменит тариф.
+        if getattr(sub, "price_book_version", None) is None or plan_changed:
+            sub.price_book_version = pricing.PRICE_BOOK_VERSION
     prev_cp_sub_id = (sub.cloudpayments_subscription_id or "").strip()
     sub.cloudpayments_subscription_id = str(
         data.get("SubscriptionId")

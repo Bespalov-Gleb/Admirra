@@ -806,6 +806,11 @@ class Subscription(Base):
     # досрочно. Здесь лежит код тарифа, который вступит в силу после
     # current_period_end; применяется лениво при чтении подписки.
     pending_plan_code = Column(String, nullable=True)
+    # Версия прайс-бука, зафиксированная при подписке (§7.2 экономики). При выпуске
+    # новой линейки аккаунт продолжает платить по своей версии, пока сам не сменит
+    # тариф. Пока версия одна (см. core.pricing.PRICE_BOOK_VERSION), но поле нужно
+    # завести до первых продаж, иначе потом не разобраться, кто на какой цене.
+    price_book_version = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 

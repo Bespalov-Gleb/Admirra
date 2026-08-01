@@ -155,6 +155,15 @@ def init_db_with_retry(max_retries=10, retry_delay=2):
                 # Журнал денежных событий и отложенное понижение тарифа.
                 # Дубль миграции w4x5y6z7a8b9 — см. комментарий про create_all выше.
                 conn.execute(text("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS pending_plan_code VARCHAR"))
+                # §7.2 экономики: версия прайс-бука, зафиксированная за аккаунтом.
+                conn.execute(text("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS price_book_version INTEGER"))
+                # §7.3: переименование кодов тарифов старой линейки в новую. Резолвер
+                # понимает и старые коды (алиасы), но в БД приводим к канону, чтобы не
+                # держать оба навсегда. Идемпотентно: повторный прогон ничего не меняет.
+                conn.execute(text("UPDATE subscriptions SET plan_code='agency' WHERE plan_code='basic'"))
+                conn.execute(text("UPDATE subscriptions SET plan_code='pro' WHERE plan_code='standard'"))
+                conn.execute(text("UPDATE subscriptions SET pending_plan_code='agency' WHERE pending_plan_code='basic'"))
+                conn.execute(text("UPDATE subscriptions SET pending_plan_code='pro' WHERE pending_plan_code='standard'"))
                 conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS billing_events (
                         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
