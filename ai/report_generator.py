@@ -3,7 +3,7 @@
 Использует OpenAI API с поддержкой прокси.
 """
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 import uuid
 
@@ -35,7 +35,7 @@ def _create_anthropic_client():
 
 
 # ── AI-комментарий за период: базовый промпт v1.0 (ТЗ admirra_ai_comment_prompt_v1)
-COMMENT_PROMPT_VERSION = "v1.1"
+COMMENT_PROMPT_VERSION = "v1.2"
 
 # Правило 16 — банлист (регистронезависимо, по основным формам).
 _COMMENT_BANLIST = [
@@ -90,6 +90,7 @@ lead — 1 предложение. body — 1–2 абзаца (для прос�
 18. Тест «и что?»: каждое предложение должно давать коллеге опору для действия или решения. Предложение без следствия — вычеркни.
 19. Не объясняй коллеге азы механики рекламных систем. Механика упоминается только как аргумент конкретной гипотезы.
 20. Объём: суммарно 600–900 знаков, жёсткий потолок 1200. Это потолок, не план: простой период — короткий комментарий.
+21. Если в контексте есть since_last_visit — это изменения С МОМЕНТА последнего визита коллеги, не за период. Ценность в них: упомяни ключевое (лиды/стоимость заявки с прошлого захода) в ПЕРВОМ предложении тела с числом. Лид при этом остаётся качественным, без цифр (правило 15). Нет since_last_visit — блок не трогай.
 
 ## САМОПРОВЕРКА (выполни молча перед ответом)
 Сверь черновик: каждое число существует в контексте и совпадает с ним; каждое сравнительное утверждение («сильнее», «слабее», «больше») соответствует числам; лид не противоречит телу и соседние предложения не противоречат друг другу; гипотеза причины не противоречит ни одному числу; при активных флажках детектора картина сведена с ними; рекомендация исполнима по правилам 9–13; банлист-слов нет; длина в лимите. Нашёл нарушение — исправь и проверь снова. Только потом отвечай.
@@ -437,7 +438,28 @@ def _build_comment_context(db: Session, effective_client_ids: list, d_start, d_e
     if key:
         label = PERIOD_LABELS.get(key, "").capitalize() or None
 
-    return {
+    # §9.5: дельта «с последнего захода». Кладём только при значимом зазоре: при
+    # ленивой генерации во время открытия дашборда last_dashboard_viewed_at только
+    # что обновлён (зазор ~0) → блок не нужен (правило «первый заход/нет снимка»).
+    # При ночной генерации метка — реальный последний визит, зазор большой → кладём.
+    since_last_visit = None
+    if client_row is not None:
+        last_view = getattr(client_row, "last_dashboard_viewed_at", None)
+        if last_view is not None:
+            if last_view.tzinfo is None:
+                last_view = last_view.replace(tzinfo=timezone.utc)
+            if (datetime.now(timezone.utc) - last_view) >= timedelta(hours=12):
+                sv = StatsService.aggregate_summary(
+                    db, effective_client_ids, last_view.date(), d_end, platform, None, None
+                ) or {}
+                since_last_visit = {
+                    "since": last_view.date().isoformat(),
+                    "leads": int(sv.get("leads") or 0),
+                    "spend": _num(float(sv.get("expenses") or 0) * vat_k),
+                    "cpl": _num(float(sv.get("cpa") or 0) * vat_k),
+                }
+
+    context = {
         "period": {"from": start_date, "to": end_date, "label": label},
         "vat_mode": "included_22",
         "target_cpl": target_cpl,
@@ -450,6 +472,9 @@ def _build_comment_context(db: Session, effective_client_ids: list, d_start, d_e
         "comparability_events": comparability_events,
         "project_context": project_context,
     }
+    if since_last_visit is not None:
+        context["since_last_visit"] = since_last_visit
+    return context
 
 
 def data_fingerprint(db: Session, client_ids: list, d_start, d_end, platform: str = "all", include_vat: bool = True) -> str:
