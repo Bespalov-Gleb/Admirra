@@ -79,6 +79,12 @@ async def run_reports():
         logger.info("✅ Отчёты сгенерированы")
     except Exception as e:
         logger.error(f"❌ Ошибка генерации отчётов: {e}")
+    # §9.2: прогрев AI-комментариев тёплых проектов (комментарий готов к утру).
+    try:
+        from ai.comment_prewarm import prewarm_warm_project_comments
+        await prewarm_warm_project_comments()
+    except Exception as e:
+        logger.error(f"❌ Ошибка прогрева AI-комментариев: {e}")
 
 
 async def main():
