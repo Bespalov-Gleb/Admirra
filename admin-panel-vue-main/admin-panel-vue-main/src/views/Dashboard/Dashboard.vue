@@ -219,6 +219,7 @@ import { useDashboardStats } from '../../composables/useDashboardStats'
 import { useSyncStatus } from '../../composables/useSyncStatus'
 import { useToaster } from '../../composables/useToaster'
 import api from '../../api/axios'
+import { createProjectWithOverflow } from '@/utils/createProject'
 
 const { isSyncingForProject } = useSyncStatus()
 
@@ -244,7 +245,8 @@ const creatingProject = ref(false)
 const handleCreateProject = async (name) => {
   creatingProject.value = true
   try {
-    await api.post('clients/', { name })
+    const res = await createProjectWithOverflow({ name })
+    if (!res) return   // отменил в модалке / упёрся в исчерпанный запас
     toaster.success(`Проект "${name}" успешно создан!`)
     // Refresh clients list and stats
     await fetchClients()

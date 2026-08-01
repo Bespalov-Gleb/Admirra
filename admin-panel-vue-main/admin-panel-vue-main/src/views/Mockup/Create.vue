@@ -86,6 +86,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../../api/axios'
+import { createProjectWithOverflow } from '@/utils/createProject'
 import { useProjects } from '../../composables/useProjects'
 import { trackProjectCreated } from '@/utils/metrika'
 
@@ -101,7 +102,9 @@ const handleSubmit = async () => {
   loading.value = true
   errorMsg.value = ''
   try {
-    const { data } = await api.post('clients/', { name: projectName.value.trim() })
+    const res = await createProjectWithOverflow({ name: projectName.value.trim() })
+    if (!res) return   // отменил в модалке / упёрся в исчерпанный запас
+    const { data } = res
     trackProjectCreated(data?.owner_project_count)
     await fetchProjects()
     setCurrentProject(data.id)

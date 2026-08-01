@@ -1232,6 +1232,33 @@ class BillingSubscriptionResponse(BaseModel):
     autorenew: bool = True
     payment_method: Optional[Any] = None
     whitelabel_available: bool = False
+    # Граница тарифа (§8). Фронт эти значения не считает сам.
+    effective_projects_limit: int = 0
+    purchased_slots: int = 0
+    slot_price: int = 0
+    slots_until_parity: int = 0
+    over_limit: bool = False
+    over_by: int = 0
+    allowance_left: int = 0
+    overflow_deadline: Optional[str] = None
+    hard_blocked: bool = False
+    suggested_plan: Optional[str] = None
+
+
+class BillingCanAddResponse(BaseModel):
+    """Ответ /billing/can-add — можно ли добавить проект и на каких условиях (§8)."""
+    can_add: bool
+    needs_confirmation: bool = False
+    reason: Optional[str] = None
+    effective_projects_limit: int = 0
+    current: int = 0
+    allowance: int = 0
+    allowance_left: int = 0
+    slot_price: int = 0
+    slots_until_parity: int = 0
+    suggested_plan: Optional[str] = None
+    plan_name: str = ""
+    message: str = ""
 
 
 class MetrikaIdentityRequest(BaseModel):

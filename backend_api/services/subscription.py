@@ -217,36 +217,131 @@ class SubscriptionService:
         phone_count = db.query(models.PhoneProject).filter(models.PhoneProject.owner_id == user_id).count()
         return outside + folders_with_active + phone_count
 
+    # --- Граница тарифа: эффективные лимиты и состояние превышения (§8) ---
+
     @staticmethod
-    def ensure_can_create_project(db: Session, user: models.User) -> None:
+    def _purchased_slots(sub) -> int:
+        return int(getattr(sub, "purchased_project_slots", 0) or 0) if sub else 0
+
+    @staticmethod
+    def effective_projects_limit(plan: EffectivePlan, sub) -> int:
+        # Эффективный лимит = лимит тарифа + докупленные слоты (§8.6).
+        return int(plan.max_projects) + SubscriptionService._purchased_slots(sub)
+
+    @staticmethod
+    def effective_cabinets_limit(plan: EffectivePlan, sub) -> int:
+        # Слот даёт +3 кабинета (§8.2), иначе купленный слот был бы нерабочим.
+        extra = pricing.resolve_plan(plan.code).extra_project_cabinets
+        base = int(getattr(plan, "max_cabinets", 0) or SubscriptionService.cabinet_limit_for_plan(plan.code))
+        return base + SubscriptionService._purchased_slots(sub) * extra
+
+    @staticmethod
+    def compute_overflow_state(db: Session, user: models.User, plan: EffectivePlan, sub) -> dict:
+        """Состояние превышения для API экрана подписки (§8.6). Фронт эти значения
+        не считает сам."""
+        spec = pricing.resolve_plan(plan.code)
+        slots = SubscriptionService._purchased_slots(sub)
+        effective = SubscriptionService.effective_projects_limit(plan, sub)
+        allowance = spec.overflow_allowance_projects
+        total = SubscriptionService.count_project_slots(db, user.id)
+        over_limit = total > effective
+        periods = int(getattr(sub, "overflow_periods_count", 0) or 0)
+        return {
+            "current": total,
+            "effective_projects_limit": effective,
+            "purchased_slots": slots,
+            "slot_price": spec.extra_project_price_month,
+            "slots_until_parity": pricing.slots_until_parity(plan.code, slots),
+            "over_limit": over_limit,
+            "over_by": max(0, total - effective),
+            "allowance": allowance,
+            "allowance_left": max(0, effective + allowance - total),
+            "overflow_deadline": (
+                sub.current_period_end.isoformat()
+                if over_limit and sub and getattr(sub, "current_period_end", None)
+                else None
+            ),
+            "hard_blocked": over_limit and periods >= 2,
+            "suggested_plan": pricing.next_plan_code(plan.code),
+        }
+
+    @staticmethod
+    def ensure_can_create_project(db: Session, user: models.User, confirmed_overflow: bool = False) -> None:
         if SubscriptionService.is_admin_bypass(user):
             return
         plan = SubscriptionService.get_user_plan(db, user)
+        sub = SubscriptionService.get_user_subscription(db, user.id)
         total = SubscriptionService.count_project_slots(db, user.id)
-        if total < plan.max_projects:
+        effective = SubscriptionService.effective_projects_limit(plan, sub)
+        if total < effective:
             return
         if not SubscriptionService.billing_enforced():
             return
+
+        spec = pricing.resolve_plan(plan.code)
+        allowance = spec.overflow_allowance_projects
+        periods = int(getattr(sub, "overflow_periods_count", 0) or 0)
+        # 2-е продление подряд в превышении блокирует создание новых (§8.3).
+        hard_blocked = periods >= 2
+        within_allowance = (not hard_blocked) and (total < effective + allowance)
+
+        if within_allowance and confirmed_overflow:
+            now = SubscriptionService._now()
+            first_time = sub is not None and not getattr(sub, "overflow_since", None)
+            if first_time:
+                sub.overflow_since = now
+                db.flush()
+            log_history_event(
+                db, actor=user, event_type="limit",
+                action="overflow_entered" if first_time else "overflow_confirmed",
+                description=f"Проект сверх лимита ({total + 1} из {effective})",
+                target_type="subscription",
+                meta={"plan_code": plan.code, "limit": effective, "current_total": total, "allowance": allowance},
+            )
+            return
+
+        reason = (
+            "confirmation_required" if within_allowance
+            else "overflow_hard_blocked" if hard_blocked
+            else "overflow_limit_reached"
+        )
+        message = (
+            f"Это {total + 1}-й проект из {effective} на тарифе «{plan.name}»."
+            if within_allowance
+            else f"Достигнут предел проектов на тарифе «{plan.name}»: {effective} + запас {allowance}."
+        )
         log_history_event(
-            db,
-            actor=user,
-            event_type="limit",
-            action="project_limit_reached",
-            description=f"Достигнут лимит проектов ({plan.max_projects})",
-            target_type="subscription",
-            meta={"plan_code": plan.code, "limit": plan.max_projects, "current_total": total},
+            db, actor=user, event_type="limit",
+            action="limit_reached" if within_allowance else "overflow_blocked",
+            description=message, target_type="subscription",
+            meta={"plan_code": plan.code, "limit": effective, "current_total": total,
+                  "allowance": allowance, "reason": reason},
         )
-        raise HTTPException(
-            status_code=403,
-            detail=f"Достигнут лимит проектов для тарифа '{plan.name}' ({plan.max_projects})",
-        )
+        raise HTTPException(status_code=409, detail={
+            "reason": reason,
+            "type": "project",
+            "plan_code": plan.code,
+            "plan_name": plan.name,
+            "limit": effective,
+            "allowance": allowance,
+            "allowance_left": max(0, effective + allowance - total),
+            "current": total,
+            "slot_price": spec.extra_project_price_month,
+            "slots_until_parity": pricing.slots_until_parity(plan.code, SubscriptionService._purchased_slots(sub)),
+            "suggested_plan": pricing.next_plan_code(plan.code),
+            "message": message,
+        })
 
     @staticmethod
     def ensure_can_create_cabinet(db: Session, user: models.User) -> None:
         if SubscriptionService.is_admin_bypass(user):
             return
         plan = SubscriptionService.get_user_plan(db, user)
-        limit = getattr(plan, "max_cabinets", None) or SubscriptionService.cabinet_limit_for_plan(plan.code)
+        sub = SubscriptionService.get_user_subscription(db, user.id)
+        # Кабинеты получают фиксированный запас +2 (§8.3), но без модалки: тихо
+        # пропускаем в пределах запаса, дальше — стоп.
+        effective = SubscriptionService.effective_cabinets_limit(plan, sub)
+        limit = effective + 2
         total = (
             db.query(models.Integration.id)
             .join(models.Client, models.Client.id == models.Integration.client_id)
@@ -262,13 +357,13 @@ class SubscriptionService:
             actor=user,
             event_type="limit",
             action="cabinet_limit_reached",
-            description=f"Достигнут лимит кабинетов ({limit})",
+            description=f"Достигнут лимит кабинетов ({effective})",
             target_type="subscription",
-            meta={"plan_code": plan.code, "limit": limit, "current_total": total},
+            meta={"plan_code": plan.code, "limit": effective, "current_total": total},
         )
         raise HTTPException(
             status_code=403,
-            detail=f"Достигнут лимит кабинетов для тарифа '{plan.name}' ({limit})",
+            detail=f"Достигнут лимит кабинетов для тарифа '{plan.name}' ({effective})",
         )
 
     @staticmethod

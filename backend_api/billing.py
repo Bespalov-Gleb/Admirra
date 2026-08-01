@@ -402,6 +402,7 @@ def get_my_subscription(
     if current_user.is_subscribed != is_active:
         current_user.is_subscribed = is_active
     db.flush()
+    overflow = SubscriptionService.compute_overflow_state(db, current_user, plan, sub)
     return schemas.BillingSubscriptionResponse(
         plan_code=plan.code,
         plan_name=plan.name,
@@ -414,10 +415,12 @@ def get_my_subscription(
             else ("year" if sub.current_period_start and sub.current_period_end and (sub.current_period_end - sub.current_period_start).days >= 330 else "month")
         ),
         subscription_expires_at=current_user.subscription_expires_at,
-        max_projects=plan.max_projects,
+        # Плашка хедера показывает ЭФФЕКТИВНЫЙ лимит (тариф + докупленные слоты) —
+        # «12 / 13», а не «12 / 10» (§8.5). Базовый лимит тарифа виден в /plans.
+        max_projects=overflow["effective_projects_limit"],
         projects_used=projects_used,
         paused_projects=paused_projects,
-        max_cabinets=getattr(plan, "max_cabinets", None) or SubscriptionService.cabinet_limit_for_plan(plan.code),
+        max_cabinets=SubscriptionService.effective_cabinets_limit(plan, sub),
         cabinets_used=int(cabinets_used),
         max_users=getattr(plan, "max_staff", None) or 1,
         users_used=int(users_used),
@@ -439,6 +442,60 @@ def get_my_subscription(
             else None
         ),
         whitelabel_available=_plan_has_whitelabel(plan),
+        effective_projects_limit=overflow["effective_projects_limit"],
+        purchased_slots=overflow["purchased_slots"],
+        slot_price=overflow["slot_price"],
+        slots_until_parity=overflow["slots_until_parity"],
+        over_limit=overflow["over_limit"],
+        over_by=overflow["over_by"],
+        allowance_left=overflow["allowance_left"],
+        overflow_deadline=overflow["overflow_deadline"],
+        hard_blocked=overflow["hard_blocked"],
+        suggested_plan=overflow["suggested_plan"],
+    )
+
+
+@router.get("/can-add", response_model=schemas.BillingCanAddResponse)
+def can_add(
+    type: str = "project",
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Можно ли добавить проект и на каких условиях (§8.5). Фронт по этому ответу
+    решает: создавать молча, показать модалку с запасом или предложить апгрейд."""
+    plan = SubscriptionService.get_user_plan(db, current_user)
+    sub = SubscriptionService.get_user_subscription(db, current_user.id)
+    if SubscriptionService.is_admin_bypass(current_user) or not SubscriptionService.billing_enforced():
+        return schemas.BillingCanAddResponse(can_add=True, plan_name=plan.name)
+
+    st = SubscriptionService.compute_overflow_state(db, current_user, plan, sub)
+    current = st["current"]
+    effective = st["effective_projects_limit"]
+    allowance = st["allowance"]
+    base = dict(
+        effective_projects_limit=effective, current=current, allowance=allowance,
+        allowance_left=st["allowance_left"], slot_price=st["slot_price"],
+        slots_until_parity=st["slots_until_parity"], suggested_plan=st["suggested_plan"],
+        plan_name=plan.name,
+    )
+    if current < effective:
+        return schemas.BillingCanAddResponse(can_add=True, **base)
+    if st["hard_blocked"]:
+        return schemas.BillingCanAddResponse(
+            can_add=False, reason="overflow_hard_blocked",
+            message=f"На тарифе «{plan.name}» создание новых проектов приостановлено до снятия превышения.",
+            **base,
+        )
+    if current < effective + allowance:
+        return schemas.BillingCanAddResponse(
+            can_add=True, needs_confirmation=True, reason="confirmation_required",
+            message=f"Это {current + 1}-й проект из {effective} на тарифе «{plan.name}».",
+            **base,
+        )
+    return schemas.BillingCanAddResponse(
+        can_add=False, reason="overflow_limit_reached",
+        message=f"Достигнут предел проектов на тарифе «{plan.name}»: {effective} + запас {allowance}.",
+        **base,
     )
 
 

@@ -169,6 +169,39 @@ def cabinet_limit_for_plan(plan_code: Optional[str], billing_cfg=None) -> int:
     return resolve_plan(plan_code, billing_cfg).cabinets_limit
 
 
+# Порядок тарифов для апгрейда/паритета. White Label — по заявке, в лестницу
+# докупки не входит.
+PLAN_LADDER = ["start", "agency", "pro", "white_label"]
+
+
+def next_plan_code(plan_code: Optional[str]) -> Optional[str]:
+    """Следующий по старшинству тариф или None (для Про следующий — WL по заявке)."""
+    code = normalize_code(plan_code)
+    if code in PLAN_LADDER:
+        i = PLAN_LADDER.index(code)
+        if i + 1 < len(PLAN_LADDER):
+            return PLAN_LADDER[i + 1]
+    return None
+
+
+def slots_until_parity(plan_code: Optional[str], purchased_slots: int = 0, billing_cfg=None) -> int:
+    """Сколько ещё слотов можно докупить, пока это выгоднее следующего тарифа
+    (§8.1): докупать можно, пока цена тарифа + N × цена слота < цена следующего.
+    Возвращает остаток от текущего числа докупленных слотов. 0 — паритет достигнут
+    или докупка не имеет смысла (нет следующего тарифа / нулевая цена слота)."""
+    spec = resolve_plan(plan_code, billing_cfg)
+    nxt = next_plan_code(plan_code)
+    if not nxt or spec.extra_project_price_month <= 0:
+        return 0
+    nspec = resolve_plan(nxt, billing_cfg)
+    if nspec.price_month <= 0 or nspec.white_label:
+        return 0
+    # Максимум слотов, при которых тариф + слоты ещё дешевле следующего.
+    max_slots = math.floor((nspec.price_month - spec.price_month - 1) / spec.extra_project_price_month)
+    max_slots = max(0, max_slots)
+    return max(0, max_slots - int(purchased_slots or 0))
+
+
 def overflow_allowance_projects_for(projects_limit: int) -> int:
     """Формула запаса для НОВЫХ тарифов, не описанных в таблице §4:
     min(5, max(1, ceil(0.2 × projects_limit))). Для четырёх основных берутся

@@ -86,16 +86,20 @@ def get_clients(
 @router.post("/", response_model=schemas.ClientResponse, status_code=status.HTTP_201_CREATED)
 def create_client(
     client_in: schemas.ClientCreate,
+    confirm_overflow: bool = False,
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Create a new client.
+
+    confirm_overflow=true — пользователь в модалке согласился добавить проект
+    сверх лимита в счёт запаса (§8.5). Без него превышение отдаёт 409.
     """
     ctx = get_team_context(db, current_user)
     if not ctx.is_owner and ctx.team_role == models.TeamMemberRole.CLIENT.value:
         raise HTTPException(status_code=403, detail="Клиент не может создавать проекты")
-    SubscriptionService.ensure_can_create_project(db, current_user)
+    SubscriptionService.ensure_can_create_project(db, current_user, confirmed_overflow=confirm_overflow)
     new_client = models.Client(
         owner_id=current_user.id,
         **client_in.dict()

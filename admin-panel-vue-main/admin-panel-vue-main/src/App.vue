@@ -3,6 +3,8 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuth } from './composables/useAuth'
 import Toaster from './components/ui/Toaster.vue'
+import OverflowModal from './components/OverflowModal.vue'
+import OverflowBanner from './components/OverflowBanner.vue'
 import AuthLayout from './layouts/AuthLayout.vue'
 import MainLayout from './layouts/MainLayout.vue'
 import FullWidthLayout from './layouts/FullWidthLayout.vue'
@@ -54,6 +56,7 @@ const layout = computed(() => {
     </div>
 
     <template v-else>
+      <OverflowBanner />
       <component :is="layout">
         <router-view :key="$route.fullPath" />
       </component>
@@ -61,6 +64,8 @@ const layout = computed(() => {
     
     <!-- Global Notifications -->
     <Toaster />
+    <!-- Модалка границы тарифа (§8.5): одна на приложение -->
+    <OverflowModal />
   </div>
 </template>
 
