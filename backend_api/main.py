@@ -157,6 +157,10 @@ def init_db_with_retry(max_retries=10, retry_delay=2):
                 conn.execute(text("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS pending_plan_code VARCHAR"))
                 # §7.2 экономики: версия прайс-бука, зафиксированная за аккаунтом.
                 conn.execute(text("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS price_book_version INTEGER"))
+                # §8 экономики: докупленные слоты и состояние превышения лимита.
+                conn.execute(text("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS purchased_project_slots INTEGER NOT NULL DEFAULT 0"))
+                conn.execute(text("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS overflow_since TIMESTAMP WITH TIME ZONE"))
+                conn.execute(text("ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS overflow_periods_count INTEGER NOT NULL DEFAULT 0"))
                 # §7.3: переименование кодов тарифов старой линейки в новую. Резолвер
                 # понимает и старые коды (алиасы), но в БД приводим к канону, чтобы не
                 # держать оба навсегда. Идемпотентно: повторный прогон ничего не меняет.

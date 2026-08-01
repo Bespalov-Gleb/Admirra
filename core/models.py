@@ -811,6 +811,14 @@ class Subscription(Base):
     # тариф. Пока версия одна (см. core.pricing.PRICE_BOOK_VERSION), но поле нужно
     # завести до первых продаж, иначе потом не разобраться, кто на какой цене.
     price_book_version = Column(Integer, nullable=True)
+    # Граница тарифа (§8 экономики). Докупленные слоты проектов: эффективный лимит
+    # проектов = лимит тарифа + purchased_project_slots, кабинетов = лимит + слоты×3.
+    purchased_project_slots = Column(Integer, nullable=False, default=0)
+    # Состояние превышения. Сам факт не храним — считается как
+    # active_projects > effective_projects_limit; здесь только «с какого момента»
+    # и «сколько продлений подряд в превышении» (2-е продление блокирует создание).
+    overflow_since = Column(DateTime(timezone=True), nullable=True)
+    overflow_periods_count = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
