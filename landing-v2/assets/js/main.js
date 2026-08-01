@@ -299,7 +299,8 @@
   if (!items.length) return;
 
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
-  const easing = 'cubic-bezier(0.22, 0.61, 0.36, 1)';
+  const easeOpen = 'cubic-bezier(0.16, 1, 0.3, 1)';   // мягкий, глубокий ease-out
+  const easeClose = 'cubic-bezier(0.4, 0, 0.2, 1)';   // ровный ease-in-out без рывка в конце
 
   items.forEach((item) => {
     const summary = item.querySelector('.faq-item__q');
@@ -308,39 +309,51 @@
 
     let anim = null;
 
-    const clear = () => {
+    const reset = () => {
       answer.style.height = '';
+      answer.style.paddingTop = '';
+      answer.style.paddingBottom = '';
       answer.style.opacity = '';
       answer.style.overflow = '';
-      anim = null;
     };
 
-    const run = (from, to, duration, onfinish) => {
-      if (anim) anim.cancel();
+    /* Анимируем высоту И вертикальные паддинги: у блока с паддингом высота не
+       опускается ниже их суммы (~25px), поэтому без этого при закрытии остаётся
+       белая полоса, которую потом резко убирает open=false. Схлопываем в честный
+       ноль. fill:'both' удерживает конечный кадр — иначе рывок отката к auto. */
+    const animateTo = (opening) => {
+      if (anim) { anim.cancel(); anim = null; }
+      if (opening) item.open = true;                // рендерим ответ для измерения
+
       answer.style.overflow = 'hidden';
-      anim = answer.animate([from, to], { duration, easing });
-      anim.onfinish = () => { onfinish?.(); clear(); };
-      anim.oncancel = clear;
-    };
+      const cs = getComputedStyle(answer);
+      const full = {
+        height: `${answer.scrollHeight}px`,         // полная высота контента + паддинги
+        paddingTop: cs.paddingTop,
+        paddingBottom: cs.paddingBottom,
+        opacity: 1,
+      };
+      const none = { height: '0px', paddingTop: '0px', paddingBottom: '0px', opacity: 0 };
 
-    const expand = () => {
-      item.open = true;                 // рендерим ответ, чтобы измерить высоту
-      const h = answer.offsetHeight;    // border-box глобально → == height
-      run({ height: '0px', opacity: 0 }, { height: `${h}px`, opacity: 1 }, 320);
-    };
+      const current = answer.animate(
+        opening ? [none, full] : [full, none],
+        { duration: opening ? 380 : 320, easing: opening ? easeOpen : easeClose, fill: 'both' },
+      );
+      anim = current;
 
-    const collapse = () => {
-      const h = answer.offsetHeight;
-      run({ height: `${h}px`, opacity: 1 }, { height: '0px', opacity: 0 }, 260, () => {
-        item.open = false;
-      });
+      current.finished.then(() => {
+        if (anim !== current) return;               // успел стартовать новый тоггл
+        if (!opening) item.open = false;            // скрываем нативно ДО отката стилей
+        anim.cancel();                              // отпускаем удержание fill
+        anim = null;
+        reset();
+      }).catch(() => {});
     };
 
     summary.addEventListener('click', (event) => {
       if (reduce.matches || !answer.animate) return;   // штатное поведение
       event.preventDefault();
-      if (item.open) collapse();
-      else expand();
+      animateTo(!item.open);
     });
   });
 })();

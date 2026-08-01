@@ -1765,8 +1765,8 @@ button {
 .faq-item__toggle-dot::after  { width: 1.44px; height: 9.9px; }
 /* Плавное превращение плюса в минус в такт раскрытию ответа. */
 .faq-item__toggle-dot::after {
-  transition: opacity 220ms cubic-bezier(0.22, 0.61, 0.36, 1),
-              transform 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  transition: opacity 300ms cubic-bezier(0.16, 1, 0.3, 1),
+              transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 .faq-item[open] .faq-item__toggle-dot::after { opacity: 0; transform: translate(-50%, -50%) rotate(90deg); }
 @media (prefers-reduced-motion: reduce) {
