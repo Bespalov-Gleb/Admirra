@@ -854,6 +854,20 @@ async def cloudpayments_webhook(
                 sub.pending_plan_code = None
             sub.current_period_start = now
             sub.current_period_end = base + timedelta(days=days)
+            # §8.3: трекинг превышения при старте нового оплаченного периода. 1-е
+            # продление в превышении → баннер постоянный; 2-е подряд → блок создания
+            # новых (см. ensure_can_create_project). Для понижения пропускаем: новый
+            # (меньший) лимит вступит только в конце периода.
+            if not is_downgrade:
+                _slots = SubscriptionService.count_project_slots(db, user.id)
+                _eff = SubscriptionService.effective_projects_limit(plan, sub)
+                if _slots > _eff:
+                    if not sub.overflow_since:
+                        sub.overflow_since = now
+                    sub.overflow_periods_count = int(sub.overflow_periods_count or 0) + 1
+                else:
+                    sub.overflow_since = None
+                    sub.overflow_periods_count = 0
         user.is_subscribed = True
         user.subscription_expires_at = sub.current_period_end
         if extend_period:
