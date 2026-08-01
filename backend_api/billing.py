@@ -15,7 +15,7 @@ from backend_api.services.cloudpayments import CloudPaymentsService
 from backend_api.services.notifications import create_notification
 from backend_api.services.history import log_history_event
 from backend_api.services.subscription import SubscriptionService
-from core import models, schemas, security
+from core import models, pricing, schemas, security
 from core.config import get_config
 from core.database import get_db
 
@@ -91,10 +91,8 @@ def _normalize_billing_period(raw: Any) -> str:
 
 
 def _yearly_price_from_monthly(monthly_rub: Any) -> int:
-    m = float(monthly_rub or 0)
-    if m <= 0:
-        return 0
-    return int(((m * 12 * 0.7 + 9) // 10) * 10)
+    # Единая формула годовой цены живёт в прайс-буке (−17%, §4.1).
+    return pricing.yearly_from_monthly(int(float(monthly_rub or 0)))
 
 
 def _recurrent_for_billing_period(plan, billing_period: str) -> Optional[schemas.BillingRecurrentParams]:
@@ -109,15 +107,19 @@ def _billing_period_days(plan, billing_period: str) -> int:
     return int(plan.period_days or 30)
 
 
-# Коды тарифов, которые вообще можно оплатить. Используется для сверки суммы:
-# по оплаченной сумме мы обязаны сами определить тариф, а не верить клиенту.
-PURCHASABLE_PLAN_CODES = ("start", "basic", "standard")
+# Коды тарифов, которые вообще можно оплатить онлайн. Используется для сверки
+# суммы: по оплаченной сумме мы обязаны сами определить тариф, а не верить
+# клиенту. White Label оплачивается по заявке, в онлайн-оплате не участвует (§5.1).
+PURCHASABLE_PLAN_CODES = ("start", "agency", "pro")
 
 
 def _expected_amount(plan, billing_period: str) -> int:
-    """Цена тарифа за период — единственный источник истины на сервере."""
+    """Цена тарифа за период — единственный источник истины на сервере.
+    Годовая берётся из прайс-бука (у реальных тарифов задана явно, у тестовых
+    выводится из месячной)."""
     if billing_period == "year":
-        return int(_yearly_price_from_monthly(plan.price_rub))
+        spec = pricing.resolve_plan(getattr(plan, "code", ""), get_config().billing)
+        return int(spec.price_year)
     return int(plan.price_rub or 0)
 
 
@@ -152,8 +154,14 @@ def _resolve_plan_by_paid_amount(paid: Decimal, billing_period: str):
 
 
 # Порядок тарифов: апгрейд начинает период заново (решение владельца), понижение
-# откладывается до конца уже оплаченного периода.
-PLAN_RANK = {"start": 1, "basic": 2, "standard": 3, "white_label": 4}
+# откладывается до конца уже оплаченного периода. Старые коды (basic/standard)
+# оставлены на время миграции §7.3 — в БД у тестовых аккаунтов ещё они.
+PLAN_RANK = {
+    "start": 1,
+    "basic": 2, "agency": 2,
+    "standard": 3, "pro": 3,
+    "white_label": 4,
+}
 
 # Окно, в течение которого повторный клик по оплате переиспользует тот же заказ,
 # а не создаёт второй независимый платёж.
@@ -274,9 +282,10 @@ def _cabinet_limit_for_plan(plan_code: str) -> int:
 
 
 def _plan_has_whitelabel(plan) -> bool:
+    # White Label — отдельный продукт/тариф (§5.1), а не привязка к старшему.
     if getattr(plan, "whitelabel_included", False):
         return True
-    return str(getattr(plan, "code", "") or "").lower() == "standard"
+    return pricing.resolve_plan(getattr(plan, "code", "") or "").white_label
 
 
 def _build_cloudpayments_receipt(
@@ -313,26 +322,31 @@ def _build_cloudpayments_receipt(
     }
 
 
-def _plan_to_schema(plan) -> schemas.BillingPlanResponse:
-    fallback = SubscriptionService.get_plan_from_config(getattr(plan, "code", "start"))
-    max_staff = getattr(plan, "max_staff", None) or fallback.max_staff
-    max_clients = getattr(plan, "max_clients", None) or fallback.max_clients
-    max_cabinets = getattr(plan, "max_cabinets", None) or fallback.max_cabinets
+def _spec_to_schema(spec: pricing.PlanSpec) -> schemas.BillingPlanResponse:
+    cfg = get_config().billing
     return schemas.BillingPlanResponse(
-        code=plan.code,
-        name=plan.name,
-        price_rub=plan.price_rub,
-        max_projects=plan.max_projects,
-        max_cabinets=max_cabinets,
-        max_users=max_staff,
-        max_staff=max_staff,
-        max_clients=max_clients,
-        max_ai_requests_per_period=plan.max_ai_requests_per_period,
-        period_days=plan.period_days,
-        trial_days=plan.trial_days,
-        whitelabel_included=_plan_has_whitelabel(plan),
-        is_default=plan.is_default,
-        is_active=plan.is_active,
+        code=spec.code,
+        name=spec.title,
+        price_rub=spec.price_month,
+        price_year_rub=spec.price_year,
+        max_projects=spec.projects_limit,
+        max_cabinets=spec.cabinets_limit,
+        max_users=spec.users_limit,
+        max_staff=spec.users_limit,
+        max_clients=-1 if spec.white_label else 0,
+        max_ai_requests_per_period=spec.ai_requests_limit,
+        period_days=cfg.ai_period_days,
+        trial_days=cfg.trial_days,
+        overflow_allowance_projects=spec.overflow_allowance_projects,
+        extra_project_price_month=spec.extra_project_price_month,
+        extra_project_price_year=spec.extra_project_price_year,
+        extra_project_cabinets=spec.extra_project_cabinets,
+        white_label=spec.white_label,
+        recommended=spec.recommended,
+        visible=spec.visible,
+        whitelabel_included=spec.white_label,
+        is_default=spec.is_default,
+        is_active=spec.visible,
     )
 
 
@@ -341,14 +355,10 @@ def get_plans(
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
-    rows = db.query(models.TariffPlan).filter(models.TariffPlan.is_active.is_(True)).all()
-    if rows:
-        return [_plan_to_schema(r) for r in rows]
-    return [
-        _plan_to_schema(SubscriptionService.get_plan_from_config("start")),
-        _plan_to_schema(SubscriptionService.get_plan_from_config("basic")),
-        _plan_to_schema(SubscriptionService.get_plan_from_config("standard")),
-    ]
+    # Единый источник — прайс-бук. Таблица tariff_plans пустая и не используется
+    # (см. get_user_plan): раньше на неё был молчаливый fallback, теперь линейка
+    # всегда из конфига.
+    return [_spec_to_schema(spec) for spec in pricing.list_plans(visible_only=True)]
 
 
 @router.get("/subscription", response_model=schemas.BillingSubscriptionResponse)

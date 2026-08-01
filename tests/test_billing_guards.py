@@ -16,7 +16,7 @@ import pytest
 from backend_api import billing
 from backend_api.services.cloudpayments import CloudPaymentsService
 from backend_api.services.subscription import SubscriptionService
-from core import models
+from core import models, pricing
 
 
 # --------------------------------------------------------------------------
@@ -33,12 +33,13 @@ def test_expected_amount_month_equals_plan_price():
 
 
 def test_expected_amount_year_is_discounted():
-    plan = _plan("standard")
+    plan = _plan("standard")  # алиас → pro
     year = billing._expected_amount(plan, "year")
     month = billing._expected_amount(plan, "month")
-    # Годовая цена — 12 месяцев со скидкой 30%, округление вверх до десятки.
-    assert year < month * 12
-    assert year == billing._yearly_price_from_monthly(plan.price_rub)
+    # Годовая — 12 месяцев со скидкой 17% (§4.1). У реальных тарифов задана явно
+    # в прайс-буке, поэтому сверяем с ним, а не с формулой округления.
+    assert year == pricing.resolve_plan(plan.code).price_year
+    assert month * 12 * 0.80 < year < month * 12
 
 
 def test_paid_amount_parses_common_formats():

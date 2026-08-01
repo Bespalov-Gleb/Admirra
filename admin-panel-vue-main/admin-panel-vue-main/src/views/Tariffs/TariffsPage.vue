@@ -60,7 +60,7 @@
               {{ channel.label }}
             </span>
           </div>
-          <em>{{ currentPlanCode === 'start' ? 'Все каналы от «Базового»' : 'Все каналы доступны' }}</em>
+          <em>Все каналы доступны</em>
         </div>
 
         <!-- Карта и автопродление на бэкенде — одно состояние, а не два: отмена
@@ -136,7 +136,7 @@
         <div class="tariff-section-head">
           <div>
             <h4>Сменить тариф</h4>
-            <p>Годовая подписка дает скидку 30%</p>
+            <p>Годовая подписка — два месяца в подарок</p>
           </div>
           <div class="billing-switch">
             <button
@@ -154,7 +154,7 @@
               @click="billingPeriod = 'year'"
             >
               <span>Год</span>
-              <small>Экономия 30%</small>
+              <small>2 месяца в подарок</small>
             </button>
           </div>
         </div>
@@ -165,10 +165,13 @@
               v-for="card in planCards"
               :key="card.code"
               class="plan-card"
-              :class="[`plan-card--${card.code}`, { 'plan-card--current': isCurrentPlan(card.plan) }]"
+              :class="[`plan-card--${card.code}`, { 'plan-card--current': isCurrentPlan(card.plan), 'plan-card--recommended': isHighlighted(card) }]"
             >
+              <span v-if="planBadge(card)" class="plan-badge" :class="`plan-badge--${isCurrentPlan(card.plan) ? 'current' : 'recommended'}`">
+                {{ planBadge(card) }}
+              </span>
               <div class="plan-title">
-                <span class="two-circles" :class="{ 'two-circles--light': card.code === 'basic' }"></span>
+                <span class="two-circles" :class="{ 'two-circles--light': isHighlighted(card) }"></span>
                 <h5>{{ card.title }}</h5>
               </div>
 
@@ -188,7 +191,7 @@
                 <button
                   type="button"
                   class="plan-btn"
-                  :class="{ 'plan-btn--light': card.code === 'basic', 'plan-btn--current': isCurrentPlan(card.plan) }"
+                  :class="{ 'plan-btn--light': isHighlighted(card), 'plan-btn--current': isCurrentPlan(card.plan) }"
                   :disabled="paying === card.code || isCurrentPlan(card.plan)"
                   @click="onSubscribe(card.code, billingPeriod)"
                 >
@@ -198,7 +201,7 @@
                     <path d="M4.86523 11.0371V11.4908C4.86523 12.0865 5.26678 12.5885 5.82067 12.7725C5.87042 13.2194 6.06465 13.6443 6.38237 13.9788C6.79749 14.4158 7.38789 14.6666 8.00249 14.6666C8.61707 14.6666 9.20743 14.4158 9.62259 13.9788C9.9403 13.6444 10.1345 13.2195 10.1843 12.7725C10.7382 12.5885 11.1397 12.0865 11.1397 11.4908V11.0371H4.86523V11.0371Z" fill="currentColor" />
                   </svg>
                 </button>
-                <p><strong>{{ trialPhrase(card.plan.trial_days) }}</strong> — подключение за 5 минут</p>
+                <p>{{ planButtonSubtitle(card.plan) }}</p>
               </div>
             </article>
           </div>
@@ -224,14 +227,13 @@
 
           <div class="white-label-card__right">
             <div class="plan-price">
-              <strong>25&nbsp;900&nbsp;₽</strong>
-              <span>259 руб/проект</span>
+              <strong>от&nbsp;25&nbsp;900&nbsp;₽</strong>
             </div>
             <p class="white-label-card__copy">
               При покупке на год - возможны персональные скидки. Оставьте заявку, чтобы обсудить детали использования WL.
             </p>
             <button class="plan-btn" type="button" @click="onContactWl">
-              {{ subscription.whitelabel_available ? 'Настроить бренд' : 'Перейти на тариф WL' }}
+              {{ subscription.whitelabel_available ? 'Настроить бренд' : 'Оставить заявку' }}
               <svg class="button-idea-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
                 <path d="M11.6827 2.66752C10.6181 1.74863 9.21766 1.27671 7.74644 1.33866C4.98331 1.45489 2.70483 3.58678 2.66746 6.09098C2.64694 7.49798 3.30472 8.83956 4.47229 9.77174C4.59775 9.87193 4.69572 9.99455 4.76241 10.1297H7.52986V8.50095C7.33907 8.35839 7.15453 8.22223 6.98085 8.09484C5.6843 7.1441 5.01087 6.61191 5.01087 5.78755C5.01087 4.97369 5.66742 4.33609 6.50562 4.33609C6.96027 4.33609 7.32793 4.5057 7.6297 4.85468L8.0004 5.28364L8.37111 4.85468C8.67287 4.50567 9.04054 4.33609 9.49518 4.33609C10.3334 4.33609 10.9899 4.97371 10.9899 5.78755C10.9899 6.61194 10.3165 7.14412 9.02608 8.0904C8.84876 8.22039 8.66259 8.35773 8.47095 8.50093V10.1297H11.2364C11.3015 9.99624 11.397 9.87626 11.519 9.77931C12.6722 8.86306 13.3337 7.54282 13.3337 6.15716C13.3337 4.82613 12.7474 3.58678 11.6827 2.66752Z" fill="currentColor" />
                 <path d="M4.86523 11.0371V11.4908C4.86523 12.0865 5.26678 12.5885 5.82067 12.7725C5.87042 13.2194 6.06465 13.6443 6.38237 13.9788C6.79749 14.4158 7.38789 14.6666 8.00249 14.6666C8.61707 14.6666 9.20743 14.4158 9.62259 13.9788C9.9403 13.6444 10.1345 13.2195 10.1843 12.7725C10.7382 12.5885 11.1397 12.0865 11.1397 11.4908V11.0371H4.86523V11.0371Z" fill="currentColor" />
@@ -283,12 +285,13 @@ import { useToaster } from '@/composables/useToaster'
 import { payWithCloudPayments } from '@/composables/useBillingCloudPayments'
 import { reachGoal } from '@/utils/metrika'
 
-// Ранги тарифов для определения апгрейда (старший тариф / White Label)
-const PLAN_RANK = { start: 0, basic: 1, standard: 2, white_label: 3 }
+// Ранги тарифов для определения апгрейда/понижения. Старые коды (basic/standard)
+// оставлены на время миграции §7.3 — в кэше подписки может быть ещё они.
+const PLAN_RANK = { start: 0, basic: 1, agency: 1, standard: 2, pro: 2, white_label: 3 }
 import { getAccessToken } from '@/utils/authToken'
 import {
   normalizePlansFromApi,
-  yearlyPriceFromMonthly,
+  yearlyPriceOfPlan,
   formatRub,
   trialPhrase,
   perProjectLine,
@@ -312,15 +315,15 @@ const subscription = ref({
   status: 'trial',
   billing_period: 'month',
   subscription_expires_at: null,
-  max_projects: 1,
+  max_projects: 3,
   projects_used: 0,
   paused_projects: 0,
-  max_cabinets: 3,
+  max_cabinets: 9,
   cabinets_used: 0,
-  max_users: 1,
+  max_users: 2,
   users_used: 1,
-  max_staff: 1,
-  max_ai_requests_per_period: 30,
+  max_staff: 2,
+  max_ai_requests_per_period: 50,
   ai_requests_used: 0,
   ai_reset_date: '',
   autorenew: true,
@@ -367,7 +370,7 @@ const renewalText = computed(() => {
 const planMetaLine = computed(() => {
   const isYear = subscription.value?.billing_period === 'year'
   const price = isYear
-    ? formatRub(yearlyPriceFromMonthly(currentPlan.value?.price_rub))
+    ? formatRub(yearlyPriceOfPlan(currentPlan.value))
     : formatRub(currentPlan.value?.price_rub)
   const period = isYear ? 'годовой' : 'помесячно'
   const pricePart = isYear ? `${price}/год` : `${price}/мес`
@@ -380,7 +383,7 @@ const subscriptionEndDate = computed(() => formatDate(subscription.value?.subscr
 const nextPaymentLine = computed(() => {
   const isYear = subscription.value?.billing_period === 'year'
   const price = isYear
-    ? formatRub(yearlyPriceFromMonthly(currentPlan.value?.price_rub))
+    ? formatRub(yearlyPriceOfPlan(currentPlan.value))
     : formatRub(currentPlan.value?.price_rub)
   return subscriptionEndDate.value ? `${price} ${subscriptionEndDate.value}` : price
 })
@@ -500,46 +503,45 @@ const subscriptionUsageTiles = computed(() => {
 })
 
 const availableChannels = computed(() => {
+  // §3: все каналы доступны на всех тарифах, включая Авито.
   const base = [
     { label: 'Yandex Direct', className: 'channel-chip--yd', icon: '/admirra/img/icons/yandex-direct.png', color: '#c7a44d' },
     { label: 'VK Ads Manager', className: 'channel-chip--vk', icon: '/admirra/img/icons/vk-ads.png', color: '#2563eb' },
+    { label: 'Avito Ads', className: 'channel-chip--avito', icon: '/admirra/img/icons/avito.png', color: '#00a871' },
   ]
-  // На «Старте» доступны только Яндекс и VK; с «Базового» — все каналы (+ Авито).
-  if (currentPlanCode.value !== 'start') {
-    base.push({ label: 'Avito Ads', className: 'channel-chip--avito', icon: '/admirra/img/icons/avito.png', color: '#00a871' })
-  }
   return base
 })
 
 // Цену и лимиты берём из /billing/plans (реальные значения, по которым бэк и считает
-// списание, и применяет лимиты). Годовая цена — та же формула, что на бэке
-// (×12 −30%), чтобы на карточке была ровно та сумма, которая спишется.
+// списание, и применяет лимиты). Годовая — из price_year_rub (у реальных тарифов
+// задана явно, −17%), чтобы на карточке была ровно та сумма, которая спишется.
 const planFeatures = (code, plan) => {
   const projects = Number(plan?.max_projects || 0)
   const users = Number(plan?.max_users ?? plan?.max_staff ?? 1)
   const ai = Number(plan?.max_ai_requests_per_period || 0)
   return [
     projects === 1 ? '1 Проект' : `До ${projects} Проектов`,
-    code === 'start' ? 'Каналы: Яндекс.Директ, ВК' : 'Все доступные подключения',
+    'Все каналы: Яндекс.Директ, VK, Авито',   // §3: гейтинг каналов отменён
     users === 1 ? '1 пользователь' : `До ${users} пользователей`,
     `${ai} запросов AI`,
     'Экспорт отчетов,\nотправка по расписанию',
   ]
 }
 
-const planCards = computed(() => ['start', 'basic', 'standard'].map((code) => {
+const planCards = computed(() => ['start', 'agency', 'pro'].map((code) => {
   const plan = resolvedPlans.value[code]
   const monthly = Number(plan?.price_rub || 0)
   const price = billingPeriod.value === 'year'
-    ? formatRub(yearlyPriceFromMonthly(monthly))
+    ? formatRub(yearlyPriceOfPlan(plan))
     : formatRub(monthly)
   return {
     code,
     plan,
-    title: code === 'start' ? 'Старт' : code === 'basic' ? 'Базовый' : 'Стандартный',
+    title: plan?.name || code,
     price,
     perProject: perProjectLine(monthly, plan?.max_projects),
     features: planFeatures(code, plan),
+    recommended: Boolean(plan?.recommended),
   }
 }))
 
@@ -551,9 +553,47 @@ const wlFeaturesLeft = [
 ]
 
 const isCurrentPlan = (plan) => String(plan?.code || '').toLowerCase() === currentPlanCode.value
+// Синяя «популярная» заливка — только когда карточка рекомендованная И не текущая
+// (на своём тарифе побеждает акцент «Текущий», а не заливка «Популярный»).
+const isHighlighted = (card) => Boolean(card?.recommended) && !isCurrentPlan(card?.plan)
+
+// Отношение карточки к текущему тарифу (§6). Триал — все карточки как «перейти».
+const planRelation = (plan) => {
+  const code = String(plan?.code || '').toLowerCase()
+  if (code === currentPlanCode.value) return 'current'
+  if (subscriptionStatusKey.value === 'trial') return 'trial'
+  const rank = PLAN_RANK[code] ?? 0
+  const rankCur = PLAN_RANK[currentPlanCode.value] ?? 0
+  return rank > rankCur ? 'upgrade' : 'downgrade'
+}
+
 const planButtonText = (plan) => {
   if (paying.value === plan?.code) return 'Подождите...'
-  return `Перейти на тариф ${plan?.name || ''}`.trim()
+  if (planRelation(plan) === 'current') return '✓ Подключён'
+  return `Перейти на ${plan?.name || ''}`.trim()
+}
+
+// Подпись под кнопкой зависит от состояния (§6): апгрейд списывается сегодня с
+// учётом остатка, понижение — со следующего периода, текущий — дата продления.
+const planButtonSubtitle = (plan) => {
+  const rel = planRelation(plan)
+  const date = formatDate(subscription.value?.subscription_expires_at)
+  if (rel === 'current') {
+    const isYear = subscription.value?.billing_period === 'year'
+    const price = formatRub(isYear ? yearlyPriceOfPlan(plan) : Number(plan?.price_rub || 0))
+    return date ? `Продлится ${date} · спишется ${price}` : `Спишется ${price}`
+  }
+  if (rel === 'upgrade') return 'Спишется сегодня, с учётом остатка периода'
+  if (rel === 'downgrade') return `Сменится ${date || 'в конце периода'}, со следующего периода`
+  return `${trialPhrase(plan?.trial_days)} — подключение за 5 минут`
+}
+
+// Бейдж на карточке (§6): у текущего — «Текущий», иначе у рекомендованного —
+// «Популярный». Одновременно не показываются: на своём тарифе побеждает «Текущий».
+const planBadge = (card) => {
+  if (isCurrentPlan(card.plan)) return 'Текущий'
+  if (card.recommended) return 'Популярный'
+  return ''
 }
 
 const scrollToPlans = () => {
@@ -658,7 +698,7 @@ async function reloadSubscription() {
 // оплата новой картой создаёт новый рекуррент (старый бэкенд отменяет сам, двойного
 // списания не будет), и маска карты обновляется из вебхука.
 function onBindCard() {
-  const code = currentPlanCode.value === 'white_label' ? 'standard' : currentPlanCode.value
+  const code = currentPlanCode.value === 'white_label' ? 'pro' : currentPlanCode.value
   onSubscribe(code, subscription.value?.billing_period === 'year' ? 'year' : 'month')
 }
 
@@ -1380,12 +1420,15 @@ function onContactWl() {
   background: #fff;
 }
 
-.plan-card--basic {
+/* «Популярный» тариф — синяя заливка. Раньше была привязана к коду тарифа
+   (.plan-card--basic); теперь к семантическому классу .plan-card--recommended,
+   который ставится по флагу recommended и только когда карточка не текущая. */
+.plan-card--recommended {
   background: #2563eb;
   color: #fff;
 }
 
-.plan-card--basic::before {
+.plan-card--recommended::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -1393,6 +1436,34 @@ function onContactWl() {
   background-image:
     radial-gradient(circle, rgba(255, 255, 255, 0.8) 0 1px, transparent 1px);
   background-size: 1.0417rem 1.0417rem;
+}
+
+/* Текущий тариф аккаунта — акцентная обводка вместо заливки (§6). */
+.plan-card--current {
+  box-shadow: inset 0 0 0 0.1389rem #2563eb;
+}
+
+/* Бейдж в правом верхнем углу карточки: «Текущий» или «Популярный» (§6). */
+.plan-badge {
+  position: absolute;
+  top: 1.3889rem;
+  right: 1.3889rem;
+  z-index: 2;
+  padding: 0.3472rem 0.8333rem;
+  border-radius: 999px;
+  font-size: 0.9028rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.plan-badge--current {
+  background: #2563eb;
+  color: #fff;
+}
+
+.plan-badge--recommended {
+  background: rgba(255, 255, 255, 0.9);
+  color: #2563eb;
 }
 
 
@@ -1458,9 +1529,9 @@ function onContactWl() {
   font-weight: 400;
 }
 
-.plan-card--basic .plan-price span,
-.plan-card--basic .plan-features,
-.plan-card--basic .plan-card__footer p {
+.plan-card--recommended .plan-price span,
+.plan-card--recommended .plan-features,
+.plan-card--recommended .plan-card__footer p {
   color: rgba(255, 255, 255, 0.92);
 }
 
@@ -1487,7 +1558,7 @@ function onContactWl() {
   white-space: pre-line;
 }
 
-.plan-card--basic .plan-features li {
+.plan-card--recommended .plan-features li {
   border-bottom-color: rgba(255, 255, 255, 0.12);
   color: #fff;
 }
@@ -1506,7 +1577,7 @@ function onContactWl() {
   flex-shrink: 0;
 }
 
-.plan-card--basic .feature-dot {
+.plan-card--recommended .feature-dot {
   background: #fff;
   box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.25);
 }
@@ -1524,8 +1595,8 @@ function onContactWl() {
 
 .feature-dot::before { width: 0.2778rem; height: 1px; }
 .feature-dot::after { width: 1px; height: 0.2778rem; }
-.plan-card--basic .feature-dot::before,
-.plan-card--basic .feature-dot::after { background: #2563eb; }
+.plan-card--recommended .feature-dot::before,
+.plan-card--recommended .feature-dot::after { background: #2563eb; }
 
 .plan-card__footer {
   position: relative;
@@ -1579,7 +1650,7 @@ function onContactWl() {
   color: #2563eb;
 }
 
-.plan-card--basic .plan-card__footer p strong {
+.plan-card--recommended .plan-card__footer p strong {
   color: #fff;
 }
 

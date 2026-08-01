@@ -331,9 +331,12 @@ def get_config() -> Config:
             billing_enforce_limits=_bool("BILLING_ENFORCE_LIMITS", False),
             billing_admin_whitelist=_env("BILLING_ADMIN_WHITELIST"),
             trial_days=int(_env("BILLING_TRIAL_DAYS", "14")),
-            plan_start_price_rub=int(_env("BILLING_PLAN_START_PRICE_RUB", "1590")),
-            plan_basic_price_rub=int(_env("BILLING_PLAN_BASIC_PRICE_RUB", "3990")),
-            plan_standard_price_rub=int(_env("BILLING_PLAN_STANDARD_PRICE_RUB", "9990")),
+            # Дефолты = новая линейка §4 (Старт/Агентство/Про). Env BILLING_PLAN_*
+            # переопределяют их (на проде — тестовые суммы, пока не боевой запуск).
+            # Имена env оставлены (START/BASIC/STANDARD) ради совместимости прод-.env.
+            plan_start_price_rub=int(_env("BILLING_PLAN_START_PRICE_RUB", "2900")),
+            plan_basic_price_rub=int(_env("BILLING_PLAN_BASIC_PRICE_RUB", "6900")),
+            plan_standard_price_rub=int(_env("BILLING_PLAN_STANDARD_PRICE_RUB", "13900")),
             plan_start_max_projects=int(_env("BILLING_PLAN_START_MAX_PROJECTS", "1")),
             plan_basic_max_projects=int(_env("BILLING_PLAN_BASIC_MAX_PROJECTS", "5")),
             plan_standard_max_projects=int(_env("BILLING_PLAN_STANDARD_MAX_PROJECTS", "30")),

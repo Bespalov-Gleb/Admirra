@@ -6,9 +6,17 @@ from typing import Optional
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from core import models
+from core import models, pricing
 from core.config import get_config
 from backend_api.services.history import log_history_event
+
+# Обратная совместимость: у поля max_clients нет места в новой линейке §4,
+# поэтому продолжаем брать его из старого конфига по каноническому коду.
+_MAX_CLIENTS_ENV = {
+    "start": "plan_start_max_clients",
+    "agency": "plan_basic_max_clients",
+    "pro": "plan_standard_max_clients",
+}
 
 
 @dataclass
@@ -64,46 +72,25 @@ class SubscriptionService:
 
     @staticmethod
     def get_plan_from_config(plan_code: str) -> EffectivePlan:
+        """Единый источник — прайс-бук `core.pricing`. Коды basic/standard из
+        БД до миграции §7.3 понимаются как agency/pro через алиасы резолвера."""
         cfg = get_config().billing
-        code = (plan_code or "start").strip().lower()
-        if code == "basic":
-            return EffectivePlan(
-                code="basic",
-                name="Базовый",
-                price_rub=cfg.plan_basic_price_rub,
-                max_projects=cfg.plan_basic_max_projects,
-                max_ai_requests_per_period=cfg.plan_basic_ai_limit,
-                period_days=cfg.ai_period_days,
-                trial_days=cfg.trial_days,
-                max_cabinets=10,
-                max_staff=cfg.plan_basic_max_staff,
-                max_clients=cfg.plan_basic_max_clients,
-            )
-        if code == "standard":
-            return EffectivePlan(
-                code="standard",
-                name="Стандартный",
-                price_rub=cfg.plan_standard_price_rub,
-                max_projects=cfg.plan_standard_max_projects,
-                max_ai_requests_per_period=cfg.plan_standard_ai_limit,
-                period_days=cfg.ai_period_days,
-                trial_days=cfg.trial_days,
-                max_cabinets=30,
-                max_staff=cfg.plan_standard_max_staff,
-                max_clients=cfg.plan_standard_max_clients,
-            )
+        spec = pricing.resolve_plan(plan_code, cfg)
+        clients_attr = _MAX_CLIENTS_ENV.get(spec.code)
+        max_clients = getattr(cfg, clients_attr) if clients_attr else -1
         return EffectivePlan(
-            code="start",
-            name="Старт",
-            price_rub=cfg.plan_start_price_rub,
-            max_projects=cfg.plan_start_max_projects,
-            max_ai_requests_per_period=cfg.plan_start_ai_limit,
+            code=spec.code,
+            name=spec.title,
+            price_rub=spec.price_month,
+            max_projects=spec.projects_limit,
+            max_ai_requests_per_period=spec.ai_requests_limit,
             period_days=cfg.ai_period_days,
             trial_days=cfg.trial_days,
-            max_cabinets=3,
-            max_staff=cfg.plan_start_max_staff,
-            max_clients=cfg.plan_start_max_clients,
-            is_default=True,
+            max_cabinets=spec.cabinets_limit,
+            max_staff=spec.users_limit,
+            max_clients=max_clients,
+            is_default=spec.is_default,
+            is_active=spec.visible,
         )
 
     @staticmethod
@@ -204,12 +191,7 @@ class SubscriptionService:
 
     @staticmethod
     def cabinet_limit_for_plan(plan_code: str) -> int:
-        code = str(plan_code or "").lower()
-        if code == "standard":
-            return 30
-        if code == "basic":
-            return 10
-        return 3
+        return pricing.cabinet_limit_for_plan(plan_code, get_config().billing)
 
     @staticmethod
     def count_project_slots(db: Session, user_id) -> int:

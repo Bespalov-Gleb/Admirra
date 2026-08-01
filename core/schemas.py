@@ -1186,6 +1186,7 @@ class BillingPlanResponse(BaseModel):
     code: str
     name: str
     price_rub: int
+    price_year_rub: int = 0
     max_projects: int
     max_cabinets: int = 0
     max_users: int = 1
@@ -1194,6 +1195,14 @@ class BillingPlanResponse(BaseModel):
     max_ai_requests_per_period: int
     period_days: int
     trial_days: int
+    # Новая линейка (§4, §8): запас сверх лимита и параметры докупки проекта.
+    overflow_allowance_projects: int = 0
+    extra_project_price_month: int = 0
+    extra_project_price_year: int = 0
+    extra_project_cabinets: int = 0
+    white_label: bool = False
+    recommended: bool = False
+    visible: bool = True
     whitelabel_included: bool = False
     is_default: bool
     is_active: bool

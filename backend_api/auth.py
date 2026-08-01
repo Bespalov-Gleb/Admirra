@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from core.database import get_db
-from core import models, schemas, security
+from core import models, pricing, schemas, security
 from core.public_domain import resolve_frontend_url
 from .auth_helpers import (
     generate_email_verification_raw_token,
@@ -548,7 +548,7 @@ def read_users_me(
             plan = db.query(models.TariffPlan).filter(models.TariffPlan.id == sub.plan_id).first()
             wl = bool(plan and getattr(plan, "whitelabel_included", False))
         if not wl:
-            wl = SubscriptionService.get_user_plan(db, current_user).code == "standard"
+            wl = pricing.resolve_plan(SubscriptionService.get_user_plan(db, current_user).code).white_label
     resp = schemas.UserResponse.model_validate(current_user)
     resp.whitelabel_available = wl
     return _decorate_user_response(resp, current_user)

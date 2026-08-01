@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from typing import Optional
 from sqlalchemy.orm import Session
 
-from core import models, security
+from core import models, pricing, security
 from core.database import get_db
 from backend_api.services.subscription import SubscriptionService
 
@@ -63,7 +63,7 @@ def _check_wl(user: models.User, db: Session) -> bool:
         if plan:
             return bool(getattr(plan, "whitelabel_included", False))
     plan = SubscriptionService.get_user_plan(db, user)
-    return str(plan.code or "").lower() == "standard"
+    return pricing.resolve_plan(plan.code).white_label
 
 
 @router.get("", response_model=BrandSettingsResponse)
