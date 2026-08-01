@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from core.database import get_db
 from core import models, schemas, security
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 from typing import List, Optional
 import uuid
 from time import monotonic
@@ -1123,7 +1123,27 @@ async def get_summary(
     if client_id and client_id.strip():
         try: u_client_id = uuid.UUID(client_id)
         except: pass
-    
+
+    # §9.2: отмечаем открытие дашборда проекта (модель тёплых проектов + база для
+    # дельты «с последнего захода»). Троттлинг 5 мин, чтобы не писать на каждый
+    # фильтр; доступ к проекту уже проверяется ниже при выборке данных.
+    if u_client_id:
+        try:
+            _now = datetime.now(timezone.utc)
+            db.query(models.Client).filter(
+                models.Client.id == u_client_id,
+                or_(
+                    models.Client.last_dashboard_viewed_at.is_(None),
+                    models.Client.last_dashboard_viewed_at < _now - timedelta(minutes=5),
+                ),
+            ).update(
+                {models.Client.last_dashboard_viewed_at: _now},
+                synchronize_session=False,
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+
     u_campaign_ids = None
     if campaign_ids:
         u_campaign_ids = []

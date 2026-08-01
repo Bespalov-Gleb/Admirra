@@ -486,6 +486,12 @@ class Client(Base):
     # Кэш AI-комментариев по стандартным периодам (ТЗ §12, раздел 6):
     # {period_key: {"text": str, "generated_at": iso, "start": date, "end": date}}
     ai_comment_cache = Column(JSON, nullable=True)
+    # §9.2 экономики: модель «тёплых» проектов. last_dashboard_viewed_at пишется
+    # при открытии дашборда любым пользователем аккаунта — по нему проект считается
+    # «тёплым» (окно warm_window_days) и от него же берётся дельта «с последнего
+    # захода» (§9.5). last_comment_generated_at — троттлинг ночной генерации.
+    last_dashboard_viewed_at = Column(DateTime(timezone=True), nullable=True)
+    last_comment_generated_at = Column(DateTime(timezone=True), nullable=True)
 
     owner = relationship("User", back_populates="clients")
     folder = relationship("Folder", back_populates="clients")

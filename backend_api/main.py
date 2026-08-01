@@ -57,6 +57,9 @@ def init_db_with_retry(max_retries=10, retry_delay=2):
                 conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS ai_comment_cache JSONB"))
                 conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS directions_budget_mode VARCHAR(16) NOT NULL DEFAULT 'fixed'"))
                 conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS strategy_context TEXT"))
+                # §9.2 экономики: модель тёплых проектов и дельта с последнего захода.
+                conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS last_dashboard_viewed_at TIMESTAMP WITH TIME ZONE"))
+                conn.execute(text("ALTER TABLE clients ADD COLUMN IF NOT EXISTS last_comment_generated_at TIMESTAMP WITH TIME ZONE"))
                 conn.execute(text("ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS bid_strategy VARCHAR"))
                 conn.execute(text("""
                     CREATE TABLE IF NOT EXISTS comparability_events (
