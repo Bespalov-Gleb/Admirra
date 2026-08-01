@@ -696,7 +696,8 @@ async function onSubscribe(planCode, bp = 'month') {
     setTimeout(reloadSubscription, 4000)
   } catch (e) {
     const d = e?.response?.data?.detail
-    const msg = typeof d === 'string' ? d : e?.message
+    // detail может быть объектом (например, §8.4 downgrade_blocked с message).
+    const msg = (d && typeof d === 'object' ? d.message : d) || e?.message
     if (msg) toaster.error(msg || 'Не удалось начать оплату')
   } finally {
     paying.value = null

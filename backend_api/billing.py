@@ -511,6 +511,21 @@ async def subscribe(
     if not cfg.cloudpayments.public_id:
         raise HTTPException(status_code=500, detail="CLOUDPAYMENTS_PUBLIC_ID не настроен")
 
+    # §8.4: даунгрейд блокируется, если текущее использование не влезает в лимит
+    # нового тарифа. Понижение обнуляет докупленные слоты в конце периода, поэтому
+    # сверяем с чистым лимитом тарифа, а не с эффективным.
+    if not SubscriptionService.is_admin_bypass(current_user):
+        cur_plan = SubscriptionService.get_user_plan(db, current_user)
+        if PLAN_RANK.get(plan.code, 0) < PLAN_RANK.get(cur_plan.code, 0):
+            used = SubscriptionService.count_project_slots(db, current_user.id)
+            if used > int(plan.max_projects):
+                raise HTTPException(status_code=409, detail={
+                    "reason": "downgrade_blocked",
+                    "message": f"На тарифе «{plan.name}» доступно {plan.max_projects} проектов, "
+                               f"сейчас у вас {used}. Поставьте лишние на паузу или удалите, "
+                               f"затем понижайте тариф.",
+                })
+
     amount = _expected_amount(plan, billing_period)
     description = f"Подписка {plan.name} ({'год' if billing_period == 'year' else 'месяц'})"
     receipt = _build_cloudpayments_receipt(
@@ -961,6 +976,12 @@ async def cloudpayments_webhook(
         # на своей цене, пока сам не сменит тариф.
         if getattr(sub, "price_book_version", None) is None or plan_changed:
             sub.price_book_version = pricing.PRICE_BOOK_VERSION
+        # §8.4: апгрейд с докупленными слотами. Если новый тариф покрывает текущее
+        # использование — слоты обнуляются; иначе переносятся в нужном количестве.
+        if plan_changed and int(getattr(sub, "purchased_project_slots", 0) or 0) > 0:
+            used = SubscriptionService.count_project_slots(db, user.id)
+            need = max(0, used - int(plan.max_projects))
+            sub.purchased_project_slots = need
     prev_cp_sub_id = (sub.cloudpayments_subscription_id or "").strip()
     sub.cloudpayments_subscription_id = str(
         data.get("SubscriptionId")
