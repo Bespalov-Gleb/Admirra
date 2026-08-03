@@ -325,7 +325,7 @@ button {
 
 .hero__title {
   margin: 80.1px auto 0;
-  max-width: 882px;
+  max-width: 990px;
   font-size: 49.5px;
   font-weight: 600;
   line-height: 1.1;
@@ -1831,7 +1831,7 @@ button {
 
 
 .about-seo {
-  padding: 0 21.6px 64.8px;
+  padding: 90px 21.6px 64.8px;
   background: #fff;
 }
 
@@ -2891,7 +2891,7 @@ button {
   .blog__all { height: 52.2px; padding-inline: 27px; }
   .blog__grid { grid-template-columns: 1fr; gap: 18px; }
 
-  .about-seo { padding: 0 14.4px 43.2px; }
+  .about-seo { padding: 43.2px 14.4px; }
   .about-seo__inner { padding: 21.6px 18px; border-radius: 14.4px; }
   .about-seo__title { font-size: 16.2px; }
   .about-seo__text { font-size: 12.6px; }
