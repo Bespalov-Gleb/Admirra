@@ -1147,17 +1147,56 @@ def plan_completion(db: Session, client_id: uuid.UUID, today: date | None = None
     selected = _selected_goal_ids(integrations)
     channels = {row.platform for row in integrations}
     spent = 0.0
+    total_leads = 0
     for channel, row in latest.items():
         report_channels = [channel] if channel is not None else list(channels)
         for report_channel in report_channels:
-            spend, _, _ = _sum_channel_stats(db, client_id, report_channel, row.period_start, row.period_end, selected)
+            spend, _, leads = _sum_channel_stats(db, client_id, report_channel, row.period_start, row.period_end, selected)
             spent += spend
-    return {
+            total_leads += int(leads or 0)
+
+    result = {
         "pct": round(spent / total_budget * 100),
         "period_end": last_end.isoformat(),
         "budget": total_budget,
         "spent": round(spent, 2),
+        "leads": int(total_leads),
     }
+
+    # Итог по стоимости лида и заявкам «по выбранным» относительно плана периода
+    # (для баннера «результаты прошлого периода»). Только при заданной суммарной цели.
+    period_start_min = min(row.period_start for row in latest.values())
+    summary_target = (
+        db.query(models.ProjectTargetCPA)
+        .filter(
+            models.ProjectTargetCPA.client_id == client_id,
+            models.ProjectTargetCPA.is_summary.is_(True),
+            models.ProjectTargetCPA.control_enabled.is_(True),
+            models.ProjectTargetCPA.target_cpa.isnot(None),
+            models.ProjectTargetCPA.period_start <= last_end,
+            models.ProjectTargetCPA.period_end >= period_start_min,
+        )
+        .order_by(models.ProjectTargetCPA.period_start.desc())
+        .first()
+    )
+    if summary_target and summary_target.target_cpa:
+        target_cpl = float(summary_target.target_cpa)
+        cpl_fact = round(spent / total_leads, 2) if total_leads > 0 else None
+        project_budget = latest.get(None)
+        if project_budget is not None and project_budget.manual_leads is not None:
+            planned_leads = int(project_budget.manual_leads)
+        else:
+            planned_leads = math.floor(total_budget / target_cpl) if target_cpl > 0 else None
+        result["target_cpl"] = round(target_cpl, 2)
+        result["cpl"] = cpl_fact
+        result["cpl_delta_pct"] = (
+            round((cpl_fact - target_cpl) / target_cpl * 100) if cpl_fact is not None and target_cpl > 0 else None
+        )
+        result["planned_leads"] = planned_leads
+        result["leads_delta_pct"] = (
+            round((total_leads - planned_leads) / planned_leads * 100) if planned_leads else None
+        )
+    return result
 
 
 def run_detector_iteration3(

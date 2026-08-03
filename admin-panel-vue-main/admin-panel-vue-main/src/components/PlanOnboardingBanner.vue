@@ -5,7 +5,13 @@
       <strong>{{ title }}</strong>
       <span>{{ description }}</span>
     </div>
-    <button type="button" class="plan-onboarding__cta" @click="$emit('set-plan')">{{ cta }}</button>
+    <div class="plan-onboarding__actions">
+      <template v-if="planStatus === 'expired'">
+        <button type="button" class="plan-onboarding__cta plan-onboarding__cta--ghost" @click="$emit('repeat-plan')">Повторить план</button>
+        <button type="button" class="plan-onboarding__cta" @click="$emit('set-plan')">Задайте новый план на период</button>
+      </template>
+      <button v-else type="button" class="plan-onboarding__cta" @click="$emit('set-plan')">{{ cta }}</button>
+    </div>
     <button type="button" class="plan-onboarding__close" aria-label="Скрыть на 30 дней" @click="$emit('dismiss')">×</button>
   </section>
 </template>
@@ -24,9 +30,12 @@ const props = defineProps({
   hasAlerts: { type: Boolean, default: false },
   dismissedUntil: { type: [String, Date], default: null },
   completionPct: { type: Number, default: null },
+  // §6: полный итог прошлого периода — { pct, cpl, target_cpl, cpl_delta_pct,
+  // leads, planned_leads, leads_delta_pct }. Приходит из detectorSummary.plan_summary.
+  planSummary: { type: Object, default: null },
 })
 
-const emit = defineEmits(['set-plan', 'dismiss', 'shown'])
+const emit = defineEmits(['set-plan', 'repeat-plan', 'dismiss', 'shown'])
 
 const dismissed = computed(() => props.dismissedUntil && new Date(props.dismissedUntil) > new Date())
 // План нужно предложить задать и при выключенном детекторе: иначе у нового
@@ -44,24 +53,38 @@ watch(visible, (value) => {
 }, { immediate: true })
 
 const title = computed(() => {
-  if (props.planStatus === 'expired') {
-    // §6: итог периода — точка удержания в фиче. Процент — про деньги,
-    // формулировка обязана это говорить сама («выполнен на 124%» читалось
-    // как успех, хотя 124% бюджета — перерасход)
-    return props.completionPct != null
-      ? `Бюджет прошлого периода израсходован на ${Math.round(props.completionPct)}%`
-      : 'План на прошлый период завершён'
-  }
+  if (props.planStatus === 'expired') return 'Результаты прошлого периода'
   if (props.planStatus === 'incomplete') return 'Дозаполните план по бюджету и стоимости заявки'
   return 'Задайте план по бюджету и стоимости заявки'
 })
+
 const description = computed(() => {
-  if (props.planStatus === 'expired') return 'Задайте новый план — AdMirra снова будет сверять факт с договорённостью.'
-  return 'AdMirra будет ежедневно сверять факт с планом и предупредит, если проект отстаёт от темпа или заявки дорожают.'
+  if (props.planStatus !== 'expired') {
+    return 'AdMirra будет ежедневно сверять факт с планом и предупредит, если проект отстаёт от темпа или заявки дорожают.'
+  }
+  // §6: итог периода. Числа — только те, что реально есть (CPL/заявки требуют
+  // заданной цели). Бюджет — всегда; при отсутствии данных — мягкий фолбэк.
+  const s = props.planSummary || {}
+  const pct = s.pct ?? (props.completionPct != null ? Math.round(props.completionPct) : null)
+  const parts = []
+  if (pct != null) parts.push(`Бюджет израсходован на ${pct}%.`)
+  if (s.cpl_delta_pct != null) {
+    const dir = s.cpl_delta_pct > 0 ? 'выше' : 'ниже'
+    parts.push(`Стоимость лида по выбранным ${dir} на ${Math.abs(Math.round(s.cpl_delta_pct))}%.`)
+  }
+  if (s.leads != null && s.leads_delta_pct != null) {
+    const dir = s.leads_delta_pct >= 0 ? 'больше' : 'меньше'
+    parts.push(`Количество заявок (по выбранным) ${s.leads} шт. (${dir} на ${Math.abs(Math.round(s.leads_delta_pct))}% от плана).`)
+  } else if (s.leads != null) {
+    parts.push(`Количество заявок (по выбранным) ${s.leads} шт.`)
+  }
+  return parts.length
+    ? parts.join(' ')
+    : 'План на прошлый период завершён. Задайте новый — AdMirra снова будет сверять факт с договорённостью.'
 })
 const cta = computed(() => props.planStatus === 'incomplete' ? 'Дозаполнить план' : 'Задать план')
 </script>
 
 <style scoped>
-.plan-onboarding{display:flex;align-items:center;gap:.85rem;padding:.9rem 1.05rem;border:1px solid #cbdaf8;border-radius:1rem;background:#eef4ff;color:#264e9f}.plan-onboarding--expired{background:#f4f6f9;border-color:#dce3ed;color:#536177}.plan-onboarding__icon{display:grid;place-items:center;flex:0 0 auto;width:2.25rem;height:2.25rem;border-radius:.75rem;background:#2f6bea;color:#fff;font-weight:800;font-size:1.25rem}.plan-onboarding__copy{display:flex;flex:1;flex-direction:column;min-width:0;gap:.12rem}.plan-onboarding__copy strong{color:#1f2937;font-size:.95rem}.plan-onboarding__copy span{font-size:.82rem;line-height:1.35}.plan-onboarding__cta{flex:0 0 auto;border:0;border-radius:.65rem;padding:.55rem .8rem;background:#2f6bea;color:#fff;font-size:.82rem;font-weight:800;cursor:pointer}.plan-onboarding__close{flex:0 0 auto;border:0;background:transparent;color:currentColor;font-size:1.4rem;line-height:1;cursor:pointer;opacity:.6}.plan-onboarding__close:hover{opacity:1}@media(max-width:640px){.plan-onboarding{align-items:flex-start;flex-wrap:wrap}.plan-onboarding__cta{margin-left:3.1rem}.plan-onboarding__close{position:absolute;right:1rem}.plan-onboarding{position:relative}}
+.plan-onboarding{display:flex;align-items:center;gap:.85rem;padding:.9rem 1.05rem;border:1px solid #cbdaf8;border-radius:1rem;background:#eef4ff;color:#264e9f}.plan-onboarding--expired{background:#f4f6f9;border-color:#dce3ed;color:#536177}.plan-onboarding__icon{display:grid;place-items:center;flex:0 0 auto;width:2.25rem;height:2.25rem;border-radius:.75rem;background:#2f6bea;color:#fff;font-weight:800;font-size:1.25rem}.plan-onboarding__copy{display:flex;flex:1;flex-direction:column;min-width:0;gap:.12rem}.plan-onboarding__copy strong{color:#1f2937;font-size:.95rem}.plan-onboarding__copy span{font-size:.82rem;line-height:1.35}.plan-onboarding__actions{display:flex;flex:0 0 auto;gap:.45rem;flex-wrap:wrap}.plan-onboarding__cta{flex:0 0 auto;border:0;border-radius:.65rem;padding:.55rem .8rem;background:#2f6bea;color:#fff;font-size:.82rem;font-weight:800;cursor:pointer}.plan-onboarding__cta--ghost{background:#fff;color:#2f6bea;box-shadow:inset 0 0 0 1px #cbdaf8}.plan-onboarding__close{flex:0 0 auto;border:0;background:transparent;color:currentColor;font-size:1.4rem;line-height:1;cursor:pointer;opacity:.6}.plan-onboarding__close:hover{opacity:1}@media(max-width:640px){.plan-onboarding{align-items:flex-start;flex-wrap:wrap}.plan-onboarding__actions{margin-left:3.1rem}.plan-onboarding__close{position:absolute;right:1rem}.plan-onboarding{position:relative}}
 </style>

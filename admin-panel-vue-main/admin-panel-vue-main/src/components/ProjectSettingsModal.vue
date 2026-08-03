@@ -520,6 +520,9 @@ import ProjectAvatarUploadModal from './ProjectAvatarUploadModal.vue'
 
 const props = defineProps({
   project: { type: Object, required: true },
+  // 'repeat-plan' — открыть настройки и сразу подставить план прошлого периода
+  // (клик «Повторить план» в баннере дашборда).
+  initialAction: { type: String, default: null },
 })
 
 const emit = defineEmits(['close', 'saved', 'deleted', 'add-channel', 'configure-channel', 'avatar-saved'])
@@ -852,6 +855,15 @@ function repeatPreviousPlan() {
 
   toaster.success(`План скопирован из периода ${previousPlanLabel.value}. Проверьте значения и сохраните.`)
 }
+
+// §6: «Повторить план» из баннера дашборда — как только план прошлого периода
+// подгрузился, подставляем его один раз автоматически.
+let _repeatApplied = false
+watch(previousPlanPeriod, (period) => {
+  if (_repeatApplied || props.initialAction !== 'repeat-plan' || !period) return
+  _repeatApplied = true
+  repeatPreviousPlan()
+}, { immediate: true })
 
 function snapshotForm() {
   initialFormSnapshot.value = JSON.stringify({

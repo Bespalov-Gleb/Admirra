@@ -2801,9 +2801,9 @@ onMounted(async () => {
 
 .project-channel-card {
   border-radius: 0.6944rem;
-  background: linear-gradient(90deg, rgba(255, 249, 232, 0.98) 0%, rgba(255, 243, 205, 0.98) 100%);
+  background: #f8fafb;
   overflow: hidden;
-  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.14);
 }
 
 .project-channel-empty {
@@ -2915,7 +2915,7 @@ onMounted(async () => {
   align-self: stretch;
   min-width: 0;
   overflow: hidden;
-  border-left: 1px solid rgba(245, 158, 11, 0.14);
+  border-left: 1px solid rgba(148, 163, 184, 0.16);
 }
 
 .project-channel-metric {
@@ -2926,7 +2926,7 @@ onMounted(async () => {
   justify-content: center;
   gap: 0.2083rem;
   padding: 0.1389rem 0.4rem;
-  border-left: 1px solid rgba(245, 158, 11, 0.14);
+  border-left: 1px solid rgba(148, 163, 184, 0.16);
   text-align: center;
 }
 
@@ -2957,7 +2957,7 @@ onMounted(async () => {
 }
 
 .project-channel-metric--cpl {
-  background: rgba(255, 255, 255, 0.18);
+  background: transparent;
 }
 
 .project-channel-metric--cpl strong {
@@ -2967,7 +2967,7 @@ onMounted(async () => {
 }
 
 .project-channel-metric--cpl span {
-  color: rgba(138, 90, 0, 0.7);
+  color: rgba(105, 105, 105, 0.5);
   font-weight: 600;
 }
 
@@ -3502,7 +3502,7 @@ onMounted(async () => {
     grid-column: 2;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     min-width: 0;
-    border-top: 1px solid rgba(245, 158, 11, 0.13);
+    border-top: 1px solid rgba(148, 163, 184, 0.16);
     border-left: 0;
     padding-top: 0.5556rem;
   }
@@ -3513,7 +3513,7 @@ onMounted(async () => {
 
   .project-channel-metric--spend {
     grid-column: 1 / -1;
-    border-top: 1px solid rgba(245, 158, 11, 0.13);
+    border-top: 1px solid rgba(148, 163, 184, 0.16);
     border-left: 0;
   }
 

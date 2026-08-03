@@ -341,7 +341,9 @@
       :has-alerts="((detectorSummary?.warning_count || 0) + (detectorSummary?.problem_count || 0)) > 0"
       :dismissed-until="detectorSummary?.onboarding_dismissed_until"
       :completion-pct="detectorSummary?.plan_completion_pct ?? null"
+      :plan-summary="detectorSummary?.plan_summary ?? null"
       @set-plan="openPlanSettings"
+      @repeat-plan="openPlanRepeat"
       @dismiss="dismissPlanOnboarding"
       @shown="trackPlanOnboarding('shown')"
       class="detector-banner-slot"
@@ -1525,7 +1527,8 @@
     <ProjectSettingsModal
       v-if="settingsProjectObject"
       :project="settingsProjectObject"
-      @close="settingsProjectObject = null"
+      :initial-action="planRepeatIntent ? 'repeat-plan' : null"
+      @close="settingsProjectObject = null; planRepeatIntent = false"
       @saved="handleDashboardProjectSettingsSaved"
       @deleted="handleDashboardProjectDeleted"
       @add-channel="goToIntegrations"
@@ -5645,6 +5648,16 @@ const openPlanSettings = () => {
   if (!filters.client_id) return
   trackPlanOnboarding('clicked')
   // «Задать план» открывает настройки прямо на дашборде, без перехода
+  openProjectSettingsModal()
+}
+
+// «Повторить план» из баннера: открываем настройки и просим модалку сразу
+// подставить план прошлого периода (initial-action='repeat-plan').
+const planRepeatIntent = ref(false)
+const openPlanRepeat = () => {
+  if (!filters.client_id) return
+  trackPlanOnboarding('clicked')
+  planRepeatIntent.value = true
   openProjectSettingsModal()
 }
 

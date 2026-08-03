@@ -153,13 +153,22 @@ def _effective_onboarding_dismissed(db: Session, client: models.Client, today) -
     return until
 
 
-def _plan_completion_pct(db: Session, client_id: uuid.UUID, plan_status: str, today) -> float | None:
+def _plan_summary(db: Session, client_id: uuid.UUID, plan_status: str, today) -> dict | None:
+    """Полный итог прошлого периода (§6): бюджет %, CPL факт/цель/дельта, заявки
+    факт/план/дельта — для баннера «результаты прошлого периода». Только expired."""
     if plan_status != "expired":
         return None
     from backend_api.services.detector_iteration3 import plan_completion
     try:
-        completion = plan_completion(db, client_id, today)
-        return float(completion["pct"]) if completion else None
+        return plan_completion(db, client_id, today) or None
+    except Exception:
+        return None
+
+
+def _plan_completion_pct(db: Session, client_id: uuid.UUID, plan_status: str, today) -> float | None:
+    summary = _plan_summary(db, client_id, plan_status, today)
+    try:
+        return float(summary["pct"]) if summary and summary.get("pct") is not None else None
     except Exception:
         return None
 
@@ -195,6 +204,7 @@ def get_detector_summary(
             "hidden_alerts": [],
             "plan_status": plan_status,
             "plan_completion_pct": _plan_completion_pct(db, client_id, plan_status, today),
+            "plan_summary": _plan_summary(db, client_id, plan_status, today),
             "sync_issues": [],
             "onboarding_dismissed_until": _effective_onboarding_dismissed(db, client, today),
         }
@@ -246,6 +256,7 @@ def get_detector_summary(
         "hidden_alerts": [_alert_to_response(a, now) for a in hidden_alerts],
         "plan_status": plan_status,
         "plan_completion_pct": _plan_completion_pct(db, client_id, plan_status, now.date()),
+        "plan_summary": _plan_summary(db, client_id, plan_status, now.date()),
         "sync_issues": sync_issues_for_client(db, client_id, now.date()),
         "onboarding_dismissed_until": _effective_onboarding_dismissed(db, client, now.date()),
     }

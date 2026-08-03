@@ -1024,6 +1024,9 @@ class DetectorSummaryResponse(BaseModel):
     hidden_alerts: List[DetectorAlertResponse] = []
     plan_status: Optional[str] = None  # configured|missing|incomplete|expired
     plan_completion_pct: Optional[float] = None  # §6: «план выполнен на N%» для expired
+    # §6: полный итог прошлого периода — бюджет %, CPL факт/цель/дельта, заявки
+    # факт/план/дельта. Для баннера «результаты прошлого периода».
+    plan_summary: Optional[dict] = None
     sync_issues: List[dict] = []
     onboarding_dismissed_until: Optional[datetime] = None
 
