@@ -46,8 +46,7 @@
 
   if (reducedMotion.matches || !Element.prototype.animate) return;
 
-  /* Класс и скрытое состояние ставит один и тот же скрипт: если он не выполнится,
-     ничего не прячется и весь контент виден — «осиротевшего» invisible-контента нет. */
+
   document.documentElement.classList.add('motion-scroll');
 
   const easeOut = 'cubic-bezier(0.22, 0.61, 0.36, 1)';
@@ -55,7 +54,7 @@
   const runningAnimations = new Set();
   let motionAllowed = true;
 
-  /* translate/scale собираем строкой, чтобы движение шло на композиторе. */
+
   const shift = (x, y, scale = 1) => {
     const parts = [];
     if (x) parts.push(`translate3d(${x}px, 0, 0)`);
@@ -65,8 +64,7 @@
     return transform ? { from: { transform }, to: { transform: 'translate3d(0, 0, 0) scale(1)' } } : { from: {}, to: {} };
   };
 
-  /* Небольшой словарь «характеров» появления. Роль блока определяет движение,
-     поэтому лендинг не выглядит однообразным, но каждый эффект короткий и лёгкий. */
+
   const presets = {
     rise:      { duration: 700, easing: easeOut,  frames: () => shift(0, 13) },
     lead:      { duration: 720, easing: easeOut,  frames: () => shift(0, 11) },
@@ -76,8 +74,7 @@
     image:     { duration: 980, easing: easeSoft, frames: () => shift(0, 22, 0.99), clip: true },
     fade:      { duration: 720, easing: easeOut,  frames: () => shift(0, 0) },
     heroTitle: { duration: 940, easing: easeSoft, frames: () => shift(0, 24), clip: true },
-    /* Для элементов, центрируемых через translateX(-50%): сохраняем -50% в
-       кадрах, иначе reveal-transform сбивает центровку и элемент уезжает вправо. */
+
     riseCenter:{ duration: 720, easing: easeOut,  frames: () => ({ from: { transform: 'translate(-50%, 14px)' }, to: { transform: 'translate(-50%, 0)' } }) },
   };
 
@@ -110,8 +107,7 @@
       .finally(() => runningAnimations.delete(animation));
   };
 
-  /* Помечаем цель data-reveal сразу — CSS прячет её до попадания в вид,
-     поэтому нет вспышки «видно → спрятали → проявили». */
+
   const arm = (element, presetName, delay = 0) => {
     element.setAttribute('data-reveal', '');
     element.dataset.motionPreset = presetName;
@@ -131,8 +127,7 @@
     rootMargin: '0px 0px -8% 0px',
   });
 
-  /* Первый экран: короткий каскад «смысл → действие → продукт». Прячем
-     hero сразу и проявляем на следующем кадре, чтобы не было мигания. */
+
   const heroSequence = [
     ['.hero__title', 'heroTitle', 0],
     ['.hero__lead', 'lead', 110],
@@ -151,9 +146,7 @@
     });
   });
 
-  /* LCP-дашборд НЕ прячем через opacity — иначе откладывается Largest Contentful
-     Paint и всплывают плавающие карты. Картинка видна с первого кадра (opacity
-     остаётся 1), даём только лёгкое смещение по transform. */
+
   const heroShot = document.querySelector('.hero__shot');
   if (heroShot) {
     requestAnimationFrame(() => {
@@ -171,8 +164,7 @@
     });
   }
 
-  /* Группы скролл-появления. batch — сколько элементов подряд получают
-     нарастающую задержку, затем волна начинается заново, чтобы каскад не тянулся. */
+
   const revealGroups = [
     { selector: '.aud-card', preset: 'card', stagger: 70, batch: 3 },
     { selector: '.pains .eyebrow, .pains .section-title, .pains .section-lead', preset: 'rise', stagger: 60, batch: 3 },
@@ -189,8 +181,6 @@
     { selector: '.faq__visual', preset: 'image', stagger: 0, batch: 1 },
     { selector: '.faq__list', preset: 'rise', stagger: 0, batch: 1 },
     { selector: '.cta-band__title, .cta-band__lead', preset: 'rise', stagger: 65, batch: 2 },
-    { selector: '.blog__head', preset: 'rise', stagger: 0, batch: 1 },
-    { selector: '.blog-card', preset: 'card', stagger: 70, batch: 3 },
   ];
 
   revealGroups.forEach((group) => {
@@ -199,23 +189,19 @@
     });
   });
 
-  /* Фича-ряды получают лёгкий боковой заход, поочерёдно слева и справа —
-     только на десктопе, чтобы узкий экран не ловил горизонтальный сдвиг. */
+
   document.querySelectorAll('.feature').forEach((element, index) => {
     const presetName = desktopRail.matches ? (index % 2 ? 'right' : 'left') : 'card';
     arm(element, presetName, 0);
   });
 
-  /* CTA-кнопка и капсула на десктопе центрируются через translateX(-50%),
-     поэтому им нужен пресет, сохраняющий -50%. На мобиле у них обычное
-     потоковое позиционирование (transform: none) — там достаточно 'rise'. */
+
   document.querySelectorAll('.cta-band__cta, .cta-band__note').forEach((element, index) => {
     const presetName = desktopRail.matches ? 'riseCenter' : 'rise';
     arm(element, presetName, index * 70);
   });
 
-  /* Вертикальный скролл мягко прокатывает ленту интеграций по горизонтали.
-     На touch-экранах остаётся нативный горизонтальный swipe без автосмещения. */
+
   const integrations = document.querySelector('.integrations');
   const rail = integrations?.querySelector('.integrations__rail');
   let railActive = false;
@@ -291,9 +277,7 @@
   else reducedMotion.addListener(disableMotion);
 })();
 
-/* Плавное раскрытие FAQ. Нативные <details> открываются мгновенно; здесь
-   перехватываем клик и анимируем высоту ответа. Прогрессивное улучшение:
-   без JS или при reduce-motion остаётся штатное поведение <details>. */
+
 (() => {
   const items = document.querySelectorAll('.faq-item');
   if (!items.length) return;
@@ -317,10 +301,7 @@
       answer.style.overflow = '';
     };
 
-    /* Анимируем высоту И вертикальные паддинги: у блока с паддингом высота не
-       опускается ниже их суммы (~25px), поэтому без этого при закрытии остаётся
-       белая полоса, которую потом резко убирает open=false. Схлопываем в честный
-       ноль. fill:'both' удерживает конечный кадр — иначе рывок отката к auto. */
+
     const animateTo = (opening) => {
       if (anim) { anim.cancel(); anim = null; }
       if (opening) item.open = true;                // рендерим ответ для измерения

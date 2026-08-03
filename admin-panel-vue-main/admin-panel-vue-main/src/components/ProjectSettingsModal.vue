@@ -784,18 +784,20 @@ const formatRuDate = (value) => {
 
 const currentPeriodLabel = computed(() => `${formatRuDate(form.period_start)} — ${formatRuDate(form.period_end)}`)
 
-// Источник для «Повторить прошлый план» — самый свежий сохранённый период,
-// который начинается РАНЬШЕ текущего периода формы. Даты ISO (YYYY-MM-DD)
+// Источник для «Повторить прошлый план» — самый свежий завершённый период,
+// который не пересекается с периодом формы. Даты ISO (YYYY-MM-DD)
 // сравниваются лексикографически = хронологически.
 const previousPlanPeriod = computed(() => {
   const periods = new Map()
   for (const r of [...allBudgetRecords.value, ...allTargetRecords.value]) {
     if (!r?.period_start || !r?.period_end) continue
-    if (String(r.period_start) >= String(form.period_start || '9999-12-31')) continue
+    if (String(r.period_end) >= String(form.period_start || '0000-01-01')) continue
     periods.set(`${r.period_start}|${r.period_end}`, { start: r.period_start, end: r.period_end })
   }
   if (!periods.size) return null
-  return [...periods.values()].sort((a, b) => String(b.start).localeCompare(String(a.start)))[0]
+  return [...periods.values()].sort((a, b) => (
+    String(b.end).localeCompare(String(a.end)) || String(b.start).localeCompare(String(a.start))
+  ))[0]
 })
 
 const previousPlanLabel = computed(() => {
@@ -1067,11 +1069,11 @@ async function loadBudgets() {
   } catch { /* API not ready yet */ }
 }
 
-// Определяет рабочий период детектора при открытии: берём период последних
-// сохранённых бюджетов/целевых CPA, чтобы текущие данные сразу были видны.
-// Если ничего не сохранено — текущий месяц.
+// Определяет рабочий период детектора при открытии. Если сохранённый план
+// действует сегодня, открываем его для редактирования. Если все планы уже
+// закончились, открываем текущий месяц: тогда последний завершённый период
+// становится источником для «Повторить прошлый план».
 async function resolveActivePeriod() {
-  let latest = null
   try {
     const [budgetsRes, cpaRes] = await Promise.all([
       api.get(`clients/${props.project.id}/budgets`).catch(() => ({ data: [] })),
@@ -1083,19 +1085,25 @@ async function resolveActivePeriod() {
       ...allBudgetRecords.value,
       ...allTargetRecords.value,
     ].filter((r) => r && r.period_start && r.period_end)
-    for (const r of records) {
-      if (!latest || String(r.period_start) > String(latest.period_start)) latest = r
+
+    const today = toDateInput(new Date())
+    const active = records
+      .filter((r) => String(r.period_start) <= today && String(r.period_end) >= today)
+      .sort((a, b) => (
+        String(b.period_start).localeCompare(String(a.period_start))
+        || String(b.period_end).localeCompare(String(a.period_end))
+      ))[0]
+
+    if (active) {
+      form.period_start = active.period_start
+      form.period_end = active.period_end
+      return
     }
   } catch { /* fall back to default */ }
 
-  if (latest) {
-    form.period_start = latest.period_start
-    form.period_end = latest.period_end
-  } else {
-    const period = defaultPeriod()
-    form.period_start = period.start
-    form.period_end = period.end
-  }
+  const period = defaultPeriod()
+  form.period_start = period.start
+  form.period_end = period.end
 }
 
 async function loadGoogleSheetsStatus() {

@@ -4,21 +4,20 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- §1 ТЗ. Тексты финальные, менять только осознанно: title 52 символа,
-       description ~150 — оба подобраны под семантическое ядро. -->
+
   <title>AdMirra — аналитика рекламы и автоотчёты для агентств</title>
   <meta name="description" content="Аналитика рекламы для агентств: Яндекс.Директ, VK Реклама и Авито Реклама в одном дашборде. Детектор просадок и автоотчёты клиентам. 14 дней бесплатно.">
   <link rel="canonical" href="https://admirra.ru/">
   <meta name="robots" content="index, follow, max-image-preview:large">
   <meta name="theme-color" content="#2F6BFF">
 
-  <!-- §2 ТЗ. Иконки лежат в корне сайта. -->
+
   <link rel="icon" href="/favicon.ico" sizes="any">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
 
-  <!-- §3 ТЗ. Open Graph и Twitter. -->
+
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="AdMirra">
   <meta property="og:locale" content="ru_RU">
@@ -36,9 +35,7 @@
   <meta name="twitter:image" content="https://admirra.ru/og/og-cover.png">
   <meta name="twitter:image:alt" content="Дашборд AdMirra: реклама клиентов в одной панели">
 
-  <!-- Сохраняем прежний сценарий: авторизованный пользователь из текущей
-       вкладки сразу попадает в кабинет. Для поисковых роботов и новых
-       посетителей весь HTML остаётся доступен без выполнения JavaScript. -->
+
   <script>
     try {
       if (sessionStorage.getItem('auth_token')) {
@@ -47,8 +44,7 @@
     } catch (_) {}
   </script>
 
-  <!-- Яндекс.Метрика. На статическом лендинге счётчик подключается напрямую,
-       потому что Vue-оболочка на маршруте / больше не загружается. -->
+
   <script>
     (function(m,e,t,r,i,k,a){
       m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
@@ -69,14 +65,13 @@
     });
   </script>
 
-  <!-- Шрифт первого экрана грузим заранее: без этого текст перерисовывается
-       после подмены гарнитуры и портит CLS (§8 ТЗ). -->
+
   <link rel="preload" href="/landing-new/assets/fonts/gilroy-semibold.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/landing-new/assets/fonts/gilroy-medium.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/landing-new/assets/img/hero-dashboard.webp" as="image" type="image/webp" fetchpriority="high">
 
-  <link rel="stylesheet" href="/landing-new/assets/css/main.css?v=econ-prices-1">
-  <script src="/landing-new/assets/js/main.js?v=econ-prices-1" defer></script>
+  <link rel="stylesheet" href="/landing-new/assets/css/main.css?v=seo-clean-1">
+  <script src="/landing-new/assets/js/main.js?v=seo-clean-1" defer></script>
 </head>
 <body>
 
@@ -85,8 +80,7 @@
 
   <div class="page">
 
-  <!-- Первый экран и шапка лежат на одной подложке: в макете это единый
-       лавандовый блок от самого верха страницы до перехода в белое. -->
+
   <div class="hero-wrap">
 
   <header class="site-header">
@@ -131,17 +125,10 @@
   </header>
 
   <section class="hero">
-    <!-- H1 по §4 ТЗ — единственный на странице. Иконки площадок декоративные:
-         названия уже есть текстом, поэтому alt пустой и aria-hidden. -->
     <h1 class="hero__title">
       <span class="hero__title-soft">Вся реклама клиентов —</span><br>
-      <!-- Пробелы между иконкой и следующим словом убраны намеренно: перенос
-           строки в разметке даёт пробел ~14 px поверх заданного margin, и строка
-           расползается. Зазор задаётся только через margin у .hero__ico. -->
-      <b>Яндекс.Директ</b><span class="hero__ico hero__ico--yd" aria-hidden="true"><img src="/landing-new/assets/icons/yandex-direct-v2.webp" width="1080" height="1080" alt=""></span
-      ><b>VK Реклама</b><span class="hero__ico hero__ico--vk" aria-hidden="true"><img src="/landing-new/assets/icons/vk-ads.webp" width="1280" height="1280" alt=""></span><br
-      ><b>и Авито Реклама</b><span class="hero__ico hero__ico--avito" aria-hidden="true"><img src="/landing-new/assets/icons/avito-icon.svg" width="410" height="380" alt=""></span
-      ><span class="hero__title-soft">— в одной панели</span>
+      <b>Яндекс.Директ</b><span class="hero__ico hero__ico--yd" aria-hidden="true"><img src="/landing-new/assets/icons/yandex-direct-v2.webp" width="1080" height="1080" alt=""></span> <b>VK Реклама</b><span class="hero__ico hero__ico--vk" aria-hidden="true"><img src="/landing-new/assets/icons/vk-ads.webp" width="1280" height="1280" alt=""></span><br>
+      <b>и Авито Реклама</b><span class="hero__ico hero__ico--avito" aria-hidden="true"><img src="/landing-new/assets/icons/avito-icon.svg" width="410" height="380" alt=""></span> <span class="hero__title-soft">— в одной панели</span>
     </h1>
 
     <p class="hero__lead">
@@ -150,8 +137,7 @@
       отправить клиенту. Для тех, кто ведёт не один проект.
     </p>
 
-    <!-- Кнопка и карточка-примечание в макете перекрываются: карточка уходит
-         под кнопку, её текст начинается там, где кнопка заканчивается. -->
+
     <div class="hero__cta">
       <a class="btn-cta" href="/signup">
         Подключить кабинеты
@@ -174,9 +160,7 @@
       <li>Отчёт уходит только с вашей проверкой</li>
     </ul>
 
-    <!-- Композиция первого экрана: тёмный планшет (корпус — CSS-вектор,
-         1183×850, безель 47 из макета) с дашбордом внутри, вокруг — четыре
-         плавающие карточки. Дашборд — LCP-элемент, грузится сразу. -->
+
     <div class="hero__shot" id="dashboard">
       <div class="hero__tablet">
         <img class="hero__screen" src="/landing-new/assets/img/hero-dashboard.webp" width="980" height="680"
@@ -190,10 +174,9 @@
     </div>
   </section>
 
-  </div><!-- /.hero-wrap -->
+  </div>
 
-  <!-- «Для кого». По §4 ТЗ названия карточек — не заголовки страницы:
-       иерархия H2/H3 их не касается, поэтому здесь <strong>, а не <h3>. -->
+
   <section class="audience" id="audience">
     <div class="container">
       <ul class="audience__grid">
@@ -222,13 +205,10 @@
     </div>
   </section>
 
-  <!-- «Боли». В макете это единый скруглённый блок 1836×1077 с заливкой
-       #f0f4f8 и отступом 42 от краёв страницы. Внутри — размытые эллипсы
-       подсветки и тот же точечный узор, что на первом экране. -->
+
   <section class="pains">
     <div class="pains__inner">
-      <!-- Декоративные «плавающие» карточки-скриншоты по краям панели.
-           overflow:hidden у .pains__inner подрезает их по границе блока, как в макете. -->
+
       <img class="pains__decor pains__decor--tl" src="/landing-new/assets/img/pains-decor-tl.png" width="201" height="150" alt="" aria-hidden="true" loading="lazy">
       <img class="pains__decor pains__decor--tr" src="/landing-new/assets/img/pains-decor-tr.png" width="215" height="172" alt="" aria-hidden="true" loading="lazy">
       <img class="pains__decor pains__decor--bl" src="/landing-new/assets/img/pains-decor-bl.png" width="191" height="72" alt="" aria-hidden="true" loading="lazy">
@@ -294,8 +274,7 @@
     </div>
   </section>
 
-  <!-- «Как это работает». В отличие от первого экрана и «Болей», заголовок
-       и подзаголовок здесь выровнены ВЛЕВО (textAlignHorizontal: LEFT). -->
+
   <section class="how" id="how">
     <div class="container">
       <p class="eyebrow">Как это работает</p>
@@ -367,9 +346,7 @@
     </div>
   </section>
 
-  <!-- «Возможности». Единый блок 1836×3747 с заливкой #f0f4f8, внутри шесть
-       чередующихся пар «текст / скриншот». По §4 ТЗ подзаголовки блоков —
-       это H3 под общим H2 секции. -->
+
   <section class="features" id="features">
     <div class="features__inner">
       <header class="features__head">
@@ -474,8 +451,7 @@
     </div>
   </section>
 
-  <!-- Интеграции. Лента намеренно шире окна: в макете первая и последняя
-       карточки подрезаются краями вьюпорта. -->
+
   <section class="integrations" id="integrations" aria-labelledby="integrations-title">
     <header class="integrations__head">
       <p class="eyebrow integrations__eyebrow">Интеграции</p>
@@ -509,7 +485,7 @@
     </ul>
   </section>
 
-  <!-- Тарифы. Данные, названия и порядок преимуществ — из макета Figma. -->
+
   <section class="pricing" id="pricing" aria-labelledby="pricing-title">
     <div class="pricing__inner">
       <header class="pricing__head">
@@ -592,8 +568,7 @@
     </div>
   </section>
 
-  <!-- FAQ. По §4 ТЗ вопросы — H3 под H2 «Коротко о главном». Слева декоративный
-       визуал (экран входа + маскот), справа аккордеон на нативных <details>. -->
+
   <section class="faq" id="faq" aria-labelledby="faq-title">
     <header class="faq__head">
       <p class="eyebrow">Интеграции</p>
@@ -632,9 +607,7 @@
     </div>
   </section>
 
-  <!-- CTA-баннер. Лавандовая панель с паттерном (как первый экран), по центру
-       заголовок/лид/кнопка/подпись, вокруг — плавающие декоративные скриншоты.
-       Декор обрезается краями панели (overflow: hidden). -->
+
   <section class="cta-band" aria-labelledby="cta-band-title">
     <div class="cta-band__inner">
       <img class="cta-deco cta-deco--send"     src="/landing-new/assets/img/cta-send.png"     width="396"  height="219" alt="" aria-hidden="true" loading="lazy">
@@ -658,60 +631,7 @@
     </div>
   </section>
 
-  <!-- Блог. H2 «Наш блог» + кнопка «Смотреть все статьи», ниже три карточки.
-       В §4 ТЗ секция не описана, но есть в макете. -->
-  <section class="blog" id="blog" aria-labelledby="blog-title">
-    <div class="container">
-      <header class="blog__head">
-        <h2 class="blog__title" id="blog-title">Наш блог</h2>
-        <a class="blog__all btn-pill-light" href="/admirra/blog.html">Смотреть все статьи</a>
-      </header>
 
-      <ul class="blog__grid">
-        <li class="blog-card">
-          <div class="blog-card__cover">
-            <img src="/landing-new/assets/img/blog-cover.png" width="297" height="155" loading="lazy" decoding="async"
-                 alt="Аналитика рекламных кампаний в Яндекс.Директе">
-            <span class="blog-card__tags">
-              <span class="blog-card__tag">Аналитика</span>
-              <span class="blog-card__tag">25 марта 2026</span>
-            </span>
-          </div>
-          <h3 class="blog-card__title">Быстрая аналитика в Яндекс.Директе: учимся использовать данные и оптимизировать рекламу</h3>
-          <p class="blog-card__excerpt">Что анализировать в Яндекс.Директе? Изучаем и корректируем основные показатели и собираем в понятный отчёт.</p>
-          <a class="blog-card__more btn-pill-light" href="/admirra/blog-article.html">Смотреть подробнее</a>
-        </li>
-        <li class="blog-card">
-          <div class="blog-card__cover">
-            <img src="/landing-new/assets/img/blog-cover.png" width="297" height="155" loading="lazy" decoding="async"
-                 alt="Аналитика рекламных кампаний в Яндекс.Директе">
-            <span class="blog-card__tags">
-              <span class="blog-card__tag">Аналитика</span>
-              <span class="blog-card__tag">25 марта 2026</span>
-            </span>
-          </div>
-          <h3 class="blog-card__title">Быстрая аналитика в Яндекс.Директе: учимся использовать данные и оптимизировать рекламу</h3>
-          <p class="blog-card__excerpt">Что анализировать в Яндекс.Директе? Изучаем и корректируем основные показатели и собираем в понятный отчёт.</p>
-          <a class="blog-card__more btn-pill-light" href="/admirra/blog-article.html">Смотреть подробнее</a>
-        </li>
-        <li class="blog-card">
-          <div class="blog-card__cover">
-            <img src="/landing-new/assets/img/blog-cover.png" width="297" height="155" loading="lazy" decoding="async"
-                 alt="Аналитика рекламных кампаний в Яндекс.Директе">
-            <span class="blog-card__tags">
-              <span class="blog-card__tag">Аналитика</span>
-              <span class="blog-card__tag">25 марта 2026</span>
-            </span>
-          </div>
-          <h3 class="blog-card__title">Быстрая аналитика в Яндекс.Директе: учимся использовать данные и оптимизировать рекламу</h3>
-          <p class="blog-card__excerpt">Что анализировать в Яндекс.Директе? Изучаем и корректируем основные показатели и собираем в понятный отчёт.</p>
-          <a class="blog-card__more btn-pill-light" href="/admirra/blog-article.html">Смотреть подробнее</a>
-        </li>
-      </ul>
-    </div>
-  </section>
-
-  <!-- §4a SEO-ТЗ: видимый связный текст с категорийным запросом. -->
   <section class="about-seo" aria-labelledby="about-seo-title">
     <div class="container about-seo__inner">
       <h2 class="about-seo__title" id="about-seo-title">AdMirra — аналитика рекламы и автоотчёты для агентств</h2>
@@ -719,8 +639,7 @@
     </div>
   </section>
 
-  <!-- Подвал. Верхняя лента (#f0f4f8): логотип, соцсети, подписка; ниже —
-       навигация и белый блок с колонками ссылок и реквизитами. -->
+
   <footer class="footer">
     <div class="footer__top">
       <div class="footer__brand">
@@ -791,25 +710,11 @@
     </div>
   </footer>
 
-  </div><!-- /.page -->
+  </div>
 
-  <!-- ЗАГОТОВКА. Следующие секции добавляются по одной, по мере сверки с макетом Figma.
-       Порядок соответствует макету и карте заголовков §4 ТЗ.
 
-       1. header      — шапка
-       2. hero        — H1, первый экран
-       3. audience    — «Для кого», 3 карточки (не заголовки, см. §4 прим.)
-       4. pains       — H2 «Реклама в Яндекс.Директе… А времени и нервов — нет»
-       5. how         — H2 «Подключил → увидел → отправил» + 3×H3
-       6. features    — H2 «Не «ещё один дашборд»…» + 6×H3
-       9. faq         — H2 «Коротко о главном» + вопросы как H3
-      10. cta         — H2 «Подключите кабинеты и увидите всех клиентов…»
-      11. blog        — H2 «Наш блог» (в ТЗ §4 не описан, есть в макете)
-      12. about-seo   — H2 «AdMirra — аналитика рекламы и автоотчёты для агентств» (§4a)
-      13. footer      — подвал
-  -->
 
-  <!-- §6 ТЗ. Микроразметка. Отдаётся в исходном HTML, без участия JS. -->
+
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -905,7 +810,7 @@
   }
   </script>
 
-  <!-- §6.3 ТЗ — SoftwareApplication с месячными ценами из витрины. -->
+
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
