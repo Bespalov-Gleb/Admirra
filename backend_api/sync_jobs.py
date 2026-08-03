@@ -298,11 +298,9 @@ def _run_job_sync(job_id: uuid.UUID) -> None:
         # Отмечаем источник синхронизации для индикатора на дашборде/карточках
         integration.last_sync_trigger = "auto" if trigger == "auto" else "manual"
         update_actual_start_date(db, integration.client_id)
-        try:
-            from backend_api.services.detector import run_detector_for_client
-            run_detector_for_client(db, integration.client_id)
-        except Exception as det_err:
-            logger.exception("Detector failed for client %s: %s", integration.client_id, det_err)
+        # sync_integration already runs the detector once inside an isolated
+        # SAVEPOINT.  Re-running it here used to duplicate all detector queries
+        # and, on a flush error, poison the final job transaction.
         db.commit()
     except Exception as e:
         logger.exception("Sync job failed: %s", e)

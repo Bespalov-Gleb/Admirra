@@ -1196,7 +1196,10 @@ class DetectorAlert(Base):
     detection_level = Column(String(32), nullable=False, default="project")
     entity_id = Column(String(128), nullable=True)
     channel = Column(Enum(IntegrationPlatform), nullable=True)
-    mode = Column(String(16), nullable=False, default="baseline")
+    # Detector v3 has explicit critical modes such as ``critical_tracking``
+    # (17 chars).  Keep headroom for future named checks instead of coupling
+    # alert persistence to the shortest historical values.
+    mode = Column(String(32), nullable=False, default="baseline")
     severity = Column(String(16), nullable=False, default="warning")
     deviation_pct = Column(Numeric(8, 2), nullable=True)
     baseline_value = Column(Numeric(20, 2), nullable=True)

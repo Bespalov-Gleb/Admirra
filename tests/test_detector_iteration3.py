@@ -242,6 +242,11 @@ def test_detector_alert_keeps_full_composite_diagnosis_text():
     assert isinstance(models.DetectorAlert.__table__.c.hypothesis_text.type, models.Text)
 
 
+def test_detector_alert_mode_fits_iteration3_critical_tracking():
+    column = models.DetectorAlert.__table__.c.mode
+    assert column.type.length >= len("critical_tracking")
+
+
 def test_warmup_is_only_for_a_new_active_project(monkeypatch):
     monkeypatch.setattr(
         project_settings,

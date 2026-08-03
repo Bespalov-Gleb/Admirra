@@ -623,6 +623,27 @@ def sync_metrika_goals_background(
     thread.start()
 
 
+def _run_detector_after_sync(db: Session, client_id: uuid.UUID) -> bool:
+    """Run best-effort detector work without poisoning the sync transaction.
+
+    Detector alerts are derived data.  A malformed candidate or a temporary
+    detector-side database error must not roll back advertising statistics or
+    mark a successfully contacted integration as failed.  ``begin_nested``
+    gives the detector its own SAVEPOINT; SQLAlchemy rolls only that savepoint
+    back when the detector flush fails and leaves the outer sync transaction
+    usable.
+    """
+    try:
+        with db.begin_nested():
+            from backend_api.services.detector import run_detector_for_client
+
+            run_detector_for_client(db, client_id)
+        return True
+    except Exception as det_err:
+        logger.exception("Detector failed for client %s: %s", client_id, det_err)
+        return False
+
+
 async def sync_integration(db: Session, integration: models.Integration, date_from: str, date_to: str):
     """
     Syncs a single integration for a given date range.
@@ -1612,17 +1633,17 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
         integration.last_sync_at = datetime.utcnow()
         update_actual_start_date(db, integration.client_id)
 
-        try:
-            from backend_api.services.detector import run_detector_for_client
-            run_detector_for_client(db, integration.client_id)
-        except Exception as det_err:
-            logger.exception("Detector failed for client %s: %s", integration.client_id, det_err)
+        detector_succeeded = _run_detector_after_sync(db, integration.client_id)
 
-        try:
-            from backend_api.services.detector_llm import refresh_hypothesis_texts_for_client
-            await refresh_hypothesis_texts_for_client(db, integration.client_id)
-        except Exception as llm_err:
-            logger.exception("LLM hypothesis generation failed for client %s: %s", integration.client_id, llm_err)
+        # LLM text enriches alerts created by the detector.  If the detector
+        # transaction was rolled back there is nothing new to enrich, and
+        # skipping this step keeps the failure fully isolated.
+        if detector_succeeded:
+            try:
+                from backend_api.services.detector_llm import refresh_hypothesis_texts_for_client
+                await refresh_hypothesis_texts_for_client(db, integration.client_id)
+            except Exception as llm_err:
+                logger.exception("LLM hypothesis generation failed for client %s: %s", integration.client_id, llm_err)
 
         # CRITICAL: Clear dashboard cache after successful sync to ensure fresh data
         # This prevents stale cached data from appearing on the dashboard
