@@ -223,6 +223,7 @@ import html2canvas from 'html2canvas'
 
 const props = defineProps({
   clientId: { type: String, default: '' },
+  folderId: { type: String, default: '' },       // §сводка папки: динамика по всем проектам папки
   channel: { type: String, default: 'all' },     // platform: all|yandex|vk|avito
   campaignIds: { type: Array, default: () => [] }, // фильтр направления
   includeVat: { type: Boolean, default: true },
@@ -485,17 +486,19 @@ const horizonDates = () => {
   return { start: iso(start), end: iso(end) }
 }
 const fetchSeries = async () => {
-  if (!props.clientId) { periods.value = []; goals.value = []; return }
+  if (!props.clientId && !props.folderId) { periods.value = []; goals.value = []; return }
   loading.value = true
   try {
     const { start, end } = horizonDates()
     const params = {
-      client_id: props.clientId,
       platform: props.channel || 'all',
       granularity: granularity.value,
       start_date: start,
       end_date: end,
     }
+    // Проект или сводка папки — взаимоисключающие скоупы (бэк отдаёт приоритет client_id).
+    if (props.clientId) params.client_id = props.clientId
+    else if (props.folderId) params.folder_id = props.folderId
     if (props.campaignIds && props.campaignIds.length) params.campaign_ids = props.campaignIds
     const { data } = await api.get('dashboard/dynamics-series', { params })
     periods.value = Array.isArray(data?.periods) ? data.periods : []
@@ -609,7 +612,6 @@ const doExport = async (fmt) => {
     if (fmt === 'png') { await exportPng(); return }
     const { start, end } = horizonDates()
     const params = {
-      client_id: props.clientId,
       platform: props.channel || 'all',
       granularity: granularity.value,
       start_date: start,
@@ -617,6 +619,8 @@ const doExport = async (fmt) => {
       fmt,
       include_vat: props.includeVat,
     }
+    if (props.clientId) params.client_id = props.clientId
+    else if (props.folderId) params.folder_id = props.folderId
     if (props.campaignIds && props.campaignIds.length) params.campaign_ids = props.campaignIds
     const resp = await api.get('dashboard/dynamics/export', { params, responseType: 'blob' })
     triggerDownload(resp.data, `${exportFilename()}.${fmt === 'xlsx' ? 'xlsx' : 'csv'}`)
@@ -626,8 +630,8 @@ const onDocMousedown = (e) => {
   if (exportOpen.value && e.target && !e.target.closest('.dyn-export')) exportOpen.value = false
 }
 
-watch(() => props.clientId, () => { userTouchedGranularity.value = false })
-watch(() => [props.clientId, props.channel, props.campaignIds], () => { fetchSeries(); fetchBackfillStatus() }, { deep: true })
+watch(() => [props.clientId, props.folderId], () => { userTouchedGranularity.value = false })
+watch(() => [props.clientId, props.folderId, props.channel, props.campaignIds], () => { fetchSeries(); fetchBackfillStatus() }, { deep: true })
 onMounted(() => { fetchSeries(); fetchBackfillStatus(); document.addEventListener('mousedown', onDocMousedown) })
 onUnmounted(() => { stopBackfillPolling(); document.removeEventListener('mousedown', onDocMousedown) })
 </script>

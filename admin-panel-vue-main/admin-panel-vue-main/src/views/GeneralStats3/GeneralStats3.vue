@@ -1212,7 +1212,8 @@
 
     <DynamicsView
       v-else-if="activeView === 'dynamics'"
-      :client-id="filters.client_id"
+      :client-id="filters.folder_id ? '' : (filters.client_id || '')"
+      :folder-id="filters.folder_id || ''"
       :channel="filters.channel"
       :campaign-ids="filters.campaign_ids"
       :include-vat="includeVat"

@@ -1661,6 +1661,7 @@ async def dynamics_export_endpoint(
     start_date: str = None,
     end_date: str = None,
     client_id: Optional[str] = Query(None),
+    folder_id: Optional[str] = Query(None),
     campaign_ids: Optional[List[str]] = Query(None),
     platform: Optional[str] = "all",
     granularity: str = Query("month"),
@@ -1692,7 +1693,11 @@ async def dynamics_export_endpoint(
         if not u_campaign_ids:
             u_campaign_ids = None
 
-    effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
+    if folder_id and not u_client_id:
+        # Экспорт «Динамики» по сводке папки — те же проекты, что и на экране папки.
+        effective_client_ids = StatsService.resolve_folder_client_ids(db, current_user.id, folder_id)
+    else:
+        effective_client_ids = StatsService.get_effective_client_ids(db, current_user.id, u_client_id)
     d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else (d_end - timedelta(days=90))
     gran = "week" if str(granularity).lower().startswith("w") else "month"

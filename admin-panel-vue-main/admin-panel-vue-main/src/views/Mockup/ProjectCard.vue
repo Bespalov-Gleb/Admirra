@@ -517,12 +517,6 @@
               </svg>
               Настройки
             </button>
-            <button type="button" class="ai-audit-btn" @click.stop="openAiAudit(project)">
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                <path d="M8.5 1.6 9.8 5.1l3.5 1.3-3.5 1.3-1.3 3.5-1.3-3.5-3.5-1.3 3.5-1.3 1.3-3.5ZM3.4 9.9l.6 1.7 1.7.6-1.7.6-.6 1.7-.6-1.7-1.7-.6 1.7-.6.6-1.7Z"/>
-              </svg>
-              AI-аудит
-            </button>
             <!-- Переместить в папку… -->
             <div class="folder-move-wrap" v-click-outside="() => { if (moveMenuProjectId === project.id) moveMenuProjectId = null }">
               <button
@@ -1889,11 +1883,6 @@ const goalTrendClass = (value) => {
   return 'project-goal-trend'
 }
 
-const openAiAudit = (project) => {
-  setCurrentProject(project.id)
-  toaster.info('AI-аудит будет доступен позже.')
-}
-
 const loadProjectMetrics = async () => {
   const requestId = ++projectMetricsRequestId
   const { startDate, endDate } = getProjectPeriodRange(periodKey.value, customPeriodRange.value)
@@ -3133,28 +3122,6 @@ onMounted(async () => {
   background: #fff;
   font-size: 0.8333rem;
   font-weight: 600;
-}
-
-.ai-audit-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3472rem;
-  min-height: 2.0833rem;
-  padding: 0 0.8333rem;
-  border-radius: 0.5556rem;
-  border: 1px solid rgba(37, 99, 235, 0.18);
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(6, 181, 212, 0.08));
-  color: #2563eb;
-  cursor: pointer;
-  font-size: 0.9028rem;
-  font-weight: 700;
-  white-space: nowrap;
-  transition: background 0.2s, border-color 0.2s;
-}
-
-.ai-audit-btn:hover {
-  border-color: rgba(37, 99, 235, 0.34);
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.13), rgba(6, 181, 212, 0.13));
 }
 
 .project-id-link {
