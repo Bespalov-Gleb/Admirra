@@ -1067,24 +1067,6 @@ button {
 .integration-card:nth-child(6) .integration-card__logo { width: 118.8px; }
 
 
-.integration-card--coming {
-  gap: 13.5px;
-}
-
-.integration-card__soon {
-  display: inline-flex;
-  align-items: center;
-  height: 18.9px;
-  padding-left: 13.5px;
-  border-left: 1px solid #b8c8ef;
-  color: #1c274c;
-  font-size: 18px;
-  font-weight: 600;
-  line-height: 1;
-}
-
-
-
 .pricing {
   padding: 0 37.8px 36px;
 }
@@ -2150,8 +2132,7 @@ button {
   transition: opacity 360ms ease, transform 520ms cubic-bezier(0.2, 0.75, 0.25, 1);
 }
 
-.integration-card__logo,
-.integration-card__soon {
+.integration-card__logo {
   position: relative;
   z-index: 1;
   transition: transform 320ms cubic-bezier(0.2, 0.75, 0.25, 1);
@@ -2255,8 +2236,7 @@ button {
     transform: translate3d(10%, -5%, 0) rotate(7deg) scale(1.06);
   }
 
-  .integration-card:hover .integration-card__logo,
-  .integration-card:hover .integration-card__soon {
+  .integration-card:hover .integration-card__logo {
     transform: translate3d(0, -1px, 0) scale(1.025);
   }
 
@@ -2331,7 +2311,6 @@ button {
 .integration-card,
 .integration-card::before,
 .integration-card__logo,
-.integration-card__soon,
 .price-card,
 .price-card::before,
 .price-wl,
@@ -2355,8 +2334,7 @@ button {
     transform: translate3d(-12%, 8%, 0) rotate(-7deg);
   }
 
-  .integration-card:hover .integration-card__logo,
-  .integration-card:hover .integration-card__soon {
+  .integration-card:hover .integration-card__logo {
     transform: none;
   }
 
