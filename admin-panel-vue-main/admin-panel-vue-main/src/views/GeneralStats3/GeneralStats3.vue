@@ -906,8 +906,8 @@
               <td>
                 <span
                   v-if="item.summary?.balance != null"
-                  :class="{ 'folder-budget-over': Number(item.summary.balance) < 0 }"
-                >{{ formatMoney(item.summary.balance) }}</span>
+                  :class="{ 'folder-budget-over': folderRowBalance(item.summary) < 0 }"
+                >{{ formatMoney(folderRowBalance(item.summary)) }}</span>
                 <span v-else class="folder-budget-none">—</span>
               </td>
               <td>
@@ -3814,6 +3814,10 @@ const channelLeadExpenses = (key, data) => {
 // расход/CPC — по разбивке каналов, CPL — от лидового расхода.
 const folderRowExpenses = (summary) =>
   withCostBreakdownVat(Number(summary?.expenses || 0), summary?.cost_by_platform)
+// Баланс филиала — тот же НДС по площадкам, что и общая панель баланса
+// (Яндекс/VK ×1.22, Авито как есть), чтобы сумма филиалов сходилась с папкой.
+const folderRowBalance = (summary) =>
+  withCostBreakdownVat(Number(summary?.balance || 0), summary?.balance_by_platform)
 const folderRowCpc = (summary) => {
   const clicks = Number(summary?.clicks || 0)
   return clicks > 0 ? folderRowExpenses(summary) / clicks : withVat(Number(summary?.cpc || 0))

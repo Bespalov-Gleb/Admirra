@@ -835,7 +835,8 @@ class StatsService:
         # Исключаем балансы равные None И 0.0
         balance_query = db.query(
             models.Integration.balance,
-            models.Integration.currency
+            models.Integration.currency,
+            models.Integration.platform,
         ).filter(
             models.Integration.id.in_(active_integration_ids),
             models.Integration.balance.isnot(None),
@@ -861,14 +862,16 @@ class StatsService:
                 for b in non_zero_balances:
                     debug_logger.info(f"💰   Balance: {b.balance} {b.currency}")
         
+        used_balances = []
         if all_balances:
             # Суммируем балансы, предпочитая RUB
             total_balance = 0.0
             balance_currency = "RUB"
-            
+
             # Сначала пробуем найти валюту RUB
             rub_balances = [b for b in all_balances if b.currency == "RUB"]
             if rub_balances:
+                used_balances = rub_balances
                 total_balance = sum(float(b.balance) if b.balance is not None else 0.0 for b in rub_balances)
                 balance_currency = "RUB"
             else:
@@ -877,17 +880,35 @@ class StatsService:
                 if len(currencies) == 1:
                     # Все в одной валюте - суммируем все
                     balance_currency = list(currencies)[0]
+                    used_balances = list(all_balances)
                     total_balance = sum(float(b.balance) if b.balance is not None else 0.0 for b in all_balances)
                 else:
                     # Разные валюты - берем первую найденную и суммируем только её
                     balance_currency = all_balances[0].currency or "RUB"
                     same_currency_balances = [b for b in all_balances if (b.currency or "RUB") == balance_currency]
+                    used_balances = same_currency_balances
                     total_balance = sum(float(b.balance) if b.balance is not None else 0.0 for b in same_currency_balances)
         else:
             # CRITICAL: Если балансов нет (все None), возвращаем None вместо 0.0
             # Это позволяет фронтенду скрыть баланс на дашборде
             total_balance = None
             balance_currency = None
+
+        # Баланс по площадкам — чтобы фронт применил тот же НДС, что к расходу
+        # (Яндекс/VK ×1.22, Авито как есть), и колонка «Баланс» филиалов сходилась
+        # с общей панелью баланса. Сумма по площадкам = total_balance.
+        _plat_key = {
+            models.IntegrationPlatform.YANDEX_DIRECT: "yandex",
+            models.IntegrationPlatform.VK_ADS: "vk",
+            models.IntegrationPlatform.AVITO_ADS: "avito",
+        }
+        balance_by_platform = None
+        if used_balances:
+            balance_by_platform = {"yandex": 0.0, "vk": 0.0, "avito": 0.0}
+            for b in used_balances:
+                key = _plat_key.get(b.platform)
+                if key and b.balance is not None:
+                    balance_by_platform[key] += float(b.balance)
 
         return {
             "expenses": round(curr["costs"], 2),
@@ -899,6 +920,7 @@ class StatsService:
             "ctr": round(ctr, 2),
             "cr": round(cr, 2),
             "balance": round(total_balance, 2) if total_balance is not None else None,
+            "balance_by_platform": balance_by_platform,
             "currency": balance_currency,
             "leads_available": bool(curr.get("leads_available", True)),
             "cpa_available": bool(curr.get("cpa_available", True)),
