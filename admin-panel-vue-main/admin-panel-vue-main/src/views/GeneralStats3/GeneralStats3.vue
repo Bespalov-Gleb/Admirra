@@ -883,7 +883,7 @@
               <th>Расход</th>
               <th>Лиды</th>
               <th>CPL</th>
-              <th>Остаток бюджета</th>
+              <th>Баланс</th>
               <th></th>
             </tr>
           </thead>
@@ -905,11 +905,10 @@
               <td>{{ formatMoney(folderRowCpl(item.summary)) }}</td>
               <td>
                 <span
-                  v-if="item.budget_remaining"
-                  :class="{ 'folder-budget-over': item.budget_remaining.remaining < 0 }"
-                  :title="`Бюджет ${formatMoney(item.budget_remaining.budget)} · расход ${formatMoney(item.budget_remaining.spent)}`"
-                >{{ formatMoney(item.budget_remaining.remaining) }}</span>
-                <span v-else class="folder-budget-none">— план не задан</span>
+                  v-if="item.summary?.balance != null"
+                  :class="{ 'folder-budget-over': Number(item.summary.balance) < 0 }"
+                >{{ formatMoney(item.summary.balance) }}</span>
+                <span v-else class="folder-budget-none">—</span>
               </td>
               <td>
                 <button type="button" class="folder-branch-open" @click="openFolderBranch(item)">Открыть →</button>
