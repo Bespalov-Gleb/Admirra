@@ -1199,6 +1199,51 @@ def plan_completion(db: Session, client_id: uuid.UUID, today: date | None = None
     return result
 
 
+def active_budget_remaining(db: Session, client_id: uuid.UUID, today: date | None = None) -> dict | None:
+    """Остаток бюджета текущего (активного) план-периода: план − расход.
+
+    Тот же движок, что plan_completion, но для периода, покрывающего сегодня.
+    Бюджет — брутто (как ввёл пользователь), расход — VAT-скорректированный
+    (_sum_channel_stats), чтобы «остаток» совпадал с логикой выполнения плана.
+    """
+    ref = today or date.today()
+    rows = (
+        db.query(models.ProjectBudget)
+        .filter(
+            models.ProjectBudget.client_id == client_id,
+            models.ProjectBudget.period_start <= ref,
+            models.ProjectBudget.period_end >= ref,
+        )
+        .order_by(models.ProjectBudget.period_end.desc(), models.ProjectBudget.created_at.desc(), models.ProjectBudget.id.desc())
+        .all()
+    )
+    if not rows:
+        return None
+    period_end = rows[0].period_end
+    latest: dict[models.IntegrationPlatform | None, models.ProjectBudget] = {}
+    for row in rows:
+        if row.period_end == period_end:
+            latest.setdefault(row.channel, row)
+    total_budget = sum(float(row.amount or 0) for row in latest.values())
+    if total_budget <= 0:
+        return None
+    integrations = _ad_integrations(db, client_id)
+    selected = _selected_goal_ids(integrations)
+    channels = {row.platform for row in integrations}
+    spent = 0.0
+    for channel, row in latest.items():
+        report_channels = [channel] if channel is not None else list(channels)
+        for report_channel in report_channels:
+            spend, _, _ = _sum_channel_stats(db, client_id, report_channel, row.period_start, min(ref, row.period_end), selected)
+            spent += spend
+    return {
+        "budget": round(total_budget, 2),
+        "spent": round(spent, 2),
+        "remaining": round(total_budget - spent, 2),
+        "period_end": period_end.isoformat(),
+    }
+
+
 def run_detector_iteration3(
     db: Session,
     client_id: uuid.UUID,

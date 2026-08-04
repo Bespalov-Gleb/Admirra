@@ -384,6 +384,7 @@ def folder_breakdown(
         summary["cpa_available"] = True
         return summary
 
+    from backend_api.services.detector_iteration3 import active_budget_remaining
     items = []
     for c in members:
         items.append({
@@ -392,6 +393,8 @@ def folder_breakdown(
             "status": c.status.value.lower() if hasattr(c.status, "value") else str(c.status).lower(),
             "avatar_url": c.avatar_url,
             "summary": _with_combined_leads_cpl([c.id]),
+            # Остаток бюджета филиала за активный план-период (§8): план − расход.
+            "budget_remaining": active_budget_remaining(db, c.id),
         })
     total = _with_combined_leads_cpl([c.id for c in members]) if members else None
     return {

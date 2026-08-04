@@ -883,6 +883,7 @@
               <th>Расход</th>
               <th>Лиды</th>
               <th>CPL</th>
+              <th>Остаток бюджета</th>
               <th></th>
             </tr>
           </thead>
@@ -902,6 +903,14 @@
               <td>{{ formatMoney(folderRowExpenses(item.summary)) }}</td>
               <td>{{ formatNumber(item.summary?.leads || 0) }}</td>
               <td>{{ formatMoney(folderRowCpl(item.summary)) }}</td>
+              <td>
+                <span
+                  v-if="item.budget_remaining"
+                  :class="{ 'folder-budget-over': item.budget_remaining.remaining < 0 }"
+                  :title="`Бюджет ${formatMoney(item.budget_remaining.budget)} · расход ${formatMoney(item.budget_remaining.spent)}`"
+                >{{ formatMoney(item.budget_remaining.remaining) }}</span>
+                <span v-else class="folder-budget-none">— план не задан</span>
+              </td>
               <td>
                 <button type="button" class="folder-branch-open" @click="openFolderBranch(item)">Открыть →</button>
               </td>
@@ -14878,6 +14887,8 @@ onMounted(() => {
 .folder-branches-table-wrap { margin-top: 1.6rem; overflow-x: auto; }
 
 .folder-branches-table { width: 100%; border-collapse: collapse; }
+.folder-budget-over { color: #dc2626; font-weight: 700; }
+.folder-budget-none { color: rgba(105, 105, 105, 0.5); font-size: 0.82rem; }
 .folder-branches-table th {
   padding: 0.55rem 0.7rem;
   text-align: left;
