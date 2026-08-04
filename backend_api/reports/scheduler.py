@@ -796,17 +796,16 @@ def switch_delivery_template(delivery, template: str) -> None:
 
 
 async def _generate_automatic_comment_if_needed(db: Session, delivery, user) -> None:
-    """Only unattended automatic sends may spend an AI credit implicitly.
+    """Генерирует системный комментарий для автоматического отчёта.
 
     Opening a preview and sending a report after human approval never call this
-    function. That keeps the Draft → Edited → Approved workflow explicit.
+    function. Комментарий — действие системы и не расходует видимую AI-квоту
+    пользователя (§9.3 экономики).
     """
     if getattr(delivery, "source", "manual") != "auto" or not getattr(delivery, "include_ai_comment", False) or (getattr(delivery, "comment", None) or "").strip():
         return
     try:
-        from backend_api.services.subscription import SubscriptionService
         from ai.report_generator import generate_report
-        SubscriptionService.ensure_can_use_ai(db, user, requested=1)
         delivery.comment = (await generate_report(
             db=db,
             user_id=user.id,
@@ -818,7 +817,6 @@ async def _generate_automatic_comment_if_needed(db: Session, delivery, user) -> 
             platform=delivery.platform or "all",
         ) or "").strip() or None
         delivery.comment_status = "draft" if delivery.comment else "none"
-        SubscriptionService.increment_ai_usage(db, user, requested=1)
         refresh_delivery_snapshot_files(delivery)
     except Exception as exc:
         # A report is still useful without AI, and automatic delivery must not

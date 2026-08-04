@@ -284,7 +284,8 @@ async def _resolve_report_comment(
     if ai and not use_comment:
         try:
             user = db.query(models.User).filter(models.User.id == user_id).first()
-            if user:
+            charge_visible_quota = report_type not in {"comment", "dashboard_comment"}
+            if user and charge_visible_quota:
                 SubscriptionService.ensure_can_use_ai(db, user, requested=1)
             from ai.report_generator import generate_report
             use_comment = await generate_report(
@@ -294,7 +295,7 @@ async def _resolve_report_comment(
             )
             if not use_comment or not str(use_comment).strip():
                 use_comment = "AI не удалось сформировать комментарий."
-            if user:
+            if user and charge_visible_quota:
                 SubscriptionService.increment_ai_usage(db, user, requested=1)
                 db.commit()
         except Exception as e:

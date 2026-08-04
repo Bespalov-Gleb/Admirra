@@ -118,9 +118,22 @@ def _expected_amount(plan, billing_period: str) -> int:
     Годовая берётся из прайс-бука (у реальных тарифов задана явно, у тестовых
     выводится из месячной)."""
     if billing_period == "year":
+        locked = getattr(plan, "price_year_rub", None)
+        if locked is not None:
+            return int(locked)
         spec = pricing.resolve_plan(getattr(plan, "code", ""), get_config().billing)
         return int(spec.price_year)
     return int(plan.price_rub or 0)
+
+
+def _slot_period_unit(plan, billing_period: str) -> int:
+    if billing_period == "year":
+        return int(getattr(plan, "extra_project_price_year", 0) or 0)
+    return int(getattr(plan, "extra_project_price_month", 0) or 0)
+
+
+def _subscription_total(plan, billing_period: str, slots: int = 0) -> int:
+    return _expected_amount(plan, billing_period) + max(0, int(slots or 0)) * _slot_period_unit(plan, billing_period)
 
 
 def _paid_amount(data: Dict[str, Any]) -> Optional[Decimal]:
@@ -177,6 +190,8 @@ def _reuse_or_create_invoice(
     billing_period: str,
     amount: int,
     currency: str,
+    purpose: str = "plan",
+    intent_payload: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Возвращает invoice_id для виджета, переиспользуя недавнее неоплаченное намерение.
 
@@ -192,6 +207,8 @@ def _reuse_or_create_invoice(
             models.BillingEvent.event_type == "intent",
             models.BillingEvent.plan_code == plan_code,
             models.BillingEvent.billing_period == billing_period,
+            models.BillingEvent.amount == amount,
+            models.BillingEvent.currency == currency,
             models.BillingEvent.created_at >= now - INVOICE_REUSE_WINDOW,
         )
         .order_by(models.BillingEvent.created_at.desc())
@@ -206,10 +223,17 @@ def _reuse_or_create_invoice(
             )
             .first()
         )
-        if not already_paid:
+        recent_payload = _coerce_json_data(recent.payload)
+        same_business_order = recent_payload.get("purpose") == purpose
+        for key, value in (intent_payload or {}).items():
+            if recent_payload.get(key) != value:
+                same_business_order = False
+                break
+        if not already_paid and same_business_order:
             return recent.invoice_id
 
     invoice_id = uuid.uuid4().hex
+    payload = {"purpose": purpose, **(intent_payload or {})}
     db.add(
         models.BillingEvent(
             user_id=user.id,
@@ -220,9 +244,51 @@ def _reuse_or_create_invoice(
             currency=currency,
             plan_code=plan_code,
             billing_period=billing_period,
+            payload=payload,
         )
     )
     return invoice_id
+
+
+def _find_payment_intent(db: Session, *, user_id, invoice_id: str) -> Optional[models.BillingEvent]:
+    if not invoice_id:
+        return None
+    return (
+        db.query(models.BillingEvent)
+        .filter(
+            models.BillingEvent.user_id == user_id,
+            models.BillingEvent.invoice_id == invoice_id,
+            models.BillingEvent.event_type == "intent",
+        )
+        .with_for_update()
+        .order_by(models.BillingEvent.created_at.desc())
+        .first()
+    )
+
+
+def _reserved_slot_count(db: Session, subscription_id) -> int:
+    """Неоплаченные недавние заказы тоже резервируют слот до истечения окна."""
+    intents = (
+        db.query(models.BillingEvent)
+        .filter(
+            models.BillingEvent.subscription_id == subscription_id,
+            models.BillingEvent.event_type == "intent",
+            models.BillingEvent.created_at >= SubscriptionService._now() - INVOICE_REUSE_WINDOW,
+        )
+        .all()
+    )
+    reserved = 0
+    for intent in intents:
+        payload = _coerce_json_data(intent.payload)
+        if payload.get("purpose") != "slot_purchase" or not intent.invoice_id:
+            continue
+        paid = db.query(models.BillingEvent.id).filter(
+            models.BillingEvent.invoice_id == intent.invoice_id,
+            models.BillingEvent.event_type == "pay",
+        ).first()
+        if not paid:
+            reserved += max(1, int(payload.get("slot_count") or 1))
+    return reserved
 
 
 def _record_billing_event(
@@ -295,21 +361,34 @@ def _build_cloudpayments_receipt(
     customer_email: str,
     cfg,
 ) -> Dict[str, Any]:
-    total = round(float(amount), 2)
+    return _build_cloudpayments_receipt_items(
+        items=[(description, amount)], customer_email=customer_email, cfg=cfg,
+    )
+
+
+def _build_cloudpayments_receipt_items(
+    *,
+    items: List[tuple[str, int]],
+    customer_email: str,
+    cfg,
+) -> Dict[str, Any]:
+    normalized = [(label, round(float(amount), 2)) for label, amount in items if float(amount) > 0]
+    total = round(sum(amount for _, amount in normalized), 2)
     email = (customer_email or "").strip()
     return {
         "items": [
             {
-                "label": description,
-                "price": total,
+                "label": label,
+                "price": item_amount,
                 "quantity": 1.0,
-                "amount": total,
+                "amount": item_amount,
                 # None → null в JSON = «без НДС» (не путать с 0 = «НДС 0%»)
                 "vat": cfg.cloudpayments.receipt_vat,
                 "method": int(cfg.cloudpayments.receipt_method),
                 "object": int(cfg.cloudpayments.receipt_object),
                 "measurementUnit": "услуга",
             }
+            for label, item_amount in normalized
         ],
         "taxationSystem": int(cfg.cloudpayments.receipt_taxation_system),
         "email": email,
@@ -322,7 +401,54 @@ def _build_cloudpayments_receipt(
     }
 
 
-def _spec_to_schema(spec: pricing.PlanSpec) -> schemas.BillingPlanResponse:
+def _subscription_receipt(plan, billing_period: str, slots: int, email: str, cfg) -> Dict[str, Any]:
+    period_label = "год" if billing_period == "year" else "месяц"
+    items: List[tuple[str, int]] = [
+        (f"Подписка {plan.name} ({period_label})", _expected_amount(plan, billing_period)),
+    ]
+    if slots > 0:
+        items.append((
+            f"Дополнительные слоты проектов: {slots} ({period_label})",
+            _slot_period_unit(plan, billing_period) * slots,
+        ))
+    return _build_cloudpayments_receipt_items(items=items, customer_email=email, cfg=cfg)
+
+
+async def _update_recurrent_total(sub, plan, billing_period: str, slots: int, email: str) -> bool:
+    # CloudPayments трактует update отменённой подписки как повторную активацию.
+    # После явного отключения автопродления будущую сумму хранит наш pending-state,
+    # но внешний рекуррент не трогаем и тем самым не включаем списания обратно.
+    if bool(getattr(sub, "cancel_at_period_end", False)):
+        return True
+    cp_id = str(getattr(sub, "cloudpayments_subscription_id", "") or "").strip()
+    if not cp_id:
+        return True
+    cfg = get_config()
+    recurrent = _recurrent_for_billing_period(plan, billing_period)
+    try:
+        await CloudPaymentsService.update_subscription(
+            cp_id,
+            Amount=_subscription_total(plan, billing_period, slots),
+            Currency=cfg.cloudpayments.currency,
+            Description=f"AdMirra: {plan.name} + {slots} доп. слот(ов)",
+            CustomerReceipt=_subscription_receipt(plan, billing_period, slots, email, cfg),
+            Interval=recurrent.interval if recurrent else None,
+            Period=recurrent.period if recurrent else None,
+        )
+        sub.recurring_sync_required = False
+        return True
+    except Exception as exc:
+        sub.recurring_sync_required = True
+        logger.exception("Не удалось обновить рекуррент CloudPayments %s: %s", cp_id, exc)
+        return False
+
+
+def _spec_to_schema(
+    spec: pricing.PlanSpec,
+    *,
+    card_state: str = "available",
+    price_fixed: bool = False,
+) -> schemas.BillingPlanResponse:
     cfg = get_config().billing
     return schemas.BillingPlanResponse(
         code=spec.code,
@@ -341,12 +467,16 @@ def _spec_to_schema(spec: pricing.PlanSpec) -> schemas.BillingPlanResponse:
         extra_project_price_month=spec.extra_project_price_month,
         extra_project_price_year=spec.extra_project_price_year,
         extra_project_cabinets=spec.extra_project_cabinets,
+        max_extra_project_slots=spec.max_extra_project_slots,
         white_label=spec.white_label,
         recommended=spec.recommended,
         visible=spec.visible,
         whitelabel_included=spec.white_label,
         is_default=spec.is_default,
         is_active=spec.visible,
+        request_only=spec.white_label,
+        card_state=card_state,
+        price_fixed=price_fixed,
     )
 
 
@@ -358,7 +488,29 @@ def get_plans(
     # Единый источник — прайс-бук. Таблица tariff_plans пустая и не используется
     # (см. get_user_plan): раньше на неё был молчаливый fallback, теперь линейка
     # всегда из конфига.
-    return [_spec_to_schema(spec) for spec in pricing.list_plans(visible_only=True)]
+    account_user = SubscriptionService.get_billing_account_user(db, current_user)
+    sub = SubscriptionService.ensure_default_subscription(db, account_user)
+    current_plan = SubscriptionService.get_user_plan(db, account_user)
+    current_rank = PLAN_RANK.get(current_plan.code, 0)
+    is_trial = sub.status == models.SubscriptionStatus.TRIAL
+    result = []
+    for spec in pricing.list_plans(visible_only=True):
+        if is_trial and not spec.white_label:
+            state = "trial"
+        elif spec.code == current_plan.code:
+            state = "current"
+        elif spec.white_label:
+            state = "request"
+        else:
+            state = "upgrade" if PLAN_RANK.get(spec.code, 0) > current_rank else "downgrade"
+        if spec.code == current_plan.code and getattr(sub, "price_book_snapshot", None):
+            spec = pricing.plan_from_snapshot(sub.price_book_snapshot, spec)
+        result.append(_spec_to_schema(spec, card_state=state, price_fixed=(state == "current" and current_plan.price_fixed)))
+    # ensure_default_subscription/get_user_plan лениво создают подписку и
+    # фиксируют snapshot цены для старых аккаунтов. GET-зависимость сама не
+    # коммитит, поэтому сохраняем эту продуктовую миграцию явно.
+    db.commit()
+    return result
 
 
 @router.get("/subscription", response_model=schemas.BillingSubscriptionResponse)
@@ -366,44 +518,47 @@ def get_my_subscription(
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
-    sub = SubscriptionService.ensure_default_subscription(db, current_user)
-    plan = SubscriptionService.get_user_plan(db, current_user)
-    SubscriptionService._ensure_ai_period(current_user, plan)
-    used = int(current_user.ai_requests_used or 0)
+    account_user = SubscriptionService.get_billing_account_user(db, current_user)
+    sub = SubscriptionService.ensure_default_subscription(db, account_user)
+    plan = SubscriptionService.get_user_plan(db, account_user)
+    SubscriptionService._ensure_ai_period(account_user, plan)
+    used = int(account_user.ai_requests_used or 0)
     remaining = max(int(plan.max_ai_requests_per_period) - used, 0)
     paused_status = getattr(models.ClientStatus, "PAUSED", None)
     # Слоты по правилу папок: проекты вне папок + папки с активными проектами = 1 слот
-    projects_used = SubscriptionService.count_project_slots(db, current_user.id)
+    projects_used = SubscriptionService.count_project_slots(db, account_user.id)
+    owner_ids = SubscriptionService.account_project_owner_ids(db, account_user.id)
     paused_projects = db.query(models.Client).filter(
-        models.Client.owner_id == current_user.id,
+        models.Client.owner_id.in_(owner_ids),
         models.Client.status == paused_status,
     ).count()
     cabinets_used = (
         db.query(func.count(models.Integration.id))
         .join(models.Client, models.Client.id == models.Integration.client_id)
-        .filter(models.Client.owner_id == current_user.id)
+        .filter(models.Client.owner_id.in_(owner_ids))
         .scalar()
         or 0
     )
     users_used = 1 + (
         db.query(func.count(models.TeamMember.id))
         .filter(
-            models.TeamMember.account_id == current_user.id,
+            models.TeamMember.account_id == account_user.id,
             models.TeamMember.role == models.TeamMemberRole.MEMBER,
+            models.TeamMember.status.in_((models.TeamMemberStatus.ACTIVE, models.TeamMemberStatus.PENDING)),
         )
         .scalar()
         or 0
     )
     ai_reset_date = None
-    if current_user.ai_requests_period_started_at:
-        reset_dt = current_user.ai_requests_period_started_at + timedelta(days=int(plan.period_days or 30))
+    if account_user.ai_requests_period_started_at:
+        reset_dt = account_user.ai_requests_period_started_at + timedelta(days=int(plan.period_days or 30))
         ai_reset_date = reset_dt.strftime("%d.%m")
-    is_active = SubscriptionService._is_subscription_active(current_user, sub)
-    if current_user.is_subscribed != is_active:
-        current_user.is_subscribed = is_active
+    is_active = SubscriptionService._is_subscription_active(account_user, sub)
+    if account_user.is_subscribed != is_active:
+        account_user.is_subscribed = is_active
     db.flush()
-    overflow = SubscriptionService.compute_overflow_state(db, current_user, plan, sub)
-    return schemas.BillingSubscriptionResponse(
+    overflow = SubscriptionService.compute_overflow_state(db, account_user, plan, sub)
+    response = schemas.BillingSubscriptionResponse(
         plan_code=plan.code,
         plan_name=plan.name,
         status=sub.status.value,
@@ -414,7 +569,7 @@ def get_my_subscription(
             # Фоллбэк для старых подписок, где период оплаты не сохранён
             else ("year" if sub.current_period_start and sub.current_period_end and (sub.current_period_end - sub.current_period_start).days >= 330 else "month")
         ),
-        subscription_expires_at=current_user.subscription_expires_at,
+        subscription_expires_at=account_user.subscription_expires_at,
         # Плашка хедера показывает ЭФФЕКТИВНЫЙ лимит (тариф + докупленные слоты) —
         # «12 / 13», а не «12 / 10» (§8.5). Базовый лимит тарифа виден в /plans.
         max_projects=overflow["effective_projects_limit"],
@@ -443,6 +598,7 @@ def get_my_subscription(
         ),
         whitelabel_available=_plan_has_whitelabel(plan),
         effective_projects_limit=overflow["effective_projects_limit"],
+        base_projects_limit=overflow["base_projects_limit"],
         purchased_slots=overflow["purchased_slots"],
         slot_price=overflow["slot_price"],
         slots_until_parity=overflow["slots_until_parity"],
@@ -451,8 +607,89 @@ def get_my_subscription(
         allowance_left=overflow["allowance_left"],
         overflow_deadline=overflow["overflow_deadline"],
         hard_blocked=overflow["hard_blocked"],
+        overflow_banner_permanent=overflow["overflow_banner_permanent"],
+        overflow_notice_dismissed=overflow["overflow_notice_dismissed"],
         suggested_plan=overflow["suggested_plan"],
+        pending_plan_code=getattr(sub, "pending_plan_code", None),
+        pending_billing_period=getattr(sub, "pending_billing_period", None),
+        pending_purchased_slots=getattr(sub, "pending_purchased_project_slots", None),
+        price_book_version=getattr(sub, "price_book_version", None),
+        price_fixed=plan.price_fixed,
+        recurring_sync_required=bool(getattr(sub, "recurring_sync_required", False)),
     )
+    # Сохраняет ленивый snapshot прайс-бука, сброс AI-периода и синхронизацию
+    # is_subscribed. Без commit изменения исчезали при закрытии GET-сессии.
+    db.commit()
+    return response
+
+
+@router.get("/overview", response_model=schemas.BillingOverviewResponse)
+def get_billing_overview(
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Единый атомарный ответ для экрана тарифов: карточки + подписка."""
+    return schemas.BillingOverviewResponse(
+        plans=get_plans(current_user=current_user, db=db),
+        subscription=get_my_subscription(current_user=current_user, db=db),
+    )
+
+
+@router.post("/overflow/dismiss")
+def dismiss_overflow_banner(
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    account_user = SubscriptionService.get_billing_account_user(db, current_user)
+    sub = SubscriptionService.ensure_default_subscription(db, account_user)
+    sub = SubscriptionService.get_user_subscription(db, account_user.id, for_update=True) or sub
+    plan = SubscriptionService.get_user_plan(db, account_user)
+    state = SubscriptionService.compute_overflow_state(db, account_user, plan, sub)
+    if not state["over_limit"]:
+        return {"ok": True, "dismissed": False}
+    if state["overflow_banner_permanent"] or state["hard_blocked"]:
+        raise HTTPException(status_code=409, detail={
+            "reason": "permanent_banner",
+            "message": "После первого продления в превышении предупреждение нельзя скрыть.",
+        })
+    sub.overflow_notice_dismissed_at = SubscriptionService._now()
+    log_history_event(
+        db, actor=current_user, event_type="limit", action="overflow_banner_dismissed",
+        description="Пользователь временно закрыл предупреждение о превышении",
+        target_type="subscription", target_id=str(sub.id),
+    )
+    db.commit()
+    return {"ok": True, "dismissed": True}
+
+
+@router.post("/overflow/decline")
+def decline_overflow_offer(
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Фиксирует отказ именно в модалке создания сверх лимита (§11.1)."""
+    account_user = SubscriptionService.get_billing_account_user(db, current_user)
+    sub = SubscriptionService.ensure_default_subscription(db, account_user)
+    sub = SubscriptionService.get_user_subscription(db, account_user.id, for_update=True) or sub
+    plan = SubscriptionService.get_user_plan(db, account_user)
+    state = SubscriptionService.compute_overflow_state(db, account_user, plan, sub)
+    log_history_event(
+        db,
+        actor=current_user,
+        event_type="limit",
+        action="overflow_declined",
+        description="Пользователь отказался создавать проект за пределами лимита",
+        target_type="subscription",
+        target_id=str(sub.id),
+        meta={
+            "plan_code": plan.code,
+            "limit": state["effective_projects_limit"],
+            "current": state["current"],
+            "allowance": state["allowance"],
+        },
+    )
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/can-add", response_model=schemas.BillingCanAddResponse)
@@ -463,12 +700,13 @@ def can_add(
 ):
     """Можно ли добавить проект и на каких условиях (§8.5). Фронт по этому ответу
     решает: создавать молча, показать модалку с запасом или предложить апгрейд."""
-    plan = SubscriptionService.get_user_plan(db, current_user)
-    sub = SubscriptionService.get_user_subscription(db, current_user.id)
+    account_user = SubscriptionService.get_billing_account_user(db, current_user)
+    plan = SubscriptionService.get_user_plan(db, account_user)
+    sub = SubscriptionService.get_user_subscription(db, account_user.id)
     if SubscriptionService.is_admin_bypass(current_user) or not SubscriptionService.billing_enforced():
         return schemas.BillingCanAddResponse(can_add=True, plan_name=plan.name)
 
-    st = SubscriptionService.compute_overflow_state(db, current_user, plan, sub)
+    st = SubscriptionService.compute_overflow_state(db, account_user, plan, sub)
     current = st["current"]
     effective = st["effective_projects_limit"]
     allowance = st["allowance"]
@@ -505,45 +743,124 @@ async def subscribe(
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
-    plan = SubscriptionService.get_plan_from_config(body.plan_code)
+    account_user = SubscriptionService.get_billing_account_user(db, current_user)
+    try:
+        requested_spec = pricing.resolve_plan_strict(body.plan_code, get_config().billing)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Тариф не найден")
+    if requested_spec.white_label or requested_spec.code not in PURCHASABLE_PLAN_CODES:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "reason": "request_only",
+                "message": "White Label подключается только по заявке — онлайн-оплата недоступна.",
+            },
+        )
     billing_period = _normalize_billing_period(body.billing_period)
     cfg = get_config()
     if not cfg.cloudpayments.public_id:
         raise HTTPException(status_code=500, detail="CLOUDPAYMENTS_PUBLIC_ID не настроен")
 
-    # §8.4: даунгрейд блокируется, если текущее использование не влезает в лимит
-    # нового тарифа. Понижение обнуляет докупленные слоты в конце периода, поэтому
-    # сверяем с чистым лимитом тарифа, а не с эффективным.
-    if not SubscriptionService.is_admin_bypass(current_user):
-        cur_plan = SubscriptionService.get_user_plan(db, current_user)
-        if PLAN_RANK.get(plan.code, 0) < PLAN_RANK.get(cur_plan.code, 0):
-            used = SubscriptionService.count_project_slots(db, current_user.id)
-            if used > int(plan.max_projects):
+    sub = SubscriptionService.ensure_default_subscription(db, account_user)
+    sub = SubscriptionService.get_user_subscription(db, account_user.id, for_update=True) or sub
+    cur_plan = SubscriptionService.get_user_plan(db, account_user)
+    plan = (
+        cur_plan
+        if requested_spec.code == cur_plan.code
+        else SubscriptionService.get_plan_from_config(requested_spec.code, spec=requested_spec)
+    )
+    current_rank = PLAN_RANK.get(cur_plan.code, 0)
+    requested_rank = PLAN_RANK.get(plan.code, 0)
+    is_downgrade = requested_rank < current_rank
+    used = SubscriptionService.count_project_slots(db, account_user.id)
+
+    # Понижение не оплачивается сегодня: новый тариф и новая сумма рекуррента
+    # вступают в силу на следующем продлении.
+    if is_downgrade:
+        if not SubscriptionService.is_admin_bypass(account_user):
+            allowed = int(plan.max_projects) + int(plan.overflow_allowance_projects)
+            if used > allowed:
                 raise HTTPException(status_code=409, detail={
                     "reason": "downgrade_blocked",
-                    "message": f"На тарифе «{plan.name}» доступно {plan.max_projects} проектов, "
+                    "message": f"На тарифе «{plan.name}» доступно {plan.max_projects} проектов "
+                               f"и временный запас {plan.overflow_allowance_projects}, "
                                f"сейчас у вас {used}. Поставьте лишние на паузу или удалите, "
                                f"затем понижайте тариф.",
                 })
+        snapshot = pricing.plan_snapshot(requested_spec)
+        recurrent_ok = await _update_recurrent_total(
+            sub, plan, billing_period, 0, account_user.email or "",
+        )
+        if not recurrent_ok and sub.cloudpayments_subscription_id:
+            db.rollback()
+            raise HTTPException(
+                status_code=502,
+                detail="Не удалось обновить следующее списание в CloudPayments. Попробуйте ещё раз.",
+            )
+        sub.pending_plan_code = plan.code
+        sub.pending_billing_period = billing_period
+        sub.pending_purchased_project_slots = 0
+        sub.pending_price_book_snapshot = snapshot
+        log_history_event(
+            db,
+            actor=current_user,
+            event_type="billing",
+            action="downgrade_scheduled",
+            description=f"Переход на тариф {plan.code} запланирован на конец периода",
+            target_type="subscription",
+            target_id=str(sub.id),
+            meta={"from": cur_plan.code, "to": plan.code, "billing_period": billing_period},
+        )
+        db.commit()
+        return schemas.BillingSubscribeResponse(
+            public_id="",
+            amount=0,
+            currency=cfg.cloudpayments.currency,
+            description=f"Переход на {plan.name} запланирован",
+            account_id=str(account_user.id),
+            email=account_user.email or "",
+            plan_code=plan.code,
+            billing_period=billing_period,
+            trial_days=0,
+            recurrent=None,
+            requires_payment=False,
+            action="scheduled_downgrade",
+            effective_at=sub.current_period_end,
+        )
 
-    amount = _expected_amount(plan, billing_period)
+    target_slots = SubscriptionService._purchased_slots(sub)
+    if requested_rank > current_rank:
+        target_slots = max(0, used - int(plan.max_projects))
+        if target_slots > int(plan.max_extra_project_slots):
+            raise HTTPException(status_code=409, detail={
+                "reason": "upgrade_usage_exceeds",
+                "message": "Текущее использование не помещается даже с дополнительными слотами выбранного тарифа.",
+            })
+    amount = _subscription_total(plan, billing_period, target_slots)
     description = f"Подписка {plan.name} ({'год' if billing_period == 'year' else 'месяц'})"
-    receipt = _build_cloudpayments_receipt(
-        amount=amount,
-        description=description,
-        customer_email=current_user.email or "",
-        cfg=cfg,
+    receipt = _subscription_receipt(
+        plan, billing_period, target_slots, account_user.email or "", cfg,
     )
 
-    sub = SubscriptionService.ensure_default_subscription(db, current_user)
+    purchase_snapshot = (
+        dict(sub.price_book_snapshot)
+        if requested_spec.code == cur_plan.code and isinstance(getattr(sub, "price_book_snapshot", None), dict)
+        else pricing.plan_snapshot(requested_spec)
+    )
     invoice_id = _reuse_or_create_invoice(
         db,
-        user=current_user,
+        user=account_user,
         subscription=sub,
         plan_code=plan.code,
         billing_period=billing_period,
         amount=amount,
         currency=cfg.cloudpayments.currency,
+        purpose="plan",
+        intent_payload={
+            "target_slots": target_slots,
+            "price_book_version": pricing.current_price_book_version(),
+            "price_book_snapshot": purchase_snapshot,
+        },
     )
     db.commit()
 
@@ -553,8 +870,8 @@ async def subscribe(
         amount=amount,
         currency=cfg.cloudpayments.currency,
         description=description,
-        account_id=str(current_user.id),
-        email=current_user.email or "",
+        account_id=str(account_user.id),
+        email=account_user.email or "",
         plan_code=plan.code,
         billing_period=billing_period,
         trial_days=plan.trial_days,
@@ -566,14 +883,15 @@ async def subscribe(
 
 # --- Докупка слотов проектов (§8.6) ---
 
-def _slot_unit_price(plan) -> int:
-    return int(pricing.resolve_plan(plan.code, get_config().billing).extra_project_price_month)
+def _slot_unit_price(plan, billing_period: str = "month") -> int:
+    return _slot_period_unit(plan, billing_period)
 
 
 def _slot_remaining_days(plan, sub):
     from datetime import timezone as _tz
     now = SubscriptionService._now()
-    period_days = int(getattr(plan, "period_days", 30) or 30)
+    billing_period = _normalize_billing_period(getattr(sub, "billing_period", None))
+    period_days = 365 if billing_period == "year" else int(getattr(plan, "period_days", 30) or 30)
     end = getattr(sub, "current_period_end", None)
     if end is not None:
         if end.tzinfo is None:
@@ -586,7 +904,8 @@ def _slot_remaining_days(plan, sub):
 
 def _slot_proration_amount(plan, sub, count: int) -> int:
     # Пропорция за остаток периода (§8.6): цена слота × остаток дней / длина периода.
-    unit = _slot_unit_price(plan)
+    billing_period = _normalize_billing_period(getattr(sub, "billing_period", None))
+    unit = _slot_unit_price(plan, billing_period)
     remaining, period_days = _slot_remaining_days(plan, sub)
     amt = unit * count if period_days <= 0 else round(unit * count * remaining / period_days)
     return max(1, int(amt))
@@ -598,14 +917,33 @@ def slots_quote(
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
-    plan = SubscriptionService.get_user_plan(db, current_user)
-    sub = SubscriptionService.get_user_subscription(db, current_user.id)
+    account_user = SubscriptionService.get_billing_account_user(db, current_user)
+    plan = SubscriptionService.get_user_plan(db, account_user)
+    sub = SubscriptionService.get_user_subscription(db, account_user.id)
     count = max(1, int(body.count or 1))
-    unit = _slot_unit_price(plan)
+    billing_period = _normalize_billing_period(getattr(sub, "billing_period", None))
+    unit = _slot_unit_price(plan, billing_period)
     remaining, period_days = _slot_remaining_days(plan, sub)
     slots_now = SubscriptionService._purchased_slots(sub)
-    parity = pricing.slots_until_parity(plan.code, slots_now)
-    can_buy = unit > 0 and parity > 0 and count <= parity
+    reserved = _reserved_slot_count(db, sub.id)
+    parity = max(0, int(plan.max_extra_project_slots) - slots_now - reserved)
+    active_recurring = bool(
+        getattr(sub, "status", None) == models.SubscriptionStatus.ACTIVE
+        and (getattr(sub, "cloudpayments_subscription_id", None) or "").strip()
+        and not bool(getattr(sub, "cancel_at_period_end", False))
+    )
+    can_buy = active_recurring and unit > 0 and parity > 0 and count <= parity
+    reason = None
+    message = None
+    if not active_recurring:
+        reason = "active_subscription_required"
+        message = (
+            "Дополнительные места подключаются только к активной подписке "
+            "с автопродлением. Сначала оплатите или возобновите тариф."
+        )
+    elif not can_buy:
+        reason = "parity"
+        message = "Докупка достигла паритета — выгоднее перейти на старший тариф."
     return schemas.BillingSlotQuoteResponse(
         count=count,
         unit_price=unit,
@@ -613,9 +951,13 @@ def slots_quote(
         period_days=period_days,
         amount=_slot_proration_amount(plan, sub, count),
         effective_limit_after=int(plan.max_projects) + slots_now + count,
-        monthly_after=int(plan.price_rub) + (slots_now + count) * unit,
+        monthly_after=int(plan.price_rub) + (slots_now + count) * int(plan.extra_project_price_month),
+        recurring_after=_subscription_total(plan, billing_period, slots_now + count),
+        billing_period=billing_period,
         slots_until_parity=parity,
         can_buy=can_buy,
+        reason=reason,
+        message=message,
         suggested_plan=pricing.next_plan_code(plan.code) if not can_buy else None,
     )
 
@@ -626,14 +968,31 @@ def slots_purchase(
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
-    plan = SubscriptionService.get_user_plan(db, current_user)
-    sub = SubscriptionService.ensure_default_subscription(db, current_user)
+    account_user = SubscriptionService.get_billing_account_user(db, current_user)
+    plan = SubscriptionService.get_user_plan(db, account_user)
+    sub = SubscriptionService.ensure_default_subscription(db, account_user)
+    sub = SubscriptionService.get_user_subscription(db, account_user.id, for_update=True) or sub
     cfg = get_config()
     if not cfg.cloudpayments.public_id:
         raise HTTPException(status_code=500, detail="CLOUDPAYMENTS_PUBLIC_ID не настроен")
+    if (
+        getattr(sub, "status", None) != models.SubscriptionStatus.ACTIVE
+        or not (getattr(sub, "cloudpayments_subscription_id", None) or "").strip()
+        or bool(getattr(sub, "cancel_at_period_end", False))
+    ):
+        raise HTTPException(status_code=409, detail={
+            "reason": "active_subscription_required",
+            "message": (
+                "Дополнительные места подключаются только к активной подписке "
+                "с автопродлением. Сначала оплатите или возобновите тариф."
+            ),
+        })
     count = max(1, int(body.count or 1))
-    unit = _slot_unit_price(plan)
-    parity = pricing.slots_until_parity(plan.code, SubscriptionService._purchased_slots(sub))
+    billing_period = _normalize_billing_period(getattr(sub, "billing_period", None))
+    unit = _slot_unit_price(plan, billing_period)
+    slots_now = SubscriptionService._purchased_slots(sub)
+    reserved = _reserved_slot_count(db, sub.id)
+    parity = max(0, int(plan.max_extra_project_slots) - slots_now - reserved)
     if unit <= 0 or parity <= 0 or count > parity:
         # Достигнут паритет со старшим тарифом — докупка невыгодна (§8.1).
         raise HTTPException(status_code=409, detail={
@@ -644,61 +1003,94 @@ def slots_purchase(
     amount = _slot_proration_amount(plan, sub, count)
     description = f"Докупка {count} слот(ов) проекта (тариф {plan.name})"
     receipt = _build_cloudpayments_receipt(
-        amount=amount, description=description, customer_email=current_user.email or "", cfg=cfg,
+        amount=amount, description=description, customer_email=account_user.email or "", cfg=cfg,
     )
-    invoice_id = f"slot-{sub.id}-{count}-{int(SubscriptionService._now().timestamp())}"
+    invoice_id = _reuse_or_create_invoice(
+        db,
+        user=account_user,
+        subscription=sub,
+        plan_code=plan.code,
+        billing_period=billing_period,
+        amount=amount,
+        currency=cfg.cloudpayments.currency,
+        purpose="slot_purchase",
+        intent_payload={
+            "slot_count": count,
+            "slots_before": slots_now,
+            "reserved_before": reserved,
+            "slots_after": slots_now + count,
+            "recurring_after": _subscription_total(plan, billing_period, slots_now + count),
+            "price_book_snapshot": dict(sub.price_book_snapshot) if isinstance(sub.price_book_snapshot, dict) else None,
+        },
+    )
+    db.commit()
     return schemas.BillingSubscribeResponse(
         public_id=cfg.cloudpayments.public_id,
         amount=amount,
         currency=cfg.cloudpayments.currency,
         description=description,
-        account_id=str(current_user.id),
-        email=current_user.email or "",
+        account_id=str(account_user.id),
+        email=account_user.email or "",
         plan_code=plan.code,
-        billing_period="month",
+        billing_period=billing_period,
         trial_days=0,
-        recurrent=None,          # разовая пропорция; рекуррент-итог — доработка
+        recurrent=None,
         receipt=receipt,
         invoice_id=invoice_id,
         purpose="slot_purchase",
         slot_count=count,
+        expected_purchased_slots=slots_now + count,
     )
 
 
 @router.post("/slots/reduce")
-def slots_reduce(
+async def slots_reduce(
     body: schemas.BillingSlotReduceRequest,
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
-    plan = SubscriptionService.get_user_plan(db, current_user)
-    sub = SubscriptionService.get_user_subscription(db, current_user.id)
+    account_user = SubscriptionService.get_billing_account_user(db, current_user)
+    plan = SubscriptionService.get_user_plan(db, account_user)
+    sub = SubscriptionService.ensure_default_subscription(db, account_user)
+    sub = SubscriptionService.get_user_subscription(db, account_user.id, for_update=True) or sub
+    if not body.confirm_no_refund:
+        raise HTTPException(status_code=409, detail={
+            "reason": "confirmation_required",
+            "message": "Слоты останутся доступны до конца оплаченного периода. Возврат за текущий период не выполняется.",
+        })
     count = max(1, int(body.count or 1))
     slots = SubscriptionService._purchased_slots(sub)
     new_slots = max(0, slots - count)
-    total = SubscriptionService.count_project_slots(db, current_user.id)
+    total = SubscriptionService.count_project_slots(db, account_user.id)
     new_effective = int(plan.max_projects) + new_slots
-    if total > new_effective:
+    allowed = new_effective + int(plan.overflow_allowance_projects)
+    if total > allowed:
         raise HTTPException(status_code=409, detail={
             "reason": "usage_exceeds",
-            "message": f"После уменьшения останется {new_effective} лимит, а используется {total}. "
+            "message": f"После уменьшения будет доступно {new_effective} проектов и запас "
+                       f"{plan.overflow_allowance_projects}, а используется {total}. "
                        "Сначала уберите лишние проекты или поставьте на паузу.",
         })
-    locked = (
-        db.query(models.Subscription)
-        .filter(models.Subscription.id == sub.id)
-        .with_for_update()
-        .first()
+    billing_period = _normalize_billing_period(getattr(sub, "billing_period", None))
+    recurrent_ok = await _update_recurrent_total(
+        sub, plan, billing_period, new_slots, account_user.email or "",
     )
-    if locked is not None:
-        locked.purchased_project_slots = new_slots
+    if not recurrent_ok and sub.cloudpayments_subscription_id:
+        db.rollback()
+        raise HTTPException(status_code=502, detail="Не удалось обновить следующее списание в CloudPayments")
+    sub.pending_purchased_project_slots = new_slots
     log_history_event(
         db, actor=current_user, event_type="billing", action="slot_removed",
-        description=f"Уменьшено слотов до {new_slots}", target_type="subscription",
-        target_id=str(sub.id), meta={"from": slots, "to": new_slots},
+        description=f"Уменьшение слотов до {new_slots} запланировано со следующего периода",
+        target_type="subscription", target_id=str(sub.id),
+        meta={"from": slots, "to": new_slots, "effective_at": sub.current_period_end.isoformat() if sub.current_period_end else None},
     )
     db.commit()
-    return {"purchased_slots": new_slots}
+    return {
+        "purchased_slots": slots,
+        "pending_purchased_slots": new_slots,
+        "effective_at": sub.current_period_end,
+    }
 
 
 @router.post("/autorenew/cancel")
@@ -708,7 +1100,8 @@ async def cancel_autorenew(
 ):
     """Отключает автопродление: отменяет рекуррент в CloudPayments (если он был создан),
     доступ сохраняется до конца оплаченного периода."""
-    sub = SubscriptionService.ensure_default_subscription(db, current_user)
+    account_user = SubscriptionService.get_billing_account_user(db, current_user)
+    sub = SubscriptionService.ensure_default_subscription(db, account_user)
     cp_sub_id = (sub.cloudpayments_subscription_id or "").strip()
     cancelled_ids = []
     # Если рекуррент в CloudPayments отменить не удалось, списания продолжатся.
@@ -726,7 +1119,7 @@ async def cancel_autorenew(
     # «нажал отмену раньше, чем вебхук записал SubscriptionId» и осиротевшие подписки
     # от смены карты — иначе списания продолжатся, хотя у нас всё выглядит отменённым.
     try:
-        for cp_sub in await CloudPaymentsService.find_subscriptions(str(current_user.id)):
+        for cp_sub in await CloudPaymentsService.find_subscriptions(str(account_user.id)):
             sid = str(cp_sub.get("Id") or "").strip()
             status = str(cp_sub.get("Status") or "").lower()
             if sid and sid not in cancelled_ids and status in ("active", "pastdue"):
@@ -741,7 +1134,7 @@ async def cancel_autorenew(
         # Не смогли даже получить список рекуррентов — значит не можем утверждать,
         # что списаний не будет.
         failed_ids.append("unknown")
-        logger.warning("CloudPayments find_subscriptions failed for %s: %s", current_user.id, err)
+        logger.warning("CloudPayments find_subscriptions failed for %s: %s", account_user.id, err)
     sub.cancel_at_period_end = True
     # Отмена автопродления = отвязка карты: рекуррент в CP отменён, токен карты больше
     # не используется — убираем и отображаемую маску, чтобы UI показал «Карта не привязана».
@@ -814,51 +1207,13 @@ async def cloudpayments_webhook(
     if not user:
         return schemas.CloudPaymentsWebhookResponse(code=0)
 
-    sub = SubscriptionService.ensure_default_subscription(db, user)
-    json_data = _coerce_json_data(data.get("JsonData"))
-    if not json_data.get("plan_code"):
-        json_data = {**json_data, **_coerce_json_data(data.get("Data"))}
-    plan_code = str(json_data.get("plan_code") or sub.plan_code or "start").lower()
-    billing_period = _normalize_billing_period(json_data.get("billing_period"))
-    plan = SubscriptionService.get_plan_from_config(plan_code)
+    account_user = SubscriptionService.get_billing_account_user(db, user)
+    # AccountId виджета всегда указывает на владельца биллингового аккаунта.
+    # Для старых платежей участника нормализуем пользователя до владельца.
+    user = account_user
+    sub = SubscriptionService.ensure_default_subscription(db, account_user)
+    sub = SubscriptionService.get_user_subscription(db, account_user.id, for_update=True) or sub
     event_name = (data.get("Type") or data.get("Event") or "").lower()
-
-    # plan_code и billing_period приходят из JsonData, а его формирует ФРОНТ —
-    # значит пользователь может подменить их в браузере и получить дорогой тариф
-    # за цену дешёвого. Единственный доверенный факт — фактически списанная
-    # сумма, поэтому тариф определяем по ней.
-    amount_mismatch = False
-    paid = _paid_amount(data)
-    if paid is not None:
-        expected = Decimal(_expected_amount(plan, billing_period))
-        if paid != expected:
-            resolved_plan, resolved_period = _resolve_plan_by_paid_amount(paid, billing_period)
-            if resolved_plan is not None:
-                logger.warning(
-                    "CloudPayments webhook: заявлен тариф %s/%s (ожидалось %s), оплачено %s — "
-                    "выдаём %s/%s по фактической сумме. user=%s",
-                    plan_code, billing_period, expected, paid,
-                    resolved_plan.code, resolved_period, user.id,
-                )
-                plan = resolved_plan
-                plan_code = resolved_plan.code
-                billing_period = resolved_period
-            else:
-                amount_mismatch = True
-                logger.error(
-                    "CloudPayments webhook: сумма %s не соответствует ни одному тарифу "
-                    "(заявлен %s/%s, ожидалось %s). Тариф НЕ выдан. user=%s",
-                    paid, plan_code, billing_period, expected, user.id,
-                )
-
-    expected_currency = (get_config().cloudpayments.currency or "RUB").upper()
-    got_currency = str(data.get("Currency") or expected_currency).upper()
-    if got_currency != expected_currency:
-        amount_mismatch = True
-        logger.error(
-            "CloudPayments webhook: валюта %s вместо %s — тариф НЕ выдан. user=%s",
-            got_currency, expected_currency, user.id,
-        )
 
     # Pay/Fail/Recurrent/Cancel приходят на ОДИН URL, а поля Type у CloudPayments нет —
     # классифицируем по реальному составу уведомления (см. developers.cloudpayments.ru):
@@ -884,6 +1239,91 @@ async def cloudpayments_webhook(
     else:
         outcome = "pay"
 
+    invoice_id = str(data.get("InvoiceId") or "").strip()
+    intent = _find_payment_intent(db, user_id=account_user.id, invoice_id=invoice_id)
+    # Повторные списания CloudPayments могут наследовать InvoiceId первого
+    # платежа. Если этот server-intent уже погашен, новый TransactionId с
+    # SubscriptionId — это продление, а не повторное применение старого заказа.
+    if intent and data.get("SubscriptionId") and data.get("TransactionId"):
+        intent_paid = db.query(models.BillingEvent.id).filter(
+            models.BillingEvent.invoice_id == intent.invoice_id,
+            models.BillingEvent.event_type == "pay",
+        ).first()
+        if intent_paid:
+            intent = None
+    intent_payload = _coerce_json_data(getattr(intent, "payload", None)) if intent else {}
+    purpose = str(intent_payload.get("purpose") or "").strip()
+    is_recurring_charge = bool(data.get("SubscriptionId")) and bool(data.get("TransactionId")) and intent is None
+
+    if intent:
+        plan_code = pricing.normalize_code(intent.plan_code)
+        billing_period = _normalize_billing_period(intent.billing_period)
+        fallback_spec = pricing.resolve_plan(plan_code, get_config().billing)
+        intent_spec = pricing.plan_from_snapshot(intent_payload.get("price_book_snapshot"), fallback_spec)
+        plan = SubscriptionService.get_plan_from_config(
+            intent_spec.code,
+            spec=intent_spec,
+            price_fixed=bool(intent_payload.get("price_book_snapshot")),
+        )
+        expected_amount = Decimal(intent.amount) if intent.amount is not None else None
+        expected_currency = str(intent.currency or get_config().cloudpayments.currency).upper()
+    elif is_recurring_charge:
+        plan_code = pricing.normalize_code(getattr(sub, "pending_plan_code", None) or sub.plan_code or "start")
+        billing_period = _normalize_billing_period(
+            getattr(sub, "pending_billing_period", None) or getattr(sub, "billing_period", None)
+        )
+        fallback_spec = pricing.resolve_plan(plan_code, get_config().billing)
+        snapshot = getattr(sub, "pending_price_book_snapshot", None) or getattr(sub, "price_book_snapshot", None)
+        recurring_spec = pricing.plan_from_snapshot(snapshot, fallback_spec)
+        plan = SubscriptionService.get_plan_from_config(
+            recurring_spec.code, spec=recurring_spec, price_fixed=bool(snapshot),
+        )
+        target_slots = getattr(sub, "pending_purchased_project_slots", None)
+        if target_slots is None:
+            target_slots = SubscriptionService._purchased_slots(sub)
+        expected_amount = Decimal(_subscription_total(plan, billing_period, target_slots))
+        expected_currency = str(get_config().cloudpayments.currency or "RUB").upper()
+    elif is_recurrent_report:
+        plan = SubscriptionService.get_user_plan(db, account_user)
+        plan_code = plan.code
+        billing_period = _normalize_billing_period(getattr(sub, "billing_period", None))
+        expected_amount = None
+        expected_currency = str(get_config().cloudpayments.currency or "RUB").upper()
+    else:
+        # Ручной Pay без созданного сервером InvoiceId не может менять доступ.
+        plan_code = pricing.normalize_code(sub.plan_code or "start")
+        billing_period = _normalize_billing_period(getattr(sub, "billing_period", None))
+        plan = SubscriptionService.get_user_plan(db, account_user)
+        expected_amount = None
+        expected_currency = str(get_config().cloudpayments.currency or "RUB").upper()
+
+    paid = _paid_amount(data)
+    got_currency = str(data.get("Currency") or expected_currency).upper()
+    amount_mismatch = False
+    if outcome == "pay" and not is_recurrent_report:
+        amount_mismatch = (
+            expected_amount is None
+            or paid is None
+            or paid != expected_amount
+            or got_currency != expected_currency
+        )
+        if amount_mismatch:
+            logger.error(
+                "CloudPayments webhook rejected: invoice=%s purpose=%s paid=%s/%s expected=%s/%s user=%s",
+                invoice_id, purpose, paid, got_currency, expected_amount, expected_currency, user.id,
+            )
+
+    # Один invoice можно погасить только один раз, даже если CloudPayments
+    # прислал новую TransactionId после повторной оплаты тем же заказом.
+    intent_already_paid = bool(intent and outcome == "pay" and db.query(models.BillingEvent.id).filter(
+        models.BillingEvent.invoice_id == intent.invoice_id,
+        models.BillingEvent.event_type == "pay",
+    ).first())
+    if intent_already_paid:
+        logger.warning("CloudPayments: invoice %s уже погашен, повтор не применяется", invoice_id)
+        db.commit()
+        return schemas.CloudPaymentsWebhookResponse(code=0)
+
     # Идемпотентность. CloudPayments повторяет доставку, пока не получит code 0,
     # и без этой проверки повтор заново продлевал подписку. Запись в журнал —
     # она же и защита: TransactionId уникален частичным индексом.
@@ -891,7 +1331,7 @@ async def cloudpayments_webhook(
         db,
         user=user,
         subscription=sub,
-        event_type=outcome,
+        event_type="rejected" if amount_mismatch and outcome == "pay" else outcome,
         data=data,
         plan_code=plan_code,
         billing_period=billing_period,
@@ -905,37 +1345,7 @@ async def cloudpayments_webhook(
         db.commit()
         return schemas.CloudPaymentsWebhookResponse(code=0)
 
-    # §8.6: докупка слотов — отдельный флоу, опознаётся маркером purpose в JsonData.
-    # Идемпотентность уже обеспечена _record_billing_event выше. Строку подписки
-    # блокируем (FOR UPDATE), чтобы одновременные покупки не разъехались.
-    if outcome == "pay" and str(json_data.get("purpose") or "") == "slot_purchase":
-        try:
-            add = max(1, int(json_data.get("slot_count") or 1))
-        except (TypeError, ValueError):
-            add = 1
-        locked = (
-            db.query(models.Subscription)
-            .filter(models.Subscription.id == sub.id)
-            .with_for_update()
-            .first()
-        )
-        if locked is not None:
-            locked.purchased_project_slots = int(locked.purchased_project_slots or 0) + add
-            # Докупка могла закрыть превышение — сбрасываем состояние.
-            used = SubscriptionService.count_project_slots(db, user.id)
-            if used <= SubscriptionService.effective_projects_limit(plan, locked):
-                locked.overflow_since = None
-                locked.overflow_periods_count = 0
-        log_history_event(
-            db, actor=user, event_type="billing", action="slot_purchased",
-            description=f"Докуплено слотов: {add}", target_type="subscription",
-            target_id=str(sub.id),
-            meta={"count": add, "amount": str(paid) if paid is not None else None},
-        )
-        db.commit()
-        return schemas.CloudPaymentsWebhookResponse(code=0)
-
-    # Сумма не сошлась ни с одним тарифом — состояние подписки не трогаем вовсе.
+    # Сумма/валюта/invoice не сошлись с серверным заказом — доступ не меняем.
     # Возвращаем code 0, чтобы CloudPayments не долбил повторами: платёж уже
     # прошёл, разбираться нужно руками по логу и уведомлению.
     if amount_mismatch and outcome == "pay":
@@ -958,30 +1368,117 @@ async def cloudpayments_webhook(
         db.commit()
         return schemas.CloudPaymentsWebhookResponse(code=0)
 
-    # plan_code меняем ТОЛЬКО при успешной оплате. Раньше он переписывался и на
-    # fail/cancel — то есть неудачный платёж за старший тариф всё равно менял
-    # тариф пользователя, а от него считаются лимиты.
-    prev_plan_code = (sub.plan_code or "").lower()
+    # Докупка слотов определяется только доверенным серверным intent. JsonData
+    # виджета намеренно игнорируется.
+    if outcome == "pay" and purpose == "slot_purchase":
+        add = max(1, int(intent_payload.get("slot_count") or 1))
+        slots_before = SubscriptionService._purchased_slots(sub)
+        new_slots = slots_before + add
+        if new_slots > int(plan.max_extra_project_slots):
+            sub.recurring_sync_required = True
+            log_history_event(
+                db, actor=user, event_type="billing", action="slot_purchase_conflict",
+                description="Оплаченная покупка слотов конфликтует с актуальным лимитом",
+                target_type="subscription", target_id=str(sub.id),
+                meta={"before": slots_before, "add": add, "maximum": plan.max_extra_project_slots},
+            )
+            db.commit()
+            return schemas.CloudPaymentsWebhookResponse(code=0)
+        sub.purchased_project_slots = new_slots
+        sub.pending_purchased_project_slots = None
+        used = SubscriptionService.count_project_slots(db, user.id)
+        if used <= SubscriptionService.effective_projects_limit(plan, sub):
+            SubscriptionService.reconcile_overflow_state(
+                db, user, actor=user, resolution_method="slot_purchased",
+            )
+        recurrent_ok = await _update_recurrent_total(
+            sub, plan, billing_period, new_slots, user.email or "",
+        )
+        log_history_event(
+            db, actor=user, event_type="billing", action="slot_purchased",
+            description=f"Докуплено слотов: {add}", target_type="subscription",
+            target_id=str(sub.id),
+            meta={
+                "count": add,
+                "slots_after": new_slots,
+                "amount": str(paid) if paid is not None else None,
+                "recurrent_updated": recurrent_ok,
+            },
+        )
+        db.commit()
+        return schemas.CloudPaymentsWebhookResponse(code=0)
+
+    if outcome == "pay" and intent and purpose not in {"plan", "slot_purchase"}:
+        logger.error("CloudPayments: неизвестное назначение server intent %s", purpose)
+        db.commit()
+        return schemas.CloudPaymentsWebhookResponse(code=0)
+
+    old_plan_code = pricing.normalize_code(sub.plan_code or "start")
+    old_purchased_slots = SubscriptionService._purchased_slots(sub)
+
+    # Применяем запланированный downgrade/уменьшение слотов только после
+    # успешного следующего рекуррентного списания.
+    pending_applied = False
+    if outcome == "pay" and is_recurring_charge and (
+        getattr(sub, "pending_plan_code", None)
+        or getattr(sub, "pending_purchased_project_slots", None) is not None
+    ):
+        if getattr(sub, "pending_plan_code", None):
+            sub.plan_code = sub.pending_plan_code
+        if getattr(sub, "pending_billing_period", None):
+            sub.billing_period = sub.pending_billing_period
+        if getattr(sub, "pending_purchased_project_slots", None) is not None:
+            sub.purchased_project_slots = max(0, int(sub.pending_purchased_project_slots))
+        if getattr(sub, "pending_price_book_snapshot", None):
+            sub.price_book_snapshot = sub.pending_price_book_snapshot
+            sub.price_book_version = int(
+                sub.pending_price_book_snapshot.get("_price_book_version")
+                or pricing.current_price_book_version()
+            )
+        sub.pending_plan_code = None
+        sub.pending_billing_period = None
+        sub.pending_purchased_project_slots = None
+        sub.pending_price_book_snapshot = None
+        pending_applied = True
+
+    # plan_code меняем ТОЛЬКО при успешной оплате доверенного заказа.
+    prev_plan_code = old_plan_code
     new_plan_code = (plan.code or "").lower()
-    prev_rank = PLAN_RANK.get(prev_plan_code, 0)
-    new_rank = PLAN_RANK.get(new_plan_code, 0)
-    is_downgrade = outcome == "pay" and new_rank and prev_rank and new_rank < prev_rank
-    if outcome == "pay" and not is_downgrade:
-        # Понижение вступает в силу в конце оплаченного периода, поэтому здесь
-        # тариф не меняем — см. ветку ниже, где выставляется pending_plan_code.
-        plan_changed = prev_plan_code != new_plan_code
+    if outcome == "pay" and not is_recurrent_report:
         sub.plan_code = plan.code
-        # §7.2: фиксируем версию прайса при первой оплате и при смене тарифа.
-        # На обычном продлении (тот же тариф) версию НЕ трогаем — аккаунт остаётся
-        # на своей цене, пока сам не сменит тариф.
-        if getattr(sub, "price_book_version", None) is None or plan_changed:
-            sub.price_book_version = pricing.PRICE_BOOK_VERSION
-        # §8.4: апгрейд с докупленными слотами. Если новый тариф покрывает текущее
-        # использование — слоты обнуляются; иначе переносятся в нужном количестве.
-        if plan_changed and int(getattr(sub, "purchased_project_slots", 0) or 0) > 0:
-            used = SubscriptionService.count_project_slots(db, user.id)
-            need = max(0, used - int(plan.max_projects))
-            sub.purchased_project_slots = need
+        if intent and purpose == "plan":
+            snapshot = intent_payload.get("price_book_snapshot")
+            if isinstance(snapshot, dict):
+                sub.price_book_snapshot = snapshot
+            target_slots = max(0, int(intent_payload.get("target_slots") or 0))
+            sub.purchased_project_slots = target_slots
+            sub.pending_purchased_project_slots = None
+            sub.price_book_version = int(
+                (snapshot.get("_price_book_version") if isinstance(snapshot, dict) else None)
+                or pricing.current_price_book_version()
+            )
+        elif getattr(sub, "price_book_version", None) is None:
+            sub.price_book_version = pricing.current_price_book_version()
+            sub.price_book_snapshot = pricing.plan_snapshot(pricing.resolve_plan(plan.code))
+        if PLAN_RANK.get(new_plan_code, 0) > PLAN_RANK.get(prev_plan_code, 0) and old_purchased_slots > 0:
+            log_history_event(
+                db,
+                actor=user,
+                event_type="billing",
+                action="upgrade_after_slots",
+                description=f"Апгрейд после докупки {old_purchased_slots} слот(ов)",
+                target_type="subscription",
+                target_id=str(sub.id),
+                meta={
+                    "from": prev_plan_code,
+                    "to": new_plan_code,
+                    "slots_before_upgrade": old_purchased_slots,
+                },
+            )
+        if PLAN_RANK.get(new_plan_code, 0) > PLAN_RANK.get(prev_plan_code, 0):
+            SubscriptionService.reconcile_overflow_state(
+                db, user, actor=user, resolution_method="upgrade",
+            )
     prev_cp_sub_id = (sub.cloudpayments_subscription_id or "").strip()
     sub.cloudpayments_subscription_id = str(
         data.get("SubscriptionId")
@@ -1020,18 +1517,7 @@ async def cloudpayments_webhook(
             sub.billing_period = billing_period
             days = _billing_period_days(plan, billing_period)
             same_plan = prev_plan_code == new_plan_code
-            if is_downgrade:
-                # Понижение: оплаченный уровень не отбираем досрочно. Текущий
-                # тариф доживает до конца периода, новый — приписывается следом
-                # и вступает в силу по его окончании (применяется лениво в
-                # SubscriptionService при чтении подписки).
-                base = max(now, sub.current_period_end) if sub.current_period_end else now
-                sub.pending_plan_code = plan.code
-                logger.info(
-                    "Понижение тарифа %s -> %s отложено до %s (user=%s)",
-                    prev_plan_code, new_plan_code, base.date(), user.id,
-                )
-            elif same_plan:
+            if same_plan or is_recurring_charge or pending_applied:
                 # Продление того же тарифа прибавляется к остатку периода.
                 base = max(now, sub.current_period_end) if sub.current_period_end else now
                 sub.pending_plan_code = None
@@ -1044,18 +1530,27 @@ async def cloudpayments_webhook(
             sub.current_period_end = base + timedelta(days=days)
             # §8.3: трекинг превышения при старте нового оплаченного периода. 1-е
             # продление в превышении → баннер постоянный; 2-е подряд → блок создания
-            # новых (см. ensure_can_create_project). Для понижения пропускаем: новый
-            # (меньший) лимит вступит только в конце периода.
-            if not is_downgrade:
-                _slots = SubscriptionService.count_project_slots(db, user.id)
-                _eff = SubscriptionService.effective_projects_limit(plan, sub)
-                if _slots > _eff:
-                    if not sub.overflow_since:
-                        sub.overflow_since = now
-                    sub.overflow_periods_count = int(sub.overflow_periods_count or 0) + 1
-                else:
-                    sub.overflow_since = None
-                    sub.overflow_periods_count = 0
+            # новых (см. ensure_can_create_project).
+            _slots = SubscriptionService.count_project_slots(db, user.id)
+            _eff = SubscriptionService.effective_projects_limit(plan, sub)
+            if _slots > _eff:
+                if not sub.overflow_since:
+                    sub.overflow_since = now
+                sub.overflow_periods_count = int(sub.overflow_periods_count or 0) + 1
+            else:
+                was_overflow = bool(sub.overflow_since or sub.overflow_periods_count)
+                sub.overflow_since = None
+                sub.overflow_periods_count = 0
+                sub.overflow_notice_dismissed_at = None
+                if was_overflow:
+                    log_history_event(
+                        db, actor=user, event_type="limit", action="overflow_resolved",
+                        description="Превышение устранено к новому периоду",
+                        target_type="subscription", target_id=str(sub.id),
+                    )
+            # Новый оплаченный период — новая точка отсчёта пикового использования.
+            sub.peak_active_projects = _slots
+            sub.overflow_warning_period_end = None
         user.is_subscribed = True
         user.subscription_expires_at = sub.current_period_end
         if extend_period:

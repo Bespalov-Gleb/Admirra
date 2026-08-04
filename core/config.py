@@ -111,6 +111,11 @@ class BillingConfig:
     # §9.2: окно «тёплого» проекта — дней с последнего открытия дашборда, в течение
     # которых проект считается тёплым (ночная генерация комментария заранее).
     warm_window_days: int
+    # Полный прайс-бук можно переопределить JSON-конфигом без релиза (§7.1).
+    # Формат: {"version": 2, "plans": {"start": {"title": "...", ...}}}.
+    # Пустое значение оставляет встроенную продуктовую матрицу и существующие
+    # BILLING_PLAN_* / BILLING_SLOT_PRICE_* переопределения без изменений.
+    price_book_json: str
 
 
 @dataclass
@@ -364,6 +369,7 @@ def get_config() -> Config:
             slot_price_agency_rub=int(_env("BILLING_SLOT_PRICE_AGENCY_RUB", "800")),
             slot_price_pro_rub=int(_env("BILLING_SLOT_PRICE_PRO_RUB", "650")),
             warm_window_days=int(_env("BILLING_WARM_WINDOW_DAYS", "7")),
+            price_book_json=_env("BILLING_PRICE_BOOK_JSON"),
         ),
         cloudpayments=CloudPaymentsConfig(
             public_id=_env("CLOUDPAYMENTS_PUBLIC_ID"),

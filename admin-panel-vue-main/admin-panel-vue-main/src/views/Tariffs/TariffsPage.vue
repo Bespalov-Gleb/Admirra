@@ -20,6 +20,7 @@
               </span>
             </div>
             <p class="subscription-meta-line">{{ planMetaLine }}</p>
+            <p v-if="pendingChangeText" class="subscription-pending">{{ pendingChangeText }}</p>
             <p class="subscription-renewal">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M0.5 6.52894C0.5 4.13566 0.5 2.93902 1.24349 2.19552C1.98699 1.45203 3.18363 1.45203 5.57691 1.45203H8.11536C10.5086 1.45203 11.7053 1.45203 12.4488 2.19552C13.1923 2.93902 13.1923 4.13566 13.1923 6.52894V7.79816C13.1923 10.1914 13.1923 11.3881 12.4488 12.1316C11.7053 12.8751 10.5086 12.8751 8.11536 12.8751H5.57691C3.18363 12.8751 1.98699 12.8751 1.24349 12.1316C0.5 11.3881 0.5 10.1914 0.5 7.79816V6.52894Z" stroke="#696969" stroke-opacity="0.56"/><path d="M3.67285 1.45192V0.5" stroke="#696969" stroke-opacity="0.56" stroke-linecap="round"/><path d="M10.0188 1.45192V0.5" stroke="#696969" stroke-opacity="0.56" stroke-linecap="round"/><path d="M0.817139 4.625H12.8748" stroke="#696969" stroke-opacity="0.56" stroke-linecap="round"/><path d="M10.654 9.702C10.654 10.0525 10.3699 10.3366 10.0194 10.3366C9.66888 10.3366 9.38477 10.0525 9.38477 9.702C9.38477 9.3515 9.66888 9.06738 10.0194 9.06738C10.3699 9.06738 10.654 9.3515 10.654 9.702Z" fill="#696969" fill-opacity="0.56"/><path d="M10.654 7.16342C10.654 7.51392 10.3699 7.79804 10.0194 7.79804C9.66888 7.79804 9.38477 7.51392 9.38477 7.16342C9.38477 6.81293 9.66888 6.52881 10.0194 6.52881C10.3699 6.52881 10.654 6.81293 10.654 7.16342Z" fill="#696969" fill-opacity="0.56"/><path d="M7.48016 9.702C7.48016 10.0525 7.19605 10.3366 6.84555 10.3366C6.49505 10.3366 6.21094 10.0525 6.21094 9.702C6.21094 9.3515 6.49505 9.06738 6.84555 9.06738C7.19605 9.06738 7.48016 9.3515 7.48016 9.702Z" fill="#696969" fill-opacity="0.56"/><path d="M7.48016 7.16342C7.48016 7.51392 7.19605 7.79804 6.84555 7.79804C6.49505 7.79804 6.21094 7.51392 6.21094 7.16342C6.21094 6.81293 6.49505 6.52881 6.84555 6.52881C7.19605 6.52881 7.48016 6.81293 7.48016 7.16342Z" fill="#696969" fill-opacity="0.56"/><path d="M4.30731 9.702C4.30731 10.0525 4.02318 10.3366 3.6727 10.3366C3.32222 10.3366 3.03809 10.0525 3.03809 9.702C3.03809 9.3515 3.32222 9.06738 3.6727 9.06738C4.02318 9.06738 4.30731 9.3515 4.30731 9.702Z" fill="#696969" fill-opacity="0.56"/><path d="M4.30731 7.16342C4.30731 7.51392 4.02318 7.79804 3.6727 7.79804C3.32222 7.79804 3.03809 7.51392 3.03809 7.16342C3.03809 6.81293 3.32222 6.52881 3.6727 6.52881C4.02318 6.52881 4.30731 6.81293 4.30731 7.16342Z" fill="#696969" fill-opacity="0.56"/></svg>
               <span v-html="renewalText"></span>
@@ -118,6 +119,7 @@
             </div>
             <div class="subscription-footer-actions">
               <button
+                v-if="currentPlanCode !== 'white_label'"
                 type="button"
                 class="payment-action--primary"
                 :disabled="paymentActionBusy"
@@ -243,7 +245,7 @@
 
           <div class="white-label-card__right">
             <div class="plan-price">
-              <strong>от&nbsp;25&nbsp;900&nbsp;₽</strong>
+              <strong>от&nbsp;{{ formatNumber(whiteLabelPlan?.price_rub) }}&nbsp;₽</strong>
             </div>
             <p class="white-label-card__copy">
               При покупке на год - возможны персональные скидки. Оставьте заявку, чтобы обсудить детали использования WL.
@@ -259,6 +261,32 @@
         </article>
       </section>
     </template>
+
+    <Teleport to="body">
+      <div
+        v-if="paymentConfirm"
+        class="billing-modal-backdrop"
+        @click.self="resolvePaymentConfirm(false)"
+      >
+        <div class="billing-modal" role="dialog" aria-modal="true" aria-labelledby="payment-confirm-title">
+          <h4 id="payment-confirm-title">{{ paymentConfirm.title }}</h4>
+          <p>{{ paymentConfirm.text }}</p>
+          <div class="billing-confirm-total">
+            <span>К списанию сейчас</span>
+            <strong>{{ formatRub(paymentConfirm.amount) }}</strong>
+          </div>
+          <p v-if="paymentConfirm.note" class="billing-modal__note">{{ paymentConfirm.note }}</p>
+          <div class="billing-modal__actions">
+            <button type="button" class="billing-modal__confirm" @click="resolvePaymentConfirm(true)">
+              Перейти к оплате
+            </button>
+            <button type="button" class="billing-modal__cancel" @click="resolvePaymentConfirm(false)">
+              Отмена
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <Teleport to="body">
       <div
@@ -325,6 +353,8 @@ const billingPeriod = ref('month')
 const plansAnchor = ref(null)
 const cancelAutorenewModalOpen = ref(false)
 const cancellingAutorenew = ref(false)
+const paymentConfirm = ref(null)
+let paymentConfirmResolve = null
 
 const subscription = ref({
   plan_code: 'start',
@@ -349,6 +379,7 @@ const subscription = ref({
 })
 
 const resolvedPlans = computed(() => plans.value)
+const whiteLabelPlan = computed(() => resolvedPlans.value.white_label)
 const currentPlanCode = computed(() => String(subscription.value?.plan_code || 'start').toLowerCase())
 const currentPlan = computed(() => resolvedPlans.value[currentPlanCode.value] || resolvedPlans.value.start)
 const subscriptionStatusKey = computed(() => String(subscription.value?.status || 'trial').toLowerCase())
@@ -392,7 +423,20 @@ const planMetaLine = computed(() => {
   const period = isYear ? 'годовой' : 'помесячно'
   const pricePart = isYear ? `${price}/год` : `${price}/мес`
   const wlPart = subscription.value?.whitelabel_available ? ' · White Label включён' : ''
-  return `${pricePart} · ${period}${wlPart}`
+  const fixedPart = subscription.value?.price_fixed ? ' · цена зафиксирована' : ''
+  return `${pricePart} · ${period}${fixedPart}${wlPart}`
+})
+
+const pendingChangeText = computed(() => {
+  const date = formatDate(subscription.value?.subscription_expires_at)
+  if (subscription.value?.pending_plan_code) {
+    const target = resolvedPlans.value[subscription.value.pending_plan_code]
+    return `С ${date || 'следующего периода'} будет тариф «${target?.name || subscription.value.pending_plan_code}»`
+  }
+  if (subscription.value?.pending_purchased_slots !== null && subscription.value?.pending_purchased_slots !== undefined) {
+    return `С ${date || 'следующего периода'} дополнительных слотов: ${subscription.value.pending_purchased_slots}`
+  }
+  return ''
 })
 
 const subscriptionEndDate = computed(() => formatDate(subscription.value?.subscription_expires_at))
@@ -569,13 +613,17 @@ const wlFeaturesLeft = [
   'Собственный домен',
 ]
 
-const isCurrentPlan = (plan) => String(plan?.code || '').toLowerCase() === currentPlanCode.value
+const isCurrentPlan = (plan) => (
+  subscriptionStatusKey.value !== 'trial'
+  && String(plan?.code || '').toLowerCase() === currentPlanCode.value
+)
 // Синяя «популярная» заливка — только когда карточка рекомендованная И не текущая
 // (на своём тарифе побеждает акцент «Текущий», а не заливка «Популярный»).
 const isHighlighted = (card) => Boolean(card?.recommended) && !isCurrentPlan(card?.plan)
 
 // Отношение карточки к текущему тарифу (§6). Триал — все карточки как «перейти».
 const planRelation = (plan) => {
+  if (plan?.card_state) return plan.card_state
   const code = String(plan?.code || '').toLowerCase()
   if (code === currentPlanCode.value) return 'current'
   if (subscriptionStatusKey.value === 'trial') return 'trial'
@@ -591,7 +639,7 @@ const planButtonText = (plan) => {
 }
 
 // Подпись под кнопкой зависит от состояния (§6): апгрейд списывается сегодня с
-// учётом остатка, понижение — со следующего периода, текущий — дата продления.
+// полной стоимостью и новым периодом, понижение — со следующего периода.
 const planButtonSubtitle = (plan) => {
   const rel = planRelation(plan)
   const date = formatDate(subscription.value?.subscription_expires_at)
@@ -600,7 +648,7 @@ const planButtonSubtitle = (plan) => {
     const price = formatRub(isYear ? yearlyPriceOfPlan(plan) : Number(plan?.price_rub || 0))
     return date ? `Продлится ${date} · спишется ${price}` : `Спишется ${price}`
   }
-  if (rel === 'upgrade') return 'Спишется сегодня, с учётом остатка периода'
+  if (rel === 'upgrade') return 'Спишется полная стоимость; новый период начнётся сегодня'
   if (rel === 'downgrade') return `Сменится ${date || 'в конце периода'}, со следующего периода`
   return `${trialPhrase(plan?.trial_days)} — подключение за 5 минут`
 }
@@ -624,17 +672,14 @@ onMounted(async () => {
   }
   loading.value = true
   try {
-    const [plansRes, subscriptionRes] = await Promise.allSettled([
-      api.get('billing/plans'),
-      api.get('billing/subscription'),
-    ])
-    if (plansRes.status === 'fulfilled') {
-      plans.value = normalizePlansFromApi(plansRes.value.data)
-    }
-    if (subscriptionRes.status === 'fulfilled') {
-      subscription.value = { ...subscription.value, ...subscriptionRes.value.data }
+    const { data } = await api.get('billing/overview')
+    plans.value = normalizePlansFromApi(data?.plans || [])
+    if (data?.subscription) {
+      subscription.value = { ...subscription.value, ...data.subscription }
       billingPeriod.value = subscription.value.billing_period === 'year' ? 'year' : 'month'
     }
+  } catch (e) {
+    toaster.error('Не удалось загрузить данные тарифа')
   } finally {
     loading.value = false
   }
@@ -657,6 +702,23 @@ async function onSubscribe(planCode, bp = 'month') {
       success_url: `${window.location.origin}/settings?tab=tariff`,
       fail_url: `${window.location.origin}/settings?tab=tariff`,
     })
+    if (data?.requires_payment === false) {
+      toaster.success('Переход на новый тариф запланирован со следующего периода')
+      await reloadSubscription()
+      return
+    }
+    const targetPlan = resolvedPlans.value[String(data.plan_code || planCode).toLowerCase()]
+    const periodLabel = (data.billing_period || bp) === 'year' ? 'год' : 'месяц'
+    const isPlanChange = String(data.plan_code || planCode).toLowerCase() !== prevPlanCode
+    const confirmed = await requestPaymentConfirm({
+      title: isPlanChange ? `Перейти на тариф «${targetPlan?.name || planCode}»?` : 'Подтвердить оплату',
+      text: `После оплаты начнётся новый оплаченный период: ${periodLabel}.`,
+      amount: Number(data.amount) || 0,
+      note: subscription.value?.price_fixed && isPlanChange
+        ? 'При смене тарифа зафиксированная ранее цена заменится актуальной ценой выбранного тарифа.'
+        : '',
+    })
+    if (!confirmed) return
     const result = await payWithCloudPayments({
       public_id: data.public_id,
       description: data.description,
@@ -716,7 +778,10 @@ const buyingSlot = ref(false)
 const purchasedSlots = computed(() => Number(subscription.value?.purchased_slots || 0))
 const slotPrice = computed(() => Number(subscription.value?.slot_price || 0))
 const slotsMonthly = computed(() => purchasedSlots.value * slotPrice.value)
-const showSlotRow = computed(() => purchasedSlots.value > 0 || Boolean(subscription.value?.over_limit))
+const showSlotRow = computed(() => (
+  currentPlanCode.value !== 'white_label'
+  && (purchasedSlots.value > 0 || Number(subscription.value?.slots_until_parity || 0) > 0 || Boolean(subscription.value?.over_limit))
+))
 
 const errText = (e, fallback) => {
   const d = e?.response?.data?.detail
@@ -727,6 +792,18 @@ async function buyMoreSlots() {
   if (buyingSlot.value) return
   buyingSlot.value = true
   try {
+    const { data: quote } = await api.post('billing/slots/quote', { count: 1 })
+    if (!quote?.can_buy) {
+      throw new Error(quote?.message || 'Достигнут максимум дополнительных слотов для этого тарифа')
+    }
+    const period = quote.billing_period === 'year' ? 'года' : 'месяца'
+    const confirmed = await requestPaymentConfirm({
+      title: 'Докупить слот проекта?',
+      text: `Слот начнёт действовать после подтверждения оплаты и останется в подписке.`,
+      amount: Number(quote.amount) || 0,
+      note: `Со следующего ${period} регулярный платёж составит ${formatRub(quote.recurring_after)}.`,
+    })
+    if (!confirmed) return
     const res = await purchaseSlots(1)
     if (res?.status === 'success') {
       toaster.success('Слот докуплен')
@@ -740,10 +817,32 @@ async function buyMoreSlots() {
   }
 }
 
+function requestPaymentConfirm(payload) {
+  if (paymentConfirmResolve) paymentConfirmResolve(false)
+  paymentConfirm.value = payload
+  return new Promise((resolve) => { paymentConfirmResolve = resolve })
+}
+
+function resolvePaymentConfirm(result) {
+  const resolve = paymentConfirmResolve
+  paymentConfirmResolve = null
+  paymentConfirm.value = null
+  if (resolve) resolve(Boolean(result))
+}
+
+function formatNumber(value) {
+  const n = Number(value)
+  return Number.isFinite(n) ? new Intl.NumberFormat('ru-RU').format(n) : '—'
+}
+
 async function reduceSlots() {
   try {
-    await api.post('billing/slots/reduce', { count: 1 })
-    toaster.success('Слот убран')
+    const confirmed = window.confirm(
+      'Слот останется доступен до конца оплаченного периода. Возврат за текущий период не выполняется. Уменьшить со следующего периода?'
+    )
+    if (!confirmed) return
+    await api.post('billing/slots/reduce', { count: 1, confirm_no_refund: true })
+    toaster.success('Уменьшение слотов запланировано со следующего периода')
     reloadSubscription()
   } catch (e) {
     toaster.error(errText(e, 'Не удалось уменьшить число слотов'))
@@ -755,8 +854,11 @@ async function reduceSlots() {
 // оплата новой картой создаёт новый рекуррент (старый бэкенд отменяет сам, двойного
 // списания не будет), и маска карты обновляется из вебхука.
 function onBindCard() {
-  const code = currentPlanCode.value === 'white_label' ? 'pro' : currentPlanCode.value
-  onSubscribe(code, subscription.value?.billing_period === 'year' ? 'year' : 'month')
+  if (currentPlanCode.value === 'white_label') {
+    toaster.info('Оплата и изменение реквизитов White Label выполняются через менеджера')
+    return
+  }
+  onSubscribe(currentPlanCode.value, subscription.value?.billing_period === 'year' ? 'year' : 'month')
 }
 
 function openCancelAutorenewModal() {
@@ -845,6 +947,13 @@ function onContactWl() {
   border-radius: 1.25rem;
   background: #fff;
   box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.03);
+}
+
+.subscription-pending {
+  margin: 0.55rem 0 0;
+  color: #9a6700;
+  font-size: 0.95rem;
+  font-weight: 600;
 }
 
 .subscription-head {
@@ -1365,6 +1474,24 @@ function onContactWl() {
 
 .billing-modal__note {
   color: rgba(194, 65, 12, 0.9);
+}
+
+.billing-confirm-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1rem 0;
+  padding: 1rem 1.1rem;
+  border-radius: 0.85rem;
+  background: #f4f7ff;
+  color: #64748b;
+  font-size: 0.95rem;
+}
+
+.billing-confirm-total strong {
+  color: #0f172a;
+  font-size: 1.2rem;
 }
 
 .billing-modal__actions {

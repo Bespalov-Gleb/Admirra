@@ -32,6 +32,9 @@
             </button>
           </template>
           <template v-else>
+            <button v-if="canBuySlot" class="ovf-btn ovf-btn--primary" type="button" @click="onBuy">
+              Докупить проект — {{ slotPrice }} ₽/мес
+            </button>
             <button class="ovf-btn ovf-btn--primary" type="button" @click="goToPlans">
               {{ suggestedLabel }}
             </button>

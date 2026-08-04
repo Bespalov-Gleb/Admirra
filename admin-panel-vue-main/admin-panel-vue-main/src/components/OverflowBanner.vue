@@ -3,11 +3,11 @@
     <span class="ovf-banner__text">{{ text }}</span>
     <button class="ovf-banner__cta" type="button" @click="goToPlans">Разобраться</button>
     <button
-      v-if="!state.hard_blocked"
+      v-if="!state.hard_blocked && !state.permanent"
       class="ovf-banner__close"
       type="button"
       aria-label="Скрыть"
-      @click="dismissed = true"
+      @click="dismiss"
     >×</button>
   </div>
 </template>
@@ -21,7 +21,15 @@ import { getAccessToken } from '@/utils/authToken'
 const route = useRoute()
 const router = useRouter()
 
-const state = reactive({ over_limit: false, over_by: 0, hard_blocked: false, deadline: null, loaded: false })
+const state = reactive({
+  over_limit: false,
+  over_by: 0,
+  hard_blocked: false,
+  permanent: false,
+  serverDismissed: false,
+  deadline: null,
+  loaded: false,
+})
 const dismissed = ref(false)
 
 // Баннер только в авторизованной части приложения (не на auth/лендинге).
@@ -38,6 +46,8 @@ const load = async () => {
     state.over_limit = Boolean(data?.over_limit)
     state.over_by = Number(data?.over_by || 0)
     state.hard_blocked = Boolean(data?.hard_blocked)
+    state.permanent = Boolean(data?.overflow_banner_permanent)
+    state.serverDismissed = Boolean(data?.overflow_notice_dismissed)
     state.deadline = data?.overflow_deadline || null
     state.loaded = true
   } catch { /* не критично */ }
@@ -45,7 +55,22 @@ const load = async () => {
 
 watch(inApp, (v) => { if (v) load() }, { immediate: true })
 
-const visible = computed(() => inApp.value && state.over_limit && (state.hard_blocked || !dismissed.value))
+const visible = computed(() => (
+  inApp.value
+  && state.over_limit
+  && (state.hard_blocked || state.permanent || (!dismissed.value && !state.serverDismissed))
+))
+
+const dismiss = async () => {
+  try {
+    await api.post('billing/overflow/dismiss')
+    dismissed.value = true
+    state.serverDismissed = true
+  } catch {
+    // Сервер мог сделать баннер постоянным между загрузкой и кликом.
+    await load()
+  }
+}
 
 const text = computed(() => {
   if (state.hard_blocked) {

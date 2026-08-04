@@ -3,7 +3,12 @@
 Использует OpenAI API с поддержкой прокси.
 """
 import logging
+import hashlib
+import json
+import os
+import time
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Optional
 import uuid
 
@@ -438,26 +443,32 @@ def _build_comment_context(db: Session, effective_client_ids: list, d_start, d_e
     if key:
         label = PERIOD_LABELS.get(key, "").capitalize() or None
 
-    # §9.5: дельта «с последнего захода». Кладём только при значимом зазоре: при
-    # ленивой генерации во время открытия дашборда last_dashboard_viewed_at только
-    # что обновлён (зазор ~0) → блок не нужен (правило «первый заход/нет снимка»).
-    # При ночной генерации метка — реальный последний визит, зазор большой → кладём.
+    # §9.5: настоящая snapshot-дельта «с последнего просмотра», а не агрегат от
+    # даты входа до сегодня. Stats endpoint хранит previous/current и не сдвигает
+    # previous на каждом запросе фильтра внутри одного визита.
     since_last_visit = None
     if client_row is not None:
-        last_view = getattr(client_row, "last_dashboard_viewed_at", None)
-        if last_view is not None:
-            if last_view.tzinfo is None:
-                last_view = last_view.replace(tzinfo=timezone.utc)
-            if (datetime.now(timezone.utc) - last_view) >= timedelta(hours=12):
-                sv = StatsService.aggregate_summary(
-                    db, effective_client_ids, last_view.date(), d_end, platform, None, None
-                ) or {}
-                since_last_visit = {
-                    "since": last_view.date().isoformat(),
-                    "leads": int(sv.get("leads") or 0),
-                    "spend": _num(float(sv.get("expenses") or 0) * vat_k),
-                    "cpl": _num(float(sv.get("cpa") or 0) * vat_k),
+        snapshots = client_row.last_dashboard_snapshot if isinstance(client_row.last_dashboard_snapshot, dict) else {}
+        previous = snapshots.get("previous") if isinstance(snapshots.get("previous"), dict) else None
+        current = snapshots.get("current") if isinstance(snapshots.get("current"), dict) else None
+        if previous and current:
+            def _snapshot_metric(key: str, *, money: bool = False) -> dict:
+                before = float(previous.get(key) or 0)
+                after = float(current.get(key) or 0)
+                factor = vat_k if money else 1.0
+                delta_pct = None if before == 0 else _num((after - before) / abs(before) * 100, 1)
+                return {
+                    "previous": _num(before * factor),
+                    "current": _num(after * factor),
+                    "delta": _num((after - before) * factor),
+                    "delta_pct": delta_pct,
                 }
+            since_last_visit = {
+                "since": previous.get("captured_at"),
+                "leads": _snapshot_metric("leads"),
+                "spend": _snapshot_metric("expenses", money=True),
+                "cpl": _snapshot_metric("cpl", money=True),
+            }
 
     context = {
         "period": {"from": start_date, "to": end_date, "label": label},
@@ -471,9 +482,35 @@ def _build_comment_context(db: Session, effective_client_ids: list, d_start, d_e
         "detector": detector,
         "comparability_events": comparability_events,
         "project_context": project_context,
+        "project_age_days": (
+            max(0, (datetime.now(timezone.utc).date() - client_row.created_at.date()).days)
+            if client_row is not None and getattr(client_row, "created_at", None)
+            else None
+        ),
     }
     if since_last_visit is not None:
         context["since_last_visit"] = since_last_visit
+    memory = getattr(client_row, "ai_comment_memory", None) if client_row is not None else None
+    if isinstance(memory, dict) and memory:
+        # Не больше одной отсылки к прошлому случаю (§9.5).
+        cases = memory.get("cases") if isinstance(memory.get("cases"), list) else None
+        if cases is None and any(key in memory for key in ("anomaly", "action", "kpi")):
+            cases = [memory]  # миграция старого однообъектного формата на чтении
+        previous_case = next((item for item in reversed(cases or []) if isinstance(item, dict)), None)
+        if previous_case:
+            previous_case = dict(previous_case)
+            before = previous_case.get("kpi") if isinstance(previous_case.get("kpi"), dict) else {}
+            previous_case["outcome"] = {
+                "leads_delta": _num(
+                    float((kpi.get("leads") or {}).get("value") or 0)
+                    - float(before.get("leads") or 0)
+                ),
+                "cpl_delta": _num(
+                    float((kpi.get("cpl") or {}).get("value") or 0)
+                    - float(before.get("cpl") or 0)
+                ),
+            }
+            context["previous_case"] = previous_case
     return context
 
 
@@ -484,25 +521,25 @@ def data_fingerprint(db: Session, client_ids: list, d_start, d_end, platform: st
     В отпечаток входит и контекст проекта с режимом бюджета — чтобы правка
     «Контекста для AI» тоже помечала комментарий устаревшим и запускала
     регенерацию (§5/§2)."""
-    import hashlib
-    s = StatsService.aggregate_summary(db, client_ids, d_start, d_end, platform, None, None)
-    raw_spend = float(s.get("expenses") or 0)
-    cbp = s.get("cost_by_platform") or {}
-    if cbp:
-        spend_vat = (float(cbp.get("yandex") or 0) + float(cbp.get("vk") or 0)) * 1.22 + float(cbp.get("avito") or 0)
-    else:
-        spend_vat = raw_spend * 1.22
-    spend = spend_vat if include_vat else raw_spend
-    ctx_sig = ""
-    if len(client_ids) == 1:
-        cl = db.query(models.Client).filter(models.Client.id == client_ids[0]).first()
-        if cl is not None:
-            ctx_sig = f"{(cl.strategy_context or '').strip()}|{cl.directions_budget_mode or 'fixed'}"
-    key = "|".join(str(x) for x in (
-        round(spend), int(s.get("leads") or 0), int(s.get("clicks") or 0),
-        int(s.get("impressions") or 0), 1 if include_vat else 0, ctx_sig,
-    ))
-    return hashlib.md5(key.encode("utf-8")).hexdigest()[:12]
+    context = _build_comment_context(
+        db, client_ids, d_start, d_end, d_start.isoformat(), d_end.isoformat(), platform,
+    )
+    # Время захвата current snapshot меняется от технического запроса статистики,
+    # но не меняет смысл комментария — не включаем его в ключ.
+    since = context.get("since_last_visit")
+    if isinstance(since, dict):
+        since.pop("captured_at", None)
+    payload = {
+        "project_ids": sorted(str(x) for x in client_ids),
+        "period_preset_or_range": context.get("period"),
+        "channel_filter": platform,
+        "direction_filter": "all",
+        "vat_mode": "included_22" if include_vat else "excluded",
+        "prompt_version": COMMENT_PROMPT_VERSION,
+        "context": context,
+    }
+    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
 def _comment_campaigns(db: Session, effective_client_ids: list, d_start, d_end, platform: str) -> list:
@@ -514,6 +551,31 @@ def _comment_campaigns(db: Session, effective_client_ids: list, d_start, d_end, 
         picked.append(c); seen.add(id(c))
     for c in rows:
         if id(c) not in seen and int(c.get("conversions") or 0) > 0:
+            picked.append(c); seen.add(id(c))
+
+    # Все кампании, упомянутые открытыми флажками детектора, обязательны даже
+    # без лидов и вне топ-10 (§10.1).
+    detector_ids, detector_names = set(), set()
+    alerts = db.query(models.DetectorAlert).filter(
+        models.DetectorAlert.client_id.in_(effective_client_ids),
+        models.DetectorAlert.status == "open",
+    ).all()
+    for alert in alerts:
+        meta = alert.meta if isinstance(alert.meta, dict) else {}
+        for key in ("campaign_id", "campaign_external_id"):
+            if meta.get(key):
+                detector_ids.add(str(meta[key]))
+        for value in (meta.get("campaign_ids") or []):
+            detector_ids.add(str(value))
+        for key in ("campaign_name", "campaign"):
+            if meta.get(key):
+                detector_names.add(str(meta[key]))
+        for value in (meta.get("campaign_names") or []):
+            detector_names.add(str(value))
+    for c in rows:
+        cid = str(c.get("id") or c.get("campaign_id") or c.get("external_id") or "")
+        name = str(c.get("name") or c.get("campaign_name") or "")
+        if id(c) not in seen and (cid in detector_ids or name in detector_names):
             picked.append(c); seen.add(id(c))
 
     # Модель оплаты кампании (bid_strategy) — из справочника campaigns по id.
@@ -698,34 +760,62 @@ async def _generate_dashboard_comment(db: Session, effective_client_ids: list, d
     client = _create_anthropic_client()
     error_hint = ""
     last_obj = None
-    for attempt in range(2):
+    last_error = None
+    early_mode = context.get("project_age_days") is not None and int(context["project_age_days"]) < 7
+    for attempt in range(3):
         user_message = "Контекст:\n" + context_json
+        if early_mode:
+            user_message += (
+                "\n\nРанний режим: истории проекта меньше 7 дней. Сделай текст короче обычного, "
+                "не делай выводов о тренде и прямо отделяй отсутствие истории от аномалии."
+            )
         if error_hint:
             user_message += "\n\nПредыдущая попытка отклонена: " + error_hint + " Исправь и верни только JSON."
         logger.info("dashboard_comment %s: attempt %d (model=%s)", COMMENT_PROMPT_VERSION, attempt + 1, settings.OPENAI_MODEL)
-        response = await client.messages.create(
-            # Кириллица токеноёмкая: до 1200 знаков текста + JSON-обвязка —
-            # берём запас, чтобы ответ не обрезался (иначе невалидный JSON).
-            model=settings.OPENAI_MODEL,
-            max_tokens=2000,
-            # Без кэша промпта: генерация ручная и редкая (реже раза в 5 мин),
-            # эфемерный кэш всё равно остывал бы, а запись кэша добавляет +25%.
-            system=DASHBOARD_COMMENT_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_message}],
-            temperature=0.35,
-        )
+        started = time.perf_counter()
+        try:
+            response = await client.messages.create(
+                # Кириллица токеноёмкая: до 1200 знаков текста + JSON-обвязка —
+                # берём запас, чтобы ответ не обрезался (иначе невалидный JSON).
+                model=settings.OPENAI_MODEL,
+                max_tokens=2000,
+                system=DASHBOARD_COMMENT_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": user_message}],
+                temperature=0.35,
+            )
+        except Exception as exc:
+            last_error = exc
+            duration_ms = int((time.perf_counter() - started) * 1000)
+            _log_comment_generation(
+                db, effective_client_ids, d_start, d_end, "", context, trigger,
+                attempt=attempt + 1, retry_count=attempt, validation_failed=True,
+                duration_ms=duration_ms, response=None,
+            )
+            error_hint = "вызов модели завершился технической ошибкой."
+            continue
+        duration_ms = int((time.perf_counter() - started) * 1000)
         raw = response.content[0].text if response.content else ""
         obj = _parse_comment_json(raw)
         if obj is None:
+            _log_comment_generation(
+                db, effective_client_ids, d_start, d_end, raw[:1200], context, trigger,
+                attempt=attempt + 1, retry_count=attempt, validation_failed=True,
+                duration_ms=duration_ms, response=response,
+            )
             error_hint = "ответ не является валидным JSON схемы {lead, body[], recommendation}."
             continue
         last_obj = obj
         hard, soft = _validate_comment(obj, allowed_numbers, directions_fixed, direction_names)
+        text = _flatten_comment(obj)
+        _log_comment_generation(
+            db, effective_client_ids, d_start, d_end, text, context, trigger,
+            attempt=attempt + 1, retry_count=attempt, validation_failed=bool(hard),
+            duration_ms=duration_ms, response=response,
+        )
         if not hard:
             if soft:
                 logger.warning("dashboard_comment %s: soft issues: %s", COMMENT_PROMPT_VERSION, "; ".join(soft))
-            text = _flatten_comment(obj)
-            _log_comment_generation(db, effective_client_ids, d_start, d_end, text, context, trigger)
+            _update_comment_memory(db, effective_client_ids, context, obj)
             return text
         error_hint = " ".join(hard)
 
@@ -736,21 +826,79 @@ async def _generate_dashboard_comment(db: Session, effective_client_ids: list, d
     if last_obj is not None:
         logger.warning("dashboard_comment %s: validation_failed, отдаём кандидат (%s)", COMMENT_PROMPT_VERSION, error_hint)
         text = _flatten_comment(last_obj)
-        _log_comment_generation(db, effective_client_ids, d_start, d_end, text, context, trigger)
+        _update_comment_memory(db, effective_client_ids, context, last_obj)
         return text
+    if last_error is not None:
+        raise last_error
     logger.warning("dashboard_comment %s: модель не вернула валидный JSON", COMMENT_PROMPT_VERSION)
     raise ValueError("AI-комментарий не прошёл валидацию")
 
 
-def _log_comment_generation(db: Session, effective_client_ids: list, d_start, d_end,
-                            text: str, context: dict, trigger: str) -> None:
-    """§8: пишем каждую успешную генерацию в лог качества (только для проекта)."""
-    if len(effective_client_ids) != 1:
+def _response_usage(response) -> tuple[int, int, int, int]:
+    usage = getattr(response, "usage", None) if response is not None else None
+    return (
+        int(getattr(usage, "input_tokens", 0) or 0),
+        int(getattr(usage, "output_tokens", 0) or 0),
+        int(getattr(usage, "cache_creation_input_tokens", 0) or 0),
+        int(getattr(usage, "cache_read_input_tokens", 0) or 0),
+    )
+
+
+def _model_cost_usd(input_tokens: int, output_tokens: int) -> Decimal:
+    """Ставки задаются окружением ProxyAPI, поскольку провайдер может меняться."""
+    try:
+        input_rate = Decimal(os.getenv("AI_INPUT_COST_PER_MILLION_USD", "0") or "0")
+        output_rate = Decimal(os.getenv("AI_OUTPUT_COST_PER_MILLION_USD", "0") or "0")
+        return (Decimal(input_tokens) * input_rate + Decimal(output_tokens) * output_rate) / Decimal(1_000_000)
+    except Exception:
+        return Decimal("0")
+
+
+def _model_cost_rub(
+    input_tokens: int,
+    output_tokens: int,
+    cache_creation_tokens: int = 0,
+    cache_read_tokens: int = 0,
+) -> Decimal:
+    """Фактическая себестоимость ProxyAPI в валюте списания — рублях."""
+    try:
+        rates = (
+            Decimal(os.getenv("AI_INPUT_COST_PER_MILLION_RUB", "774") or "774"),
+            Decimal(os.getenv("AI_OUTPUT_COST_PER_MILLION_RUB", "3866") or "3866"),
+            Decimal(os.getenv("AI_CACHE_WRITE_COST_PER_MILLION_RUB", "967") or "967"),
+            Decimal(os.getenv("AI_CACHE_READ_COST_PER_MILLION_RUB", "78") or "78"),
+        )
+        tokens = (input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens)
+        return sum(Decimal(value) * rate for value, rate in zip(tokens, rates)) / Decimal(1_000_000)
+    except Exception:
+        return Decimal("0")
+
+
+def _log_comment_generation(
+    db: Session,
+    effective_client_ids: list,
+    d_start,
+    d_end,
+    text: str,
+    context: dict,
+    trigger: str,
+    *,
+    attempt: int = 1,
+    retry_count: int = 0,
+    validation_failed: bool = False,
+    duration_ms: int | None = None,
+    response=None,
+) -> None:
+    """§11.2: одна строка на каждый реальный вызов модели, включая ретраи."""
+    if not effective_client_ids:
         return
     try:
-        import hashlib
         pc = context.get("project_context") or ""
+        input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens = _response_usage(response)
         db.add(models.AICommentGeneration(
+            # Для папочного/сводного комментария схема v1 пока не имеет
+            # scope_id, поэтому денежный вызов закрепляем за первым проектом
+            # скоупа. Так он всё равно входит в account soft cap и себестоимость.
             client_id=effective_client_ids[0],
             period_from=d_start,
             period_to=d_end,
@@ -762,11 +910,60 @@ def _log_comment_generation(db: Session, effective_client_ids: list, d_start, d_
             directions_mode=context.get("directions_mode"),
             vat_mode=context.get("vat_mode"),
             context_hash=hashlib.md5(pc.encode("utf-8")).hexdigest()[:12] if pc else None,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cache_creation_input_tokens=cache_creation_tokens,
+            cache_read_input_tokens=cache_read_tokens,
+            cost_usd=_model_cost_usd(input_tokens, output_tokens),
+            cost_rub=_model_cost_rub(
+                input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens,
+            ),
+            duration_ms=duration_ms,
+            campaign_count=len(context.get("campaigns") or []),
+            attempt=attempt,
+            retry_count=retry_count,
+            validation_failed=validation_failed,
         ))
         db.commit()
     except Exception as e:
         db.rollback()
         logger.warning("comment generation log skipped: %s", e)
+
+
+def _update_comment_memory(db: Session, effective_client_ids: list, context: dict, obj: dict) -> None:
+    """Закладывает журнал «аномалия → действие → исход» без вывода мемуаров в UI."""
+    if len(effective_client_ids) != 1:
+        return
+    client = db.query(models.Client).filter(models.Client.id == effective_client_ids[0]).first()
+    if not client:
+        return
+    memory = client.ai_comment_memory if isinstance(client.ai_comment_memory, dict) else {}
+    cases = memory.get("cases") if isinstance(memory.get("cases"), list) else None
+    if cases is None:
+        cases = [memory] if any(key in memory for key in ("anomaly", "action", "kpi")) else []
+    cases = [dict(item) for item in cases if isinstance(item, dict)]
+    current_kpi = context.get("kpi") or {}
+    if cases and isinstance(cases[-1].get("kpi"), dict):
+        before = cases[-1]["kpi"]
+        cases[-1]["outcome"] = {
+            "leads_delta": _num(float((current_kpi.get("leads") or {}).get("value") or 0) - float(before.get("leads") or 0)),
+            "cpl_delta": _num(float((current_kpi.get("cpl") or {}).get("value") or 0) - float(before.get("cpl") or 0)),
+        }
+    flags = ((context.get("detector") or {}).get("flags") or [])[:1]
+    cases.append({
+        "anomaly": flags[0] if flags else None,
+        "action": obj.get("recommendation") or None,
+        "outcome": None,
+        "recorded_at": datetime.now(timezone.utc).isoformat(),
+        "kpi": {
+            "leads": (current_kpi.get("leads") or {}).get("value"),
+            "cpl": (current_kpi.get("cpl") or {}).get("value"),
+        },
+    })
+    # Храним квартал ежедневных случаев с запасом; в промпт всё равно попадает
+    # только один последний кейс. Ограничение не даёт JSON расти бесконечно.
+    client.ai_comment_memory = {"version": 1, "cases": cases[-100:]}
+    db.commit()
 
 
 def _sanitize_dashboard_comment(text: str, hard_limit: int = 1200) -> str:

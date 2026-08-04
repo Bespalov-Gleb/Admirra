@@ -492,6 +492,10 @@ class Client(Base):
     # захода» (§9.5). last_comment_generated_at — троттлинг ночной генерации.
     last_dashboard_viewed_at = Column(DateTime(timezone=True), nullable=True)
     last_comment_generated_at = Column(DateTime(timezone=True), nullable=True)
+    # Снимок KPI на момент предыдущего открытия — настоящая дельта since_last_visit.
+    last_dashboard_snapshot = Column(JSON, nullable=True)
+    # Короткая память проекта: anomaly -> action -> outcome.
+    ai_comment_memory = Column(JSON, nullable=True)
 
     owner = relationship("User", back_populates="clients")
     folder = relationship("Folder", back_populates="clients")
@@ -761,6 +765,18 @@ class AICommentGeneration(Base):
     directions_mode = Column(String(16), nullable=True)
     vat_mode = Column(String(16), nullable=True)
     context_hash = Column(String(32), nullable=True)
+    input_tokens = Column(Integer, nullable=True)
+    output_tokens = Column(Integer, nullable=True)
+    cache_creation_input_tokens = Column(Integer, nullable=True)
+    cache_read_input_tokens = Column(Integer, nullable=True)
+    cost_usd = Column(Numeric(14, 6), nullable=True)
+    cost_rub = Column(Numeric(14, 6), nullable=True)
+    duration_ms = Column(Integer, nullable=True)
+    campaign_count = Column(Integer, nullable=True)
+    attempt = Column(Integer, nullable=False, default=1, server_default="1")
+    retry_count = Column(Integer, nullable=False, default=0, server_default="0")
+    validation_failed = Column(Boolean, nullable=False, default=False, server_default="false")
+    viewed_at = Column(DateTime(timezone=True), nullable=True)
     rating = Column(Integer, nullable=True)  # 1 = 👍, -1 = 👎
     rated_by = Column(UUID(as_uuid=True), nullable=True)
     rated_at = Column(DateTime(timezone=True), nullable=True)
@@ -812,11 +828,17 @@ class Subscription(Base):
     # досрочно. Здесь лежит код тарифа, который вступит в силу после
     # current_period_end; применяется лениво при чтении подписки.
     pending_plan_code = Column(String, nullable=True)
+    pending_billing_period = Column(String, nullable=True)
+    pending_purchased_project_slots = Column(Integer, nullable=True)
     # Версия прайс-бука, зафиксированная при подписке (§7.2 экономики). При выпуске
     # новой линейки аккаунт продолжает платить по своей версии, пока сам не сменит
     # тариф. Пока версия одна (см. core.pricing.PRICE_BOOK_VERSION), но поле нужно
     # завести до первых продаж, иначе потом не разобраться, кто на какой цене.
     price_book_version = Column(Integer, nullable=True)
+    # Полный снимок строки прайс-бука. Одной версии недостаточно, поскольку
+    # тестовые/боевые цены могут переопределяться окружением между релизами.
+    price_book_snapshot = Column(JSON, nullable=True)
+    pending_price_book_snapshot = Column(JSON, nullable=True)
     # Граница тарифа (§8 экономики). Докупленные слоты проектов: эффективный лимит
     # проектов = лимит тарифа + purchased_project_slots, кабинетов = лимит + слоты×3.
     purchased_project_slots = Column(Integer, nullable=False, default=0)
@@ -825,6 +847,15 @@ class Subscription(Base):
     # и «сколько продлений подряд в превышении» (2-е продление блокирует создание).
     overflow_since = Column(DateTime(timezone=True), nullable=True)
     overflow_periods_count = Column(Integer, nullable=False, default=0)
+    overflow_notice_dismissed_at = Column(DateTime(timezone=True), nullable=True)
+    # Если CloudPayments временно не принял обновление суммы рекуррента, доступ
+    # не отбираем, но сохраняем явный флаг для повторной синхронизации/алерта.
+    recurring_sync_required = Column(Boolean, nullable=False, default=False)
+    # Аналитика экономики: максимум занятых проектных слотов за текущий
+    # биллинговый период и период, за который уже отправляли единственное
+    # overflow-письмо за 7 дней до продления.
+    peak_active_projects = Column(Integer, nullable=False, default=0)
+    overflow_warning_period_end = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 

@@ -196,6 +196,7 @@ def update_folder(
 @router.delete("/{folder_id}")
 def delete_folder(
     folder_id: uuid.UUID,
+    confirm_overflow: bool = False,
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -203,6 +204,19 @@ def delete_folder(
     ctx = get_team_context(db, current_user)
     _assert_can_manage(ctx)
     folder = _get_folder(db, ctx, folder_id)
+    active_in_folder = db.query(models.Client.id).filter(
+        models.Client.folder_id == folder.id,
+        models.Client.status == models.ClientStatus.ACTIVE,
+    ).count()
+    if active_in_folder > 1:
+        current_slots = SubscriptionService.count_project_slots(db, ctx.account_id)
+        SubscriptionService.ensure_project_slot_total(
+            db,
+            current_user,
+            current_slots + active_in_folder - 1,
+            confirmed_overflow=confirm_overflow,
+            action="folder_deleted",
+        )
     ungrouped = (
         db.query(models.Client)
         .filter(models.Client.folder_id == folder.id)
@@ -218,6 +232,8 @@ def delete_folder(
         target_id=str(folder.id),
     )
     db.delete(folder)
+    db.flush()
+    SubscriptionService.track_project_peak(db, current_user, actor=current_user)
     db.commit()
     return {"ok": True, "ungrouped_projects": int(ungrouped or 0)}
 
@@ -233,6 +249,10 @@ def assign_projects(
     _assert_can_manage(ctx)
     folder = _get_folder(db, ctx, folder_id)
     moved = _assign_projects(db, ctx, current_user, folder, body.project_ids)
+    db.flush()
+    SubscriptionService.reconcile_overflow_state(
+        db, current_user, actor=current_user, resolution_method="projects_grouped",
+    )
     log_history_event(
         db,
         actor=current_user,
@@ -250,6 +270,7 @@ def assign_projects(
 @router.post("/unassign")
 def unassign_projects(
     body: schemas.FolderAssignRequest,
+    confirm_overflow: bool = False,
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -268,19 +289,15 @@ def unassign_projects(
             moved += 1
     if moved:
         db.flush()
-        # Считаем слоты уже с учётом выноса; при превышении — откат
-        plan = SubscriptionService.get_user_plan(db, current_user)
-        slots = SubscriptionService.count_project_slots(db, current_user.id)
-        if (
-            slots > int(plan.max_projects or 0)
-            and SubscriptionService.billing_enforced()
-            and not SubscriptionService.is_admin_bypass(current_user)
-        ):
-            db.rollback()
-            raise HTTPException(
-                status_code=403,
-                detail=f"Вынос из папки занимает слот проекта: лимит тарифа «{plan.name}» ({plan.max_projects}) будет превышен",
-            )
+        slots = SubscriptionService.count_project_slots(db, ctx.account_id)
+        SubscriptionService.ensure_project_slot_total(
+            db,
+            current_user,
+            slots,
+            confirmed_overflow=confirm_overflow,
+            action="folder_unassign",
+        )
+        SubscriptionService.track_project_peak(db, current_user, actor=current_user)
     db.commit()
     return {"ok": True, "moved": moved}
 

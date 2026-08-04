@@ -99,12 +99,35 @@ def create_client(
     ctx = get_team_context(db, current_user)
     if not ctx.is_owner and ctx.team_role == models.TeamMemberRole.CLIENT.value:
         raise HTTPException(status_code=403, detail="Клиент не может создавать проекты")
-    SubscriptionService.ensure_can_create_project(db, current_user, confirmed_overflow=confirm_overflow)
+    consumes_new_slot = True
+    if client_in.folder_id:
+        folder = db.query(models.Folder).filter(
+            models.Folder.id == client_in.folder_id,
+            models.Folder.account_id == ctx.account_id,
+        ).first()
+        if not folder:
+            raise HTTPException(status_code=404, detail="Папка не найдена")
+        consumes_new_slot = not bool(db.query(models.Client.id).filter(
+            models.Client.folder_id == folder.id,
+            models.Client.status == models.ClientStatus.ACTIVE,
+        ).first())
+    if consumes_new_slot:
+        SubscriptionService.ensure_can_create_project(db, current_user, confirmed_overflow=confirm_overflow)
     new_client = models.Client(
-        owner_id=current_user.id,
+        owner_id=ctx.account_id,
         **client_in.dict()
     )
     db.add(new_client)
+    db.flush()
+    # Участник создаёт проект внутри аккаунта владельца и сразу получает к нему
+    # доступ. Так проект учитывается в одном общем тарифе, а не создаёт участнику
+    # отдельную Start-подписку.
+    if not ctx.is_owner and ctx.team_member_id:
+        db.add(models.TeamMemberProject(
+            team_member_id=ctx.team_member_id,
+            project_id=new_client.id,
+        ))
+    SubscriptionService.track_project_peak(db, current_user, actor=current_user)
     log_history_event(
         db,
         actor=current_user,
@@ -119,7 +142,7 @@ def create_client(
     db.refresh(new_client)
     resp = schemas.ClientResponse.model_validate(new_client)
     resp.owner_project_count = (
-        db.query(models.Client).filter(models.Client.owner_id == current_user.id).count()
+        db.query(models.Client).filter(models.Client.owner_id == ctx.account_id).count()
     )
     return resp
 
@@ -322,6 +345,7 @@ def export_google_sheets_now(
 def update_client(
     client_id: uuid.UUID,
     client_in: schemas.ClientUpdate,
+    confirm_overflow: bool = False,
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -343,7 +367,7 @@ def update_client(
             raise HTTPException(status_code=400, detail="Статус должен быть 'active' или 'paused'")
         old_status = client.status.value if hasattr(client.status, "value") else str(client.status).upper()
         if old_status == "PAUSED" and raw_status == "ACTIVE":
-            _check_can_resume_project(db, current_user, client)
+            _check_can_resume_project(db, current_user, client, confirmed_overflow=confirm_overflow)
         update_data["status"] = models.ClientStatus(raw_status)
 
     if "direction_label" in update_data:
@@ -357,6 +381,14 @@ def update_client(
 
     for key, value in update_data.items():
         setattr(client, key, value)
+    if "status" in update_data:
+        db.flush()
+        if update_data["status"] == models.ClientStatus.ACTIVE:
+            SubscriptionService.track_project_peak(db, current_user, actor=current_user)
+        else:
+            SubscriptionService.reconcile_overflow_state(
+                db, current_user, actor=current_user, resolution_method="project_paused",
+            )
     if update_data:
         log_history_event(
             db,
@@ -390,24 +422,25 @@ def update_client(
     return client
 
 
-def _check_can_resume_project(db: Session, user: models.User, excluded_client: models.Client):
-    quota_user = db.query(models.User).filter(models.User.id == excluded_client.owner_id).first() or user
-    if SubscriptionService.is_admin_bypass(user) or SubscriptionService.is_admin_bypass(quota_user):
-        return
-    plan = SubscriptionService.get_user_plan(db, quota_user)
-    active_count = db.query(models.Client).filter(
-        models.Client.owner_id == quota_user.id,
-        models.Client.status == models.ClientStatus.ACTIVE,
-    ).count()
-    phone_count = db.query(models.PhoneProject).filter(models.PhoneProject.owner_id == quota_user.id).count()
-    total = active_count + phone_count
-    if total < plan.max_projects:
-        return
-    if not SubscriptionService.billing_enforced():
-        return
-    raise HTTPException(
-        status_code=403,
-        detail=f"Достигнут лимит активных проектов для тарифа '{plan.name}' ({plan.max_projects}). Повысьте тариф или приостановите другой проект.",
+def _check_can_resume_project(
+    db: Session,
+    user: models.User,
+    excluded_client: models.Client,
+    *,
+    confirmed_overflow: bool = False,
+):
+    # Если в той же папке уже есть активный проект, возобновление не создаёт
+    # новый верхнеуровневый слот: папка как занимала 1 слот, так и занимает.
+    if excluded_client.folder_id:
+        active_sibling = db.query(models.Client.id).filter(
+            models.Client.folder_id == excluded_client.folder_id,
+            models.Client.id != excluded_client.id,
+            models.Client.status == models.ClientStatus.ACTIVE,
+        ).first()
+        if active_sibling:
+            return
+    SubscriptionService.ensure_can_create_project(
+        db, user, confirmed_overflow=confirmed_overflow,
     )
 
 
@@ -554,6 +587,10 @@ def delete_client(
         db.query(models.Integration).filter(models.Integration.id.in_(integration_ids)).delete(synchronize_session=False)
 
     db.delete(client)
+    db.flush()
+    SubscriptionService.reconcile_overflow_state(
+        db, current_user, actor=current_user, resolution_method="project_deleted",
+    )
     db.commit()
 
     from backend_api.cache_service import CacheService

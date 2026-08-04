@@ -26,6 +26,9 @@ export async function createProjectWithOverflow(payload) {
           // Добавить в счёт запаса — повтор с флагом согласия.
           return await api.post('clients/', payload, { params: { confirm_overflow: true } })
         }
+        // Отказ от временного запаса — отдельное продуктовое событие. Ошибка
+        // аналитики не должна мешать пользователю закрыть модалку.
+        api.post('billing/overflow/decline').catch(() => {})
         return null
       }
       // Запас исчерпан или блок второго продления — только апгрейд.

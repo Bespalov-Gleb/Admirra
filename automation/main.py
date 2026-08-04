@@ -85,6 +85,17 @@ async def run_reports():
         await prewarm_warm_project_comments()
     except Exception as e:
         logger.error(f"❌ Ошибка прогрева AI-комментариев: {e}")
+    try:
+        from backend_api.services.billing_notifications import (
+            reconcile_recurring_totals,
+            send_overflow_renewal_warnings,
+        )
+        sent = await send_overflow_renewal_warnings()
+        logger.info("✅ Overflow-писем перед продлением отправлено: %d", sent)
+        repaired = await reconcile_recurring_totals()
+        logger.info("✅ Рекуррентных сумм CloudPayments восстановлено: %d", repaired)
+    except Exception as e:
+        logger.error(f"❌ Ошибка overflow-уведомлений: {e}")
 
 
 async def main():

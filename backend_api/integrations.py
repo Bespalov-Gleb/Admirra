@@ -34,7 +34,7 @@ from backend_api.sync_jobs import enqueue_sync_job, ensure_sync_worker_started
 from backend_api.services.project_settings import is_project_paused
 from core.config import get_config
 from core.public_domain import resolve_frontend_url
-from backend_api.access_control import assert_project_access, get_accessible_client_ids
+from backend_api.access_control import assert_project_access, get_accessible_client_ids, get_team_context
 from backend_api.services.history import log_history_event
 from backend_api.services.subscription import SubscriptionService
 from core.campaign_status import apply_platform_status
@@ -93,6 +93,55 @@ MYTARGET_TOKEN_URL = cfg.oauth.mytarget_token_url
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/integrations", tags=["Integrations"])
+
+
+def _accessible_project_by_name(
+    db: Session,
+    user: models.User,
+    name: str,
+) -> Optional[models.Client]:
+    """Ищет проект только внутри доступного пользователю billing account."""
+    ids = get_accessible_client_ids(db, user)
+    if not ids:
+        return None
+    return db.query(models.Client).filter(
+        models.Client.id.in_(ids),
+        models.Client.name == name,
+    ).first()
+
+
+def _create_account_project(
+    db: Session,
+    user: models.User,
+    *,
+    name: str,
+    description: Optional[str] = None,
+) -> models.Client:
+    """Создаёт проект в общем аккаунте и выдаёт создателю-команднику доступ.
+
+    OAuth и импортные маршруты раньше обходили единый POST /clients и могли
+    записать проект на участника команды с отдельным тарифом. Здесь применяется
+    ровно та же модель владения, лимит и аналитика пика, что и в clients.py.
+    """
+    ctx = get_team_context(db, user)
+    if not ctx.is_owner and ctx.team_role == models.TeamMemberRole.CLIENT.value:
+        raise HTTPException(status_code=403, detail="Клиент не может создавать проекты")
+    SubscriptionService.ensure_can_create_project(db, user)
+    project = models.Client(
+        owner_id=ctx.account_id,
+        name=name,
+        description=description,
+    )
+    db.add(project)
+    db.flush()
+    if not ctx.is_owner and ctx.team_member_id:
+        db.add(models.TeamMemberProject(
+            team_member_id=ctx.team_member_id,
+            project_id=project.id,
+            granted_by=user.id,
+        ))
+    SubscriptionService.track_project_peak(db, user, actor=user)
+    return project
 
 
 def _utcnow() -> datetime:
@@ -1168,17 +1217,9 @@ async def exchange_yandex_token(
         client_name = (attempt.client_name or "").strip()
         if not client_name:
             raise HTTPException(status_code=400, detail="В OAuth-сессии отсутствует проект")
-        # A new project belongs to the account that initiated OAuth; team
-        # members must never accidentally create it under the account owner.
-        project = db.query(models.Client).filter(
-            models.Client.owner_id == current_user.id,
-            models.Client.name == client_name,
-        ).first()
+        project = _accessible_project_by_name(db, current_user, client_name)
         if not project:
-            SubscriptionService.ensure_can_create_project(db, current_user)
-            project = models.Client(owner_id=current_user.id, name=client_name)
-            db.add(project)
-            db.flush()
+            project = _create_account_project(db, current_user, name=client_name)
 
     resume_integration_id = attempt.resume_integration_id
     avito_integration: Optional[models.Integration] = None
@@ -1583,10 +1624,9 @@ async def exchange_vk_token_oauth(
         try:
             import uuid as uuid_lib
             client_uuid = uuid_lib.UUID(client_id_input)
-            db_client = db.query(models.Client).filter(
-                models.Client.id == client_uuid,
-                models.Client.owner_id == current_user.id
-            ).first()
+            db_client = db.query(models.Client).filter(models.Client.id == client_uuid).first()
+            if db_client:
+                assert_project_access(db, current_user, db_client.id, write=True)
             
             if not db_client:
                 logger.error(f"Client ID {client_id_input} not found or not owned by user")
@@ -1598,16 +1638,10 @@ async def exchange_vk_token_oauth(
             raise HTTPException(status_code=400, detail="Invalid project ID format")
     else:
         # Legacy flow: search by name
-        db_client = db.query(models.Client).filter(
-            models.Client.owner_id == current_user.id,
-            models.Client.name == client_name
-        ).first()
+        db_client = _accessible_project_by_name(db, current_user, client_name)
         
         if not db_client:
-            SubscriptionService.ensure_can_create_project(db, current_user)
-            db_client = models.Client(owner_id=current_user.id, name=client_name)
-            db.add(db_client)
-            db.flush()
+            db_client = _create_account_project(db, current_user, name=client_name)
             logger.info(f"Created new client: {db_client.name} (ID: {db_client.id})")
 
     # Интеграция принадлежит проекту. Нельзя переносить уже существующую
@@ -1775,10 +1809,9 @@ async def exchange_mytarget_token(
         try:
             import uuid as uuid_lib
             client_uuid = uuid_lib.UUID(client_id_input)
-            db_client = db.query(models.Client).filter(
-                models.Client.id == client_uuid,
-                models.Client.owner_id == current_user.id
-            ).first()
+            db_client = db.query(models.Client).filter(models.Client.id == client_uuid).first()
+            if db_client:
+                assert_project_access(db, current_user, db_client.id, write=True)
             
             if not db_client:
                 logger.error(f"Client ID {client_id_input} not found or not owned by user")
@@ -1790,16 +1823,10 @@ async def exchange_mytarget_token(
             raise HTTPException(status_code=400, detail="Invalid project ID format")
     else:
         # Legacy flow: search by name
-        db_client = db.query(models.Client).filter(
-            models.Client.owner_id == current_user.id,
-            models.Client.name == client_name
-        ).first()
+        db_client = _accessible_project_by_name(db, current_user, client_name)
         
         if not db_client:
-            SubscriptionService.ensure_can_create_project(db, current_user)
-            db_client = models.Client(owner_id=current_user.id, name=client_name)
-            db.add(db_client)
-            db.flush()
+            db_client = _create_account_project(db, current_user, name=client_name)
             log_event("backend", f"Created new client: {db_client.name} (ID: {db_client.id})")
     
     # 5. Save Integration
@@ -1856,20 +1883,16 @@ async def connect_avito_ads(
             client_uuid = uuid.UUID(str(client_id_raw))
         except Exception:
             raise HTTPException(status_code=400, detail="Некорректный client_id")
-        db_client = db.query(models.Client).filter(
-            models.Client.id == client_uuid,
-            models.Client.owner_id == current_user.id,
-        ).first()
+        db_client = db.query(models.Client).filter(models.Client.id == client_uuid).first()
+        if db_client:
+            assert_project_access(db, current_user, db_client.id, write=True)
         if not db_client:
             raise HTTPException(status_code=404, detail="Проект не найден")
     elif client_name_input:
         # Этот эндпоинт создаёт проект в обход POST /clients, поэтому лимит
         # тарифа нужно проверять здесь же — иначе подключение Avito было
         # способом завести проект сверх тарифа.
-        SubscriptionService.ensure_can_create_project(db, current_user)
-        db_client = models.Client(owner_id=current_user.id, name=client_name_input)
-        db.add(db_client)
-        db.flush()
+        db_client = _create_account_project(db, current_user, name=client_name_input)
     else:
         raise HTTPException(
             status_code=400,
@@ -1996,19 +2019,10 @@ async def create_integration(
         raise HTTPException(status_code=400, detail="Access token is required for this platform")
 
     # 2. Check if client exists or create one
-    client = db.query(models.Client).filter(
-        models.Client.owner_id == current_user.id,
-        models.Client.name == integration.client_name
-    ).first()
+    client = _accessible_project_by_name(db, current_user, integration.client_name)
     
     if not client:
-        SubscriptionService.ensure_can_create_project(db, current_user)
-        client = models.Client(
-            owner_id=current_user.id,
-            name=integration.client_name
-        )
-        db.add(client)
-        db.flush() # Get ID
+        client = _create_account_project(db, current_user, name=integration.client_name)
 
     # 3. Check if integration already exists for this client and platform
     db_integration = db.query(models.Integration).filter(
@@ -4704,8 +4718,9 @@ async def import_yandex_clients(db: Session, user_id: uuid.UUID, access_token: s
         login = client_data.get("login")
 
         # 0. Check if this client already exists for this user to avoid duplicates
+        accessible_ids = get_accessible_client_ids(db, import_user) if import_user is not None else []
         existing = db.query(models.Integration).join(models.Client).filter(
-            models.Client.owner_id == user_id,
+            models.Client.id.in_(accessible_ids) if accessible_ids else models.Client.owner_id == user_id,
             models.Integration.platform == models.IntegrationPlatform.YANDEX_DIRECT,
             models.Integration.agency_client_login == login
         ).first()
@@ -4728,12 +4743,15 @@ async def import_yandex_clients(db: Session, user_id: uuid.UUID, access_token: s
                 break
 
         # 1. Create Client (Project)
-        new_client = models.Client(
-            owner_id=user_id,
+        if import_user is None:
+            limit_error = "Пользователь импорта не найден"
+            break
+        new_client = _create_account_project(
+            db,
+            import_user,
             name=client_data.get("name") or login,
             description=f"Auto-imported from Yandex Agency (Login: {login})"
         )
-        db.add(new_client)
         db.commit()
         db.refresh(new_client)
         

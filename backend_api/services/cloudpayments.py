@@ -57,6 +57,31 @@ class CloudPaymentsService:
             return body
 
     @staticmethod
+    async def update_subscription(subscription_id: str, **changes: Any) -> Dict[str, Any]:
+        """Обновляет сумму/чек будущих рекуррентных списаний.
+
+        CloudPayments официально поддерживает ``subscriptions/update``. Всегда
+        проверяем ``Success``: HTTP 200 у API может содержать бизнес-ошибку.
+        """
+        payload: Dict[str, Any] = {"Id": subscription_id}
+        payload.update({key: value for key, value in changes.items() if value is not None})
+        headers = {
+            "Authorization": CloudPaymentsService._auth_header(),
+            "Content-Type": "application/json",
+        }
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                f"{CloudPaymentsService.BASE_URL}/subscriptions/update",
+                json=payload,
+                headers=headers,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            if not body.get("Success"):
+                raise RuntimeError(f"CloudPayments update failed: {body.get('Message') or body}")
+            return body
+
+    @staticmethod
     async def find_subscriptions(account_id: str) -> list:
         """Все подписки аккаунта в CP (для отмены рекуррента, когда Id ещё не сохранён у нас)."""
         headers = {

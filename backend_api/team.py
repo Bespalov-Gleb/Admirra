@@ -41,7 +41,8 @@ def _member_to_response(member: models.TeamMember) -> schemas.TeamMemberResponse
 
 def _limit_for_role(plan: EffectivePlan, role: models.TeamMemberRole) -> int:
     if role == models.TeamMemberRole.MEMBER:
-        return plan.max_staff
+        # users_limit включает владельца аккаунта.
+        return max(0, int(plan.max_staff) - 1)
     return plan.max_clients
 
 
@@ -114,11 +115,17 @@ async def _invite_member(
     plan = SubscriptionService.get_user_plan(db, current_user)
     role_limit = _limit_for_role(plan, role)
 
+    # Сериализуем параллельные приглашения: иначе два запроса одновременно
+    # увидят один и тот же current_count и превысят тариф.
+    sub = SubscriptionService.ensure_default_subscription(db, current_user)
+    SubscriptionService.get_user_subscription(db, sub.user_id, for_update=True)
+
     current_count = (
         db.query(models.TeamMember)
         .filter(
             models.TeamMember.account_id == account_id,
             models.TeamMember.role == role,
+            models.TeamMember.status.in_((models.TeamMemberStatus.PENDING, models.TeamMemberStatus.ACTIVE)),
         )
         .count()
     )

@@ -326,6 +326,69 @@ def _save_comment_cache(db: Session, client_id: uuid.UUID, start_date, end_date,
     flag_modified(client, "ai_comment_cache")
 
 
+def _enforce_comment_refresh_throttle(db: Session, client_id: uuid.UUID) -> None:
+    """Ручной пересчёт: не чаще 1/10 мин и максимум 10 запросов/сутки/проект."""
+    now = datetime.utcnow()
+    manual = db.query(models.AICommentGeneration).filter(
+        models.AICommentGeneration.client_id == client_id,
+        models.AICommentGeneration.trigger.in_(("refresh", "calculate")),
+        models.AICommentGeneration.attempt == 1,
+    )
+    latest = manual.order_by(models.AICommentGeneration.generated_at.desc()).first()
+    if latest and latest.generated_at:
+        generated = latest.generated_at.replace(tzinfo=None)
+        retry_after = 600 - int((now - generated).total_seconds())
+        if retry_after > 0:
+            raise HTTPException(status_code=429, detail={
+                "reason": "comment_refresh_throttled",
+                "message": "Комментарий можно обновлять не чаще одного раза в 10 минут.",
+                "retry_after": retry_after,
+            })
+    start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    if manual.filter(models.AICommentGeneration.generated_at >= start_of_day).count() >= 10:
+        raise HTTPException(status_code=429, detail={
+            "reason": "comment_daily_limit",
+            "message": "Достигнут предел: 10 ручных обновлений комментария за сутки.",
+        })
+
+
+def _mark_comment_viewed(
+    db: Session,
+    *,
+    client_id: uuid.UUID,
+    current_user: models.User,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+) -> None:
+    query = db.query(models.AICommentGeneration).filter(
+        models.AICommentGeneration.client_id == client_id,
+    )
+    if start_date and end_date:
+        try:
+            query = query.filter(
+                models.AICommentGeneration.period_from == _parse_date(start_date, "start_date"),
+                models.AICommentGeneration.period_to == _parse_date(end_date, "end_date"),
+            )
+        except HTTPException:
+            return
+    row = query.order_by(models.AICommentGeneration.generated_at.desc()).first()
+    if not row or row.viewed_at is not None:
+        return
+    row.viewed_at = datetime.utcnow()
+    log_history_event(
+        db,
+        actor=current_user,
+        event_type="ai",
+        action="comment_viewed",
+        description="AI-комментарий показан на дашборде",
+        client_id=client_id,
+        target_type="ai_comment_generation",
+        target_id=str(row.id),
+        meta={"trigger": row.trigger, "prompt_version": row.prompt_version},
+    )
+    db.commit()
+
+
 def _alert_to_dict(alert: models.DetectorAlert) -> dict[str, Any]:
     channel = alert.channel.value if getattr(alert, "channel", None) and hasattr(alert.channel, "value") else None
     return {
@@ -686,7 +749,9 @@ async def generate_report(
 
     # Короткий AI-комментарий к дашборду не расходует AI-лимит (ТЗ §12):
     # он формируется автоматически и по кнопке «Обновить» без списания квоты.
-    is_dashboard_comment = (body.report_type or "full") == "dashboard_comment"
+    report_kind = body.report_type or "full"
+    is_dashboard_comment = report_kind == "dashboard_comment"
+    is_system_comment = report_kind in {"dashboard_comment", "comment"}
     try:
         # Троттл по отпечатку: если данные периода И контекст проекта не менялись
         # с прошлой генерации — новый вызов даст то же самое, деньги зря → отдаём
@@ -698,7 +763,8 @@ async def generate_report(
                 current_fp = _comment_fingerprint(db, current_user.id, client_id, body.start_date, body.end_date)
                 if current_fp and cached.get("fingerprint") == current_fp:
                     return GenerateReportResponse(text=cached["text"])
-        if not is_dashboard_comment:
+            _enforce_comment_refresh_throttle(db, client_id)
+        if not is_system_comment:
             SubscriptionService.ensure_can_use_ai(db, current_user, requested=1)
         # Триггер для лога генераций (§8): стандартный период — «Обновить»,
         # произвольный — «Рассчитать».
@@ -718,7 +784,7 @@ async def generate_report(
         if is_dashboard_comment and client_id:
             fp = _comment_fingerprint(db, current_user.id, client_id, body.start_date, body.end_date)
             _save_comment_cache(db, client_id, body.start_date, body.end_date, text, fingerprint=fp)
-        if not is_dashboard_comment:
+        if not is_system_comment:
             SubscriptionService.increment_ai_usage(db, current_user, requested=1)
         try:
             from internal_admin.usage import record_ai_call
@@ -782,6 +848,10 @@ async def get_ai_comment(
             if stored_fp:
                 current_fp = _comment_fingerprint(db, current_user.id, cid, start_date, end_date)
                 stale = bool(current_fp and current_fp != stored_fp)
+            _mark_comment_viewed(
+                db, client_id=cid, current_user=current_user,
+                start_date=start_date, end_date=end_date,
+            )
             return {
                 "text": entry.get("text"),
                 "generated_at": entry.get("generated_at"),
@@ -790,6 +860,8 @@ async def get_ai_comment(
             }
         return {"text": None, "generated_at": None, "standard": is_standard, "stale": False}
 
+    if client.last_ai_comment:
+        _mark_comment_viewed(db, client_id=cid, current_user=current_user)
     return {"text": client.last_ai_comment, "generated_at": client.last_ai_comment_at, "standard": None, "stale": False}
 
 
@@ -853,11 +925,17 @@ async def export_comment_generations(
     w = csv.writer(buf)
     w.writerow(["id", "client_id", "period_from", "period_to", "generated_at", "trigger",
                 "prompt_version", "model", "directions_mode", "vat_mode", "fingerprint",
-                "context_hash", "rating", "rated_at", "text"])
+                "context_hash", "input_tokens", "output_tokens", "cache_creation_input_tokens",
+                "cache_read_input_tokens", "cost_usd", "cost_rub", "duration_ms",
+                "campaign_count", "attempt", "retry_count", "validation_failed", "rating", "rated_at", "text"])
     for r in rows:
         w.writerow([r.id, r.client_id, r.period_from, r.period_to, r.generated_at, r.trigger,
                     r.prompt_version, r.model, r.directions_mode, r.vat_mode, r.fingerprint,
-                    r.context_hash, r.rating, r.rated_at, (r.text or "").replace("\n", " ")])
+                    r.context_hash, r.input_tokens, r.output_tokens,
+                    r.cache_creation_input_tokens, r.cache_read_input_tokens,
+                    r.cost_usd, r.cost_rub, r.duration_ms, r.campaign_count,
+                    r.attempt, r.retry_count, r.validation_failed, r.rating, r.rated_at,
+                    (r.text or "").replace("\n", " ")])
     return PlainTextResponse(buf.getvalue(), media_type="text/csv",
                              headers={"Content-Disposition": "attachment; filename=ai_comment_generations.csv"})
 

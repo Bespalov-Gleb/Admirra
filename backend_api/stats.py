@@ -1124,26 +1124,6 @@ async def get_summary(
         try: u_client_id = uuid.UUID(client_id)
         except: pass
 
-    # §9.2: отмечаем открытие дашборда проекта (модель тёплых проектов + база для
-    # дельты «с последнего захода»). Троттлинг 5 мин, чтобы не писать на каждый
-    # фильтр; доступ к проекту уже проверяется ниже при выборке данных.
-    if u_client_id:
-        try:
-            _now = datetime.now(timezone.utc)
-            db.query(models.Client).filter(
-                models.Client.id == u_client_id,
-                or_(
-                    models.Client.last_dashboard_viewed_at.is_(None),
-                    models.Client.last_dashboard_viewed_at < _now - timedelta(minutes=5),
-                ),
-            ).update(
-                {models.Client.last_dashboard_viewed_at: _now},
-                synchronize_session=False,
-            )
-            db.commit()
-        except Exception:
-            db.rollback()
-
     u_campaign_ids = None
     if campaign_ids:
         u_campaign_ids = []
@@ -1170,7 +1150,48 @@ async def get_summary(
     d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else d_end - timedelta(days=13)
     
-    return StatsService.aggregate_summary(db, effective_client_ids, d_start, d_end, platform, u_campaign_ids, u_goal_action_ids)
+    result = StatsService.aggregate_summary(
+        db, effective_client_ids, d_start, d_end, platform, u_campaign_ids, u_goal_action_ids,
+    )
+
+    # §9.2/§9.5: метку просмотра и snapshot пишем ТОЛЬКО после проверки доступа.
+    # Раньше достаточно было знать UUID чужого проекта, чтобы пометить его тёплым
+    # и спровоцировать ночной AI-вызов за счёт владельца.
+    if u_client_id and u_client_id in effective_client_ids:
+        try:
+            client = db.query(models.Client).filter(models.Client.id == u_client_id).first()
+            if client:
+                now = datetime.now(timezone.utc)
+                previous_view = client.last_dashboard_viewed_at
+                if previous_view and previous_view.tzinfo is None:
+                    previous_view = previous_view.replace(tzinfo=timezone.utc)
+                stored = client.last_dashboard_snapshot if isinstance(client.last_dashboard_snapshot, dict) else {}
+                current = {
+                    "captured_at": now.isoformat(),
+                    "period_from": d_start.isoformat(),
+                    "period_to": d_end.isoformat(),
+                    "platform": platform or "all",
+                    "expenses": float(result.get("expenses") or 0),
+                    "leads": int(result.get("leads") or 0),
+                    "clicks": int(result.get("clicks") or 0),
+                    "impressions": int(result.get("impressions") or 0),
+                    "cpl": float(result.get("cpa") or 0),
+                }
+                # Один визит может породить несколько запросов из-за фильтров.
+                # Сдвигаем snapshot лишь после 30 минут отсутствия; внутри визита
+                # обновляем current, сохраняя честную предыдущую точку.
+                if previous_view is None or now - previous_view >= timedelta(minutes=30):
+                    previous = stored.get("current") if stored else None
+                else:
+                    previous = stored.get("previous") if stored else None
+                client.last_dashboard_snapshot = {"previous": previous, "current": current}
+                if previous_view is None or now - previous_view >= timedelta(minutes=5):
+                    client.last_dashboard_viewed_at = now
+                db.commit()
+        except Exception:
+            db.rollback()
+            logger.exception("Не удалось сохранить snapshot просмотра проекта %s", u_client_id)
+    return result
 
 @router.get("/dynamics", response_model=schemas.DynamicsStat)
 async def get_dynamics(

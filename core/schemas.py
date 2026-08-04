@@ -454,7 +454,7 @@ class ClientBase(BaseModel):
     spreadsheet_id: Optional[str] = None
 
 class ClientCreate(ClientBase):
-    pass
+    folder_id: Optional[UUID] = None
 
 class ClientUpdate(BaseModel):
     name: Optional[str] = None
@@ -1203,12 +1203,16 @@ class BillingPlanResponse(BaseModel):
     extra_project_price_month: int = 0
     extra_project_price_year: int = 0
     extra_project_cabinets: int = 0
+    max_extra_project_slots: int = 0
     white_label: bool = False
     recommended: bool = False
     visible: bool = True
     whitelabel_included: bool = False
     is_default: bool
     is_active: bool
+    request_only: bool = False
+    card_state: str = "available"
+    price_fixed: bool = False
 
 
 class BillingSubscriptionResponse(BaseModel):
@@ -1237,6 +1241,7 @@ class BillingSubscriptionResponse(BaseModel):
     whitelabel_available: bool = False
     # Граница тарифа (§8). Фронт эти значения не считает сам.
     effective_projects_limit: int = 0
+    base_projects_limit: int = 0
     purchased_slots: int = 0
     slot_price: int = 0
     slots_until_parity: int = 0
@@ -1245,7 +1250,15 @@ class BillingSubscriptionResponse(BaseModel):
     allowance_left: int = 0
     overflow_deadline: Optional[str] = None
     hard_blocked: bool = False
+    overflow_banner_permanent: bool = False
+    overflow_notice_dismissed: bool = False
     suggested_plan: Optional[str] = None
+    pending_plan_code: Optional[str] = None
+    pending_billing_period: Optional[str] = None
+    pending_purchased_slots: Optional[int] = None
+    price_book_version: Optional[int] = None
+    price_fixed: bool = False
+    recurring_sync_required: bool = False
 
 
 class BillingCanAddResponse(BaseModel):
@@ -1313,10 +1326,14 @@ class BillingSubscribeResponse(BaseModel):
     # Докупка слотов (§8.6): маркер для JsonData виджета.
     purpose: Optional[str] = None
     slot_count: int = 0
+    requires_payment: bool = True
+    action: str = "pay"
+    effective_at: Optional[datetime] = None
+    expected_purchased_slots: Optional[int] = None
 
 
 class BillingSlotQuoteRequest(BaseModel):
-    count: int = 1
+    count: int = Field(default=1, ge=1)
 
 
 class BillingSlotQuoteResponse(BaseModel):
@@ -1328,13 +1345,23 @@ class BillingSlotQuoteResponse(BaseModel):
     amount: int                    # к списанию сейчас (пропорция за остаток периода)
     effective_limit_after: int     # эффективный лимит проектов после докупки
     monthly_after: int             # регулярный платёж после докупки (тариф + слоты)
+    recurring_after: int = 0
+    billing_period: str = "month"
     slots_until_parity: int
     can_buy: bool
+    reason: Optional[str] = None
+    message: Optional[str] = None
     suggested_plan: Optional[str] = None
 
 
 class BillingSlotReduceRequest(BaseModel):
-    count: int = 1
+    count: int = Field(default=1, ge=1)
+    confirm_no_refund: bool = False
+
+
+class BillingOverviewResponse(BaseModel):
+    plans: List[BillingPlanResponse]
+    subscription: BillingSubscriptionResponse
 
 
 class CloudPaymentsWebhookResponse(BaseModel):

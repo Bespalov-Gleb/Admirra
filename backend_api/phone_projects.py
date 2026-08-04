@@ -201,6 +201,8 @@ def create_phone_project(
     )
     
     db.add(project)
+    db.flush()
+    SubscriptionService.track_project_peak(db, current_user, actor=current_user)
     db.commit()
     db.refresh(project)
 
@@ -248,6 +250,7 @@ def get_phone_project(
 def update_phone_project(
     project_id: uuid.UUID,
     project_data: PhoneProjectUpdate,
+    confirm_overflow: bool = False,
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -262,6 +265,7 @@ def update_phone_project(
     if not project:
         raise HTTPException(status_code=404, detail="Phone project not found")
     
+    was_active = bool(project.is_active)
     # Обновляем поля
     if project_data.name is not None:
         project.name = project_data.name
@@ -299,6 +303,10 @@ def update_phone_project(
     if project_data.enable_metrica_export is not None:
         project.enable_metrica_export = project_data.enable_metrica_export
     if project_data.is_active is not None:
+        if not was_active and project_data.is_active:
+            SubscriptionService.ensure_can_create_project(
+                db, current_user, confirmed_overflow=confirm_overflow,
+            )
         project.is_active = project_data.is_active
     
     # Настройки CAPTCHA
@@ -311,6 +319,16 @@ def update_phone_project(
     
     db.commit()
     db.refresh(project)
+
+    if was_active != bool(project.is_active):
+        SubscriptionService.reconcile_overflow_state(
+            db,
+            current_user,
+            actor=current_user,
+            resolution_method="phone_project_resumed" if project.is_active else "phone_project_paused",
+        )
+        SubscriptionService.track_project_peak(db, current_user, actor=current_user)
+        db.commit()
     
     logger.info(f"Updated phone project: {project.id} ({project.name})")
     
@@ -336,10 +354,18 @@ def delete_phone_project(
     if not project:
         raise HTTPException(status_code=404, detail="Phone project not found")
     
+    was_active = bool(project.is_active)
     db.delete(project)
+    db.flush()
+    if was_active:
+        SubscriptionService.reconcile_overflow_state(
+            db,
+            current_user,
+            actor=current_user,
+            resolution_method="phone_project_deleted",
+        )
     db.commit()
     
     logger.info(f"Deleted phone project: {project_id}")
     
     return {"status": "deleted", "project_id": str(project_id)}
-
