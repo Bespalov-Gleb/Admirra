@@ -337,8 +337,10 @@ def direction_stats(
     items = []
     for direction in matches["directions"]:
         ids = matches["direction_to_campaigns"].get(str(direction.id), [])
-        if not ids:
-            continue
+        # Направление без совпавших кампаний всё равно выводим — иначе созданное
+        # направление молча пропадает и с дашборда, и из списка в тулбаре
+        # (пользователь не видит, что маска ничего не поймала). Показываем
+        # нулями: разбивка/селектор честно сообщают «0 кампаний».
         items.append({
             "id": str(direction.id),
             "name": direction.name,
