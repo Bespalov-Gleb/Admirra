@@ -8848,22 +8848,26 @@ onMounted(() => {
   color: #6b7280 !important;
 }
 
-/* Детектор ит.4 §5: подвал карточки — ориентир · исход */
+/* Детектор ит.4 §5: подвал карточки — «ориентир · исход».
+   Табличные цифры + двухтоновая иерархия: ориентир приглушён, исход чуть
+   плотнее. Читается как продуманная строка, а не «дефолтный текст». */
 .metric-foot-detector {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  color: #7e7e7e;
-  font-size: 1.15rem;
-  font-weight: 500;
-  line-height: 1.3;
+  gap: 0.18rem 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: #8a93a3;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
 }
-.metric-foot-detector__ref { color: #7e7e7e; }
-.metric-foot-detector__sep { color: #c2c7d0; }
+.metric-foot-detector__ref { color: #8a93a3; }
+.metric-foot-detector__sep { color: #cfd5df; font-weight: 400; }
 .metric-foot-detector__note { color: #9aa0ab; }
-.metric-foot-detector__gap { color: #7e7e7e; }
-.metric-foot-detector__verdict { color: #7e7e7e; }
+.metric-foot-detector__gap { color: #5f6875; font-weight: 650; }
+.metric-foot-detector__verdict { color: #5f6875; font-weight: 650; }
 /* Принадлежность к алерту — цветом исхода (§5) */
 .metric-foot-detector--warning .metric-foot-detector__gap,
 .metric-foot-detector--warning .metric-foot-detector__verdict { color: #b45309; font-weight: 700; }
@@ -15415,9 +15419,13 @@ onMounted(() => {
 .detector-chip-panel {
   position:absolute;
   top:calc(100% + .65rem);
-  left:0;
+  /* Чип прижат к правому краю шапки (dashboard-title-meta: justify-content:flex-end),
+     поэтому панель открывается влево от чипа — иначе width до 40rem уводил её
+     за правый край экрана (виден лишь узкий левый край, текст в столбик). */
+  right:0;
+  left:auto;
   z-index:1200;
-  width:min(40rem, calc(100vw - 3rem));
+  width:min(30rem, calc(100vw - 3rem));
   overflow:visible;
   padding:.75rem;
   border:1px solid #e5e7eb;
@@ -15425,9 +15433,15 @@ onMounted(() => {
   background:#fff;
   box-shadow:0 1.25rem 3.5rem rgba(15,23,42,.2);
 }
+/* Узкие экраны: панель во всю доступную ширину, не цепляясь за края. */
+@media (max-width: 620px) {
+  .detector-chip-panel { position:fixed; top:auto; right:1rem; left:1rem; width:auto; }
+}
 .detector-chip-panel__head { display:flex; align-items:center; gap:.55rem; padding:.15rem .2rem .7rem; color:#1f2937; font-size:.9rem; }
-.detector-chip-row { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; padding:.75rem .25rem; border-top:1px solid #eef1f5; }
-.detector-chip-row__copy { display:flex; align-items:flex-start; gap:.6rem; min-width:0; flex:1 1 auto; }
+/* Строка панели — вертикальный стек: текст во всю ширину сверху, действия под
+   ним. Так фраза не зажимается в узкую колонку, а кнопки не уводят панель вбок. */
+.detector-chip-row { display:flex; flex-direction:column; align-items:stretch; gap:.7rem; padding:.85rem .25rem; border-top:1px solid #eef1f5; }
+.detector-chip-row__copy { display:flex; align-items:flex-start; gap:.6rem; min-width:0; width:100%; }
 .detector-chip-row__copy > div { min-width:0; }
 .detector-chip-row__copy p { margin:0; color:#1f2937; font-size:.86rem; font-weight:750; line-height:1.4; overflow-wrap:anywhere; }
 .detector-chip-row__copy small { display:block; margin-top:.22rem; color:#98a2b6; font-size:.72rem; font-weight:600; line-height:1.35; }
@@ -15435,7 +15449,7 @@ onMounted(() => {
 .detector-chip-row__dot--warning { background:#f59e0b; }
 .detector-chip-row__dot--problem { background:#ef4444; }
 .detector-chip-row__dot--hidden { background:#9ca3af; }
-.detector-chip-row__actions { display:flex; align-items:center; flex-wrap:wrap; justify-content:flex-end; gap:.35rem; flex:0 0 auto; }
+.detector-chip-row__actions { display:flex; align-items:center; flex-wrap:wrap; justify-content:flex-start; gap:.4rem; padding-left:1.1rem; }
 .detector-chip-row__actions button,.detector-chip-row__restore {
   min-height:2.3rem;
   padding:.48rem .72rem;
@@ -15470,8 +15484,8 @@ onMounted(() => {
 .detector-chip-row__snooze.open .detector-chip-row__snooze-menu { display:flex; flex-direction:column; }
 .detector-chip-row__snooze-menu button { width:100%; border:0; border-radius:.5rem; text-align:left; }
 .detector-chip-row__snooze-menu button:hover { background:#f5f7f9; }
-.detector-chip-row--hidden { align-items:center; color:#6b7280; }
 .detector-chip-row--hidden .detector-chip-row__copy p { color:#6b7280; }
+.detector-chip-row__restore { align-self:flex-start; margin-left:1.1rem; }
 .detector-chip-row__restore { color:#2563eb; }
 .figma-dashboard.is-dark .detector-chip-panel { border-color:rgba(255,255,255,.12); background:#182033; box-shadow:0 1.25rem 3.5rem rgba(0,0,0,.42); }
 .figma-dashboard.is-dark .detector-chip-row { border-color:rgba(255,255,255,.09); }
