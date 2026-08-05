@@ -841,6 +841,78 @@ def _campaign_contributors(db: Session, client_id: uuid.UUID, channel: models.In
     return items, extra, legacy
 
 
+def _tolerance_multiplication_note(
+    db: Session, client_id: uuid.UUID, alert: AlertCandidate,
+    reference_date: date, cfg: DetectorCfg, selected: set[str] | None, vk_codes: set[str] | None,
+) -> dict | None:
+    """§9.7: «два допуска перемножились».
+
+    CPL за порогом, но расход и заявки по отдельности — в допуске (собственных
+    алертов P-1/P-3 не подняли). Детерминированная гипотеза снимает вопрос
+    «почему сигналишь, если всё зелёное». Возвращает related-запись или None.
+    """
+    checks = set((alert.meta or {}).get("checks") or [])
+    if "P-2" not in checks or "P-1" in checks or "P-3" in checks:
+        return None
+    ratio = 1.0 + float(alert.deviation_pct or 0) / 100.0
+    if ratio <= 1.0:
+        return None
+    channel = alert.channel
+    budgets = _latest_budgets(db, client_id, reference_date)
+    budget = budgets.get(channel) or budgets.get(None)
+    if not budget or float(budget.amount or 0) <= 0:
+        return None
+    client = db.query(models.Client).filter(models.Client.id == client_id).first()
+    start = budget.period_start
+    if client and client.actual_start_date and client.actual_start_date > start:
+        start = client.actual_start_date
+    total_days = (budget.period_end - budget.period_start).days + 1
+    elapsed = (reference_date - start).days + 1
+    if total_days <= 0 or elapsed <= 0:
+        return None
+    report_channels = [channel] if channel is not None else [i.platform for i in _ad_integrations(db, client_id)]
+    spend = 0.0
+    leads = 0
+    for rc in report_channels:
+        s, _c, l = _sum_channel_stats(db, client_id, rc, start, reference_date, selected, vk_codes)
+        spend += s
+        leads += int(l or 0)
+    expected_spend = float(budget.amount) * elapsed / total_days
+    if expected_spend <= 0:
+        return None
+    spend_dev = (spend - expected_spend) / expected_spend
+    targets = _latest_targets(db, client_id, reference_date)
+    summary_t = next((t for t in targets if t.is_summary and t.control_enabled and t.target_cpa), None)
+    target_cpl = float(summary_t.target_cpa) if summary_t else None
+    if budget.manual_leads is not None:
+        planned = int(budget.manual_leads)
+    elif target_cpl and target_cpl > 0:
+        planned = math.floor(float(budget.amount) / target_cpl)
+    else:
+        planned = 0
+    if planned <= 0:
+        return None
+    expected_leads = planned * elapsed / total_days
+    if expected_leads <= 0:
+        return None
+    leads_dev = (leads - expected_leads) / expected_leads
+    # Именно «два допуска»: расход выше темпа, заявки ниже — каждый в пределах,
+    # а перемножение выносит цену за порог.
+    if spend_dev <= 0 or leads_dev >= 0:
+        return None
+    if spend_dev >= cfg.plan_spend_warning_deviation or -leads_dev >= cfg.plan_leads_warning_deviation:
+        return None
+    over = round(spend_dev * 100)
+    under = round(-leads_dev * 100)
+    times = f"{ratio:.2f}".rstrip("0").rstrip(".").replace(".", ",")
+    full = (
+        f"Расход и заявки по отдельности в допуске. Перерасход {over}% и недобор {under}% "
+        f"складываются в {times}× по цене."
+    )
+    short = f"перерасход +{over}% и недобор −{under}% → цена ×{times}"
+    return {"short": short, "full": full}
+
+
 def _apply_diagnostics(
     db: Session, client_id: uuid.UUID, alerts: list[AlertCandidate],
     reference_date: date, cfg: DetectorCfg, selected: set[str] | None,
@@ -870,6 +942,16 @@ def _apply_diagnostics(
             if diagnosis:
                 meta_updates["diagnosis"] = diagnosis
                 legacy_parts.append(diagnosis)
+            # §9.7: если CPL за порогом при зелёных расходе и заявках — добавляем
+            # готовую гипотезу «два допуска» связанной строкой (её на баннере нет
+            # среди фактических проверок, потому что они не сработали).
+            tolerance = _tolerance_multiplication_note(db, client_id, alert, reference_date, cfg, selected, vk_codes)
+            if tolerance:
+                existing_related = list((alert.meta or {}).get("related") or [])
+                if not any(r.get("full") == tolerance["full"] for r in existing_related):
+                    existing_related.append(tolerance)
+                    meta_updates["related"] = existing_related
+                legacy_parts.append(tolerance["full"])
             if contributors:
                 items, extra, legacy = contributors
                 meta_updates["contributors"] = items
@@ -1197,6 +1279,128 @@ def plan_completion(db: Session, client_id: uuid.UUID, today: date | None = None
             round((total_leads - planned_leads) / planned_leads * 100) if planned_leads else None
         )
     return result
+
+
+def _number_ru(value) -> str:
+    return f"{int(round(float(value or 0))):,}".replace(",", " ")
+
+
+def metric_plan_context(db: Session, client_id: uuid.UUID, today: date | None = None) -> dict | None:
+    """§9.5/§9.6: подвал карточек для АКТИВНОГО периода — план/прогноз/вердикт.
+
+    Возвращает {metric_key: {reference, gap?, gap_dir?, verdict?}} по метрикам с
+    планом (expenses/leads/cpa). Метрики без плана (показы/клики/CPC) получают
+    базу прошлого периода из stats-сводки — там она совпадает с окном дельты.
+    reference — ориентир (всегда), gap — факт разрыва (прогноз vs план), verdict —
+    слово-вердикт (фронт показывает только при активном отклонении, §5).
+    """
+    ref = today or date.today()
+    integrations = _ad_integrations(db, client_id)
+    if not integrations:
+        return None
+    channels = list({row.platform for row in integrations})
+    selected = _selected_goal_ids(integrations)
+
+    budgets = _latest_budgets(db, client_id, ref)
+    # Как и в самом детекторе: канальные планы имеют приоритет. Общий бюджет
+    # используется только когда канальных нет — никогда не складываем оба вида.
+    channel_budgets = {channel: row for channel, row in budgets.items() if channel is not None}
+    effective_budgets = channel_budgets or ({None: budgets[None]} if budgets.get(None) else {})
+    total_budget = sum(float(r.amount or 0) for r in effective_budgets.values())
+    if total_budget <= 0:
+        return None
+
+    period_start = min(r.period_start for r in effective_budgets.values())
+    period_end = max(r.period_end for r in effective_budgets.values())
+    client = db.query(models.Client).filter(models.Client.id == client_id).first()
+    start = period_start
+    if client and client.actual_start_date and client.actual_start_date > period_start:
+        start = client.actual_start_date
+    total_days = (period_end - period_start).days + 1
+    elapsed = (ref - start).days + 1
+    if total_days <= 0 or elapsed <= 0:
+        return None
+
+    spend = 0.0
+    leads = 0
+    for channel, row in effective_budgets.items():
+        report_channels = [channel] if channel is not None else channels
+        for report_channel in report_channels:
+            s, _c, l = _sum_channel_stats(db, client_id, report_channel, start, ref, selected)
+            spend += s
+            leads += int(l or 0)
+
+    result: dict[str, dict] = {}
+
+    # --- Расход: ориентир «План N ₽» + прогноз «не хватит ~X» / «остаток ~X» ---
+    exp_ctx: dict = {"reference": f"План {_money(total_budget)}"}
+    forecast_spend = spend / elapsed * total_days
+    gap_spend = forecast_spend - total_budget
+    if gap_spend > total_budget * 0.02:
+        exp_ctx["gap"] = f"не хватит ~{_money(gap_spend)}"
+        exp_ctx["gap_dir"] = "short"
+        if spend >= total_budget:
+            exp_ctx["verdict"] = "исчерпан"
+    elif gap_spend < -total_budget * 0.05:
+        exp_ctx["gap"] = f"остаток ~{_money(-gap_spend)}"
+        exp_ctx["gap_dir"] = "surplus"
+    result["expenses"] = exp_ctx
+
+    # --- Цель CPL и план заявок ---
+    targets = _latest_targets(db, client_id, ref)
+    summary_targets = {
+        t.channel: t for t in targets
+        if t.is_summary and t.control_enabled and t.target_cpa
+    }
+
+    # Для нескольких канальных бюджетов нельзя применять первую попавшуюся
+    # цель ко всей сумме. Складываем планы заявок по каждому каналу, затем
+    # выводим честную смешанную цель CPL = общий бюджет / общий план заявок.
+    planned_parts: list[int] = []
+    plan_is_complete = True
+    for channel, row in effective_budgets.items():
+        if row.manual_leads is not None:
+            part = int(row.manual_leads)
+        else:
+            target = summary_targets.get(channel)
+            if target is None and channel is None:
+                # Общий бюджет исторически работает с единственной сводной
+                # целью; при нескольких разных целях распределение бюджета не
+                # задано, поэтому сохраняем совместимую первую цель.
+                target = next(iter(summary_targets.values()), None)
+            part = math.floor(float(row.amount or 0) / float(target.target_cpa)) if target else 0
+        if part <= 0:
+            plan_is_complete = False
+            break
+        planned_parts.append(part)
+    planned_leads = sum(planned_parts) if plan_is_complete and planned_parts else None
+    target_cpl = total_budget / planned_leads if planned_leads else None
+
+    # --- Заявки: ориентир «План N» + прогноз «не доберём ~X» / «с запасом +X» ---
+    if planned_leads:
+        lead_ctx: dict = {"reference": f"План {planned_leads}"}
+        forecast_leads = leads / elapsed * total_days
+        gap_leads = planned_leads - forecast_leads
+        if gap_leads > max(1.0, planned_leads * 0.02):
+            lead_ctx["gap"] = f"не доберём ~{int(round(gap_leads))}"
+            lead_ctx["gap_dir"] = "short"
+        elif gap_leads < -max(1.0, planned_leads * 0.05):
+            lead_ctx["gap"] = f"с запасом +{int(round(-gap_leads))}"
+            lead_ctx["gap_dir"] = "surplus"
+        result["leads"] = lead_ctx
+
+    # --- CPL: ориентир «Цель N ₽» + вердикт «дорожает» / «дешевеет» ---
+    if target_cpl and target_cpl > 0:
+        cpl_ctx: dict = {"reference": f"Цель {_money(target_cpl)}"}
+        cpl_fact = spend / leads if leads > 0 else None
+        if cpl_fact is not None:
+            if cpl_fact > target_cpl * 1.01:
+                cpl_ctx["verdict"] = "дорожает"
+            elif cpl_fact < target_cpl * 0.99:
+                cpl_ctx["verdict"] = "дешевеет"
+        result["cpa"] = cpl_ctx
+
+    return result or None
 
 
 def run_detector_iteration3(

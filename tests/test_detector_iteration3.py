@@ -186,13 +186,14 @@ def test_p2_leads_with_cumulative_cpl_and_names_both_bases(monkeypatch):
     assert alert.meta["cpl_7d"] == pytest.approx(3_372.0)
 
 
-def test_p2_hides_second_number_when_divergence_is_small(monkeypatch):
-    # Расхождение баз ≤ 15% — в тексте только накопительный CPL.
+def test_p2_names_stable_second_number_when_divergence_is_small(monkeypatch):
+    # Актуальная подача P-2 всегда называет 7-дневную базу; при расхождении
+    # ≤15% она поясняет, что уровень примерно тот же, а не прячет число.
     _p2_mocks(monkeypatch, spend_period=52_000, leads_period=20, spend_7d=13_500, leads_7d=5)
     alert = iteration3._make_plan_cpl(None, "p", target(2_000), budget(200_000), date(2026, 7, 15), cfg(plan_cpl_warning_ratio=1.3))
     assert alert is not None
     assert alert.meta["lead"] == "period"
-    assert "За последние 7 дней" not in alert.hypothesis_text
+    assert "За последние 7 дней — примерно на том же уровне" in alert.hypothesis_text
 
 
 def test_p2_degradation_trigger_fires_red_when_cumulative_is_fine(monkeypatch):
@@ -233,7 +234,7 @@ def test_plan_checks_are_one_alert_and_cpl_has_priority():
     assert merged[0].mode == "plan"
     assert merged[0].meta["checks"] == ["P-1", "P-2"]
     assert "spend" in merged[0].hypothesis_text
-    assert merged[0].hypothesis_text == "• cpl\n• Дополнительно: spend"
+    assert merged[0].hypothesis_text == "• cpl\n• spend"
 
 
 def test_detector_alert_keeps_full_composite_diagnosis_text():

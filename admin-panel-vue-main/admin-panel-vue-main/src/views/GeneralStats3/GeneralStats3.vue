@@ -38,19 +38,73 @@
       <div class="dashboard-title-row dashboard-title-row--actions">
         <h1>{{ dashboardTitle }}</h1>
         <div class="dashboard-title-meta">
-          <!-- Статус детектора — слева от информации о синхронизации.
-               Когда выключен/на паузе — клик ведёт в настройки детектора. -->
-          <button
+          <!-- При отклонениях статус превращается в счётчик и открывает полную
+               панель действий (§7). В остальных состояниях это спокойный,
+               некликабельный статус — настройки проекта уже находятся рядом. -->
+          <div
             v-if="filters.client_id && detectorSummary && !folderMode"
-            type="button"
-            class="detector-status-chip detector-status-chip--inline detector-status-chip--btn"
-            :class="`detector-status-chip--${detectorStatusChip.kind}`"
-            :title="detectorStatusChip.kind === 'off' ? 'Открыть настройки детектора' : detectorStatusChip.hint"
-            @click="openProjectSettingsModal"
+            class="detector-chip-wrap"
+            v-click-outside="closeDetectorChipPanel"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.8-3 8.6-7 10-4-1.4-7-5.2-7-10V6l7-3z"/></svg>
-            <span>{{ detectorStatusChip.label }}</span>
-          </button>
+            <button
+              v-if="detectorChipIsCounter"
+              type="button"
+              class="detector-status-chip detector-status-chip--inline detector-status-chip--btn detector-status-chip--counter"
+              :class="`detector-status-chip--${detectorCounterKind}`"
+              :aria-expanded="detectorChipPanelOpen"
+              @click="detectorChipPanelOpen = !detectorChipPanelOpen"
+            >
+              <span class="detector-status-chip__dot"></span>
+              <span>{{ detectorActiveCount }} {{ declOtkl(detectorActiveCount) }}</span>
+            </button>
+            <span
+              v-else
+              class="detector-status-chip detector-status-chip--inline"
+              :class="`detector-status-chip--${detectorStatusChip.kind}`"
+              :title="detectorStatusChip.hint"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.8-3 8.6-7 10-4-1.4-7-5.2-7-10V6l7-3z"/></svg>
+              <span>{{ detectorStatusChip.label }}</span>
+            </span>
+
+            <div v-if="detectorChipIsCounter && detectorChipPanelOpen" class="detector-chip-panel" @click.stop>
+              <div class="detector-chip-panel__head">
+                <span class="detector-status-chip__dot" :class="`detector-status-chip__dot--${detectorCounterKind}`"></span>
+                <strong>Активные отклонения · {{ detectorActiveCount }}</strong>
+              </div>
+              <article v-for="alert in detectorActiveAlerts" :key="`chip-${alert.id}`" class="detector-chip-row">
+                <div class="detector-chip-row__copy">
+                  <span class="detector-chip-row__dot" :class="`detector-chip-row__dot--${alert.severity}`"></span>
+                  <div>
+                    <p>{{ detectorLeadPhrase(alert) }}</p>
+                    <small v-if="chipRowMeta(alert)">{{ chipRowMeta(alert) }}</small>
+                  </div>
+                </div>
+                <div class="detector-chip-row__actions">
+                  <button type="button" class="is-primary" @click="openAssistantForDetectorAlert(alert)">Спросить AI</button>
+                  <button type="button" @click="handleAcknowledgeDetectorAlert(alert)">Понятно</button>
+                  <span class="detector-chip-row__snooze" :class="{ open: snoozeMenuChipId === alert.id }">
+                    <button type="button" @click.stop="toggleDetectorChipSnooze(alert.id)">Скрыть…</button>
+                    <span class="detector-chip-row__snooze-menu">
+                      <button type="button" @click="snoozeChipAlert(alert, 'week')">На неделю</button>
+                      <button v-if="detectorPeriodEndLabel" type="button" @click="snoozeChipAlert(alert, 'period_end')">До конца периода ({{ detectorPeriodEndLabel }})</button>
+                    </span>
+                  </span>
+                  <button type="button" class="is-ghost" @click="handleDetectorNotProblem(alert)">Не проблема</button>
+                </div>
+              </article>
+              <article v-for="alert in detectorHiddenAlerts" :key="`chip-hidden-${alert.id}`" class="detector-chip-row detector-chip-row--hidden">
+                <div class="detector-chip-row__copy">
+                  <span class="detector-chip-row__dot detector-chip-row__dot--hidden"></span>
+                  <div>
+                    <p>{{ detectorLeadPhrase(alert) }}</p>
+                    <small>{{ hiddenChipMeta(alert) }}</small>
+                  </div>
+                </div>
+                <button type="button" class="detector-chip-row__restore" @click="handleRestoreDetectorAlert(alert)">Показать сейчас</button>
+              </article>
+            </div>
+          </div>
           <span class="dashboard-sync-text" :title="syncStatusLabel">
             <ArrowPathIcon :class="{ spinning: dashboardSyncInProgress }" />
             {{ syncStatusLabel }}
@@ -323,8 +377,11 @@
       :alerts="detectorSummary?.alerts || []"
       :hidden-alerts="detectorSummary?.hidden_alerts || []"
       :sync-issues="detectorSummary?.sync_issues || []"
+      :visible-from="detectorSummary?.visible_from || null"
+      :active-period-end="detectorSummary?.active_period_end || null"
       @ask-ai="openAssistantForDetectorAlert"
       @snooze="handleSnoozeDetectorAlert"
+      @acknowledge="handleAcknowledgeDetectorAlert"
       @not-problem="handleDetectorNotProblem"
       @restore="handleRestoreDetectorAlert"
       @collapse="detectorBannerCollapsed = true"
@@ -372,22 +429,16 @@
       draggable=".metric-card-item"
       @end="saveKpiConfig"
     >
-      <article v-for="key in visibleSlots" :key="key" class="metric-card metric-card-item" :class="metricAnomalyClass(key)">
-        <!-- У нижнего аналитического блока остаётся прежний флажок детектора:
-             dashboard v2 меняет только верхнюю сервисную зону. -->
-        <button
-          v-if="getMetricAnomaly(key)"
-          type="button"
-          class="kpi-flag"
-          :ref="(element) => setMetricFlagRef(key, element)"
-          @mouseenter="hoverDetectorMetric(key)"
-          @mouseleave="unhoverDetectorMetric()"
-          @click.stop="toggleDetectorMetricPopover(key)"
-        >
-          <span class="kpi-flag__badge" :class="`kpi-flag__badge--${getMetricAnomaly(key).severity}`">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5.5v8"/><circle cx="12" cy="18" r="1.6" fill="currentColor" stroke="none"/></svg>
-          </span>
-        </button>
+      <article
+        v-for="key in visibleSlots"
+        :key="key"
+        class="metric-card metric-card-item"
+        :class="[metricAnomalyClass(key), { 'metric-card--foot': metricFooters[key], 'metric-card--clickable': getMetricAnomaly(key) }]"
+        :ref="(element) => setMetricFlagRef(key, element)"
+        @click="onMetricCardClick(key, $event)"
+      >
+        <!-- Детектор ит.4 §5: бейджа-кружка нет; полоса 4px слева (::before) и
+             клик по всей карточке открывают поповер отклонения. -->
         <div class="metric-head">
           <span class="metric-icon drag-handle" title="Перетащить">
             <component :is="metricsMap[key]?.icon" />
@@ -412,7 +463,11 @@
             >лиды не настроены → Настроить</button>
             <strong v-else>{{ metricsMap[key]?.value }}</strong>
           </div>
-          <span v-if="metricsMap[key]?.trend && !((key === 'leads' || key === 'cpa') && leadsNotConfigured)" class="trend" :class="{ negative: metricsMap[key]?.negative }">
+          <span
+            v-if="metricsMap[key]?.trend && !((key === 'leads' || key === 'cpa') && leadsNotConfigured)"
+            class="trend"
+            :class="{ negative: metricsMap[key]?.negative, 'trend--muted': !!getMetricAnomaly(key) }"
+          >
             <ArrowTrendingUpIcon v-if="metricsMap[key]?.trendUp" class="trend-icon" />
             <ArrowTrendingDownIcon v-else class="trend-icon" />
             {{ metricsMap[key]?.trend }}
@@ -434,6 +489,27 @@
             </span>
             <strong>{{ channel.value }}</strong>
           </div>
+        </div>
+        <!-- Детектор ит.4 §5: подвал — точка отсчёта. Ориентир всегда, вердикт
+             только при активном отклонении; факт разрыва — серым/янтарным. -->
+        <div
+          v-if="metricFooters[key]"
+          class="metric-foot-detector"
+          :class="metricFooters[key].isAlert ? `metric-foot-detector--${metricFooters[key].level}` : ''"
+        >
+          <span class="metric-foot-detector__ref">{{ metricFooters[key].reference }}</span>
+          <template v-if="metricFooters[key].warmupNote">
+            <span class="metric-foot-detector__sep">·</span>
+            <span class="metric-foot-detector__note">{{ metricFooters[key].warmupNote }}</span>
+          </template>
+          <template v-else-if="metricFooters[key].verdict">
+            <span class="metric-foot-detector__sep">·</span>
+            <span class="metric-foot-detector__verdict">{{ metricFooters[key].verdict }}</span>
+          </template>
+          <template v-else-if="metricFooters[key].gap">
+            <span class="metric-foot-detector__sep">·</span>
+            <span class="metric-foot-detector__gap">{{ metricFooters[key].gap }}</span>
+          </template>
         </div>
       </article>
       <div
@@ -469,27 +545,35 @@
         <div class="detector-popover__head">
           <span class="detector-popover__leveldot" :class="`detector-popover__leveldot--${detectorMetricPopover.alert.severity}`"></span>
           <b :class="`detector-popover__level--${detectorMetricPopover.alert.severity}`">{{ detectorMetricPopover.alert.severity === 'problem' ? 'Проблема' : 'Внимание' }}</b>
-          <span class="detector-popover__meta">· длится {{ alertDurationLabel(detectorMetricPopover.alert) }} · {{ alertChannelLabel(detectorMetricPopover.alert) }}</span>
+          <span v-if="popoverMeta(detectorMetricPopover.alert)" class="detector-popover__meta">{{ popoverMeta(detectorMetricPopover.alert) }}</span>
         </div>
-        <div
-          class="detector-popover__message"
-          :class="{ 'detector-popover__message--sectioned': detectorMetricSections(detectorMetricPopover.key, detectorMetricPopover.alert).length > 1 }"
-        >
-          <p v-for="(section, index) in detectorMetricSections(detectorMetricPopover.key, detectorMetricPopover.alert)" :key="`${detectorMetricPopover.alert.id}-section-${index}`">{{ section }}</p>
+        <!-- §7: поповер открывается ведущей фразой ВСЕГО отклонения — одинаковой
+             на всех затронутых карточках, потому что эпизод один. -->
+        <p class="detector-popover__lead">{{ detectorLeadPhrase(detectorMetricPopover.alert) }}</p>
+        <!-- Частная проверка этой карточки — приглушённым блоком, не заголовком. -->
+        <div v-if="detectorOwnCheck(detectorMetricPopover.key, detectorMetricPopover.alert)" class="detector-popover__own">
+          <span class="detector-popover__own-label">На этой карточке</span>
+          <p>{{ detectorOwnCheck(detectorMetricPopover.key, detectorMetricPopover.alert) }}</p>
         </div>
+        <!-- Остальные затронутые карточки — до нажатия видно, сколько меток погаснет. -->
+        <p v-if="detectorOtherCards(detectorMetricPopover.key, detectorMetricPopover.alert).length" class="detector-popover__also">
+          Отмечены также: {{ detectorOtherCards(detectorMetricPopover.key, detectorMetricPopover.alert).join(', ') }}
+        </p>
         <small class="detector-popover__source">{{ alertSourceLine(detectorMetricPopover.alert) }}</small>
         <div class="detector-popover__actions">
           <button type="button" class="detector-popover__primary" @click="openAssistantForDetectorAlert(detectorMetricPopover.alert)">Спросить AI</button>
+          <button type="button" class="detector-popover__ack" @click="handleAcknowledgeDetectorAlert(detectorMetricPopover.alert)">Понятно</button>
           <div class="detector-popover__snooze" :class="{ open: snoozeMenuMetric === detectorMetricPopover.key }">
-            <button type="button" @click.stop="snoozeMenuMetric = snoozeMenuMetric === detectorMetricPopover.key ? null : detectorMetricPopover.key">Скрыть</button>
+            <button type="button" @click.stop="snoozeMenuMetric = snoozeMenuMetric === detectorMetricPopover.key ? null : detectorMetricPopover.key">Скрыть…</button>
             <div class="detector-popover__snooze-menu">
-              <button type="button" @click="snoozeMetricAlert(detectorMetricPopover.key, 1)">На 1 день</button>
-              <button type="button" @click="snoozeMetricAlert(detectorMetricPopover.key, 3)">На 3 дня</button>
-              <button type="button" @click="snoozeMetricAlert(detectorMetricPopover.key, 7)">На 7 дней</button>
+              <button type="button" @click="snoozeMetricAlert(detectorMetricPopover.key, 'week')">На неделю</button>
+              <button v-if="detectorPeriodEndLabel" type="button" @click="snoozeMetricAlert(detectorMetricPopover.key, 'period_end')">До конца периода ({{ detectorPeriodEndLabel }})</button>
             </div>
           </div>
           <button type="button" class="detector-popover__soft" title="Скроется до конца отклонения, поможет настроить детектор" @click="handleDetectorNotProblem(detectorMetricPopover.alert)">Не проблема</button>
         </div>
+        <!-- §7: подпись про радиус скрытия — снимает эффект неожиданности. -->
+        <small v-if="detectorRadiusLabel(detectorMetricPopover.alert)" class="detector-popover__radius">{{ detectorRadiusLabel(detectorMetricPopover.alert) }}</small>
       </div>
     </Teleport>
 
@@ -1629,6 +1713,8 @@ const {
   summary: detectorSummary,
   fetchSummary: fetchDetectorSummary,
   snoozeAlert: snoozeDetectorAlert,
+  acknowledgeAlert: acknowledgeDetectorAlert,
+  markSeen: markDetectorAlertsSeen,
   markAlertNotProblem: markDetectorAlertNotProblem,
   restoreAlert: restoreDetectorAlert,
   getAlertForMetric,
@@ -1661,10 +1747,50 @@ const detectorStatusChip = computed(() => {
     }
   }
   if (state.plan_status === 'configured') {
-    return { kind: 'on', label: 'Детектор следит за планом', hint: 'Контролируются темп расхода, стоимость и темп заявок.' }
+    return { kind: 'on', label: 'В норме', hint: 'Активных отклонений нет. Детектор следит за планом.' }
   }
-  return { kind: 'on', label: 'Детектор активен', hint: 'Критические проверки включены. Добавьте план для контроля темпа и CPL.' }
+  return { kind: 'on', label: 'В норме', hint: 'Критических отклонений нет. Добавьте план для контроля темпа и CPL.' }
 })
+
+// §10 п.13: при активных отклонениях чип — счётчик, кликабельный → панель со
+// списком и действиями. Без отклонений остаётся статусный чип (→ настройки).
+const detectorActiveAlerts = computed(() => detectorSummary.value?.alerts || [])
+const detectorHiddenAlerts = computed(() => detectorSummary.value?.hidden_alerts || [])
+const detectorActiveCount = computed(() => detectorActiveAlerts.value.length)
+const detectorCounterKind = computed(() =>
+  detectorActiveAlerts.value.some((a) => a.severity === 'problem') ? 'problem' : 'warning'
+)
+const detectorChipIsCounter = computed(() => {
+  const s = detectorSummary.value
+  if (!s || folderMode.value) return false
+  if (['disabled', 'paused', 'warming_up'].includes(s.warmup_status)) return false
+  return detectorActiveCount.value > 0
+})
+const detectorChipPanelOpen = ref(false)
+const snoozeMenuChipId = ref(null)
+const declOtkl = (n) => (n === 1 ? 'отклонение' : n > 1 && n < 5 ? 'отклонения' : 'отклонений')
+const chipRowMeta = (alert) =>
+  [alertDurationLabel(alert), alert?.seen ? 'просмотрено' : ''].filter(Boolean).join(' · ')
+const hiddenChipMeta = (alert) => {
+  const who = alert?.snoozed_by_name || alert?.dismissed_by_name || ''
+  if (alert?.not_problem_at || alert?.dismissed_at) return who ? `${who} · не проблема` : 'не проблема'
+  if (alert?.snoozed_until) {
+    const d = new Date(alert.snoozed_until).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })
+    return who ? `${who} · до ${d}` : `Скрыто до ${d}`
+  }
+  return 'скрыто'
+}
+const closeDetectorChipPanel = () => {
+  detectorChipPanelOpen.value = false
+  snoozeMenuChipId.value = null
+}
+const toggleDetectorChipSnooze = (alertId) => {
+  snoozeMenuChipId.value = snoozeMenuChipId.value === alertId ? null : alertId
+}
+const snoozeChipAlert = async (alert, mode) => {
+  snoozeMenuChipId.value = null
+  await handleSnoozeDetectorAlert(alert, { mode })
+}
 
 // Модалка настроек открывается прямо с дашборда. Эти состояния и обработчики
 // должны существовать независимо от того, успел ли общий список проектов
@@ -5623,15 +5749,63 @@ watch(() => filters.channel, (channel) => {
   if (channel !== 'all') chartBreakdownMode.value = 'total'
 })
 
+// §9.1: «увидел» = громкая строка действительно показана 3 секунды в активной
+// вкладке. Известные тихие алерты не обновляют снимок: иначе постепенное
+// ухудшение никогда не накопит порог 25%.
+let detectorSeenTimer = null
+let detectorSeenSignatures = new Set()
+let detectorVisitTouchedFor = null
+const DETECTOR_LOUD_NOVELTY = new Set(['new', 'worsened', 'improved', 'action_required'])
+
 watch(() => filters.client_id, (clientId) => {
   detectorBannerCollapsed.value = false
   activeDetectorMetric.value = null
   activeDetectorEntity.value = null
+  detectorSeenSignatures = new Set()
+  detectorVisitTouchedFor = null
+  closeDetectorChipPanel()
   if (clientId) {
     fetchDetectorSummary(clientId)
     fetchCampaignHighlights()
   }
 }, { immediate: true })
+
+const scheduleDetectorMarkSeen = () => {
+  if (detectorSeenTimer) { clearTimeout(detectorSeenTimer); detectorSeenTimer = null }
+  const clientId = filters.client_id
+  const candidates = (detectorSummary.value?.alerts || [])
+    .filter((a) => DETECTOR_LOUD_NOVELTY.has(a.novelty))
+    .map((a) => ({
+      id: a.id,
+      signature: `${a.id}:${a.novelty}:${a.severity}:${a.now_ratio ?? a.deviation_pct ?? ''}`,
+    }))
+    .filter((item) => !detectorSeenSignatures.has(item.signature))
+  if (!clientId || !detectorSummary.value) return
+  const shouldTouchVisit = detectorVisitTouchedFor !== String(clientId)
+  if (!candidates.length && !shouldTouchVisit) return
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+  detectorSeenTimer = setTimeout(async () => {
+    detectorSeenTimer = null
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+    if (!filters.client_id || filters.client_id !== clientId) return
+    const ok = await markDetectorAlertsSeen(clientId, candidates.map((item) => item.id), shouldTouchVisit)
+    if (ok) {
+      candidates.forEach((item) => detectorSeenSignatures.add(item.signature))
+      if (shouldTouchVisit) detectorVisitTouchedFor = String(clientId)
+    }
+    else detectorSeenTimer = setTimeout(scheduleDetectorMarkSeen, 3000)
+  }, 3000)
+}
+watch(detectorSummary, () => scheduleDetectorMarkSeen())
+const handleDetectorVisibility = () => {
+  if (document.visibilityState === 'visible') scheduleDetectorMarkSeen()
+  else if (detectorSeenTimer) { clearTimeout(detectorSeenTimer); detectorSeenTimer = null }
+}
+onMounted(() => document.addEventListener('visibilitychange', handleDetectorVisibility))
+onBeforeUnmount(() => {
+  if (detectorSeenTimer) clearTimeout(detectorSeenTimer)
+  document.removeEventListener('visibilitychange', handleDetectorVisibility)
+})
 
 watch(() => [filters.start_date, filters.end_date], () => {
   fetchCampaignHighlights()
@@ -5687,6 +5861,52 @@ const metricAnomalyClass = (key) => {
 }
 
 const getMetricAnomaly = (key) => getAlertForMetric(key)
+
+// Детектор ит.4 §5: подвал карточек — постоянная точка отсчёта. Он остаётся
+// даже при выключенном детекторе: план и база прошлого периода не являются
+// сигнализацией. Данные плана — из detector.metric_plan, база без плана — prev.
+const detectorFooterEnabled = computed(() => {
+  return Boolean(detectorSummary.value)
+})
+const metricPrevBase = (key) => {
+  const prev = summary.value?.prev
+  if (!prev) return null
+  if (key === 'impressions' && prev.impressions !== null && prev.impressions !== undefined) return `Прошлый период: ${formatNumber(prev.impressions)}`
+  if (key === 'clicks' && prev.clicks !== null && prev.clicks !== undefined) return `Прошлый период: ${formatNumber(prev.clicks)}`
+  if (key === 'cpc' && prev.cpc !== null && prev.cpc !== undefined) return `Прошлый период: ${formatMoney(prev.cpc)}`
+  return null
+}
+const metricFooters = computed(() => {
+  const out = {}
+  if (!detectorFooterEnabled.value) return out
+  const plan = detectorSummary.value?.metric_plan || {}
+  const warming = detectorSummary.value?.warmup_status === 'warming_up'
+  for (const key of (visibleSlots.value || [])) {
+    const alert = getAlertForMetric(key)
+    const p = plan[key] || null
+    const reference = p?.reference || metricPrevBase(key)
+    if (!reference) continue
+    out[key] = {
+      reference,
+      gap: p?.gap || null,
+      gapDir: p?.gap_dir || null,
+      // §5: вердикт (дорожает/исчерпан) — только при активном отклонении.
+      verdict: (alert && p?.verdict) ? p.verdict : null,
+      // §5: прогрев — ориентир без вердикта.
+      warmupNote: (warming && p) ? 'детектор накапливает данные' : null,
+      isAlert: !!alert,
+      level: alert ? alert.severity : null,
+    }
+  }
+  return out
+})
+
+const onMetricCardClick = (key, event) => {
+  // Клик по кнопкам/ссылкам/подсказке внутри карточки не открывает поповер.
+  if (event?.target?.closest?.('button, a, .metric-hint, .add-card-dropdown, .metric-not-configured')) return
+  if (!getMetricAnomaly(key)) return
+  toggleDetectorMetricPopover(key)
+}
 
 const toggleDetectorMetricPopover = (key) => {
   activeDetectorMetric.value = activeDetectorMetric.value === key ? null : key
@@ -5795,16 +6015,29 @@ onBeforeUnmount(() => {
   window.removeEventListener('scroll', refreshDetectorMetricPopoverPosition, true)
 })
 
-const snoozeMetricAlert = (key, days) => {
+// §8: снуз из поповера — режимом (week/period_end), а не днями.
+const snoozeMetricAlert = (key, mode) => {
   snoozeMenuMetric.value = null
-  handleSnoozeDetectorAlert(getMetricAnomaly(key), days)
+  handleSnoozeDetectorAlert(getMetricAnomaly(key), { mode })
 }
 
+const detectorPeriodEndLabel = computed(() => {
+  const raw = detectorSummary.value?.active_period_end
+  if (!raw) return ''
+  const d = new Date(raw)
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
+})
+
+// §9.9: усечение длительности — «держится больше недели/месяца» из бэка,
+// без ежедневного счётчика-укора. Для свежих (≤7 дн) длительность не показываем.
 const alertDurationLabel = (alert) => {
+  if (alert?.duration_label) return alert.duration_label
   const opened = alert?.opened_at ? new Date(alert.opened_at) : null
-  if (!opened || Number.isNaN(opened.getTime())) return '1 дн.'
+  if (!opened || Number.isNaN(opened.getTime())) return ''
   const days = Math.max(1, Math.round((Date.now() - opened.getTime()) / 86400000))
-  return `${days} дн.`
+  if (days > 30) return 'держится больше месяца'
+  if (days > 7) return 'держится больше недели'
+  return ''
 }
 
 const DETECTOR_CHANNEL_LABELS = {
@@ -5847,6 +6080,48 @@ const detectorMetricSections = (key, alert) => {
   return detectorAlertSections(alert)
 }
 
+// §7 поповер: ведущая фраза всего отклонения (первая секция) — одинакова на
+// всех затронутых карточках; частная проверка идёт отдельным блоком.
+const PLAN_CHECK_LABELS = { 'P-1': 'Расходы', 'P-2': 'CPL', 'P-3': 'Лиды' }
+const CARDS_NUM_WORD = { 2: 'двух', 3: 'трёх', 4: 'четырёх', 5: 'пяти' }
+
+const detectorLeadPhrase = (alert) => detectorAlertSections(alert)[0]
+
+const detectorOwnCheck = (key, alert) => {
+  const check = METRIC_TO_PLAN_CHECK[key]
+  if (!check || alert?.mode !== 'plan') return ''
+  const own = alert?.meta?.check_texts?.[check]
+  // Частный блок нужен, только если алерт составной и его текст ≠ ведущему.
+  if (!own || !detectorIsComposite(alert)) return ''
+  const ownTrim = String(own).trim()
+  return ownTrim === detectorLeadPhrase(alert) ? '' : ownTrim
+}
+
+const detectorAffectedChecks = (alert) => {
+  if (alert?.mode !== 'plan') return []
+  const checks = Array.isArray(alert?.meta?.checks) && alert.meta.checks.length
+    ? alert.meta.checks
+    : (alert?.meta?.check ? [alert.meta.check] : [])
+  return checks.filter((c) => PLAN_CHECK_LABELS[c])
+}
+const detectorIsComposite = (alert) => detectorAffectedChecks(alert).length > 1
+const detectorAffectedCount = (alert) => Math.max(1, detectorAffectedChecks(alert).length)
+const detectorOtherCards = (key, alert) => {
+  const own = METRIC_TO_PLAN_CHECK[key]
+  return detectorAffectedChecks(alert).filter((c) => c !== own).map((c) => PLAN_CHECK_LABELS[c])
+}
+const detectorRadiusLabel = (alert) => {
+  const n = detectorAffectedCount(alert)
+  if (n < 2) return ''
+  return `Скрытие снимет метки со всех ${CARDS_NUM_WORD[n] || n} карточек`
+}
+
+// §7 шапка поповера: уровень · длительность (усечённая) · канал — без пустых «·».
+const popoverMeta = (alert) => {
+  const parts = [alertDurationLabel(alert), alertChannelLabel(alert)].filter(Boolean)
+  return parts.length ? `· ${parts.join(' · ')}` : ''
+}
+
 // Один составной алерт хранит несколько проверок в hypothesis_text через
 // «\n•». Отдельные абзацы с маркерами сохраняют общую сущность алерта, но
 // делают длинное объяснение читаемым и в поповере KPI.
@@ -5867,7 +6142,7 @@ const toggleDetectorEntityPopover = (rowKey) => {
 const showDetectorUndoToast = (message, alert) => {
   if (!alert) return
   toaster.addToast(message, 'info', 8000, {
-    label: 'Вернуть',
+    label: 'Отменить',
     handler: async () => {
       const ok = await restoreDetectorAlert(alert.id)
       if (ok) toaster.success('Алерт восстановлен')
@@ -5875,16 +6150,35 @@ const showDetectorUndoToast = (message, alert) => {
   })
 }
 
-const handleSnoozeDetectorAlert = async (alert, days) => {
+// §8: снуз принимает {mode:'week'|'period_end'} из баннера/поповера (легаси —
+// число дней). Тост «Не показываем до <дата>» с «Вернуть».
+const handleSnoozeDetectorAlert = async (alert, payload) => {
   if (!alert) return
-  const ok = await snoozeDetectorAlert(alert.id, days)
+  const body = typeof payload === 'number' ? { mode: 'week' } : (payload || { mode: 'week' })
+  const result = await snoozeDetectorAlert(alert.id, body)
+  if (result) {
+    activeDetectorMetric.value = null
+    activeDetectorEntity.value = null
+    const until = result?.snoozed_until ? new Date(result.snoozed_until) : null
+    const untilLabel = until && !Number.isNaN(until.getTime())
+      ? until.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
+      : null
+    showDetectorUndoToast(untilLabel ? `Не показываем до ${untilLabel}` : 'Алерт скрыт', alert)
+  } else {
+    toaster.error('Не удалось отложить алерт')
+  }
+}
+
+// §8 «Понятно»: ручное «увидел». Тоста нет — прятать нечего (уходит из зоны,
+// метка на карточке и счётчик остаются). Красный роняется в «Продолжается».
+const handleAcknowledgeDetectorAlert = async (alert) => {
+  if (!alert) return
+  const ok = await acknowledgeDetectorAlert(alert.id)
   if (ok) {
     activeDetectorMetric.value = null
     activeDetectorEntity.value = null
-    const word = days === 1 ? 'день' : 'дня'
-    showDetectorUndoToast(`Алерт отложен на ${days} ${word}`, alert)
   } else {
-    toaster.error('Не удалось отложить алерт')
+    toaster.error('Не удалось обновить алерт')
   }
 }
 
@@ -5894,7 +6188,8 @@ const handleDetectorNotProblem = async (alert) => {
   if (ok) {
     activeDetectorMetric.value = null
     activeDetectorEntity.value = null
-    showDetectorUndoToast('Алерт помечен как не проблема', alert)
+    // §8: «Не проблема» срабатывает в один клик — возврат обязателен.
+    showDetectorUndoToast('Отмечено как не проблема — скроется до конца отклонения', alert)
   } else {
     toaster.error('Не удалось обновить алерт')
   }
@@ -7980,9 +8275,31 @@ onMounted(() => {
   display: flex;
   align-items: center;
   border: 2px solid transparent;
-  /* visible: бейдж детектора выступает за угол карточки (ТЗ KPI-флажка §1) */
-  overflow: visible;
+  overflow: hidden;
   transition: border-color 0.3s, box-shadow 0.3s;
+}
+/* Детектор ит.4 §5: полоса 4px слева в цвет уровня, в норме прозрачная —
+   всегда занимает место, поэтому появление отклонения не сдвигает текст. */
+.metric-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: transparent;
+  transition: background 0.2s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+.metric-card--add::before { display: none; }
+.metric-card--clickable { cursor: pointer; }
+/* Карточка с подвалом — колонка: число сверху, подвал снизу */
+.metric-card--foot {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 1rem;
 }
 .metric-card.metric-card--add {
   background: transparent;
@@ -7991,16 +8308,9 @@ onMounted(() => {
   overflow: visible;
 }
 
-.metric-card--anomaly-warning {
-  border-color: #fcd34d;
-  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.15), 0 0.4rem 1rem rgba(251, 191, 36, 0.08);
-  overflow: visible;
-}
-.metric-card--anomaly-problem {
-  border-color: #fca5a5;
-  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.15), 0 0.4rem 1rem rgba(239, 68, 68, 0.08);
-  overflow: visible;
-}
+/* §5: рамка/тень отклонения удалены — сигналит только левая полоса. */
+.metric-card--anomaly-warning::before { background: #f59e0b; }
+.metric-card--anomaly-problem::before { background: #ef4444; }
 
 /* ТЗ «Флажок детектора на KPI-карточке» §1: бейдж 18px с «!» на углу,
    выступает за карточку, обводка 2px фоном; клик-зона — невидимые 44px */
@@ -8188,7 +8498,60 @@ onMounted(() => {
   color: #fff !important;
 }
 
-/* «Скрыть…» — дропдаун 1/3/7 дней */
+/* §7: ведущая фраза всего отклонения — заголовок поповера */
+.detector-popover__lead {
+  margin: 0;
+  color: #111827;
+  font-size: 0.9rem;
+  font-weight: 850;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+/* Частная проверка «на этой карточке» — приглушённый блок, не заголовок */
+.detector-popover__own {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 0.55rem;
+  background: rgba(15, 23, 42, 0.04);
+}
+.detector-popover__own-label {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+.detector-popover__own p {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #4b5563;
+  line-height: 1.4;
+}
+.detector-popover__also {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #6b7280;
+}
+/* §7: подпись про радиус скрытия — под кнопками */
+.detector-popover__radius {
+  color: #98a2b6 !important;
+  font-weight: 600 !important;
+  font-style: italic;
+}
+/* §8: «Не проблема» призрачная */
+.detector-popover__actions .detector-popover__soft {
+  border-color: transparent !important;
+  background: transparent !important;
+  color: #9ca3af !important;
+  font-weight: 700 !important;
+}
+.detector-popover__actions .detector-popover__soft:hover { color: #6b7280 !important; }
+
+/* «Скрыть…» — дропдаун (неделя / до конца периода) */
 .detector-popover__snooze {
   position: relative;
 }
@@ -8477,6 +8840,35 @@ onMounted(() => {
   background: #fef2f2;
   color: #ef4444;
 }
+
+/* Детектор ит.4 §5: при активном отклонении по метрике пилюля дельты серая —
+   иначе зелёное «−5,6%» и янтарное «дорожает» спорят на одной карточке. */
+.trend--muted {
+  background: #eef1f5 !important;
+  color: #6b7280 !important;
+}
+
+/* Детектор ит.4 §5: подвал карточки — ориентир · исход */
+.metric-foot-detector {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  color: #7e7e7e;
+  font-size: 1.15rem;
+  font-weight: 500;
+  line-height: 1.3;
+}
+.metric-foot-detector__ref { color: #7e7e7e; }
+.metric-foot-detector__sep { color: #c2c7d0; }
+.metric-foot-detector__note { color: #9aa0ab; }
+.metric-foot-detector__gap { color: #7e7e7e; }
+.metric-foot-detector__verdict { color: #7e7e7e; }
+/* Принадлежность к алерту — цветом исхода (§5) */
+.metric-foot-detector--warning .metric-foot-detector__gap,
+.metric-foot-detector--warning .metric-foot-detector__verdict { color: #b45309; font-weight: 700; }
+.metric-foot-detector--problem .metric-foot-detector__gap,
+.metric-foot-detector--problem .metric-foot-detector__verdict { color: #dc2626; font-weight: 700; }
 
 .chart-goals-grid {
   display: grid;
@@ -10335,7 +10727,8 @@ onMounted(() => {
 .kpi-grid {
   gap: 1.0417rem;
   margin-top: 1.7361rem;
-  grid-auto-rows: 6.1111rem;
+  /* Детектор ит.4 §5: карточки с подвалом выше — строки растягиваются. */
+  grid-auto-rows: minmax(6.1111rem, auto);
 }
 
 .metric-card {
@@ -10346,8 +10739,6 @@ onMounted(() => {
 }
 .metric-card.metric-card--anomaly-warning,
 .metric-card.metric-card--anomaly-problem {
-  /* Флажок выступает за угол KPI; сам поповер телепортирован в body. */
-  overflow: visible;
   z-index: 4;
 }
 .metric-card.metric-card--add {
@@ -12123,14 +12514,11 @@ onMounted(() => {
   background: transparent;
   border-color: rgba(255, 255, 255, 0.15);
 }
+/* §5: в тёмной теме отклонение тоже сигналит только левой полосой, без рамки. */
 .figma-dashboard.is-dark .metric-card--anomaly-warning {
-  border-color: rgba(251, 191, 36, 0.4);
-  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.2);
   background: rgba(251, 191, 36, 0.04);
 }
 .figma-dashboard.is-dark .metric-card--anomaly-problem {
-  border-color: rgba(239, 68, 68, 0.4);
-  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.2);
   background: rgba(239, 68, 68, 0.04);
 }
 .figma-dashboard.is-dark .anomaly-dot--warning {
@@ -15017,6 +15405,85 @@ onMounted(() => {
 .dashboard-title-meta .detector-status-chip--inline { min-height:1.9rem; margin:0; padding:.32rem .7rem; font-size:.88rem; line-height:1; gap:.36rem; }
 .detector-status-chip--btn { border:0; font:inherit; cursor:pointer; transition:filter .15s ease, box-shadow .15s ease; }
 .detector-status-chip--btn:hover { filter:brightness(.97); box-shadow:inset 0 0 0 1px rgba(0,0,0,.06); }
+.detector-chip-wrap { position:relative; display:inline-flex; align-items:center; }
+.detector-status-chip--warning { background:#fff7e6; border-color:#f5d79c; color:#9a6700; }
+.detector-status-chip--problem { background:#fff0f0; border-color:#f2b8b8; color:#c62828; }
+.detector-status-chip--counter { min-width:2.4rem; justify-content:center; }
+.detector-status-chip__dot { width:.5rem; height:.5rem; border-radius:999px; flex:0 0 auto; background:currentColor; }
+.detector-status-chip__dot--warning { background:#f59e0b; }
+.detector-status-chip__dot--problem { background:#ef4444; }
+.detector-chip-panel {
+  position:absolute;
+  top:calc(100% + .65rem);
+  left:0;
+  z-index:1200;
+  width:min(40rem, calc(100vw - 3rem));
+  overflow:visible;
+  padding:.75rem;
+  border:1px solid #e5e7eb;
+  border-radius:1rem;
+  background:#fff;
+  box-shadow:0 1.25rem 3.5rem rgba(15,23,42,.2);
+}
+.detector-chip-panel__head { display:flex; align-items:center; gap:.55rem; padding:.15rem .2rem .7rem; color:#1f2937; font-size:.9rem; }
+.detector-chip-row { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; padding:.75rem .25rem; border-top:1px solid #eef1f5; }
+.detector-chip-row__copy { display:flex; align-items:flex-start; gap:.6rem; min-width:0; flex:1 1 auto; }
+.detector-chip-row__copy > div { min-width:0; }
+.detector-chip-row__copy p { margin:0; color:#1f2937; font-size:.86rem; font-weight:750; line-height:1.4; overflow-wrap:anywhere; }
+.detector-chip-row__copy small { display:block; margin-top:.22rem; color:#98a2b6; font-size:.72rem; font-weight:600; line-height:1.35; }
+.detector-chip-row__dot { width:.5rem; height:.5rem; margin-top:.35rem; border-radius:999px; flex:0 0 auto; }
+.detector-chip-row__dot--warning { background:#f59e0b; }
+.detector-chip-row__dot--problem { background:#ef4444; }
+.detector-chip-row__dot--hidden { background:#9ca3af; }
+.detector-chip-row__actions { display:flex; align-items:center; flex-wrap:wrap; justify-content:flex-end; gap:.35rem; flex:0 0 auto; }
+.detector-chip-row__actions button,.detector-chip-row__restore {
+  min-height:2.3rem;
+  padding:.48rem .72rem;
+  border:1px solid #e5e7eb;
+  border-radius:999px;
+  background:#fff;
+  color:#374151;
+  font-size:.76rem;
+  font-weight:800;
+  line-height:1;
+  white-space:nowrap;
+  cursor:pointer;
+}
+.detector-chip-row__actions button:hover,.detector-chip-row__restore:hover { border-color:#bfdbfe; color:#2563eb; }
+.detector-chip-row__actions .is-primary { border-color:#2563eb; background:#2563eb; color:#fff; }
+.detector-chip-row__actions .is-primary:hover { border-color:#1d4ed8; background:#1d4ed8; color:#fff; }
+.detector-chip-row__actions .is-ghost { border-color:transparent; background:transparent; color:#9ca3af; }
+.detector-chip-row__snooze { position:relative; }
+.detector-chip-row__snooze-menu {
+  position:absolute;
+  top:calc(100% + .3rem);
+  right:0;
+  z-index:2;
+  display:none;
+  min-width:14rem;
+  padding:.35rem;
+  border:1px solid #e5e7eb;
+  border-radius:.7rem;
+  background:#fff;
+  box-shadow:0 .8rem 2rem rgba(15,23,42,.16);
+}
+.detector-chip-row__snooze.open .detector-chip-row__snooze-menu { display:flex; flex-direction:column; }
+.detector-chip-row__snooze-menu button { width:100%; border:0; border-radius:.5rem; text-align:left; }
+.detector-chip-row__snooze-menu button:hover { background:#f5f7f9; }
+.detector-chip-row--hidden { align-items:center; color:#6b7280; }
+.detector-chip-row--hidden .detector-chip-row__copy p { color:#6b7280; }
+.detector-chip-row__restore { color:#2563eb; }
+.figma-dashboard.is-dark .detector-chip-panel { border-color:rgba(255,255,255,.12); background:#182033; box-shadow:0 1.25rem 3.5rem rgba(0,0,0,.42); }
+.figma-dashboard.is-dark .detector-chip-row { border-color:rgba(255,255,255,.09); }
+.figma-dashboard.is-dark .detector-chip-panel__head,.figma-dashboard.is-dark .detector-chip-row__copy p { color:#f3f4f6; }
+.figma-dashboard.is-dark .detector-chip-row__actions button,.figma-dashboard.is-dark .detector-chip-row__restore,.figma-dashboard.is-dark .detector-chip-row__snooze-menu { border-color:rgba(255,255,255,.12); background:#202a40; color:#d7deea; }
+.figma-dashboard.is-dark .detector-chip-row__actions .is-primary { border-color:#3b82f6; background:#2563eb; color:#fff; }
+.figma-dashboard.is-dark .detector-chip-row__actions .is-ghost { border-color:transparent; background:transparent; color:#9ca3af; }
+@media (max-width:900px) {
+  .detector-chip-panel { position:fixed; top:auto; right:1rem; bottom:1rem; left:1rem; width:auto; max-height:min(72vh,36rem); overflow:auto; }
+  .detector-chip-row { flex-direction:column; }
+  .detector-chip-row__actions { justify-content:flex-start; }
+}
 .dashboard-sync-text { display:inline-flex; align-items:center; gap:.4167rem; color:#98a2b6; font-size:.9028rem; font-weight:500; white-space:nowrap; }
 .dashboard-sync-text svg { width:.9722rem; height:.9722rem; flex:0 0 auto; }
 .dashboard-sync-text svg.spinning { animation:dashboard-spin 1s linear infinite; }

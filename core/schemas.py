@@ -999,6 +999,16 @@ class DetectorAlertResponse(BaseModel):
     hidden: bool = False
     hidden_reason: Optional[str] = None
     meta: Optional[dict] = None
+    # Детектор ит.4: персональная новизна и снимок «было→стало» (§1, §9.2, §9.4).
+    # novelty ∈ new | worsened | improved | known | action_required.
+    novelty: Optional[str] = None
+    seen: bool = False
+    acknowledged: bool = False
+    was_ratio: Optional[float] = None
+    now_ratio: Optional[float] = None
+    was_value: Optional[float] = None
+    now_value: Optional[float] = None
+    duration_label: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -1029,6 +1039,12 @@ class DetectorSummaryResponse(BaseModel):
     plan_summary: Optional[dict] = None
     sync_issues: List[dict] = []
     onboarding_dismissed_until: Optional[datetime] = None
+    # Детектор ит.4 (§9.3): дата прошлого захода — заголовок «Новое с <дата>».
+    visible_from: Optional[datetime] = None
+    # Детектор ит.4 (§9.5, §9.6): per-metric план/прогноз/вердикт + база без плана.
+    metric_plan: Optional[dict] = None
+    # Детектор ит.4 (§8): конец активного периода — ярлык снуза «До конца периода».
+    active_period_end: Optional[str] = None
 
 
 class DetectorTopAlert(BaseModel):
@@ -1055,7 +1071,10 @@ class DetectorCrossProjectItem(BaseModel):
 
 
 class DetectorSnoozeRequest(BaseModel):
-    days: int = 1
+    # Детектор ит.4 (§8): «На неделю» и «До конца периода». «На 1 день» убран —
+    # алерт затихает сам на следующий заход. mode приоритетнее days.
+    days: Optional[int] = None
+    mode: Optional[str] = None  # week | period_end
 
 
 class DynamicsStat(BaseModel):

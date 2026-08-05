@@ -134,6 +134,37 @@ def init_db_with_retry(max_retries=10, retry_delay=2):
                 conn.execute(text("ALTER TABLE detector_alerts ADD COLUMN IF NOT EXISTS snooze_source JSON"))
                 conn.execute(text("ALTER TABLE detector_alerts ADD COLUMN IF NOT EXISTS not_problem_at TIMESTAMP WITH TIME ZONE"))
                 conn.execute(text("CREATE INDEX IF NOT EXISTS ix_detector_alerts_snoozed_until ON detector_alerts (snoozed_until)"))
+                # Детектор ит.4 (§9.1, §9.3): персональное «увидел» и дата захода.
+                # Дубль миграции cc3d4e5f6a7b — новые таблицы create_all() создаёт,
+                # но держим явные CREATE IF NOT EXISTS ради пересоздаваемой базы.
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS detector_alert_views (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        alert_id UUID NOT NULL REFERENCES detector_alerts(id) ON DELETE CASCADE,
+                        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        seen_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
+                        seen_severity VARCHAR(16),
+                        seen_deviation_pct NUMERIC(8, 2),
+                        seen_actual_value NUMERIC(20, 2),
+                        seen_baseline_value NUMERIC(20, 2),
+                        acknowledged BOOLEAN NOT NULL DEFAULT FALSE,
+                        CONSTRAINT uq_detector_alert_view UNIQUE (alert_id, user_id)
+                    )
+                """))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_detector_alert_views_alert_id ON detector_alert_views (alert_id)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_detector_alert_views_user_id ON detector_alert_views (user_id)"))
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS detector_project_visits (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+                        last_viewed_at TIMESTAMP WITH TIME ZONE,
+                        previous_viewed_at TIMESTAMP WITH TIME ZONE,
+                        CONSTRAINT uq_detector_project_visit UNIQUE (user_id, client_id)
+                    )
+                """))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_detector_project_visits_user_id ON detector_project_visits (user_id)"))
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_detector_project_visits_client_id ON detector_project_visits (client_id)"))
                 # Индексы под горячие пути чтения/записи. Дубль миграции
                 # v3w4x5y6z7a8: индексы, объявленные только в alembic, пропадают
                 # при пересоздании базы через create_all() — проверено на проде,

@@ -1,6 +1,7 @@
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import List, Optional
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import and_, case, or_
@@ -63,7 +64,98 @@ def _user_display_name(user) -> str:
     return name or getattr(user, "username", None) or getattr(user, "email", None) or "коллега"
 
 
-def _alert_to_response(alert: models.DetectorAlert, now: datetime | None = None) -> dict:
+# Детектор ит.4 (§12 Q3): порог «изменилось» — 25% по кратности отклонения.
+_CHANGE_THRESHOLD = 0.25
+
+
+def _alert_ratio(severity, deviation_pct, actual, baseline) -> float | None:
+    """Кратность отклонения. Для план-CPL это факт/цель (1,3× · 2,1×); иначе —
+    из процента дельты. Абсолютная величина: сравниваем «насколько сильно»."""
+    # Главная величина — модуль отклонения. Для отрицательных проверок
+    # (например, темп заявок) actual / baseline уменьшается при ухудшении,
+    # поэтому голое отношение перепутало бы «хуже» и «лучше».
+    if deviation_pct is not None:
+        try:
+            return 1.0 + abs(float(deviation_pct)) / 100.0
+        except (TypeError, ValueError):
+            pass
+    try:
+        if actual is not None and baseline is not None:
+            b = float(baseline)
+            if b != 0:
+                return 1.0 + abs(float(actual) - b) / abs(b)
+    except (TypeError, ValueError, ZeroDivisionError):
+        pass
+    return None
+
+
+def _duration_label(consecutive_days: int | None) -> str | None:
+    """§9.9: усечение длительности — «держится больше недели/месяца» вместо
+    ежедневного счётчика «12-й день»."""
+    d = int(consecutive_days or 0)
+    if d > 30:
+        return "держится больше месяца"
+    if d > 7:
+        return "держится больше недели"
+    return None
+
+
+def _compute_novelty(alert: models.DetectorAlert, view) -> dict:
+    """Персональная новизна алерта относительно личного «увидел» (§1, §9.2).
+
+    novelty ∈ new | worsened | improved | known | action_required.
+    - нет view → new (жёлтый) / action_required (красный, ещё не видел);
+    - смена уровня или кратность ±25% → worsened/improved (сбрасывает «увидел»);
+    - видел без изменений → known; красный без явного «Понятно» держит верх.
+    """
+    is_red = alert.severity == "problem"
+    now_ratio = _alert_ratio(alert.severity, alert.deviation_pct, alert.actual_value, alert.baseline_value)
+    now_value = float(alert.actual_value) if alert.actual_value is not None else None
+    # Один и тот же DetectorAlert может быть переоткрыт как новый эпизод.
+    # Просмотр старого эпизода не делает новый известным.
+    stale_view = bool(
+        view is not None
+        and getattr(view, "seen_at", None)
+        and getattr(alert, "opened_at", None)
+        and view.seen_at < alert.opened_at
+    )
+    if view is None or stale_view:
+        return {
+            "novelty": "action_required" if is_red else "new",
+            "seen": False, "acknowledged": False,
+            "was_ratio": None, "now_ratio": now_ratio,
+            "was_value": None, "now_value": now_value,
+        }
+    was_ratio = _alert_ratio(view.seen_severity, view.seen_deviation_pct, view.seen_actual_value, view.seen_baseline_value)
+    was_value = float(view.seen_actual_value) if view.seen_actual_value is not None else None
+    severity_changed = bool(view.seen_severity) and view.seen_severity != alert.severity
+    # Числа хранятся как NUMERIC, но после преобразования в float ровно 25%
+    # может стать 0.24999999999999994. Малый epsilon сохраняет договорённую
+    # включительную границу «25% и больше».
+    ratio_changed = bool(was_ratio and now_ratio) and (
+        abs(now_ratio - was_ratio) / was_ratio + 1e-9 >= _CHANGE_THRESHOLD
+    )
+    if severity_changed or ratio_changed:
+        if severity_changed:
+            worse = alert.severity == "problem"
+        else:
+            worse = bool(now_ratio and was_ratio) and now_ratio > was_ratio
+        return {
+            "novelty": "worsened" if worse else "improved",
+            "seen": True, "acknowledged": bool(view.acknowledged),
+            "was_ratio": was_ratio, "now_ratio": now_ratio,
+            "was_value": was_value, "now_value": now_value,
+        }
+    novelty = "action_required" if (is_red and not view.acknowledged) else "known"
+    return {
+        "novelty": novelty,
+        "seen": True, "acknowledged": bool(view.acknowledged),
+        "was_ratio": was_ratio, "now_ratio": now_ratio,
+        "was_value": was_value, "now_value": now_value,
+    }
+
+
+def _alert_to_response(alert: models.DetectorAlert, now: datetime | None = None, view=None) -> dict:
     now = now or _now()
     hidden_reason = None
     hidden = False
@@ -75,6 +167,7 @@ def _alert_to_response(alert: models.DetectorAlert, now: datetime | None = None)
         hidden_reason = "not_problem"
 
     channel = alert.channel.value if getattr(alert.channel, "value", None) else alert.channel
+    novelty = _compute_novelty(alert, view)
     return {
         "id": alert.id,
         "metric": alert.metric,
@@ -100,6 +193,8 @@ def _alert_to_response(alert: models.DetectorAlert, now: datetime | None = None)
         "hidden": hidden,
         "hidden_reason": hidden_reason,
         "meta": alert.meta,
+        "duration_label": _duration_label(alert.consecutive_days),
+        **novelty,
     }
 
 
@@ -173,6 +268,57 @@ def _plan_completion_pct(db: Session, client_id: uuid.UUID, plan_status: str, to
         return None
 
 
+def _load_views(db: Session, user_id: uuid.UUID, alert_ids: list) -> dict:
+    """Личные записи «увидел» по набору алертов → {alert_id: DetectorAlertView}."""
+    if not alert_ids:
+        return {}
+    rows = (
+        db.query(models.DetectorAlertView)
+        .filter(
+            models.DetectorAlertView.user_id == user_id,
+            models.DetectorAlertView.alert_id.in_(alert_ids),
+        )
+        .all()
+    )
+    return {row.alert_id: row for row in rows}
+
+
+def _get_visit(db: Session, user_id: uuid.UUID, client_id: uuid.UUID):
+    return (
+        db.query(models.DetectorProjectVisit)
+        .filter(
+            models.DetectorProjectVisit.user_id == user_id,
+            models.DetectorProjectVisit.client_id == client_id,
+        )
+        .first()
+    )
+
+
+def _plan_period_end(db: Session, client_id: uuid.UUID, today) -> date | None:
+    """Дата конца активного периода плана — для снуза «До конца периода» (§8)."""
+    row = (
+        db.query(models.ProjectBudget.period_end)
+        .filter(
+            models.ProjectBudget.client_id == client_id,
+            models.ProjectBudget.period_start <= today,
+            models.ProjectBudget.period_end >= today,
+        )
+        .order_by(models.ProjectBudget.period_end.desc())
+        .first()
+    )
+    return row[0] if row else None
+
+
+def _metric_plan(db: Session, client_id: uuid.UUID, today) -> dict | None:
+    """§9.5/§9.6: per-metric контекст подвала карточек — план/прогноз/вердикт и
+    база прошлого периода для метрик без плана. Реализация — L3."""
+    try:
+        from backend_api.services.detector_iteration3 import metric_plan_context
+        return metric_plan_context(db, client_id, today)
+    except Exception:
+        return None
+
+
 @router.get("/{client_id}/summary", response_model=schemas.DetectorSummaryResponse)
 def get_detector_summary(
     client_id: uuid.UUID,
@@ -207,6 +353,11 @@ def get_detector_summary(
             "plan_summary": _plan_summary(db, client_id, plan_status, today),
             "sync_issues": [],
             "onboarding_dismissed_until": _effective_onboarding_dismissed(db, client, today),
+            "visible_from": None,
+            # План — точка отсчёта, а не часть сигнализации детектора: подвалы
+            # остаются и при выключенном/приостановленном контроле (§5, §11).
+            "metric_plan": _metric_plan(db, client_id, today),
+            "active_period_end": (lambda d: d.isoformat() if d else None)(_plan_period_end(db, client_id, today)),
         }
 
     now = _now()
@@ -244,6 +395,14 @@ def get_detector_summary(
     if warmup_status == "warming_up" and det_state.get("days_since_start") is not None:
         warmup_days_left = max(0, int(det_state.get("warmup_days") or 7) - det_state["days_since_start"])
 
+    # Личная новизна (§9.1): «увидел» по каждому алерту + дата прошлого захода.
+    views = _load_views(db, current_user.id, [a.id for a in alerts] + [a.id for a in hidden_alerts])
+    visit = _get_visit(db, current_user.id, client_id)
+    visible_from = getattr(visit, "last_viewed_at", None)
+    if visible_from is None and alerts:
+        # Первый заход: «новое с» = самое раннее из активных отклонений.
+        visible_from = min(a.opened_at for a in alerts)
+
     plan_status = _plan_status(db, client_id, now.date())
     return {
         "warning_count": warning_count,
@@ -252,13 +411,16 @@ def get_detector_summary(
         "max_severity": max_severity,
         "warmup_status": warmup_status,
         "warmup_days_left": warmup_days_left,
-        "alerts": [_alert_to_response(a, now) for a in alerts],
-        "hidden_alerts": [_alert_to_response(a, now) for a in hidden_alerts],
+        "alerts": [_alert_to_response(a, now, views.get(a.id)) for a in alerts],
+        "hidden_alerts": [_alert_to_response(a, now, views.get(a.id)) for a in hidden_alerts],
         "plan_status": plan_status,
         "plan_completion_pct": _plan_completion_pct(db, client_id, plan_status, now.date()),
         "plan_summary": _plan_summary(db, client_id, plan_status, now.date()),
         "sync_issues": sync_issues_for_client(db, client_id, now.date()),
         "onboarding_dismissed_until": _effective_onboarding_dismissed(db, client, now.date()),
+        "visible_from": visible_from,
+        "metric_plan": _metric_plan(db, client_id, now.date()),
+        "active_period_end": (lambda d: d.isoformat() if d else None)(_plan_period_end(db, client_id, now.date())),
     }
 
 
@@ -278,7 +440,9 @@ def get_detector_alerts(
     else:
         q = q.filter(models.DetectorAlert.status.in_(["open", "dismissed"]))
 
-    return [_alert_to_response(a, now) for a in q.order_by(models.DetectorAlert.opened_at.desc()).limit(50).all()]
+    alerts = q.order_by(models.DetectorAlert.opened_at.desc()).limit(50).all()
+    views = _load_views(db, current_user.id, [a.id for a in alerts])
+    return [_alert_to_response(a, now, views.get(a.id)) for a in alerts]
 
 
 @router.get("/{client_id}/campaign-highlights")
@@ -331,7 +495,8 @@ def dismiss_alert(
     alert.snooze_source = None
     db.commit()
     db.refresh(alert)
-    return _alert_to_response(alert)
+    view = _load_views(db, current_user.id, [alert.id]).get(alert.id)
+    return _alert_to_response(alert, view=view)
 
 
 @router.post("/alerts/{alert_id}/snooze")
@@ -348,23 +513,44 @@ def snooze_alert(
     if alert.status not in ("open", "dismissed"):
         raise HTTPException(status_code=400, detail="Алерт уже закрыт")
 
-    days = int(body.days or 1)
-    if days not in (1, 3, 7):
-        raise HTTPException(status_code=400, detail="Доступны сроки 1, 3 или 7 дней")
+    # §8: только «На неделю» и «До конца периода». Старые 1/3 дня не принимаем
+    # даже при прямом вызове API — иначе интерфейс и фактическая семантика расходятся.
     now = _now()
+    mode = (body.mode or "").strip().lower()
+    days: int | None = None
+    if mode == "period_end":
+        period_end = _plan_period_end(db, alert.client_id, now.date())
+        if not period_end:
+            raise HTTPException(status_code=400, detail="У проекта нет активного периода плана")
+        # Конец периода задаётся календарным днём проекта (МСК), а хранится UTC.
+        moscow = ZoneInfo("Europe/Moscow")
+        snoozed_until = datetime.combine(
+            period_end, datetime.max.time().replace(microsecond=0), tzinfo=moscow
+        ).astimezone(timezone.utc)
+    elif mode == "week":
+        days = 7
+        snoozed_until = now + timedelta(days=7)
+    else:
+        days = int(body.days or 0)
+        if days != 7:
+            raise HTTPException(status_code=400, detail="Доступны сроки: неделя или до конца периода")
+        mode = "week"
+        snoozed_until = now + timedelta(days=7)
     alert.status = "open"
     alert.dismissed_at = None
     alert.not_problem_at = None
-    alert.snoozed_until = now + timedelta(days=days)
+    alert.snoozed_until = snoozed_until
     alert.snooze_source = {
         "user_id": str(current_user.id),
         "user_name": _user_display_name(current_user),
+        "mode": mode,
         "days": days,
         "at": now.isoformat(),
     }
     db.commit()
     db.refresh(alert)
-    return _alert_to_response(alert)
+    view = _load_views(db, current_user.id, [alert.id]).get(alert.id)
+    return _alert_to_response(alert, view=view)
 
 
 @router.post("/alerts/{alert_id}/not-problem")
@@ -389,7 +575,8 @@ def mark_alert_not_problem(
     alert.meta = {**(alert.meta or {}), "not_problem_by": str(current_user.id), "not_problem_by_name": _user_display_name(current_user)}
     db.commit()
     db.refresh(alert)
-    return _alert_to_response(alert)
+    view = _load_views(db, current_user.id, [alert.id]).get(alert.id)
+    return _alert_to_response(alert, view=view)
 
 
 @router.post("/alerts/{alert_id}/restore")
@@ -412,7 +599,112 @@ def restore_alert(
     alert.snooze_source = None
     db.commit()
     db.refresh(alert)
-    return _alert_to_response(alert)
+    view = _load_views(db, current_user.id, [alert.id]).get(alert.id)
+    return _alert_to_response(alert, view=view)
+
+
+@router.post("/alerts/{alert_id}/acknowledge")
+def acknowledge_alert(
+    alert_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """§8 «Понятно»: ручное проставление «увидел». Убирает алерт из зоны, метку
+    на карточке и счётчик оставляет. Для красного — роняет в «Продолжается»
+    (acknowledged=True), сам алерт не закрывает."""
+    alert = db.query(models.DetectorAlert).filter(models.DetectorAlert.id == alert_id).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="Алерт не найден")
+    _assert_detector_access(db, current_user, alert.client_id, write=True)
+    if alert.status != "open" or _is_snoozed(alert):
+        raise HTTPException(status_code=400, detail="Скрытый или закрытый алерт нельзя отметить просмотренным")
+
+    now = _now()
+    view = (
+        db.query(models.DetectorAlertView)
+        .filter(
+            models.DetectorAlertView.alert_id == alert_id,
+            models.DetectorAlertView.user_id == current_user.id,
+        )
+        .first()
+    )
+    if view is None:
+        view = models.DetectorAlertView(alert_id=alert_id, user_id=current_user.id)
+        db.add(view)
+    view.seen_at = now
+    view.seen_severity = alert.severity
+    view.seen_deviation_pct = alert.deviation_pct
+    view.seen_actual_value = alert.actual_value
+    view.seen_baseline_value = alert.baseline_value
+    view.acknowledged = True
+    db.commit()
+    db.refresh(view)
+    return _alert_to_response(alert, now, view)
+
+
+@router.post("/{client_id}/mark-seen")
+def mark_alerts_seen(
+    client_id: uuid.UUID,
+    body: Optional[dict] = None,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """§9.1/§9.3: показ + 3 сек в фокусе — фиксируем личное «увидел» по активным
+    алертам (со снимком текущего состояния для «было→стало») и продвигаем дату
+    захода. Пассивный показ не гасит красный — acknowledged не трогаем."""
+    _assert_detector_access(db, current_user, client_id, write=True)
+    now = _now()
+    alerts = (
+        db.query(models.DetectorAlert)
+        .filter(models.DetectorAlert.client_id == client_id, _visible_filter(now))
+        .all()
+    )
+    requested_ids = None
+    if body and isinstance(body.get("alert_ids"), list):
+        try:
+            requested_ids = {uuid.UUID(str(x)) for x in body["alert_ids"]}
+        except (ValueError, TypeError, AttributeError):
+            requested_ids = None
+    if requested_ids is not None:
+        alerts = [a for a in alerts if a.id in requested_ids]
+
+    existing = _load_views(db, current_user.id, [a.id for a in alerts])
+    for a in alerts:
+        view = existing.get(a.id)
+        novelty_before = _compute_novelty(a, view).get("novelty")
+        if view is None:
+            view = models.DetectorAlertView(alert_id=a.id, user_id=current_user.id, acknowledged=False)
+            db.add(view)
+        # Пассивный просмотр не подтверждает красный сигнал. Более того, если
+        # ранее подтверждённый красный эпизод заметно изменился, старое
+        # «Понятно» больше не относится к новому состоянию и должно быть снято.
+        if a.severity == "problem" and novelty_before in {
+            "new", "worsened", "improved", "action_required",
+        }:
+            view.acknowledged = False
+        view.seen_at = now
+        view.seen_severity = a.severity
+        view.seen_deviation_pct = a.deviation_pct
+        view.seen_actual_value = a.actual_value
+        view.seen_baseline_value = a.baseline_value
+
+    # Заход фиксируем один раз за открытие проекта. Повторные mark-seen могут
+    # приходить позже, если уже на открытой странице изменился алерт; они не
+    # должны подменять дату прошлого реального захода временем фонового запроса.
+    touch_visit = not body or body.get("touch_visit") is not False
+    if touch_visit:
+        visit = _get_visit(db, current_user.id, client_id)
+        if visit is None:
+            visit = models.DetectorProjectVisit(
+                user_id=current_user.id, client_id=client_id,
+                previous_viewed_at=None, last_viewed_at=now,
+            )
+            db.add(visit)
+        else:
+            visit.previous_viewed_at = visit.last_viewed_at
+            visit.last_viewed_at = now
+    db.commit()
+    return {"ok": True, "seen": len(alerts)}
 
 
 @router.post("/{client_id}/onboarding/dismiss")

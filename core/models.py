@@ -1263,6 +1263,54 @@ class DetectorAlert(Base):
     )
 
 
+class DetectorAlertView(Base):
+    """Персональное состояние «увидел» (детектор ит.4, §9.1).
+
+    Пара алерт × пользователь: у каждого сотрудника своя новизна. Снимок
+    severity/deviation/actual/baseline фиксирует «было» на момент просмотра —
+    отсюда фраза «было в 1,3 раза, стало в 2,1» (§9.4). ``acknowledged`` —
+    явное «Понятно»: жёлтый гасит любой просмотр, красный — только явное
+    подтверждение (§8).
+    """
+
+    __tablename__ = "detector_alert_views"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    alert_id = Column(UUID(as_uuid=True), ForeignKey("detector_alerts.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    seen_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    seen_severity = Column(String(16), nullable=True)
+    seen_deviation_pct = Column(Numeric(8, 2), nullable=True)
+    seen_actual_value = Column(Numeric(20, 2), nullable=True)
+    seen_baseline_value = Column(Numeric(20, 2), nullable=True)
+    acknowledged = Column(Boolean, nullable=False, default=False)
+
+    __table_args__ = (
+        UniqueConstraint("alert_id", "user_id", name="uq_detector_alert_view"),
+    )
+
+
+class DetectorProjectVisit(Base):
+    """Дата последнего захода пользователя в проект (детектор ит.4, §9.3).
+
+    Заголовок «Новое с 24 июля» считается от предыдущего захода, а не от
+    календарных суток: ``previous_viewed_at`` — заход перед текущим, к нему и
+    относится «новое».
+    """
+
+    __tablename__ = "detector_project_visits"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True)
+    last_viewed_at = Column(DateTime(timezone=True), nullable=True)
+    previous_viewed_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "client_id", name="uq_detector_project_visit"),
+    )
+
+
 class AIAssistantDialog(Base):
     __tablename__ = "ai_assistant_dialogs"
 

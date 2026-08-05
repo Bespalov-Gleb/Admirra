@@ -938,6 +938,11 @@ class StatsService:
             "prev": {
                 "leads": int(prev["convs"]) if prev else 0,
                 "expenses": round(float(prev["costs"]), 2) if prev else 0.0,
+                # Детектор ит.4 §9.6: база прошлого периода для подвала метрик без
+                # плана (показы/клики/CPC) — то же окно, что и у дельта-пилюли.
+                "impressions": int(prev["imps"]) if prev else 0,
+                "clicks": int(prev["clks"]) if prev else 0,
+                "cpc": round(prev.get("avg_cpc", 0) if prev and prev.get("avg_cpc", 0) > 0 else (prev["costs"] / prev["clks"] if prev and prev["clks"] > 0 else 0), 2),
                 "lead_cost_by_platform": prev.get("lead_cost_by_platform", {"yandex": 0, "vk": 0, "avito": 0}) if prev else {"yandex": 0, "vk": 0, "avito": 0},
             },
         }

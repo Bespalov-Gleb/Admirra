@@ -158,15 +158,53 @@ export function useDetector() {
     }
   }
 
+  // Детектор ит.4: обновление алерта на месте (для «Понятно» — новизна и
+  // acknowledged меняются, но алерт остаётся видимым/в «Продолжается»).
+  const updateAlertLocally = (alertId, patch = {}) => {
+    if (!summary.value?.alerts) return null
+    const index = summary.value.alerts.findIndex(a => a.id === alertId)
+    if (index === -1) return null
+    summary.value.alerts[index] = { ...summary.value.alerts[index], ...patch }
+    return summary.value.alerts[index]
+  }
+
   async function dismissAlert(alertId) {
     return markAlertNotProblem(alertId)
   }
 
-  async function snoozeAlert(alertId, days) {
+  // Детектор ит.4 (§8): снуз принимает {mode:'week'|'period_end'} или {days}.
+  async function snoozeAlert(alertId, payload = {}) {
+    const body = typeof payload === 'number' ? { days: payload } : (payload || {})
     try {
-      const { data } = await api.post(`detector/alerts/${alertId}/snooze`, { days })
+      const { data } = await api.post(`detector/alerts/${alertId}/snooze`, body)
       moveAlertToHidden(alertId, data)
       return data || true
+    } catch {
+      return false
+    }
+  }
+
+  // Детектор ит.4 (§8) «Понятно»: ручное «увидел». Не скрывает алерт — меняет
+  // его новизну (уходит из зоны, метка и счётчик остаются).
+  async function acknowledgeAlert(alertId) {
+    try {
+      const { data } = await api.post(`detector/alerts/${alertId}/acknowledge`)
+      updateAlertLocally(alertId, data || { novelty: 'known', seen: true, acknowledged: true })
+      return data || true
+    } catch {
+      return false
+    }
+  }
+
+  // Детектор ит.4 (§9.1): показ + 3 сек в фокусе — фиксируем «увидел».
+  async function markSeen(clientId, alertIds = null, touchVisit = true) {
+    if (!clientId) return false
+    try {
+      await api.post(`detector/${clientId}/mark-seen`, {
+        ...(alertIds ? { alert_ids: alertIds } : {}),
+        touch_visit: touchVisit,
+      })
+      return true
     } catch {
       return false
     }
@@ -234,6 +272,8 @@ export function useDetector() {
     fetchSummary,
     dismissAlert,
     snoozeAlert,
+    acknowledgeAlert,
+    markSeen,
     markAlertNotProblem,
     restoreAlert,
     getAlertForMetric,
