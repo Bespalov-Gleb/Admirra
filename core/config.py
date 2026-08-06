@@ -335,8 +335,8 @@ def get_config() -> Config:
         ),
         openai=OpenAIConfig(
             api_key=_env("OPENAI_API_KEY"),
-            model=_env("OPENAI_MODEL", "claude-sonnet-4-6"),
-            base_url=_env("OPENAI_BASE_URL", "https://api.proxyapi.ru/anthropic"),
+            model=_env("OPENAI_MODEL", "claude-sonnet-5"),
+            base_url=_env("OPENAI_BASE_URL", "https://byesu.com"),
         ),
         billing=BillingConfig(
             billing_enabled=_bool("BILLING_ENABLED", False),
