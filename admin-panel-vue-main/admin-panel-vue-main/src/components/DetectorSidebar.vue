@@ -387,9 +387,11 @@ const snooze = (alert, mode) => { openSnoozeId.value = null; emit('snooze', aler
 .det-alert__hidden-meta { color: #98a2b6; font-size: 0.8rem; font-weight: 600; }
 .det-alert__ai, .det-alert__btn, .det-alert__ghost, .det-alert__actions button {
   min-height: 2.35rem;
-  padding: 0.52rem 0.85rem;
+  padding: 0.52rem 0.9rem;
   border: 1px solid #e5e7eb;
-  border-radius: 999px;
+  /* Прямоугольные со скруглением — как кнопка «Настройки» на карточках проектов
+     (.settings-btn: border-radius 0.5556rem), а не пилюля. */
+  border-radius: 0.55rem;
   background: #fff;
   color: #374151;
   font-size: 0.82rem;
