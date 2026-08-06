@@ -1514,11 +1514,39 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             except Exception as balance_err:
                 logger.warning(f"Failed to fetch Avito balance for integration {integration.id}: {balance_err}")
 
-            campaigns = db.query(models.Campaign).filter(
+            # Обновляем каталог кампаний из кабинета (как Yandex/VK). Раньше
+            # Avito-синк каталог не трогал: тянул статистику только по уже
+            # известным кампаниям, поэтому новые кампании из кабинета не
+            # подхватывались, а их расход не собирался. Discovery не должен
+            # ронять синк — при ошибке откатываемся к прежнему поведению.
+            discovered: list[dict] = []
+            try:
+                discovered = await api.get_campaigns(integration.account_id)
+            except Exception as discover_err:
+                logger.warning(
+                    f"Avito get_campaigns failed for integration {integration.id}: {discover_err}"
+                )
+            discovered_by_id = {str(c.get("id")): c for c in discovered if c.get("id")}
+            if discovered:
+                # create_missing=False: только освежаем имена/статусы уже
+                # отслеживаемых кампаний; новые заводим ниже по факту расхода,
+                # чтобы не плодить пустые.
+                _upsert_campaign_catalog(db, integration, discovered, create_missing=False)
+
+            # external_ids для статистики: активные/на паузе из кабинета (архивные
+            # исключаем — свежего расхода по ним нет) ∪ ранее отслеживаемые
+            # (is_active), чтобы прежний набор точно не сузить.
+            tracked = db.query(models.Campaign).filter(
                 models.Campaign.integration_id == integration.id,
                 models.Campaign.is_active.is_(True),
             ).all()
-            external_ids = [str(c.external_id) for c in campaigns if c.external_id]
+            external_id_set = {
+                str(c.get("id")) for c in discovered
+                if c.get("id") and str(c.get("state")) != "ARCHIVED"
+            }
+            external_id_set.update(str(c.external_id) for c in tracked if c.external_id)
+            external_ids = list(external_id_set)
+
             stats_bundle = await api.get_statistics_bundle(
                 external_ids,
                 date_from,
@@ -1527,13 +1555,37 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             )
             stats = stats_bundle.get("campaigns", [])
 
-            campaign_map = {str(c.external_id): c for c in campaigns}
+            # Карта всех кампаний интеграции — сюда же попадут новосозданные, чтобы
+            # группы/креативы ниже привязались корректно.
+            campaign_map = {
+                str(c.external_id): c
+                for c in db.query(models.Campaign).filter(
+                    models.Campaign.integration_id == integration.id,
+                ).all()
+                if c.external_id
+            }
             avito_rows = []
             for s in stats:
                 campaign_external_id = str(s.get("campaign_id", ""))
+                if not campaign_external_id:
+                    continue
                 campaign = campaign_map.get(campaign_external_id)
                 if not campaign:
-                    continue
+                    meta = discovered_by_id.get(campaign_external_id)
+                    # Кампанию-спендера заводим активной (как VK) — но только если
+                    # она реально в кабинете и не архивная; иначе пропускаем.
+                    if meta is None or str(meta.get("state")) == "ARCHIVED":
+                        continue
+                    campaign = models.Campaign(
+                        integration_id=integration.id,
+                        external_id=campaign_external_id,
+                        name=s.get("campaign_name") or meta.get("name") or f"Campaign {campaign_external_id}",
+                        is_active=True,
+                    )
+                    apply_platform_status(campaign, meta)
+                    db.add(campaign)
+                    db.flush()
+                    campaign_map[campaign_external_id] = campaign
                 avito_rows.append({
                     "client_id": integration.client_id,
                     "campaign_id": campaign.id,
