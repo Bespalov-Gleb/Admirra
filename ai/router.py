@@ -808,6 +808,10 @@ async def generate_report(
         )
         db.commit()
         return GenerateReportResponse(text=text)
+    except HTTPException:
+        # Штатные API-ответы (в частности 429 троттла комментария) должны
+        # доходить до клиента без подмены на общий 500.
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

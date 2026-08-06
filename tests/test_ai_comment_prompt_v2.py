@@ -1,7 +1,12 @@
 """Регрессионные проверки контракта AI-комментария v2.0."""
 
 import json
+import uuid
 from decimal import Decimal
+from types import SimpleNamespace
+
+import pytest
+from fastapi import HTTPException
 
 from ai.report_generator import (
     COMMENT_PROMPT_VERSION,
@@ -42,6 +47,39 @@ def test_prompt_version_and_v2_schema_are_strict():
     parsed = _parse_comment_json(json.dumps(_valid_obj(), ensure_ascii=False))
     assert parsed is not None
     assert parsed["period_state"] == "attention"
+
+
+@pytest.mark.asyncio
+async def test_dashboard_comment_throttle_stays_http_429(monkeypatch):
+    """Общий обработчик отчёта не должен превращать штатный троттл в 500."""
+    from ai import router
+
+    monkeypatch.setattr(router, "_client_or_404", lambda *args, **kwargs: None)
+    monkeypatch.setattr(router, "_get_cached_comment", lambda *args, **kwargs: None)
+
+    def throttled(*args, **kwargs):
+        raise HTTPException(
+            status_code=429,
+            detail={"reason": "comment_refresh_throttled", "retry_after": 123},
+        )
+
+    monkeypatch.setattr(router, "_enforce_comment_refresh_throttle", throttled)
+    body = router.GenerateReportRequest(
+        client_id=str(uuid.uuid4()),
+        start_date="2026-08-01",
+        end_date="2026-08-06",
+        report_type="dashboard_comment",
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await router.generate_report(
+            body=body,
+            current_user=SimpleNamespace(id=uuid.uuid4()),
+            db=object(),
+        )
+
+    assert exc_info.value.status_code == 429
+    assert exc_info.value.detail["reason"] == "comment_refresh_throttled"
 
 
 def test_period_state_is_required_and_has_closed_enum():
