@@ -35,15 +35,15 @@ def _create_anthropic_client():
     from anthropic import AsyncAnthropic
     base_url = (getattr(settings, "OPENAI_BASE_URL", "") or "").strip().rstrip("/") or None
     try:
-        timeout = float(os.getenv("AI_API_TIMEOUT_SECONDS", "50") or "50")
+        timeout = float(os.getenv("AI_API_TIMEOUT_SECONDS", "100") or "100")
     except (TypeError, ValueError):
-        timeout = 50.0
+        timeout = 100.0
     # Веб-запрос к AI проходит через nginx. Не оставляем SDK ждать его
     # стандартные 10 минут и не разрешаем скрытые автоматические ретраи:
     # повтор после валидации контролирует наш собственный конвейер.
     kwargs = {
         "api_key": settings.OPENAI_API_KEY,
-        "timeout": max(5.0, min(timeout, 55.0)),
+        "timeout": max(5.0, min(timeout, 105.0)),
         "max_retries": 0,
     }
     if base_url:
@@ -991,6 +991,11 @@ async def _generate_dashboard_comment(db: Session, effective_client_ids: list, d
                 "{period_state, lead, body[1..2], recommendation}; "
                 "period_state обязан и recommendation не может быть пустой."
             )
+            # При исчерпанном output budget повтор с теми же параметрами даст
+            # такой же пустой ответ и лишь повторно спишет деньги. Долгий
+            # невалидный ответ также уже съел SLA синхронного запроса.
+            if getattr(response, "stop_reason", None) == "max_tokens" or duration_ms >= 25_000:
+                raise ValueError("AI-комментарий не сформирован: модель не успела вернуть JSON")
             continue
         last_obj = obj
         hard, soft = _validate_comment(
@@ -1011,6 +1016,8 @@ async def _generate_dashboard_comment(db: Session, effective_client_ids: list, d
                 logger.warning("dashboard_comment %s: soft issues: %s", COMMENT_PROMPT_VERSION, "; ".join(soft))
             _update_comment_memory(db, effective_client_ids, context, obj)
             return text
+        if duration_ms >= 25_000:
+            raise ValueError("AI-комментарий не прошёл пост-валидацию")
         error_hint = " ".join(hard)
 
     # v2: ни один hard-invalid кандидат не попадает в UI. Иначе regex-
