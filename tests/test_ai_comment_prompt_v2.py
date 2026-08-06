@@ -16,7 +16,9 @@ from ai.report_generator import (
     _flatten_comment,
     _model_cost_rub,
     _model_cost_usd,
+    _normalise_comment_model_json,
     _parse_comment_json,
+    _runtime_comment_prompt,
     _validate_comment,
 )
 
@@ -57,6 +59,24 @@ def test_interactive_claude_effort_defaults_to_low(monkeypatch):
     assert _ai_output_config("AI_COMMENT_EFFORT") == {"effort": "high"}
     monkeypatch.setenv("AI_COMMENT_EFFORT", "unsupported")
     assert _ai_output_config("AI_COMMENT_EFFORT") == {"effort": "low"}
+
+
+def test_runtime_prompt_keeps_all_rules_and_selects_one_of_five_examples():
+    prompt = _runtime_comment_prompt({"kpi": {"leads": {"value": 34}}})
+    assert "## ПРАВИЛА — ДАННЫЕ" in prompt
+    assert "## ПРАВИЛА — РЕКОМЕНДАЦИЯ" in prompt
+    assert prompt.count("Контекст:") == 1
+    assert '"period_state":"steady"' in prompt
+
+    balance = _runtime_comment_prompt({
+        "kpi": {"leads": {"value": 31}},
+        "detector": {"flags": [{"text": "Баланс кабинета заканчивается"}]},
+    })
+    assert "баланс кабинета на исходе" in balance
+
+
+def test_comment_json_normalisation_removes_only_numeric_tilde():
+    assert _normalise_comment_model_json('а ~98 962 ₽, знак ~ отдельно') == 'а 98 962 ₽, знак ~ отдельно'
 
 
 @pytest.mark.asyncio

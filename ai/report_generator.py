@@ -155,6 +155,47 @@ period_state — честная классификация периода отн
 Ответ: {"period_state":"steady","lead":"Период ровный, заявки и стоимость держатся у цели.","body":["Стоимость заявки 1 206 ₽ — практически на целевом CPL, движения в стороны нет. Основной объём стабильно даёт «Поиск / Основной» с CPA 1 150 ₽, ниже цели."],"recommendation":"Зафиксировать текущие настройки и не вмешиваться, чтобы не сбить обучение; при появлении свободного бюджета — тест расширения семантики на «Поиск / Основной»."}"""
 
 
+def _runtime_comment_prompt(context: dict) -> str:
+    """Полные правила v2 + один релевантный few-shot из пяти эталонов.
+
+    Sonnet 5 использует output budget и на adaptive thinking. Передача всех
+    пяти длинных примеров в каждом запросе приводила к 2+ минутам рассуждения
+    и пустому visible output. Эталоны не удаляются: выбирается подходящий к
+    текущей ситуации, что сохраняет few-shot-настройку и укладывает UI в SLA.
+    """
+    base, examples_raw = DASHBOARD_COMMENT_SYSTEM_PROMPT.split("## ПРИМЕРЫ", 1)
+    examples = __import__("re").split(r"\n\s*\n(?=Контекст:)", examples_raw.strip())
+    if len(examples) != 5:
+        # Защитный fallback при случайном изменении разделителей промпта.
+        return DASHBOARD_COMMENT_SYSTEM_PROMPT
+
+    flags = " ".join(
+        str(item.get("text") or "")
+        for item in ((context.get("detector") or {}).get("flags") or [])
+        if isinstance(item, dict)
+    ).lower()
+    leads = int(((context.get("kpi") or {}).get("leads") or {}).get("value") or 0)
+    if "баланс" in flags or "остат" in flags:
+        example_index = 3
+    elif context.get("directions_mode") == "flexible":
+        example_index = 1
+    elif 0 < leads < 20:
+        example_index = 0
+    elif flags:
+        example_index = 2
+    else:
+        example_index = 4
+    return base + "## РЕЛЕВАНТНЫЙ ПРИМЕР\n" + examples[example_index]
+
+
+def _normalise_comment_model_json(raw: str) -> str:
+    """Убирает только безопасные форматные нарушения до hard-валидации."""
+    import re
+    # Число уже обязано пройти сверку с контекстом. Тильда лишь превращает
+    # точное предрасчитанное значение в запрещённое ТЗ приближение.
+    return re.sub(r"~\s*(?=\d)", "", raw or "")
+
+
 async def generate_report(
     db: Session,
     user_id: uuid.UUID,
@@ -916,8 +957,8 @@ async def _generate_dashboard_comment(db: Session, effective_client_ids: list, d
                 # Кириллица токеноёмкая: до 1200 знаков текста + JSON-обвязка —
                 # берём запас, чтобы ответ не обрезался (иначе невалидный JSON).
                 model=settings.OPENAI_MODEL,
-                max_tokens=1600,
-                system=DASHBOARD_COMMENT_SYSTEM_PROMPT,
+                max_tokens=1100,
+                system=_runtime_comment_prompt(context),
                 messages=[{"role": "user", "content": user_message}],
                 temperature=0.35,
                 output_config=_ai_output_config("AI_COMMENT_EFFORT"),
@@ -930,12 +971,14 @@ async def _generate_dashboard_comment(db: Session, effective_client_ids: list, d
                 attempt=attempt + 1, retry_count=attempt, validation_failed=True,
                 duration_ms=duration_ms, response=None,
             )
-            if _ai_error_is_non_retryable(exc):
-                raise
-            error_hint = "вызов модели завершился технической ошибкой."
-            continue
+            # Транспортный повтор нельзя вместить в синхронный HTTP-запрос и
+            # он может повторно списать деньги. Повторяем только ответы,
+            # отклонённые нашей пост-валидацией.
+            if "timeout" in type(exc).__name__.lower():
+                raise TimeoutError("AI-провайдер не ответил вовремя") from exc
+            raise
         duration_ms = int((time.perf_counter() - started) * 1000)
-        raw = response.content[0].text if response.content else ""
+        raw = _normalise_comment_model_json(response.content[0].text if response.content else "")
         obj = _parse_comment_json(raw)
         if obj is None:
             _log_comment_generation(

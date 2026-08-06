@@ -818,6 +818,8 @@ async def generate_report(
         # Штатные API-ответы (в частности 429 троттла комментария) должны
         # доходить до клиента без подмены на общий 500.
         raise
+    except TimeoutError as e:
+        raise HTTPException(status_code=504, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
