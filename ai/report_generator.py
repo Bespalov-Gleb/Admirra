@@ -35,15 +35,15 @@ def _create_anthropic_client():
     from anthropic import AsyncAnthropic
     base_url = (getattr(settings, "OPENAI_BASE_URL", "") or "").strip().rstrip("/") or None
     try:
-        timeout = float(os.getenv("AI_API_TIMEOUT_SECONDS", "100") or "100")
+        timeout = float(os.getenv("AI_API_TIMEOUT_SECONDS", "50") or "50")
     except (TypeError, ValueError):
-        timeout = 100.0
+        timeout = 50.0
     # Веб-запрос к AI проходит через nginx. Не оставляем SDK ждать его
     # стандартные 10 минут и не разрешаем скрытые автоматические ретраи:
     # повтор после валидации контролирует наш собственный конвейер.
     kwargs = {
         "api_key": settings.OPENAI_API_KEY,
-        "timeout": max(5.0, min(timeout, 105.0)),
+        "timeout": max(5.0, min(timeout, 55.0)),
         "max_retries": 0,
     }
     if base_url:
@@ -194,6 +194,107 @@ def _normalise_comment_model_json(raw: str) -> str:
     # Число уже обязано пройти сверку с контекстом. Тильда лишь превращает
     # точное предрасчитанное значение в запрещённое ТЗ приближение.
     return re.sub(r"~\s*(?=\d)", "", raw or "")
+
+
+def _comment_number(value) -> str:
+    """Русская типографика числа без добавления новой точности."""
+    number = float(value or 0)
+    if number.is_integer():
+        return f"{int(number):,}".replace(",", " ")
+    return f"{number:,.2f}".replace(",", " ").replace(".", ",").rstrip("0").rstrip(",")
+
+
+def _fallback_comment_obj(context: dict) -> dict:
+    """Детерминированный резерв при пустом ответе/таймауте провайдера.
+
+    Использует только уже рассчитанные поля контекста; тот же валидатор затем
+    проверяет числа, имена и запрещённую лексику. Это не второй платный вызов.
+    """
+    import re
+    kpi = context.get("kpi") or {}
+    cpl = (kpi.get("cpl") or {}).get("value")
+    target = context.get("target_cpl")
+    flags = ((context.get("detector") or {}).get("flags") or [])
+    first_flag = flags[0] if flags and isinstance(flags[0], dict) else {}
+    flag_text = str(first_flag.get("text") or "").strip()
+    flag_text = re.sub(r"~\s*(?=\d)", "", flag_text)
+    flag_text = re.sub(r"\s*Суммы с НДС\.?", "", flag_text, flags=re.IGNORECASE).strip()
+    flag_low = flag_text.lower()
+
+    cpl_value = float(cpl or 0)
+    target_value = float(target or 0)
+    if "баланс" in flag_low:
+        state = "problem"
+        lead = "Баланс кабинета требует немедленного внимания."
+        recommendation = "Стоит пополнить баланс кабинета, чтобы не допустить остановки открутки."
+    elif "темпу расхода" in flag_low or "бюджет" in flag_low:
+        state = "attention"
+        lead = "Расход отстаёт от плана, часть бюджета может не открутиться."
+        recommendation = (
+            "Стоит проверить дневные ограничения, ставки и статус кампаний. "
+            "Если объём спроса выбран, расширить семантику или аудитории."
+        )
+    elif target_value and cpl_value > target_value:
+        state = "problem" if cpl_value >= target_value * 1.1 else "attention"
+        lead = "Стоимость заявки выше цели, проект требует проверки."
+        recommendation = "Стоит проверить кампании с высокой стоимостью заявки, семантику и посадочные страницы."
+    else:
+        state = "good" if target_value and cpl_value and cpl_value < target_value else "steady"
+        lead = "Период проходит ровно, резких изменений не требуется."
+        recommendation = "Зафиксировать текущие настройки и не вмешиваться, чтобы не сбить обучение кампаний."
+
+    body = []
+    if flag_text:
+        body.append(flag_text)
+
+    facts = []
+    if cpl is not None and target is not None:
+        facts.append(
+            f"Стоимость заявки {_comment_number(cpl)} ₽ при целевом CPL {_comment_number(target)} ₽."
+        )
+    campaigns = sorted(
+        (item for item in (context.get("campaigns") or []) if isinstance(item, dict)),
+        key=lambda item: int(item.get("leads") or 0),
+        reverse=True,
+    )
+    top = campaigns[0] if campaigns else None
+    if top and top.get("name") and int(top.get("leads") or 0) > 0:
+        campaign_fact = f"Основной объём даёт «{top['name']}»: {_comment_number(top.get('leads'))} заявок"
+        if top.get("cpa") is not None:
+            campaign_fact += f" при CPA {_comment_number(top.get('cpa'))} ₽"
+        facts.append(campaign_fact + ".")
+    if facts:
+        if len(body) < 2:
+            body.append(" ".join(facts))
+        else:
+            body[-1] += " " + " ".join(facts)
+    if not body:
+        body = ["Данных прошлого периода недостаточно для сравнения; вывод сделан по текущему срезу."]
+
+    return {
+        "period_state": state,
+        "lead": lead,
+        "body": body[:2],
+        "recommendation": recommendation,
+    }
+
+
+def _fallback_dashboard_comment(context: dict) -> str:
+    obj = _fallback_comment_obj(context)
+    hard, _ = _validate_comment(
+        obj,
+        _collect_context_numbers(context),
+        context.get("directions_mode") == "fixed",
+        [d.get("name") for d in (context.get("directions") or []) if isinstance(d, dict)],
+        [c.get("name") for c in (context.get("campaigns") or []) if isinstance(c, dict)],
+    )
+    if hard:
+        logger.warning("dashboard_comment fallback validation issues: %s", "; ".join(hard))
+        return (
+            "Комментарий модели сейчас недоступен. Данные на дашборде актуальны — "
+            "стоит проверить активные предупреждения детектора и настройки кампаний."
+        )
+    return _flatten_comment(obj)
 
 
 async def generate_report(
@@ -975,7 +1076,8 @@ async def _generate_dashboard_comment(db: Session, effective_client_ids: list, d
             # он может повторно списать деньги. Повторяем только ответы,
             # отклонённые нашей пост-валидацией.
             if "timeout" in type(exc).__name__.lower():
-                raise TimeoutError("AI-провайдер не ответил вовремя") from exc
+                logger.warning("dashboard_comment: Byesu timeout, using deterministic fallback")
+                return _fallback_dashboard_comment(context)
             raise
         duration_ms = int((time.perf_counter() - started) * 1000)
         raw = _normalise_comment_model_json(response.content[0].text if response.content else "")
@@ -995,7 +1097,8 @@ async def _generate_dashboard_comment(db: Session, effective_client_ids: list, d
             # такой же пустой ответ и лишь повторно спишет деньги. Долгий
             # невалидный ответ также уже съел SLA синхронного запроса.
             if getattr(response, "stop_reason", None) == "max_tokens" or duration_ms >= 25_000:
-                raise ValueError("AI-комментарий не сформирован: модель не успела вернуть JSON")
+                logger.warning("dashboard_comment: empty/late model output, using deterministic fallback")
+                return _fallback_dashboard_comment(context)
             continue
         last_obj = obj
         hard, soft = _validate_comment(
@@ -1017,18 +1120,19 @@ async def _generate_dashboard_comment(db: Session, effective_client_ids: list, d
             _update_comment_memory(db, effective_client_ids, context, obj)
             return text
         if duration_ms >= 25_000:
-            raise ValueError("AI-комментарий не прошёл пост-валидацию")
+            logger.warning("dashboard_comment: late invalid output, using deterministic fallback")
+            return _fallback_dashboard_comment(context)
         error_hint = " ".join(hard)
 
     # v2: ни один hard-invalid кандидат не попадает в UI. Иначе regex-
     # проверка идентификаторов и проверка чисел были бы декоративными.
     if last_obj is not None:
         logger.warning("dashboard_comment %s: all candidates failed validation (%s)", COMMENT_PROMPT_VERSION, error_hint)
-        raise ValueError("AI-комментарий не прошёл пост-валидацию")
+        return _fallback_dashboard_comment(context)
     if last_error is not None:
         raise last_error
     logger.warning("dashboard_comment %s: модель не вернула валидный JSON", COMMENT_PROMPT_VERSION)
-    raise ValueError("AI-комментарий не прошёл валидацию")
+    return _fallback_dashboard_comment(context)
 
 
 def _response_usage(response) -> tuple[int, int, int, int]:

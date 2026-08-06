@@ -14,6 +14,7 @@ from ai.report_generator import (
     _ai_error_is_non_retryable,
     _collect_context_numbers,
     _flatten_comment,
+    _fallback_comment_obj,
     _model_cost_rub,
     _model_cost_usd,
     _normalise_comment_model_json,
@@ -77,6 +78,30 @@ def test_runtime_prompt_keeps_all_rules_and_selects_one_of_five_examples():
 
 def test_comment_json_normalisation_removes_only_numeric_tilde():
     assert _normalise_comment_model_json('а ~98 962 ₽, знак ~ отдельно') == 'а 98 962 ₽, знак ~ отдельно'
+
+
+def test_fallback_comment_uses_only_context_and_passes_validation():
+    context = {
+        "target_cpl": 400,
+        "kpi": {"cpl": {"value": 413.88}},
+        "directions_mode": "fixed",
+        "directions": [],
+        "detector": {"flags": [{
+            "type": "P-1",
+            "text": "Отстаём по темпу расхода: ожидалось ~27 097 ₽, по факту 19 154 ₽ (29% меньше). Суммы с НДС.",
+        }]},
+        "campaigns": [{"name": "Поиск", "leads": 184, "cpa": 413.08}],
+    }
+    obj = _fallback_comment_obj(context)
+    hard, _ = _validate_comment(
+        obj,
+        _collect_context_numbers(context),
+        True,
+        [],
+        ["Поиск"],
+    )
+    assert not hard
+    assert "~" not in " ".join([obj["lead"], *obj["body"], obj["recommendation"]])
 
 
 @pytest.mark.asyncio
