@@ -41,31 +41,21 @@
           <!-- При отклонениях статус превращается в счётчик и открывает полную
                панель действий (§7). В остальных состояниях это спокойный,
                некликабельный статус — настройки проекта уже находятся рядом. -->
-          <div
+          <!-- Щит детектора: только иконка, цвет по серьёзности, badge-счётчик
+               отклонений сверху-справа. Неактивен → настройки+скролл к детектору;
+               активен → сайдбар отклонений. -->
+          <button
             v-if="filters.client_id && detectorSummary && !folderMode"
-            class="detector-chip-wrap"
+            type="button"
+            class="detector-shield"
+            :class="`detector-shield--${detectorShieldState}`"
+            :title="detectorShieldTitle"
+            aria-label="Детектор"
+            @click="onDetectorShieldClick"
           >
-            <button
-              v-if="detectorChipIsCounter"
-              type="button"
-              class="detector-status-chip detector-status-chip--inline detector-status-chip--btn detector-status-chip--counter"
-              :class="`detector-status-chip--${detectorCounterKind}`"
-              title="Открыть отклонения проекта"
-              @click="openDetectorSidebar"
-            >
-              <span class="detector-status-chip__dot"></span>
-              <span>{{ detectorActiveCount }} {{ declOtkl(detectorActiveCount) }}</span>
-            </button>
-            <span
-              v-else
-              class="detector-status-chip detector-status-chip--inline"
-              :class="`detector-status-chip--${detectorStatusChip.kind}`"
-              :title="detectorStatusChip.hint"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.8-3 8.6-7 10-4-1.4-7-5.2-7-10V6l7-3z"/></svg>
-              <span>{{ detectorStatusChip.label }}</span>
-            </span>
-          </div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.8-3 8.6-7 10-4-1.4-7-5.2-7-10V6l7-3z"/></svg>
+            <span v-if="detectorShieldCount > 0" class="detector-shield__badge" :class="`detector-shield__badge--${detectorCounterKind}`">{{ detectorShieldCount }}</span>
+          </button>
           <span class="dashboard-sync-text" :title="syncStatusLabel">
             <ArrowPathIcon :class="{ spinning: dashboardSyncInProgress }" />
             {{ syncStatusLabel }}
@@ -1601,8 +1591,8 @@
     <ProjectSettingsModal
       v-if="settingsProjectObject"
       :project="settingsProjectObject"
-      :initial-action="planRepeatIntent ? 'repeat-plan' : null"
-      @close="settingsProjectObject = null; planRepeatIntent = false"
+      :initial-action="planRepeatIntent ? 'repeat-plan' : (detectorSettingsIntent ? 'detector' : null)"
+      @close="settingsProjectObject = null; planRepeatIntent = false; detectorSettingsIntent = false"
       @saved="handleDashboardProjectSettingsSaved"
       @deleted="handleDashboardProjectDeleted"
       @add-channel="goToIntegrations"
@@ -1766,6 +1756,37 @@ const detectorRedActionPhrase = computed(() => {
   const a = (detectorSummary.value?.alerts || []).find((x) => x.novelty === 'action_required')
   return a ? detectorLeadPhrase(a) : ''
 })
+
+// Щит детектора в шапке (только иконка). Цвет по серьёзности, badge — счётчик.
+const detectorShieldState = computed(() => {
+  const s = detectorSummary.value
+  if (!s || ['disabled', 'paused'].includes(s.warmup_status)) return 'off'
+  if (s.warmup_status === 'warming_up') return 'warmup'
+  if ((detectorSummary.value?.alerts || []).some((a) => a.severity === 'problem')) return 'problem'
+  if ((detectorSummary.value?.alerts || []).length) return 'warning'
+  return 'ok'
+})
+const detectorShieldCount = computed(() => (detectorSummary.value?.alerts || []).length)
+const detectorShieldTitle = computed(() => {
+  switch (detectorShieldState.value) {
+    case 'off': return 'Детектор выключен — открыть настройки'
+    case 'warmup': return 'Детектор накапливает данные — открыть настройки'
+    case 'problem':
+    case 'warning': return `Отклонений: ${detectorShieldCount.value} — открыть`
+    default: return 'В норме — открыть отклонения'
+  }
+})
+// Неактивный детектор (выкл/пауза/прогрев) — клик открывает настройки со
+// скроллом к блоку детектора; активный — открывает сайдбар отклонений.
+const detectorSettingsIntent = ref(false)
+const openDetectorSettings = () => {
+  detectorSettingsIntent.value = true
+  openProjectSettingsModal()
+}
+const onDetectorShieldClick = () => {
+  if (['off', 'warmup'].includes(detectorShieldState.value)) openDetectorSettings()
+  else openDetectorSidebar()
+}
 const declOtkl = (n) => (n === 1 ? 'отклонение' : n > 1 && n < 5 ? 'отклонения' : 'отклонений')
 const chipRowMeta = (alert) =>
   [alertDurationLabel(alert), alert?.seen ? 'просмотрено' : ''].filter(Boolean).join(' · ')
@@ -8674,6 +8695,47 @@ onMounted(() => {
   .detector-action-bar { flex-wrap: wrap; }
   .detector-action-bar__phrase { flex-basis: 100%; white-space: normal; order: 3; }
 }
+
+/* Щит детектора в шапке — только иконка, цвет по серьёзности, badge-счётчик. */
+.detector-shield {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.3rem;
+  height: 2.3rem;
+  border: 1px solid transparent;
+  border-radius: 0.7rem;
+  cursor: pointer;
+  transition: filter 0.15s ease, box-shadow 0.15s ease;
+}
+.detector-shield:hover { filter: brightness(0.97); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05); }
+.detector-shield--off { background: #f2f5f9; border-color: #e3e8f0; color: #8a93a3; }
+.detector-shield--warmup { background: #eaf0fe; border-color: #cbdaf8; color: #1e4fc0; }
+.detector-shield--ok { background: #e6f6ed; border-color: #bfe6ce; color: #188a4c; }
+.detector-shield--warning { background: #fff7e6; border-color: #f5d79c; color: #b45309; }
+.detector-shield--problem { background: #fff0f0; border-color: #f2b8b8; color: #c62828; }
+.detector-shield__badge {
+  position: absolute;
+  top: -0.42rem;
+  right: -0.42rem;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.26rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 2px solid #fff;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 850;
+  line-height: 1;
+}
+.detector-shield__badge--problem { background: #ef4444; }
+.detector-shield__badge--warning { background: #f59e0b; }
+.figma-dashboard.is-dark .detector-shield__badge { border-color: #1a1c2c; }
 
 .metric-head {
   display: flex;

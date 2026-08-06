@@ -68,7 +68,7 @@
           </section>
 
           <!-- ===== Block 4: Детектор и цели ===== -->
-          <section class="psm-card">
+          <section class="psm-card" ref="detectorCardRef">
             <div class="psm-card__header">
               <h3 class="psm-card__title">
                 Детектор и цели
@@ -546,6 +546,7 @@ const saving = ref(false)
 const error = ref('')
 const urlError = ref('')
 const bodyRef = ref(null)
+const detectorCardRef = ref(null)
 const avatarModalOpen = ref(false)
 const updatedAvatarUrl = ref(null)
 const detectorFieldsExpanded = ref(false)
@@ -1439,6 +1440,13 @@ onMounted(() => {
   savedOverflow = document.documentElement.style.overflow
   document.documentElement.style.overflow = 'hidden'
   document.body.style.overflow = 'hidden'
+  // Открытие «к детектору» (клик по щиту, когда детектор неактивен) —
+  // авто-скролл к блоку «Детектор и цели».
+  if (props.initialAction === 'detector') {
+    requestAnimationFrame(() => {
+      detectorCardRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
 })
 
 onUnmounted(() => {
