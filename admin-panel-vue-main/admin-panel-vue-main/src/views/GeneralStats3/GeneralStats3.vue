@@ -44,15 +44,14 @@
           <div
             v-if="filters.client_id && detectorSummary && !folderMode"
             class="detector-chip-wrap"
-            v-click-outside="closeDetectorChipPanel"
           >
             <button
               v-if="detectorChipIsCounter"
               type="button"
               class="detector-status-chip detector-status-chip--inline detector-status-chip--btn detector-status-chip--counter"
               :class="`detector-status-chip--${detectorCounterKind}`"
-              :aria-expanded="detectorChipPanelOpen"
-              @click="detectorChipPanelOpen = !detectorChipPanelOpen"
+              title="Открыть отклонения проекта"
+              @click="openDetectorSidebar"
             >
               <span class="detector-status-chip__dot"></span>
               <span>{{ detectorActiveCount }} {{ declOtkl(detectorActiveCount) }}</span>
@@ -66,44 +65,6 @@
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.8-3 8.6-7 10-4-1.4-7-5.2-7-10V6l7-3z"/></svg>
               <span>{{ detectorStatusChip.label }}</span>
             </span>
-
-            <div v-if="detectorChipIsCounter && detectorChipPanelOpen" class="detector-chip-panel" @click.stop>
-              <div class="detector-chip-panel__head">
-                <span class="detector-status-chip__dot" :class="`detector-status-chip__dot--${detectorCounterKind}`"></span>
-                <strong>Активные отклонения · {{ detectorActiveCount }}</strong>
-              </div>
-              <article v-for="alert in detectorActiveAlerts" :key="`chip-${alert.id}`" class="detector-chip-row">
-                <div class="detector-chip-row__copy">
-                  <span class="detector-chip-row__dot" :class="`detector-chip-row__dot--${alert.severity}`"></span>
-                  <div>
-                    <p>{{ detectorLeadPhrase(alert) }}</p>
-                    <small v-if="chipRowMeta(alert)">{{ chipRowMeta(alert) }}</small>
-                  </div>
-                </div>
-                <div class="detector-chip-row__actions">
-                  <button type="button" class="is-primary" @click="openAssistantForDetectorAlert(alert)">Спросить AI</button>
-                  <button type="button" @click="handleAcknowledgeDetectorAlert(alert)">Понятно</button>
-                  <span class="detector-chip-row__snooze" :class="{ open: snoozeMenuChipId === alert.id }">
-                    <button type="button" @click.stop="toggleDetectorChipSnooze(alert.id)">Скрыть…</button>
-                    <span class="detector-chip-row__snooze-menu">
-                      <button type="button" @click="snoozeChipAlert(alert, 'week')">На неделю</button>
-                      <button v-if="detectorPeriodEndLabel" type="button" @click="snoozeChipAlert(alert, 'period_end')">До конца периода ({{ detectorPeriodEndLabel }})</button>
-                    </span>
-                  </span>
-                  <button type="button" class="is-ghost" @click="handleDetectorNotProblem(alert)">Не проблема</button>
-                </div>
-              </article>
-              <article v-for="alert in detectorHiddenAlerts" :key="`chip-hidden-${alert.id}`" class="detector-chip-row detector-chip-row--hidden">
-                <div class="detector-chip-row__copy">
-                  <span class="detector-chip-row__dot detector-chip-row__dot--hidden"></span>
-                  <div>
-                    <p>{{ detectorLeadPhrase(alert) }}</p>
-                    <small>{{ hiddenChipMeta(alert) }}</small>
-                  </div>
-                </div>
-                <button type="button" class="detector-chip-row__restore" @click="handleRestoreDetectorAlert(alert)">Показать сейчас</button>
-              </article>
-            </div>
           </div>
           <span class="dashboard-sync-text" :title="syncStatusLabel">
             <ArrowPathIcon :class="{ spinning: dashboardSyncInProgress }" />
@@ -365,27 +326,46 @@
       </div>
     </div>
 
+    <!-- Тонкая красная строка-эскалация: только «действие сегодня» (красное, не
+         погашенное). Всё остальное живёт в чипе-счётчике и сайдбаре. -->
+    <button
+      v-if="filters.client_id && detectorRedAction"
+      type="button"
+      class="detector-action-bar"
+      @click="openDetectorSidebar"
+    >
+      <span class="detector-action-bar__ic" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="7.8" x2="12" y2="12.2"/><line x1="12" y1="16.2" x2="12.01" y2="16.2"/></svg>
+      </span>
+      <span class="detector-action-bar__label">Требует действия сегодня</span>
+      <span class="detector-action-bar__phrase">{{ detectorRedActionPhrase }}</span>
+      <span class="detector-action-bar__cta">Открыть<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+    </button>
+
+    <!-- Нейтральные статусы (прогрев / нет данных) — единственное, что баннер
+         теперь рисует; список отклонений уехал в сайдбар. -->
     <DetectorBanner
-      v-if="filters.client_id && !detectorBannerCollapsed && (detectorSummary?.warning_count > 0 || detectorSummary?.problem_count > 0 || detectorSummary?.hidden_count > 0 || detectorSummary?.warmup_status === 'warming_up' || detectorSummary?.sync_issues?.length)"
-      :warning-count="detectorSummary?.warning_count || 0"
-      :problem-count="detectorSummary?.problem_count || 0"
-      :hidden-count="detectorSummary?.hidden_count || 0"
-      :severity="detectorSummary?.max_severity"
-      :hypothesis="detectorBannerHypothesis"
+      v-if="filters.client_id && (detectorSummary?.warmup_status === 'warming_up' || detectorSummary?.sync_issues?.length)"
       :warmup-status="detectorSummary?.warmup_status"
       :warmup-days-left="detectorSummary?.warmup_days_left"
+      :alerts="[]"
+      :hidden-alerts="[]"
+      :sync-issues="detectorSummary?.sync_issues || []"
+      class="detector-banner-slot"
+    />
+
+    <DetectorSidebar
+      :open="detectorSidebarOpen"
       :alerts="detectorSummary?.alerts || []"
       :hidden-alerts="detectorSummary?.hidden_alerts || []"
-      :sync-issues="detectorSummary?.sync_issues || []"
       :visible-from="detectorSummary?.visible_from || null"
       :active-period-end="detectorSummary?.active_period_end || null"
+      @close="detectorSidebarOpen = false"
       @ask-ai="openAssistantForDetectorAlert"
-      @snooze="handleSnoozeDetectorAlert"
       @acknowledge="handleAcknowledgeDetectorAlert"
+      @snooze="handleSnoozeDetectorAlert"
       @not-problem="handleDetectorNotProblem"
       @restore="handleRestoreDetectorAlert"
-      @collapse="detectorBannerCollapsed = true"
-      class="detector-banner-slot"
     />
 
     <PlanOnboardingBanner
@@ -531,11 +511,12 @@
       </div>
     </VueDraggable>
 
-    <!-- Вынесен в body: поповер не может быть обрезан KPI-карточкой или
-         контейнером дашборда и всегда лежит выше интерфейса. -->
+    <!-- Поповер карточки удалён: клик по карточке с отклонением открывает единый
+         сайдбар алертов (DetectorSidebar). Оставлен скрытый контейнер-заглушка,
+         чтобы старые вычисляемые/обработчики не ломали render. -->
     <Teleport to="body">
       <div
-        v-if="detectorMetricPopover"
+        v-if="false"
         class="detector-popover detector-popover--metric detector-popover--teleported"
         :style="detectorMetricPopoverStyle"
         @click.stop
@@ -1676,6 +1657,7 @@ import DateRangePicker from '@/components/ui/DateRangePicker.vue'
 import { projectPeriodOptions, getProjectPeriodLabel, getProjectPeriodRange } from '@/utils/projectPeriods'
 import { VueDraggable } from 'vue-draggable-plus'
 import DetectorBanner from '@/components/DetectorBanner.vue'
+import DetectorSidebar from '@/components/DetectorSidebar.vue'
 import PlanOnboardingBanner from '@/components/PlanOnboardingBanner.vue'
 import DynamicsView from './components/DynamicsView.vue'
 import ProjectReportSettingsModal from './components/ProjectReportSettingsModal.vue'
@@ -1768,6 +1750,22 @@ const detectorChipIsCounter = computed(() => {
 })
 const detectorChipPanelOpen = ref(false)
 const snoozeMenuChipId = ref(null)
+
+// Единый хаб алертов — выезжающий сайдбар. Чип-счётчик, клик по карточке и
+// красная строка-эскалация открывают его; список/действия живут внутри.
+const detectorSidebarOpen = ref(false)
+const openDetectorSidebar = () => {
+  detectorChipPanelOpen.value = false
+  detectorSidebarOpen.value = true
+}
+// Красная эскалация «действие сегодня» — только непогашенные красные.
+const detectorRedAction = computed(() =>
+  (detectorSummary.value?.alerts || []).some((a) => a.novelty === 'action_required')
+)
+const detectorRedActionPhrase = computed(() => {
+  const a = (detectorSummary.value?.alerts || []).find((x) => x.novelty === 'action_required')
+  return a ? detectorLeadPhrase(a) : ''
+})
 const declOtkl = (n) => (n === 1 ? 'отклонение' : n > 1 && n < 5 ? 'отклонения' : 'отклонений')
 const chipRowMeta = (alert) =>
   [alertDurationLabel(alert), alert?.seen ? 'просмотрено' : ''].filter(Boolean).join(' · ')
@@ -5764,6 +5762,7 @@ watch(() => filters.client_id, (clientId) => {
   detectorSeenSignatures = new Set()
   detectorVisitTouchedFor = null
   closeDetectorChipPanel()
+  detectorSidebarOpen.value = false
   if (clientId) {
     fetchDetectorSummary(clientId)
     fetchCampaignHighlights()
@@ -5902,10 +5901,11 @@ const metricFooters = computed(() => {
 })
 
 const onMetricCardClick = (key, event) => {
-  // Клик по кнопкам/ссылкам/подсказке внутри карточки не открывает поповер.
+  // Клик по кнопкам/ссылкам/подсказке внутри карточки не открывает сайдбар.
   if (event?.target?.closest?.('button, a, .metric-hint, .add-card-dropdown, .metric-not-configured')) return
   if (!getMetricAnomaly(key)) return
-  toggleDetectorMetricPopover(key)
+  // Клик по карточке с отклонением открывает единый сайдбар алертов.
+  openDetectorSidebar()
 }
 
 const toggleDetectorMetricPopover = (key) => {
@@ -8614,6 +8614,65 @@ onMounted(() => {
 
 .detector-banner-slot {
   margin-top: 2rem;
+}
+
+/* Красная строка-эскалация «действие сегодня» — единственный громкий сигнал на
+   дашборде; всё остальное тихо (полосы + чип), список — в сайдбаре. */
+.detector-action-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  width: 100%;
+  margin-top: 2rem;
+  padding: 0.85rem 1.15rem;
+  border: 1px solid #ffb9b9;
+  border-radius: 1.05rem;
+  background: #fff1f1;
+  color: #9c2323;
+  font-family: Inter, sans-serif;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.detector-action-bar:hover { background: #ffe9e9; border-color: #ff9d9d; }
+.detector-action-bar__ic {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.65rem;
+  background: rgba(255, 255, 255, 0.7);
+  color: #dc2626;
+}
+.detector-action-bar__label {
+  flex-shrink: 0;
+  font-size: 0.86rem;
+  font-weight: 850;
+  color: #b91c1c;
+}
+.detector-action-bar__phrase {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #7f2b2b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.detector-action-bar__cta {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #dc2626;
+}
+@media (max-width: 720px) {
+  .detector-action-bar { flex-wrap: wrap; }
+  .detector-action-bar__phrase { flex-basis: 100%; white-space: normal; order: 3; }
 }
 
 .metric-head {
