@@ -65,17 +65,18 @@
               </div>
 
               <!-- Действия -->
-              <div v-if="group.key !== 'hidden'" class="det-alert__actions">
-                <button type="button" class="det-alert__ai" @click="$emit('ask-ai', alert)">Спросить AI</button>
-                <button type="button" class="det-alert__btn" @click="$emit('acknowledge', alert)">Понятно</button>
-                <span class="det-alert__snooze" :class="{ open: openSnoozeId === alert.id }">
-                  <button type="button" class="det-alert__btn" @click.stop="toggleSnooze(alert.id)">Скрыть…</button>
-                  <span class="det-alert__menu">
-                    <button type="button" @click="snooze(alert, 'week')">На неделю</button>
-                    <button v-if="periodEndLabel" type="button" @click="snooze(alert, 'period_end')">До конца периода ({{ periodEndLabel }})</button>
-                  </span>
-                </span>
-                <button type="button" class="det-alert__ghost" @click="$emit('not-problem', alert)">Не проблема</button>
+              <div v-if="group.key !== 'hidden'" class="det-alert__foot">
+                <div class="det-alert__actions">
+                  <button type="button" class="det-alert__ai" @click="$emit('ask-ai', alert)">Спросить AI</button>
+                  <button type="button" class="det-alert__btn" :class="{ 'is-active': openSnoozeId === alert.id }" @click="toggleSnooze(alert.id)">Скрыть</button>
+                  <button type="button" class="det-alert__ghost" @click="$emit('not-problem', alert)">Не проблема</button>
+                </div>
+                <!-- Список сроков раскрывается в потоке (не абсолютом) — не режется
+                     контейнером и всегда виден целиком. -->
+                <div v-if="openSnoozeId === alert.id" class="det-alert__snooze-options">
+                  <button type="button" @click="snooze(alert, 'week')">На неделю</button>
+                  <button v-if="periodEndLabel" type="button" @click="snooze(alert, 'period_end')">До конца периода ({{ periodEndLabel }})</button>
+                </div>
               </div>
               <div v-else class="det-alert__actions det-alert__actions--hidden">
                 <span class="det-alert__hidden-meta">{{ hiddenMeta(alert) }}</span>
@@ -230,7 +231,7 @@ const snooze = (alert, mode) => { openSnoozeId.value = null; emit('snooze', aler
   right: 0;
   bottom: 0;
   z-index: 2147483001;
-  width: clamp(20rem, 33vw, 34rem);
+  width: clamp(23rem, 38vw, 40rem);
   max-width: 100vw;
   display: flex;
   flex-direction: column;
@@ -326,26 +327,21 @@ const snooze = (alert, mode) => { openSnoozeId.value = null; emit('snooze', aler
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 0.7rem;
-  margin-bottom: 0.6rem;
-  padding: 0.9rem 1rem 0.9rem 1.15rem;
+  gap: 0.85rem;
+  margin-bottom: 0.7rem;
+  padding: 1.1rem 1.25rem;
+  /* Полоса уровня — левой границей: не требует overflow:hidden, поэтому
+     выпадающие списки внутри карточки не режутся. */
   border: 1px solid #eef1f6;
+  border-left: 4px solid #d7dce4;
   border-radius: 0.9rem;
   background: #fff;
-  overflow: hidden;
 }
-.det-alert::before {
-  content: '';
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: 4px;
-}
-.det-alert--problem::before { background: #ef4444; }
-.det-alert--warning::before { background: #f59e0b; }
-.det-alert--hidden { background: #fafbfc; }
-.det-alert--hidden::before { background: #cbd2dc; }
+.det-alert--problem { border-left-color: #ef4444; }
+.det-alert--warning { border-left-color: #f59e0b; }
+.det-alert--hidden { background: #fafbfc; border-left-color: #cbd2dc; }
 
-.det-alert__main { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+.det-alert__main { display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; }
 .det-alert__novelty {
   align-self: flex-start;
   padding: 0.1rem 0.5rem;
@@ -358,10 +354,10 @@ const snooze = (alert, mode) => { openSnoozeId.value = null; emit('snooze', aler
 .det-alert__novelty--new { background: #dbeafe; color: #1d4ed8; }
 .det-alert__novelty--worsened { background: #fee2e2; color: #b91c1c; }
 .det-alert__novelty--improved { background: #dcfce7; color: #15803d; }
-.det-alert__lead { margin: 0; color: #1f2937; font-size: 0.9rem; font-weight: 500; line-height: 1.42; overflow-wrap: anywhere; }
+.det-alert__lead { margin: 0; color: #1f2937; font-size: 1rem; font-weight: 500; line-height: 1.5; overflow-wrap: anywhere; }
 .det-alert__lead b { font-weight: 850; }
-.det-alert__changed { margin: 0; color: #4b5563; font-size: 0.82rem; font-weight: 650; line-height: 1.4; }
-.det-alert__meta { margin: 0; color: #98a2b6; font-size: 0.76rem; font-weight: 600; }
+.det-alert__changed { margin: 0; color: #4b5563; font-size: 0.9rem; font-weight: 650; line-height: 1.45; }
+.det-alert__meta { margin: 0; color: #98a2b6; font-size: 0.82rem; font-weight: 600; }
 
 /* контекст */
 .det-alert__context { display: flex; flex-direction: column; gap: 0.35rem; }
@@ -379,64 +375,60 @@ const snooze = (alert, mode) => { openSnoozeId.value = null; emit('snooze', aler
   cursor: pointer;
 }
 .det-alert__context-toggle svg { transition: transform 0.18s ease; }
-.det-alert__context-short { margin: 0; color: #6b7280; font-size: 0.8rem; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
-.det-alert__exp { margin: 0; color: #4b5563; font-size: 0.8rem; font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; }
+.det-alert__context-short { margin: 0; color: #6b7280; font-size: 0.88rem; font-weight: 600; line-height: 1.55; overflow-wrap: anywhere; }
+.det-alert__exp { margin: 0; color: #4b5563; font-size: 0.88rem; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
 .det-alert__exp--muted { color: #98a2b6; font-style: italic; }
 .det-alert__contrib { font-weight: 750; }
 
 /* действия */
+.det-alert__foot { display: flex; flex-direction: column; gap: 0.55rem; }
 .det-alert__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
 .det-alert__actions--hidden { justify-content: space-between; }
-.det-alert__hidden-meta { color: #98a2b6; font-size: 0.76rem; font-weight: 600; }
+.det-alert__hidden-meta { color: #98a2b6; font-size: 0.8rem; font-weight: 600; }
 .det-alert__ai, .det-alert__btn, .det-alert__ghost, .det-alert__actions button {
-  min-height: 2.25rem;
-  padding: 0.46rem 0.7rem;
+  min-height: 2.35rem;
+  padding: 0.52rem 0.85rem;
   border: 1px solid #e5e7eb;
   border-radius: 999px;
   background: #fff;
   color: #374151;
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   font-weight: 800;
   line-height: 1;
   white-space: nowrap;
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
-.det-alert__btn:hover { border-color: #bfdbfe; color: #2563eb; }
+.det-alert__btn:hover, .det-alert__btn.is-active { border-color: #bfdbfe; color: #2563eb; }
 .det-alert__ai { border-color: #2563eb; background: #2563eb; color: #fff; }
 .det-alert__ai:hover { border-color: #1d4ed8; background: #1d4ed8; }
 .det-alert__ghost { border-color: transparent; background: transparent; color: #9ca3af; font-weight: 700; }
 .det-alert__ghost:hover { color: #6b7280; background: rgba(15, 23, 42, 0.04); }
 
-.det-alert__snooze { position: relative; }
-.det-alert__menu {
-  position: absolute;
-  top: calc(100% + 0.3rem);
-  left: 0;
-  z-index: 5;
-  display: none;
+/* Список сроков скрытия — inline, в потоке (не режется контейнером) */
+.det-alert__snooze-options {
+  display: flex;
   flex-direction: column;
-  min-width: 12rem;
-  padding: 0.3rem;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  border-radius: 0.6rem;
-  background: #fff;
-  box-shadow: 0 0.7rem 1.8rem rgba(15, 23, 42, 0.16);
+  gap: 0.35rem;
+  padding: 0.4rem;
+  border: 1px solid #e9edf3;
+  border-radius: 0.7rem;
+  background: #f8fafc;
 }
-.det-alert__snooze.open .det-alert__menu { display: flex; }
-.det-alert__menu button {
+.det-alert__snooze-options button {
   min-height: auto;
   border: 0;
-  border-radius: 0.4rem;
-  padding: 0.5rem 0.6rem;
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.7rem;
   background: transparent;
   color: #334155;
   text-align: left;
-  font-weight: 700;
-  font-size: 0.78rem;
+  font-weight: 750;
+  font-size: 0.85rem;
   cursor: pointer;
+  transition: background 0.12s ease;
 }
-.det-alert__menu button:hover { background: #f1f5f9; }
+.det-alert__snooze-options button:hover { background: #eef2f8; color: #2563eb; }
 
 /* ── Анимации ── */
 .det-sidebar-fade-enter-active, .det-sidebar-fade-leave-active { transition: opacity 0.25s ease; }
