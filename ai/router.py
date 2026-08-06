@@ -329,10 +329,16 @@ def _save_comment_cache(db: Session, client_id: uuid.UUID, start_date, end_date,
 def _enforce_comment_refresh_throttle(db: Session, client_id: uuid.UUID) -> None:
     """Ручной пересчёт: не чаще 1/10 мин и максимум 10 запросов/сутки/проект."""
     now = datetime.utcnow()
+    # Неудачный/пустой ответ модели не должен лишать пользователя возможности
+    # повторить запрос: троттлим только реально полученный валидный комментарий.
+    # У одного ручного запуска ровно одна успешная попытка, поэтому attempt здесь
+    # намеренно не фильтруем (первая попытка могла не пройти пост-валидацию).
     manual = db.query(models.AICommentGeneration).filter(
         models.AICommentGeneration.client_id == client_id,
         models.AICommentGeneration.trigger.in_(("refresh", "calculate")),
-        models.AICommentGeneration.attempt == 1,
+        models.AICommentGeneration.validation_failed.is_(False),
+        models.AICommentGeneration.text.isnot(None),
+        models.AICommentGeneration.text != "",
     )
     latest = manual.order_by(models.AICommentGeneration.generated_at.desc()).first()
     if latest and latest.generated_at:

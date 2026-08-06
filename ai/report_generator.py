@@ -34,10 +34,33 @@ def _num(value, digits: int = 2) -> float:
 def _create_anthropic_client():
     from anthropic import AsyncAnthropic
     base_url = (getattr(settings, "OPENAI_BASE_URL", "") or "").strip().rstrip("/") or None
-    kwargs = {"api_key": settings.OPENAI_API_KEY}
+    try:
+        timeout = float(os.getenv("AI_API_TIMEOUT_SECONDS", "50") or "50")
+    except (TypeError, ValueError):
+        timeout = 50.0
+    # Веб-запрос к AI проходит через nginx. Не оставляем SDK ждать его
+    # стандартные 10 минут и не разрешаем скрытые автоматические ретраи:
+    # повтор после валидации контролирует наш собственный конвейер.
+    kwargs = {
+        "api_key": settings.OPENAI_API_KEY,
+        "timeout": max(5.0, min(timeout, 55.0)),
+        "max_retries": 0,
+    }
     if base_url:
         kwargs["base_url"] = base_url
     return AsyncAnthropic(**kwargs)
+
+
+def _ai_output_config(env_name: str) -> dict:
+    """Управление adaptive thinking Claude для интерактивных ответов.
+
+    Byesu включает рассуждение в output_tokens. Без явного low effort модель
+    способна потратить весь лимит на скрытое рассуждение и не вернуть текст.
+    """
+    effort = (os.getenv(env_name, "low") or "low").strip().lower()
+    if effort not in {"low", "medium", "high"}:
+        effort = "low"
+    return {"effort": effort}
 
 
 # ── AI-комментарий за период: системный промпт v2.0.
@@ -304,6 +327,7 @@ async def generate_report(
             system=system_prompt,
             messages=[{"role": "user", "content": user_message}],
             temperature=1.0,
+            output_config=_ai_output_config("AI_REPORT_EFFORT"),
         )
         text = response.content[0].text if response.content else ""
         if report_type == "dashboard_comment":
@@ -892,10 +916,11 @@ async def _generate_dashboard_comment(db: Session, effective_client_ids: list, d
                 # Кириллица токеноёмкая: до 1200 знаков текста + JSON-обвязка —
                 # берём запас, чтобы ответ не обрезался (иначе невалидный JSON).
                 model=settings.OPENAI_MODEL,
-                max_tokens=2000,
+                max_tokens=1600,
                 system=DASHBOARD_COMMENT_SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": user_message}],
                 temperature=0.35,
+                output_config=_ai_output_config("AI_COMMENT_EFFORT"),
             )
         except Exception as exc:
             last_error = exc
@@ -1409,6 +1434,7 @@ async def chat(
             system=system_prompt,
             messages=messages,
             temperature=1.0,
+            output_config=_ai_output_config("AI_ASSISTANT_EFFORT"),
         )
         text = response.content[0].text if response.content else ""
         return text.strip()

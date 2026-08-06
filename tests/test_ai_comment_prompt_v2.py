@@ -10,6 +10,7 @@ from fastapi import HTTPException
 
 from ai.report_generator import (
     COMMENT_PROMPT_VERSION,
+    _ai_output_config,
     _ai_error_is_non_retryable,
     _collect_context_numbers,
     _flatten_comment,
@@ -47,6 +48,15 @@ def test_prompt_version_and_v2_schema_are_strict():
     parsed = _parse_comment_json(json.dumps(_valid_obj(), ensure_ascii=False))
     assert parsed is not None
     assert parsed["period_state"] == "attention"
+
+
+def test_interactive_claude_effort_defaults_to_low(monkeypatch):
+    monkeypatch.delenv("AI_COMMENT_EFFORT", raising=False)
+    assert _ai_output_config("AI_COMMENT_EFFORT") == {"effort": "low"}
+    monkeypatch.setenv("AI_COMMENT_EFFORT", "high")
+    assert _ai_output_config("AI_COMMENT_EFFORT") == {"effort": "high"}
+    monkeypatch.setenv("AI_COMMENT_EFFORT", "unsupported")
+    assert _ai_output_config("AI_COMMENT_EFFORT") == {"effort": "low"}
 
 
 @pytest.mark.asyncio
