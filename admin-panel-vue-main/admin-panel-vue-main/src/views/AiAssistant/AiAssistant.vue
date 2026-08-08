@@ -256,8 +256,14 @@ onBeforeUnmount(() => {
   padding: 12px 8px 9px;
   overflow: hidden;
   background: var(--sidebar-bg);
-  transition: width 220ms ease, flex-basis 220ms ease;
+  opacity: 0;
+  transform: translateX(-14px);
+  transition: width 220ms ease, flex-basis 220ms ease,
+    opacity 450ms ease 50ms,
+    transform 450ms cubic-bezier(0.22, 1, 0.36, 1) 50ms;
 }
+
+.kimi-shell--ready .kimi-sidebar { opacity: 1; transform: none; }
 
 .kimi-sidebar__brand-row {
   height: 38px;
@@ -429,6 +435,12 @@ onBeforeUnmount(() => {
   border: 1px solid var(--line);
   border-radius: 14px;
   background: var(--panel-bg);
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+.kimi-shell--ready .kimi-stage {
+  animation: kimi-stage-enter 360ms cubic-bezier(0.22, 1, 0.36, 1) 40ms forwards;
 }
 
 .kimi-center {
@@ -450,6 +462,12 @@ onBeforeUnmount(() => {
   border-radius: 24px;
   background: var(--composer-bg);
   box-shadow: 0 5px 12px rgba(0, 0, 0, 0.08);
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.kimi-shell--ready .kimi-composer {
+  animation: kimi-rise 500ms cubic-bezier(0.22, 1, 0.36, 1) 120ms forwards;
 }
 
 .kimi-shell--dark .kimi-composer { border-color: #424242; box-shadow: 0 5px 14px rgba(0, 0, 0, 0.25); }
@@ -495,6 +513,12 @@ onBeforeUnmount(() => {
   gap: 8px;
   margin-top: 32px;
   overflow: hidden;
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.kimi-shell--ready .kimi-pills {
+  animation: kimi-rise 500ms cubic-bezier(0.22, 1, 0.36, 1) 200ms forwards;
 }
 
 .kimi-pill {
@@ -535,6 +559,12 @@ onBeforeUnmount(() => {
   font: 400 14px/1 Inter, sans-serif;
   text-align: left;
   cursor: pointer;
+  opacity: 0;
+  transform: translate(-50%, 10px);
+}
+
+.kimi-shell--ready .kimi-explore {
+  animation: kimi-explore-enter 500ms cubic-bezier(0.22, 1, 0.36, 1) 280ms forwards;
 }
 
 .kimi-shell--dark .kimi-explore { background: #202020; color: #929292; }
@@ -560,6 +590,18 @@ onBeforeUnmount(() => {
 .kimi-shell--collapsed .kimi-sidebar__footer { justify-content: center; padding-inline: 0; }
 .kimi-shell--collapsed .kimi-account { flex: 0 0 auto; }
 
+@keyframes kimi-stage-enter {
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes kimi-rise {
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes kimi-explore-enter {
+  to { opacity: 1; transform: translateX(-50%); }
+}
+
 @media (max-height: 760px) {
   .kimi-nav__item { height: 35px; }
   .kimi-info-card button { height: 31px; }
@@ -581,6 +623,22 @@ onBeforeUnmount(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .kimi-shell, .kimi-sidebar { transition: none; }
+  .kimi-shell,
+  .kimi-sidebar,
+  .kimi-stage,
+  .kimi-composer,
+  .kimi-pills,
+  .kimi-explore {
+    transition: none !important;
+    animation: none !important;
+    opacity: 1 !important;
+  }
+
+  .kimi-sidebar,
+  .kimi-stage,
+  .kimi-composer,
+  .kimi-pills { transform: none !important; }
+
+  .kimi-explore { transform: translateX(-50%) !important; }
 }
 </style>
