@@ -258,12 +258,12 @@ onBeforeUnmount(() => {
   background: var(--sidebar-bg);
   opacity: 0;
   transform: translateX(-14px);
-  transition: width 220ms ease, flex-basis 220ms ease,
-    opacity 450ms ease 50ms,
-    transform 450ms cubic-bezier(0.22, 1, 0.36, 1) 50ms;
+  transition: width 220ms ease, flex-basis 220ms ease;
 }
 
-.kimi-shell--ready .kimi-sidebar { opacity: 1; transform: none; }
+.kimi-shell--ready .kimi-sidebar {
+  animation: kimi-sidebar-enter 450ms cubic-bezier(0.22, 1, 0.36, 1) 50ms forwards;
+}
 
 .kimi-sidebar__brand-row {
   height: 38px;
@@ -591,6 +591,10 @@ onBeforeUnmount(() => {
 .kimi-shell--collapsed .kimi-account { flex: 0 0 auto; }
 
 @keyframes kimi-stage-enter {
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes kimi-sidebar-enter {
   to { opacity: 1; transform: none; }
 }
 
