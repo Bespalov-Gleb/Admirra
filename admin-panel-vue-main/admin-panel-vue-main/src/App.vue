@@ -10,6 +10,7 @@ import MainLayout from './layouts/MainLayout.vue'
 import FullWidthLayout from './layouts/FullWidthLayout.vue'
 import LandingLayout from './layouts/LandingLayout.vue'
 import MockupLayout from './layouts/MockupLayout.vue'
+import FullScreenLayout from './layouts/FullScreenLayout.vue'
 
 const route = useRoute()
 const { isLoading } = useAuth()
@@ -34,6 +35,11 @@ const layout = computed(() => {
   if (route.meta.layout === 'mockup') {
     return MockupLayout
   }
+
+  // Полноэкранный чистый layout (AI-ассистент): без сайдбара и хедера.
+  if (route.meta.layout === 'fullscreen') {
+    return FullScreenLayout
+  }
   
   // Legacy support for paths if they are not in router meta yet
   const isPathAuth = ['/login', '/register', '/forgot-password', '/reset-password', '/signin', '/signup', '/verify-email', '/pending-email-verification', '/two-step-verification'].includes(route.path)
@@ -57,9 +63,13 @@ const layout = computed(() => {
 
     <template v-else>
       <OverflowBanner />
-      <component :is="layout">
-        <router-view :key="$route.fullPath" />
-      </component>
+      <!-- Переход между шеллом дашборда и полноэкранным AI: шелл мягко уезжает,
+           AI-страница собирается своими блоками (её собственная анимация). -->
+      <transition name="ai-swap" mode="out-in">
+        <component :is="layout">
+          <router-view :key="$route.fullPath" />
+        </component>
+      </transition>
     </template>
     
     <!-- Global Notifications -->
@@ -74,5 +84,16 @@ const layout = computed(() => {
   font-family: 'Inter', 'Play', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Переход смены layout (шелл ↔ полноэкранный AI). Срабатывает только при смене
+   самого layout — обычную навигацию внутри дашборда не трогает. */
+.ai-swap-leave-active { transition: opacity 0.26s ease, transform 0.26s ease; }
+.ai-swap-leave-to { opacity: 0; transform: translateX(-1.5%); }
+.ai-swap-enter-active { transition: opacity 0.3s ease; }
+.ai-swap-enter-from { opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .ai-swap-leave-active, .ai-swap-enter-active { transition: none; }
+  .ai-swap-leave-to, .ai-swap-enter-from { opacity: 1; transform: none; }
 }
 </style>

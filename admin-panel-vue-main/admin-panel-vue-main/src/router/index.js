@@ -109,6 +109,14 @@ const routes = [
     component: () => import('../views/Product/Products.vue')
   },
   {
+    // Новый AI-ассистент (полноэкранный, свой layout без шелла). Пока макет —
+    // бэкенд-агент и гейт по дорогим тарифам добавляются отдельно.
+    path: '/ai',
+    name: 'AiAssistant',
+    component: () => import('../views/AiAssistant/AiAssistant.vue'),
+    meta: { layout: 'fullscreen' }
+  },
+  {
     path: '/projects',
     // redirect строкой сбрасывает query (?create=folder от сплит-кнопки хедера)
     redirect: (to) => ({ path: '/project-card', query: to.query })

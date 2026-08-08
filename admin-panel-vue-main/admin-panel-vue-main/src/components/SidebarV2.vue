@@ -279,6 +279,7 @@ const menuItems = computed(() => [
     icon: SparklesIcon,
     submenuKey: 'ai',
     children: [
+      { name: 'Чат-ассистент', path: '/ai' },
       { name: 'Ассистент', path: '/ai-analysis' },
       { name: 'Аудит', path: '/ai-audit' },
     ],
