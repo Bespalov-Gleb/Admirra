@@ -9503,12 +9503,16 @@ onMounted(() => {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 0.8rem;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.8rem;
   min-width: 0;
 }
 
+/* Имя цели держит минимум ширины и переносится по словам. Без этого при широкой
+   мете (расход + шт. + цена действия + тренд) имя схлопывалось до 1 символа. */
 .goals-bar-name {
-  min-width: 0;
+  flex: 1 1 auto;
+  min-width: 45%;
   white-space: normal;
   overflow-wrap: anywhere;
   color: #374151;
@@ -14288,6 +14292,11 @@ onMounted(() => {
   padding-left: 0;
   border-top: 1px solid #edf0f4;
   border-left: 0;
+}
+
+/* Немного разводим разбивку по каналам и футер «План … остаток / не доберём». */
+.kpi-grid--channel-details .metric-foot-detector {
+  margin-top: 0.85rem;
 }
 
 .metric-channel-row {
