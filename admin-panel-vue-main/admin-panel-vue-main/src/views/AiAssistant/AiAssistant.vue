@@ -7,7 +7,7 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
           </button>
           <span v-if="planName" class="kimi-plan-badge" :title="`Тариф: ${planName}`">
-            <svg class="kimi-plan-badge__spark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 4.7L18.5 9l-4.6 1.3L12 15l-1.9-4.7L5.5 9z"/></svg>
+            <svg class="kimi-plan-badge__spark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2c.55 3.7 1.75 4.9 5.4 5.4-3.65.55-4.85 1.75-5.4 5.4-.55-3.65-1.75-4.85-5.4-5.4 3.65-.5 4.85-1.7 5.4-5.4z"/></svg>
             <span class="kimi-plan-badge__name">{{ planName }}</span>
           </span>
         </div>
@@ -300,24 +300,23 @@ onBeforeUnmount(() => {
 .kimi-brand-group { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .kimi-back svg { transform: translateX(-0.5px); }
 
-/* Бейдж текущего тарифа вместо логотипа. */
+/* Бейдж текущего тарифа вместо логотипа — в фирменном синем стиле проекта. */
 .kimi-plan-badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  height: 27px;
-  max-width: 118px;
-  padding: 0 10px 0 8px;
+  height: 29px;
+  max-width: 130px;
+  padding: 0 11px 0 9px;
   border-radius: 9px;
-  background: linear-gradient(135deg, #3d7bff, #7a5cff);
+  background: #2563eb;
   color: #fff;
-  font: 600 12.5px/1 Inter, sans-serif;
+  font: 600 12.5px/29px Inter, sans-serif;
   letter-spacing: 0.01em;
-  box-shadow: 0 2px 7px rgba(64, 108, 255, 0.30);
 }
-.kimi-plan-badge__spark { width: 14px; height: 14px; flex: 0 0 14px; fill: #fff; stroke: none; opacity: 0.95; }
+.kimi-shell--dark .kimi-plan-badge { background: #4a7aff; }
+.kimi-plan-badge__spark { width: 14px; height: 14px; flex: 0 0 14px; fill: #fff; stroke: none; }
 .kimi-plan-badge__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.kimi-shell--dark .kimi-plan-badge { box-shadow: 0 2px 9px rgba(64, 108, 255, 0.40); }
 
 .kimi-brand {
   position: relative;
@@ -556,7 +555,8 @@ onBeforeUnmount(() => {
   min-height: 54px;
   max-height: 80px;
   flex: 1;
-  padding: 0;
+  /* лёгкий боковой отступ: без него overflow-y обрезал левый край первой буквы */
+  padding: 0 3px;
   border: 0;
   outline: 0;
   resize: none;
