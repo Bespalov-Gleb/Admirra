@@ -2,9 +2,14 @@
   <div class="kimi-shell" :class="{ 'kimi-shell--ready': mounted, 'kimi-shell--collapsed': sideCollapsed, 'kimi-shell--dark': isDarkMode }">
     <aside class="kimi-sidebar">
       <div class="kimi-sidebar__brand-row">
-        <button class="kimi-brand" type="button" aria-label="AdMirra AI">
-          <span>A</span><i></i>
-        </button>
+        <div class="kimi-brand-group">
+          <button class="kimi-icon-button kimi-back" type="button" aria-label="К дашборду" title="К дашборду" @click="goBack">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+          <button class="kimi-brand" type="button" aria-label="AdMirra AI">
+            <span>A</span><i></i>
+          </button>
+        </div>
         <button
           class="kimi-icon-button kimi-sidebar__toggle"
           type="button"
@@ -15,38 +20,32 @@
         </button>
       </div>
 
-      <button class="kimi-new-chat" type="button">
+      <button class="kimi-new-chat" type="button" @click="newChat">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.25"/><path d="M12 8.5v7M8.5 12h7"/></svg>
-        <span>New Chat</span>
+        <span>Новый чат</span>
         <kbd><b>⌘</b><b>K</b></kbd>
       </button>
 
-      <nav class="kimi-nav kimi-nav--primary" aria-label="AI tools">
-        <button v-for="item in primaryItems" :key="item.label" type="button" class="kimi-nav__item">
-          <span class="kimi-nav__icon" v-html="item.icon"></span>
-          <span class="kimi-nav__text">{{ item.label }}</span>
+      <!-- История чатов: занимает всё место до блока «Основное», скроллится,
+           у нижнего края — лёгкий фейд последнего чата (mask-image). -->
+      <div class="kimi-history" aria-label="История чатов">
+        <button
+          v-for="chat in chats"
+          :key="chat.id"
+          type="button"
+          class="kimi-history__item"
+          :class="{ 'is-active': chat.id === activeChatId }"
+          :title="chat.title"
+          @click="selectChat(chat.id)"
+        >
+          <span class="kimi-history__title">{{ chat.title }}</span>
         </button>
-      </nav>
+      </div>
 
-      <button class="kimi-collapse-row" type="button" @click="toolsCollapsed = !toolsCollapsed">
-        <span class="kimi-collapse-row__dots">···</span>
-        <span>Collapse</span>
-        <svg viewBox="0 0 24 24" aria-hidden="true" :class="{ 'is-closed': toolsCollapsed }"><path d="m7 10 5 5 5-5"/></svg>
-      </button>
-
-      <nav v-show="!toolsCollapsed" class="kimi-nav kimi-nav--secondary" aria-label="Workspace tools">
-        <button v-for="item in secondaryItems" :key="item.label" type="button" class="kimi-nav__item">
-          <span class="kimi-nav__icon" v-html="item.icon"></span>
-          <span class="kimi-nav__text">{{ item.label }}</span>
-          <span v-if="item.badge" class="kimi-beta">{{ item.badge }}</span>
-        </button>
-      </nav>
-
-      <div class="kimi-sidebar__spacer"></div>
-      <div class="kimi-projects-label">Projects</div>
+      <div class="kimi-projects-label">Основное</div>
 
       <div class="kimi-info-card">
-        <button v-for="item in infoItems" :key="item.label" type="button">
+        <button v-for="item in mainItems" :key="item.label" type="button" @click="go(item.path)">
           <span class="kimi-info-card__icon" v-html="item.icon"></span>
           <span>{{ item.label }}</span>
           <svg class="kimi-info-card__chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
@@ -54,14 +53,11 @@
       </div>
 
       <div class="kimi-sidebar__footer">
-        <button class="kimi-account" type="button" @click="goBack">
+        <button class="kimi-account" type="button" :title="displayName">
           <span class="kimi-account__avatar">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.2"/><path d="M5.5 19.5c.8-3.2 3-5 6.5-5s5.7 1.8 6.5 5"/></svg>
           </span>
-          <span>К дашборду</span>
-        </button>
-        <button class="kimi-download" type="button" aria-label="Скачать приложение">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10m0 0 4-4m-4 4-4-4M5 18h14"/></svg>
+          <span>{{ displayName }}</span>
         </button>
       </div>
     </aside>
@@ -79,6 +75,7 @@
               aria-label="Запрос ассистенту"
               placeholder="Ask anything, or task an agent..."
               @input="autoGrow"
+              @keydown.enter.exact.prevent="sendPrompt"
             ></textarea>
             <div class="kimi-composer__actions">
               <button class="kimi-plus" type="button" aria-label="Добавить">
@@ -89,7 +86,7 @@
                   <span>Instant</span><strong>High</strong>
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
                 </button>
-                <button class="kimi-send" type="button" aria-label="Отправить" :class="{ 'kimi-send--active': prompt.trim() }">
+                <button class="kimi-send" type="button" aria-label="Отправить" :class="{ 'kimi-send--active': prompt.trim() }" @click="sendPrompt">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 18V6m0 0-5 5m5-5 5 5"/></svg>
                 </button>
               </div>
@@ -118,17 +115,25 @@
 </template>
 
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTheme } from '../../composables/useTheme'
+import { useAuth } from '../../composables/useAuth'
 
 const router = useRouter()
 const { isDarkMode } = useTheme()
+const { user } = useAuth()
 const mounted = ref(false)
 const sideCollapsed = ref(false)
-const toolsCollapsed = ref(false)
 const prompt = ref('')
 const textarea = ref(null)
+
+const displayName = computed(() => {
+  const u = user.value
+  if (!u) return 'Профиль'
+  if (u.first_name || u.last_name) return `${u.first_name || ''} ${u.last_name || ''}`.trim()
+  return u.username || u.email || 'Профиль'
+})
 
 const icons = {
   smile: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.25"/><path d="M9 10h.01M15 10h.01M9 14.2c1.7 1.5 4.3 1.5 6 0"/></svg>',
@@ -147,32 +152,84 @@ const icons = {
   info: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.25"/><path d="M12 11v5M12 8h.01"/></svg>',
   language: '<svg viewBox="0 0 24 24"><path d="M4 5h9M8.5 3v2c0 4-1.6 7.3-4.5 9.5M7 9c1.2 2.1 2.8 3.7 4.8 4.9M13 20l3.5-9 3.5 9M14.2 17h4.6"/></svg>',
   help: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.25"/><path d="M9.7 9.3a2.5 2.5 0 0 1 4.8.9c0 1.8-2.5 2.1-2.5 4M12 17h.01"/></svg>',
+  link: '<svg viewBox="0 0 24 24"><path d="M9.5 14.5l5-5M10.5 6.8l1.3-1.3a3.6 3.6 0 0 1 5.1 5.1l-2 2M13.5 17.2l-1.3 1.3a3.6 3.6 0 0 1-5.1-5.1l2-2"/></svg>',
+  stack: '<svg viewBox="0 0 24 24"><rect x="4" y="4.5" width="16" height="6" rx="1.6"/><rect x="4" y="13.5" width="16" height="6" rx="1.6"/></svg>',
 }
 
-const primaryItems = [
-  { label: 'My AdMirra', icon: icons.smile },
-  { label: 'Scheduled Tasks', icon: icons.clock },
-  { label: 'Swarm', icon: icons.swarm },
-  { label: 'Slides', icon: icons.slides },
-  { label: 'Deep Research', icon: icons.research },
+// Блок «Основное» — вход в основные разделы приложения.
+const mainItems = [
+  { label: 'Интеграции', icon: icons.link, path: '/integrations' },
+  { label: 'Проекты', icon: icons.stack, path: '/project-card' },
 ]
 
-const secondaryItems = [
-  { label: 'Websites', icon: icons.website },
-  { label: 'Docs', icon: icons.doc },
-  { label: 'Sheets', icon: icons.sheet },
-  { label: 'Design', icon: icons.design },
-  { label: 'AdMirra Work', icon: icons.monitor, badge: 'Beta' },
-  { label: 'AdMirra Code', icon: icons.code },
-  { label: 'AdMirra Agent', icon: icons.agent },
-]
+const go = (path) => router.push(path)
 
-const infoItems = [
-  { label: 'Get App', icon: icons.download },
-  { label: 'About Us', icon: icons.info },
-  { label: 'Language', icon: icons.language },
-  { label: 'Get Help', icon: icons.help },
-]
+// ── История чатов (пока фронт-мокап на localStorage; позже — бэкенд) ──────────
+const CHATS_KEY = 'admirra_ai_chats'
+const chats = ref([])
+const activeChatId = ref(null)
+
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
+
+const seedChats = () => [
+  'Почему вырос CPA в Яндекс Директе',
+  'Идеи объявлений для VK Ads',
+  'Сводка по лидам за месяц',
+  'Что оптимизировать в кампаниях Avito',
+  'Анализ CTR по площадкам',
+  'Сравнение каналов за квартал',
+  'Гипотезы для A/B-теста объявлений',
+  'Отчёт клиенту за неделю',
+  'Разбор перерасхода бюджета',
+  'Топ кампаний по конверсиям',
+  'Прогноз лидов на следующий месяц',
+  'Почему упали показы в VK',
+].map((title, i) => ({ id: uid(), title, ts: Date.now() - (i + 1) * 1000 }))
+
+const persistChats = () => {
+  try { localStorage.setItem(CHATS_KEY, JSON.stringify(chats.value)) } catch (e) { /* ignore */ }
+}
+
+const loadChats = () => {
+  try {
+    const raw = localStorage.getItem(CHATS_KEY)
+    const parsed = raw ? JSON.parse(raw) : null
+    if (Array.isArray(parsed) && parsed.length) { chats.value = parsed; return }
+  } catch (e) { /* ignore */ }
+  chats.value = seedChats()
+  persistChats()
+}
+
+const newChat = () => {
+  const chat = { id: uid(), title: 'Новый чат', ts: Date.now() }
+  chats.value.unshift(chat)
+  activeChatId.value = chat.id
+  prompt.value = ''
+  persistChats()
+  nextTick(() => textarea.value?.focus())
+}
+
+const selectChat = (id) => { activeChatId.value = id }
+
+const sendPrompt = () => {
+  const text = prompt.value.trim()
+  if (!text) return
+  let chat = chats.value.find((c) => c.id === activeChatId.value)
+  if (!chat) {
+    chat = { id: uid(), title: '', ts: Date.now() }
+    chats.value.unshift(chat)
+    activeChatId.value = chat.id
+  }
+  if (!chat.title || chat.title === 'Новый чат') {
+    chat.title = text.length > 42 ? `${text.slice(0, 42)}…` : text
+  }
+  chat.ts = Date.now()
+  // Активный чат всплывает наверх истории.
+  chats.value = [chat, ...chats.value.filter((c) => c.id !== chat.id)]
+  prompt.value = ''
+  autoGrow()
+  persistChats()
+}
 
 const pills = [
   { label: 'Swarm', icon: icons.swarm },
@@ -195,6 +252,7 @@ const goBack = () => router.push('/dashboard/general-3')
 
 let previousOverflow = ''
 onMounted(async () => {
+  loadChats()
   previousOverflow = document.documentElement.style.overflow
   document.documentElement.style.overflow = 'hidden'
   await nextTick()
@@ -272,6 +330,9 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   padding: 0 8px;
 }
+
+.kimi-brand-group { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.kimi-back svg { transform: translateX(-0.5px); }
 
 .kimi-brand {
   position: relative;
@@ -375,13 +436,45 @@ onBeforeUnmount(() => {
 .kimi-collapse-row svg { width: 16px; height: 16px; margin-left: auto; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; transition: transform 180ms ease; }
 .kimi-collapse-row svg.is-closed { transform: rotate(-90deg); }
 
-.kimi-sidebar__spacer { flex: 1; min-height: 2px; }
-.kimi-projects-label { padding: 0 8px 4px; color: var(--muted); font-size: 14px; line-height: 18px; }
+/* История чатов: flex:1 забирает всё место до «Основного», скроллится,
+   нижние ~26px маскируются градиентом — последний чат мягко угасает. */
+.kimi-history {
+  flex: 1;
+  min-height: 0;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding-bottom: 6px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent);
+}
+.kimi-history::-webkit-scrollbar { width: 0; height: 0; }
+.kimi-history__item {
+  width: 100%;
+  height: 38px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  font: 400 14px/1 Inter, sans-serif;
+  text-align: left;
+  cursor: pointer;
+}
+.kimi-history__item:hover { background: var(--hover-bg); }
+.kimi-history__item.is-active { background: var(--hover-bg); font-weight: 500; }
+.kimi-history__title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kimi-projects-label { padding: 4px 8px 4px; color: var(--muted); font-size: 14px; line-height: 18px; }
 
 .kimi-info-card {
   width: 100%;
-  height: 162px;
-  flex: 0 0 162px;
+  flex: 0 0 auto;
   padding: 8px;
   border: 1px solid var(--strong-line);
   border-radius: 16px;
@@ -410,7 +503,8 @@ onBeforeUnmount(() => {
 .kimi-info-card__chevron { width: 15px; height: 15px; margin-left: auto; fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 
 .kimi-sidebar__footer { width: 240px; height: 60px; flex: 0 0 60px; margin: 0 -8px -9px; display: flex; align-items: center; padding: 0 8px; background: var(--sidebar-bg); }
-.kimi-account { min-width: 0; height: 44px; flex: 0 0 180px; display: flex; align-items: center; gap: 9px; padding: 8px; border: 0; border-radius: 12px; background: transparent; color: var(--text); font: 400 14px/1 Inter, sans-serif; cursor: pointer; }
+.kimi-account { min-width: 0; height: 44px; flex: 1 1 auto; display: flex; align-items: center; gap: 9px; padding: 8px; border: 0; border-radius: 12px; background: transparent; color: var(--text); font: 400 14px/1 Inter, sans-serif; cursor: pointer; }
+.kimi-account:hover { background: var(--hover-bg); }
 .kimi-account__avatar { width: 28px; height: 28px; flex: 0 0 28px; display: grid; place-items: center; border-radius: 50%; background: #e8e8e8; color: #aaa; }
 .kimi-shell--dark .kimi-account__avatar { background: #3b3b3b; color: #777; }
 .kimi-account__avatar svg { width: 20px; height: 20px; fill: currentColor; stroke: none; }
@@ -575,18 +669,15 @@ onBeforeUnmount(() => {
 
 .kimi-shell--collapsed .kimi-sidebar { width: 64px; flex-basis: 64px; }
 .kimi-shell--collapsed .kimi-sidebar__brand-row { padding: 0 9px; justify-content: center; }
+.kimi-shell--collapsed .kimi-back,
 .kimi-shell--collapsed .kimi-sidebar__toggle,
 .kimi-shell--collapsed .kimi-new-chat > span,
 .kimi-shell--collapsed .kimi-new-chat kbd,
-.kimi-shell--collapsed .kimi-nav__text,
-.kimi-shell--collapsed .kimi-beta,
-.kimi-shell--collapsed .kimi-collapse-row,
+.kimi-shell--collapsed .kimi-history,
 .kimi-shell--collapsed .kimi-projects-label,
 .kimi-shell--collapsed .kimi-info-card,
-.kimi-shell--collapsed .kimi-account > span:last-child,
-.kimi-shell--collapsed .kimi-download { display: none; }
+.kimi-shell--collapsed .kimi-account > span:last-child { display: none; }
 .kimi-shell--collapsed .kimi-new-chat { width: 43px; margin-inline: auto; justify-content: center; padding: 0; }
-.kimi-shell--collapsed .kimi-nav__item { justify-content: center; padding: 0; }
 .kimi-shell--collapsed .kimi-sidebar__footer { justify-content: center; padding-inline: 0; }
 .kimi-shell--collapsed .kimi-account { flex: 0 0 auto; }
 
@@ -615,11 +706,10 @@ onBeforeUnmount(() => {
 @media (max-width: 900px) {
   .kimi-sidebar { width: 64px; flex-basis: 64px; }
   .kimi-sidebar__brand-row { padding: 0 9px; justify-content: center; }
-  .kimi-sidebar__toggle, .kimi-new-chat > span, .kimi-new-chat kbd, .kimi-nav__text,
-  .kimi-beta, .kimi-collapse-row, .kimi-projects-label, .kimi-info-card,
-  .kimi-account > span:last-child, .kimi-download { display: none; }
+  .kimi-back, .kimi-sidebar__toggle, .kimi-new-chat > span, .kimi-new-chat kbd, .kimi-history,
+  .kimi-projects-label, .kimi-info-card,
+  .kimi-account > span:last-child { display: none; }
   .kimi-new-chat { width: 43px; margin-inline: auto; justify-content: center; padding: 0; }
-  .kimi-nav__item { justify-content: center; padding: 0; }
   .kimi-sidebar__footer { justify-content: center; padding-inline: 0; }
   .kimi-account { flex: 0 0 auto; }
   .kimi-center, .kimi-explore { width: calc(100% - 40px); }
