@@ -7,7 +7,7 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
           </button>
           <span v-if="planName" class="kimi-plan-badge" :title="`Тариф: ${planName}`">
-            <svg class="kimi-plan-badge__spark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2c.55 3.7 1.75 4.9 5.4 5.4-3.65.55-4.85 1.75-5.4 5.4-.55-3.65-1.75-4.85-5.4-5.4 3.65-.5 4.85-1.7 5.4-5.4z"/></svg>
+            <svg class="kimi-plan-badge__spark" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8.2 7.4 12 12 5.2 16.6 12 21 8.2l-1.7 9.6a1 1 0 0 1-.99.82H5.69a1 1 0 0 1-.99-.82z"/></svg>
             <span class="kimi-plan-badge__name">{{ planName }}</span>
           </span>
         </div>
@@ -300,21 +300,21 @@ onBeforeUnmount(() => {
 .kimi-brand-group { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .kimi-back svg { transform: translateX(-0.5px); }
 
-/* Бейдж текущего тарифа вместо логотипа — в фирменном синем стиле проекта. */
+/* Бейдж текущего тарифа вместо логотипа — на фирменном градиенте проекта. */
 .kimi-plan-badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   height: 29px;
-  max-width: 130px;
+  max-width: 132px;
   padding: 0 11px 0 9px;
   border-radius: 9px;
-  background: #2563eb;
+  background: linear-gradient(135deg, #2563eb 0%, #1f9de4 52%, #06b5d4 100%);
   color: #fff;
   font: 600 12.5px/29px Inter, sans-serif;
   letter-spacing: 0.01em;
+  box-shadow: 0 1px 4px rgba(37, 99, 235, 0.28);
 }
-.kimi-shell--dark .kimi-plan-badge { background: #4a7aff; }
 .kimi-plan-badge__spark { width: 14px; height: 14px; flex: 0 0 14px; fill: #fff; stroke: none; }
 .kimi-plan-badge__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -555,8 +555,8 @@ onBeforeUnmount(() => {
   min-height: 54px;
   max-height: 80px;
   flex: 1;
-  /* лёгкий боковой отступ: без него overflow-y обрезал левый край первой буквы */
-  padding: 0 3px;
+  /* боковой отступ: без него overflow-y обрезал левый край первой буквы плейсхолдера */
+  padding: 0 6px;
   border: 0;
   outline: 0;
   resize: none;
