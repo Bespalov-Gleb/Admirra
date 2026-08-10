@@ -13,14 +13,19 @@
             <button
               v-for="tab in tabs"
               :key="tab.id"
+              :disabled="tab.dev"
               @click="selectTab(tab.id)"
               :class="[
                 'settings-tab-btn',
                 activeTab === tab.id ? 'settings-tab-btn--active' : '',
+                tab.dev ? 'settings-tab-btn--dev' : '',
               ]"
             >
               <component :is="tab.icon" class="w-[1.1111rem] h-[1.1111rem] flex-shrink-0" />
-              <span class="flex-1">{{ tab.label }}</span>
+              <span class="flex-1 min-w-0 flex flex-col items-start gap-[0.2083rem]">
+                <span class="max-w-full truncate">{{ tab.label }}</span>
+                <span v-if="tab.dev" class="wl-dev-badge">в разработке</span>
+              </span>
               <svg v-if="tab.id === 'brand' && !brand.whitelabel_available" class="w-[0.8333rem] h-[0.8333rem] flex-shrink-0 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
               </svg>
@@ -198,23 +203,31 @@ const toaster = useToaster()
 
 const activeTab = ref('tariff')
 
+// White Label ещё в разработке: вкладку показываем как «в разработке», но входить
+// в неё и открывать её контент нельзя (в т.ч. по прямой ссылке ?tab=brand).
+const WHITE_LABEL_IN_DEV = true
+
 const tabs = [
   { id: 'tariff', label: 'Тариф и оплата', icon: CreditCardIcon },
-  { id: 'brand', label: 'Бренд / White Label', icon: SwatchIcon },
+  { id: 'brand', label: 'Бренд / White Label', icon: SwatchIcon, dev: WHITE_LABEL_IN_DEV },
 ]
 
+const resolveTab = (queryTab) =>
+  queryTab === 'brand' && !WHITE_LABEL_IN_DEV ? 'brand' : 'tariff'
+
 const selectTab = (tabId) => {
+  if (tabId === 'brand' && WHITE_LABEL_IN_DEV) return
   activeTab.value = tabId
   router.replace({ path: '/settings', query: tabId === 'brand' ? { tab: 'brand' } : {} })
 }
 
 onMounted(() => {
-  activeTab.value = route.query.tab === 'brand' ? 'brand' : 'tariff'
+  activeTab.value = resolveTab(route.query.tab)
   loadBrand()
 })
 
 watch(() => route.query.tab, (val) => {
-  activeTab.value = val === 'brand' ? 'brand' : 'tariff'
+  activeTab.value = resolveTab(val)
 })
 
 const brand = reactive({
@@ -370,6 +383,24 @@ async function savePdf() {
 :global(.dark) .settings-tab-btn { color: rgba(255,255,255,0.55); }
 :global(.dark) .settings-tab-btn:hover { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.85); }
 :global(.dark) .settings-tab-btn--active { background: rgba(255,255,255,0.10); color: #4A7AFF; }
+
+/* White Label «в разработке»: вкладка видна, но некликабельна. */
+.settings-tab-btn:disabled { cursor: default; opacity: 1; }
+.settings-tab-btn--dev:hover { background: transparent; color: rgba(105,105,105,0.65); }
+:global(.dark) .settings-tab-btn--dev:hover { background: transparent; color: rgba(255,255,255,0.55); }
+.wl-dev-badge {
+  display: inline-block;
+  padding: 0.0694rem 0.4167rem;
+  border-radius: 0.3472rem;
+  font-size: 0.6944rem;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  color: #b26b00;
+  background: #fff4e0;
+  white-space: nowrap;
+}
+:global(.dark) .wl-dev-badge { color: #f0b866; background: rgba(239,168,39,0.14); }
 
 .settings-card {
   background: #fff;

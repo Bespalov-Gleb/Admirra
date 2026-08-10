@@ -378,13 +378,6 @@
                 </div>
                 <div class="hd-divider"></div>
                 <div>
-                  <button @click.prevent="toggleTheme" class="hd-menu-item">
-                    <span class="hd-menu-icon">
-                      <svg class="h-[1.0417rem] w-[1.0417rem] fill-current" viewBox="0 0 20 20"><use href="/admirra/img/svg/sprite.svg#moon"></use></svg>
-                    </span>
-                    <span class="flex-1 text-left">{{ isDarkMode ? 'Светлая тема' : 'Темная тема' }}</span>
-                    <span :class="['hd-toggle', isDarkMode ? 'hd-toggle--on' : '']"></span>
-                  </button>
                   <button @click="router.push('/profile'); closeProfileMenu()" class="hd-menu-item">
                     <span class="hd-menu-icon">
                       <svg class="h-[1.0417rem] w-[1.0417rem] fill-none stroke-current" viewBox="0 0 20 20"><use href="/admirra/img/svg/sprite.svg#user"></use></svg>
@@ -444,7 +437,6 @@ import api from '../api/axios'
 import ConfirmModal from './ConfirmModal.vue'
 import { useSidebar } from '../composables/useSidebar'
 import { useAuth } from '../composables/useAuth'
-import { useTheme } from '../composables/useTheme'
 import { useProjects } from '../composables/useProjects'
 import { projectAvatarUrl, projectInitials } from '../utils/projectAvatar'
 
@@ -452,7 +444,6 @@ const router = useRouter()
 const route = useRoute()
 const { isMobileMenuOpen, toggleMobileMenu } = useSidebar()
 const { user, logout } = useAuth()
-const { isDarkMode, toggleTheme } = useTheme()
 const { projects, currentProjectId, currentProject, currentProjectName, fetchProjects, setCurrentProject } = useProjects()
 
 const isProjectMenuOpen = ref(false)

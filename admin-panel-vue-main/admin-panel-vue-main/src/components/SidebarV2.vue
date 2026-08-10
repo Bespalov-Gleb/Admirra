@@ -237,14 +237,13 @@ import { ref, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ChevronDownIcon,
-  ComputerDesktopIcon,
+  ChatBubbleLeftRightIcon,
   Squares2X2Icon,
   ClockIcon,
-  Cog6ToothIcon,
+  CreditCardIcon,
   UserGroupIcon,
   RectangleStackIcon,
   SparklesIcon,
-  LightBulbIcon,
   LinkIcon,
   DocumentTextIcon,
 } from '@heroicons/vue/24/outline'
@@ -278,14 +277,13 @@ const menuItems = computed(() => [
   { name: 'Интеграции', path: '/integrations', icon: LinkIcon, sectionLabel: 'Подключения' },
   { name: 'История', path: '/history', icon: ClockIcon, sectionLabel: 'Аккаунт' },
   { name: 'Команда', path: '/team', icon: UserGroupIcon },
-  { name: 'Тарифы', path: '/settings?tab=tariff&view=plans', icon: Cog6ToothIcon },
+  { name: 'Тарифы', path: '/settings?tab=tariff&view=plans', icon: CreditCardIcon },
 ])
 
 const bottomLinks = computed(() => [
-  // Пока форму «Что допилить?» заменили на закрытый чат в Telegram —
-  // функционал обсуждаем с пользователями там.
-  { name: 'Что допилить?', icon: LightBulbIcon, action: () => window.open('https://t.me/+AoZ2hLbwrHA3N2Ni', '_blank', 'noopener,noreferrer') },
-  { name: 'Поддержка', path: '/support', icon: ComputerDesktopIcon },
+  // «Поддержка» и «Что допилить?» объединены в один вход — закрытый чат в Telegram,
+  // где отвечаем на вопросы и собираем идеи по продукту.
+  { name: 'Поддержка и идеи', icon: ChatBubbleLeftRightIcon, action: () => window.open('https://t.me/+AoZ2hLbwrHA3N2Ni', '_blank', 'noopener,noreferrer') },
 ])
 
 const isActive = (path) => {

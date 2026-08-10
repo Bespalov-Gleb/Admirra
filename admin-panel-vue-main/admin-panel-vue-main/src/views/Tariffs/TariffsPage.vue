@@ -231,6 +231,7 @@
               <span class="two-circles"></span>
               <h5>White Label -<br />персонализация<br />кабинета и отчетности</h5>
             </div>
+            <span class="wl-dev-tag">В разработке</span>
             <ul class="plan-features plan-features--wl">
               <li v-for="feature in wlFeaturesLeft" :key="feature">
                 <span class="feature-dot"></span>
@@ -1886,6 +1887,21 @@ function onContactWl() {
   min-width: 0;
   flex-direction: column;
 }
+
+/* White Label ещё в разработке — помечаем прямо на тарифной странице. */
+.wl-dev-tag {
+  align-self: flex-start;
+  margin-top: 1.1111rem;
+  padding: 0.2778rem 0.7639rem;
+  border-radius: 0.6944rem;
+  font-size: 0.8333rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #b26b00;
+  background: #fff4e0;
+  white-space: nowrap;
+}
+:global(.dark) .wl-dev-tag { color: #f0b866; background: rgba(239,168,39,0.14); }
 
 .white-label-card__right {
   padding-left: 1rem;

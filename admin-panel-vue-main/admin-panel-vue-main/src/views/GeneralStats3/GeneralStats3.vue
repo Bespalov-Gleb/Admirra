@@ -3343,10 +3343,10 @@ const currentVatScopePlatform = computed(() => {
   return adPlatforms.size === 1 ? Array.from(adPlatforms)[0] : ''
 })
 
-const formatTrend = (value) => {
+const formatTrend = (value, decimals = 1) => {
   const num = Number(value)
   if (!Number.isFinite(num)) return '+0%'
-  return `${num > 0 ? '+' : ''}${formatNumber(num, 1)}%`
+  return `${num > 0 ? '+' : ''}${formatNumber(num, decimals)}%`
 }
 
 const costTrendMetrics = new Set(['cpc', 'cpa'])
@@ -4065,7 +4065,8 @@ const metrics = computed(() => {
       ...metric,
       value: values[metric.key],
       breakdown: isAllChannelsMode.value ? buildMetricBreakdown(metric.key) : [],
-      trend: hasData && trendAvailable ? formatTrend(trendRaw) : null,
+      // На KPI-карточках проценты динамики округляем до целых (без десятых долей).
+      trend: hasData && trendAvailable ? formatTrend(trendRaw, 0) : null,
       trendUp: trendRaw >= 0,
       negative: metric.costMetric ? trendRaw > 0 : trendRaw < 0,
       icon: metricIcons[metric.icon] || ChartBarIcon
@@ -14266,11 +14267,18 @@ onMounted(() => {
   white-space: nowrap;
 }
 
-/* В режиме активной разбивки тренд-бейдж скрываем (на его месте — разбивка по
-   каналам). Он показывается, когда «Все каналы» включены, но разбивка свёрнута,
-   а также в обычном одноканальном режиме. */
+/* В режиме разбивки по каналам тренд-бейдж (динамика к прошлому периоду) тоже
+   показываем — сверху карточки, как в одноканальном режиме, а разбивка по каналам
+   идёт ниже отдельным блоком. Разметка head уже рассчитана под бейдж (см. выше). */
 .kpi-grid--channel-details .metric-head .trend {
-  display: none;
+  align-self: flex-start;
+  height: 2.9rem;
+  padding: 0 0.75rem;
+  font-size: 0.95rem;
+}
+.kpi-grid--channel-details .metric-head .trend-icon {
+  width: 1.15rem;
+  height: 1.15rem;
 }
 
 .kpi-grid--channel-details .metric-channel-breakdown {
