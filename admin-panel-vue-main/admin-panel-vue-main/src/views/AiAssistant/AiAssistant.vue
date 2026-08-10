@@ -6,9 +6,10 @@
           <button class="kimi-icon-button kimi-back" type="button" aria-label="К дашборду" title="К дашборду" @click="goBack">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
           </button>
-          <button class="kimi-brand" type="button" aria-label="AdMirra AI">
-            <span>A</span><i></i>
-          </button>
+          <span v-if="planName" class="kimi-plan-badge" :title="`Тариф: ${planName}`">
+            <svg class="kimi-plan-badge__spark" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 4.7L18.5 9l-4.6 1.3L12 15l-1.9-4.7L5.5 9z"/></svg>
+            <span class="kimi-plan-badge__name">{{ planName }}</span>
+          </span>
         </div>
         <button
           class="kimi-icon-button kimi-sidebar__toggle"
@@ -23,7 +24,6 @@
       <button class="kimi-new-chat" type="button" @click="newChat">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.25"/><path d="M12 8.5v7M8.5 12h7"/></svg>
         <span>Новый чат</span>
-        <kbd><b>⌘</b><b>K</b></kbd>
       </button>
 
       <!-- История чатов: занимает всё место до блока «Основное», скроллится,
@@ -45,7 +45,7 @@
       <div class="kimi-projects-label">Основное</div>
 
       <div class="kimi-info-card">
-        <button v-for="item in mainItems" :key="item.label" type="button" @click="go(item.path)">
+        <button v-for="item in mainItems" :key="item.label" type="button">
           <span class="kimi-info-card__icon" v-html="item.icon"></span>
           <span>{{ item.label }}</span>
           <svg class="kimi-info-card__chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
@@ -73,7 +73,7 @@
               v-model="prompt"
               rows="1"
               aria-label="Запрос ассистенту"
-              placeholder="Ask anything, or task an agent..."
+              placeholder="Спросите что угодно или поручите задачу…"
               @input="autoGrow"
               @keydown.enter.exact.prevent="sendPrompt"
             ></textarea>
@@ -92,23 +92,7 @@
               </div>
             </div>
           </div>
-
-          <div class="kimi-pills">
-            <button v-for="item in pills" :key="item.label" type="button" class="kimi-pill">
-              <span v-html="item.icon"></span>{{ item.label }}
-            </button>
-          </div>
         </div>
-
-        <button class="kimi-explore" type="button">
-          <span class="kimi-explore__idea">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 17h6M10 20h4"/><path d="M8.3 14.4A6 6 0 1 1 15.7 14.4c-.9.7-1.4 1.4-1.5 2.1h-4.4c-.1-.7-.6-1.4-1.5-2.1Z"/></svg>
-          </span>
-          <span>Explore inspiration</span>
-          <span class="kimi-explore__scroll">Scroll to explore
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 14 5-5 5 5M7 19l5-5 5 5"/></svg>
-          </span>
-        </button>
       </section>
     </main>
   </div>
@@ -117,6 +101,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import api from '@/api/axios'
 import { useTheme } from '../../composables/useTheme'
 import { useAuth } from '../../composables/useAuth'
 
@@ -127,6 +112,15 @@ const mounted = ref(false)
 const sideCollapsed = ref(false)
 const prompt = ref('')
 const textarea = ref(null)
+
+// Текущий тариф пользователя — показываем бейджем в шапке сайдбара.
+const planName = ref('')
+const loadPlan = async () => {
+  try {
+    const { data } = await api.get('billing/subscription')
+    planName.value = data?.plan_name || ''
+  } catch (e) { /* бейдж просто не покажем */ }
+}
 
 const displayName = computed(() => {
   const u = user.value
@@ -156,35 +150,18 @@ const icons = {
   stack: '<svg viewBox="0 0 24 24"><rect x="4" y="4.5" width="16" height="6" rx="1.6"/><rect x="4" y="13.5" width="16" height="6" rx="1.6"/></svg>',
 }
 
-// Блок «Основное» — вход в основные разделы приложения.
+// Блок «Основное» — пока без переходов (заглушки).
 const mainItems = [
-  { label: 'Интеграции', icon: icons.link, path: '/integrations' },
-  { label: 'Проекты', icon: icons.stack, path: '/project-card' },
+  { label: 'Интеграции', icon: icons.link },
+  { label: 'Проекты', icon: icons.stack },
 ]
 
-const go = (path) => router.push(path)
-
 // ── История чатов (пока фронт-мокап на localStorage; позже — бэкенд) ──────────
-const CHATS_KEY = 'admirra_ai_chats'
+const CHATS_KEY = 'admirra_ai_chats_v2'
 const chats = ref([])
 const activeChatId = ref(null)
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
-
-const seedChats = () => [
-  'Почему вырос CPA в Яндекс Директе',
-  'Идеи объявлений для VK Ads',
-  'Сводка по лидам за месяц',
-  'Что оптимизировать в кампаниях Avito',
-  'Анализ CTR по площадкам',
-  'Сравнение каналов за квартал',
-  'Гипотезы для A/B-теста объявлений',
-  'Отчёт клиенту за неделю',
-  'Разбор перерасхода бюджета',
-  'Топ кампаний по конверсиям',
-  'Прогноз лидов на следующий месяц',
-  'Почему упали показы в VK',
-].map((title, i) => ({ id: uid(), title, ts: Date.now() - (i + 1) * 1000 }))
 
 const persistChats = () => {
   try { localStorage.setItem(CHATS_KEY, JSON.stringify(chats.value)) } catch (e) { /* ignore */ }
@@ -194,10 +171,8 @@ const loadChats = () => {
   try {
     const raw = localStorage.getItem(CHATS_KEY)
     const parsed = raw ? JSON.parse(raw) : null
-    if (Array.isArray(parsed) && parsed.length) { chats.value = parsed; return }
+    if (Array.isArray(parsed)) { chats.value = parsed }
   } catch (e) { /* ignore */ }
-  chats.value = seedChats()
-  persistChats()
 }
 
 const newChat = () => {
@@ -231,16 +206,6 @@ const sendPrompt = () => {
   persistChats()
 }
 
-const pills = [
-  { label: 'Swarm', icon: icons.swarm },
-  { label: 'Slides', icon: icons.slides },
-  { label: 'Deep Research', icon: icons.research },
-  { label: 'Websites', icon: icons.website },
-  { label: 'Docs', icon: icons.doc },
-  { label: 'Sheets', icon: icons.sheet },
-  { label: 'Design', icon: icons.design },
-]
-
 const autoGrow = () => {
   const element = textarea.value
   if (!element) return
@@ -253,6 +218,7 @@ const goBack = () => router.push('/dashboard/general-3')
 let previousOverflow = ''
 onMounted(async () => {
   loadChats()
+  loadPlan()
   previousOverflow = document.documentElement.style.overflow
   document.documentElement.style.overflow = 'hidden'
   await nextTick()
@@ -331,8 +297,27 @@ onBeforeUnmount(() => {
   padding: 0 8px;
 }
 
-.kimi-brand-group { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.kimi-brand-group { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .kimi-back svg { transform: translateX(-0.5px); }
+
+/* Бейдж текущего тарифа вместо логотипа. */
+.kimi-plan-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 27px;
+  max-width: 118px;
+  padding: 0 10px 0 8px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #3d7bff, #7a5cff);
+  color: #fff;
+  font: 600 12.5px/1 Inter, sans-serif;
+  letter-spacing: 0.01em;
+  box-shadow: 0 2px 7px rgba(64, 108, 255, 0.30);
+}
+.kimi-plan-badge__spark { width: 14px; height: 14px; flex: 0 0 14px; fill: #fff; stroke: none; opacity: 0.95; }
+.kimi-plan-badge__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kimi-shell--dark .kimi-plan-badge { box-shadow: 0 2px 9px rgba(64, 108, 255, 0.40); }
 
 .kimi-brand {
   position: relative;
@@ -600,73 +585,6 @@ onBeforeUnmount(() => {
 .kimi-shell--dark .kimi-send--active { background: #f1f1f1; color: #111; }
 .kimi-send svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
-.kimi-pills {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 32px;
-  overflow: hidden;
-  opacity: 0;
-  transform: translateY(10px);
-}
-
-.kimi-shell--ready .kimi-pills {
-  animation: kimi-rise 500ms cubic-bezier(0.22, 1, 0.36, 1) 200ms forwards;
-}
-
-.kimi-pill {
-  height: 38px;
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 0 11px;
-  border: 1px solid var(--strong-line);
-  border-radius: 999px;
-  background: transparent;
-  color: #707070;
-  font: 400 14px/1 Inter, sans-serif;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.kimi-pill:hover { background: var(--hover-bg); color: var(--text); }
-.kimi-pill > span { width: 17px; height: 17px; display: grid; place-items: center; }
-.kimi-pill :deep(svg) { width: 17px; height: 17px; }
-
-.kimi-explore {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  width: min(768px, calc(100% - 64px));
-  height: 52px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 18px;
-  transform: translateX(-50%);
-  border: 0;
-  border-radius: 23px 23px 0 0;
-  background: #f7f7f7;
-  color: #777;
-  font: 400 14px/1 Inter, sans-serif;
-  text-align: left;
-  cursor: pointer;
-  opacity: 0;
-  transform: translate(-50%, 10px);
-}
-
-.kimi-shell--ready .kimi-explore {
-  animation: kimi-explore-enter 500ms cubic-bezier(0.22, 1, 0.36, 1) 280ms forwards;
-}
-
-.kimi-shell--dark .kimi-explore { background: #202020; color: #929292; }
-.kimi-explore__idea { width: 19px; height: 19px; display: grid; place-items: center; color: #c4c4c4; }
-.kimi-explore__idea svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
-.kimi-explore__scroll { margin-left: auto; display: inline-flex; align-items: center; gap: 9px; }
-.kimi-explore__scroll svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-
 .kimi-shell--collapsed .kimi-sidebar { width: 64px; flex-basis: 64px; }
 .kimi-shell--collapsed .kimi-sidebar__brand-row { padding: 0 9px; justify-content: center; }
 .kimi-shell--collapsed .kimi-back,
@@ -693,12 +611,7 @@ onBeforeUnmount(() => {
   to { opacity: 1; transform: none; }
 }
 
-@keyframes kimi-explore-enter {
-  to { opacity: 1; transform: translateX(-50%); }
-}
-
 @media (max-height: 760px) {
-  .kimi-nav__item { height: 35px; }
   .kimi-info-card button { height: 31px; }
   .kimi-center { transform: translate(-50%, -54%); }
 }
@@ -712,17 +625,14 @@ onBeforeUnmount(() => {
   .kimi-new-chat { width: 43px; margin-inline: auto; justify-content: center; padding: 0; }
   .kimi-sidebar__footer { justify-content: center; padding-inline: 0; }
   .kimi-account { flex: 0 0 auto; }
-  .kimi-center, .kimi-explore { width: calc(100% - 40px); }
-  .kimi-pills { justify-content: flex-start; overflow-x: auto; scrollbar-width: none; }
+  .kimi-center { width: calc(100% - 40px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .kimi-shell,
   .kimi-sidebar,
   .kimi-stage,
-  .kimi-composer,
-  .kimi-pills,
-  .kimi-explore {
+  .kimi-composer {
     transition: none !important;
     animation: none !important;
     opacity: 1 !important;
@@ -730,9 +640,6 @@ onBeforeUnmount(() => {
 
   .kimi-sidebar,
   .kimi-stage,
-  .kimi-composer,
-  .kimi-pills { transform: none !important; }
-
-  .kimi-explore { transform: translateX(-50%) !important; }
+  .kimi-composer { transform: none !important; }
 }
 </style>
