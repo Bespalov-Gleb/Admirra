@@ -918,13 +918,18 @@ def _apply_diagnostics(
     reference_date: date, cfg: DetectorCfg, selected: set[str] | None,
     vk_codes: set[str] | None = None,
 ) -> None:
-    """Attach the §4 diagnostic layer to composite P alerts in place."""
+    """Attach the §4 diagnostic layer to plan P alerts in place.
+
+    Работает и для разделённых алертов (plan_spend/plan_cpl/plan_leads), и для
+    легаси-составного (plan): диагноз/виновники берутся по meta.check.
+    """
+    plan_modes = ("plan", "plan_spend", "plan_cpl", "plan_leads")
     fresh_end = reference_date - timedelta(days=1)
     fresh_start = fresh_end - timedelta(days=cfg.plan_cpl_window_days - 1)
     prior_end = fresh_start - timedelta(days=1)
     prior_start = prior_end - timedelta(days=cfg.plan_cpl_window_days - 1)
     for alert in alerts:
-        if alert.mode != "plan" or not alert.channel:
+        if alert.mode not in plan_modes or not alert.channel:
             continue
         try:
             fresh = _window_funnel(db, client_id, alert.channel, fresh_start, fresh_end, selected, vk_codes)
@@ -1500,7 +1505,11 @@ def run_detector_iteration3(
 
     owner = db.query(models.User).filter(models.User.id == client.owner_id).first()
     global_on = getattr(owner, "global_detector_enabled", True) if owner else True
-    plan_alerts = _collapse_plan_checks(plan_checks)
+    # Владелец решил разделить план-алерты: расход (P-1), CPL (P-2, по каждой цели)
+    # и заявки (P-3) — каждый отдельным алертом со своим уведомлением, а не одним
+    # составным. Ключи дедупа у них уже разные (mode plan_spend/plan_cpl/plan_leads),
+    # поэтому снуз/статусы у каждого свои. _collapse_plan_checks намеренно не зовём.
+    plan_alerts = plan_checks
     _apply_diagnostics(db, client_id, plan_alerts, ref, cfg, selected, vk_codes)
     upsert_alerts(db, client_id, client.owner_id, plan_alerts + critical, cfg,
                   notify=bool(client.detector_enabled) and global_on)

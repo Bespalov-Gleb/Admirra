@@ -6070,9 +6070,12 @@ const DETECTOR_CHANNEL_LABELS = {
 
 const alertChannelLabel = (alert) => DETECTOR_CHANNEL_LABELS[String(alert?.channel || '').toUpperCase()] || 'все каналы'
 
+// План-алерты: и составной (plan), и разделённые (plan_spend/plan_cpl/plan_leads)
+// сравниваются с планом проекта — база сравнения читается явно.
+const PLAN_ALERT_MODES = new Set(['plan', 'plan_spend', 'plan_cpl', 'plan_leads'])
 // ТЗ KPI-флажка §2: база сравнения читается явно
 const alertSourceLine = (alert) => {
-  if (alert?.mode === 'plan') {
+  if (PLAN_ALERT_MODES.has(alert?.mode)) {
     const start = alert?.meta?.period_start
     const end = alert?.meta?.period_end
     const fmt = (value) => {
