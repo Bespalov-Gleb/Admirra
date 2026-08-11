@@ -1513,6 +1513,24 @@ def run_detector_iteration3(
     _apply_diagnostics(db, client_id, plan_alerts, ref, cfg, selected, vk_codes)
     upsert_alerts(db, client_id, client.owner_id, plan_alerts + critical, cfg,
                   notify=bool(client.detector_enabled) and global_on)
+    # Миграция разделения: составные mode='plan' больше не создаются (заменены на
+    # plan_spend/plan_cpl/plan_leads). Любой оставшийся открытый mode='plan' —
+    # легаси от старой склейки; закрываем сразу, иначе он дублирует разделённые
+    # на тех же KPI-карточках, пока не «восстановится» за recovery_days.
+    legacy_now = datetime.now(timezone.utc)
+    legacy_plan = (
+        db.query(models.DetectorAlert)
+        .filter(models.DetectorAlert.client_id == client_id,
+                models.DetectorAlert.mode == "plan",
+                models.DetectorAlert.status.in_(("open", "dismissed")))
+        .all()
+    )
+    for legacy in legacy_plan:
+        legacy.status = "closed"
+        legacy.closed_at = legacy_now
+        legacy.meta = {**(legacy.meta or {}), "close_reason": "plan_split_migration"}
+    if legacy_plan:
+        db.flush()
     if immediate_plan_recalculation:
         # A changed agreement is not a recovery.  Close P alerts that no
         # longer match immediately, as the settings save promised the user.
