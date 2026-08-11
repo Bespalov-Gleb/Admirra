@@ -47,18 +47,20 @@
           <button
             v-if="filters.client_id && detectorSummary && !folderMode"
             type="button"
-            class="detector-shield"
-            :class="`detector-shield--${detectorShieldState}`"
+            class="detector-chip"
+            :class="`detector-chip--${detectorShieldState}`"
             :title="detectorShieldTitle"
             aria-label="Детектор"
             @click="onDetectorShieldClick"
           >
-            <!-- При отклонениях — треугольник (тот же знак, что в плашке и на
-                 карточках); в норме/неактивных состояниях — галочка, чтобы не
-                 показывать знак тревоги при отсутствии тревоги. -->
-            <svg v-if="detectorShieldState === 'warning' || detectorShieldState === 'problem'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-            <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></svg>
-            <span v-if="detectorShieldCount > 0" class="detector-shield__badge" :class="`detector-shield__badge--${detectorCounterKind}`">{{ detectorShieldCount }}</span>
+            <!-- Вариант Б: цветной чип-состояние. Треугольник при отклонениях
+                 (тот же знак, что в плашке и на карточках), галочка в норме;
+                 текст, цвет и число отклонений зависят от состояния. -->
+            <svg v-if="detectorChip.icon === 'triangle'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+            <svg v-else-if="detectorChip.icon === 'check'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></svg>
+            <svg v-else-if="detectorChip.icon === 'clock'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5l3.2 2"/></svg>
+            <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/></svg>
+            <span class="detector-chip__label">{{ detectorChip.label }}</span>
           </button>
           <span class="dashboard-sync-text" :title="syncStatusLabel">
             <ArrowPathIcon :class="{ spinning: dashboardSyncInProgress }" />
@@ -1792,6 +1794,15 @@ const onDetectorShieldClick = () => {
   else openDetectorSidebar()
 }
 const declOtkl = (n) => (n === 1 ? 'отклонение' : n > 1 && n < 5 ? 'отклонения' : 'отклонений')
+// Вариант Б: чип-состояние детектора — иконка + надпись + число по состоянию.
+const detectorChip = computed(() => {
+  const state = detectorShieldState.value
+  const n = detectorShieldCount.value
+  if (state === 'problem' || state === 'warning') return { icon: 'triangle', label: `${n} ${declOtkl(n)}` }
+  if (state === 'warmup') return { icon: 'clock', label: 'Прогрев' }
+  if (state === 'off') return { icon: 'off', label: 'Выключен' }
+  return { icon: 'check', label: 'В норме' }
+})
 const chipRowMeta = (alert) =>
   [alertDurationLabel(alert), alert?.seen ? 'просмотрено' : ''].filter(Boolean).join(' · ')
 const hiddenChipMeta = (alert) => {
@@ -8744,6 +8755,32 @@ onMounted(() => {
 .detector-shield__badge--problem { background: #ef4444; }
 .detector-shield__badge--warning { background: #f59e0b; }
 .figma-dashboard.is-dark .detector-shield__badge { border-color: #1a1c2c; }
+
+/* Вариант Б: чип-состояние детектора. Цветная заливка (без обводки-действия),
+   иконка + надпись, цвет и число зависят от состояния. */
+.detector-chip {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  height: 2.3rem;
+  padding: 0 0.9rem 0 0.72rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: filter 0.15s ease, box-shadow 0.15s ease;
+}
+.detector-chip:hover { filter: brightness(0.97); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05); }
+.detector-chip svg { width: 16px; height: 16px; flex-shrink: 0; }
+.detector-chip--off { background: #f2f5f9; border-color: #e3e8f0; color: #8a93a3; }
+.detector-chip--warmup { background: #eaf0fe; border-color: #cbdaf8; color: #1e4fc0; }
+.detector-chip--ok { background: #e6f6ed; border-color: #bfe6ce; color: #188a4c; }
+.detector-chip--warning { background: #fff7e6; border-color: #f5d79c; color: #b45309; }
+.detector-chip--problem { background: #fff0f0; border-color: #f2b8b8; color: #c62828; }
 
 .metric-head {
   display: flex;
