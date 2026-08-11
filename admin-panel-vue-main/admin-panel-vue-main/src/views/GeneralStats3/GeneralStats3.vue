@@ -8766,7 +8766,7 @@ onMounted(() => {
   height: 2.3rem;
   padding: 0 0.9rem 0 0.72rem;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: 0.7rem;
   font-size: 0.9rem;
   font-weight: 700;
   line-height: 1;
