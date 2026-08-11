@@ -53,7 +53,11 @@
             aria-label="Детектор"
             @click="onDetectorShieldClick"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.8-3 8.6-7 10-4-1.4-7-5.2-7-10V6l7-3z"/></svg>
+            <!-- При отклонениях — треугольник (тот же знак, что в плашке и на
+                 карточках); в норме/неактивных состояниях — галочка, чтобы не
+                 показывать знак тревоги при отсутствии тревоги. -->
+            <svg v-if="detectorShieldState === 'warning' || detectorShieldState === 'problem'" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+            <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></svg>
             <span v-if="detectorShieldCount > 0" class="detector-shield__badge" :class="`detector-shield__badge--${detectorCounterKind}`">{{ detectorShieldCount }}</span>
           </button>
           <span class="dashboard-sync-text" :title="syncStatusLabel">
