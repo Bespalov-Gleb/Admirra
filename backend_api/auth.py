@@ -173,6 +173,8 @@ def _issue_login_session(
     response: Response,
     remember_me: bool,
 ) -> dict:
+    if not getattr(user, "is_active", True):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Учётная запись заблокирована")
     access_token = security.create_access_token(data={"sub": user.email})
     security.create_refresh_session(db, user, request, response, remember_me=remember_me)
     _touch_last_login(db, user)  # админка: время последнего входа
@@ -453,6 +455,14 @@ def refresh_access_token(request: Request, response: Response, db: Session = Dep
         error_response = JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
             content={"detail": "Refresh session expired"},
+        )
+        security.clear_refresh_cookie(error_response, request)
+        db.commit()
+        return error_response
+    if not getattr(user, "is_active", True):
+        error_response = JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"detail": "Учётная запись заблокирована"},
         )
         security.clear_refresh_cookie(error_response, request)
         db.commit()

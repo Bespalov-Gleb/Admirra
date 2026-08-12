@@ -350,6 +350,8 @@ def _issue_token_for_user(
     response: Response,
     remember_me: bool = True,
 ) -> schemas.Token:
+    if not getattr(user, "is_active", True):
+        raise HTTPException(status_code=403, detail="Учётная запись заблокирована")
     access_token = security.create_access_token(data={"sub": user.email})
     security.create_refresh_session(db, user, request, response, remember_me=remember_me)
     return {"access_token": access_token, "token_type": "bearer", "is_new_user": False}
