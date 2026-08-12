@@ -208,10 +208,13 @@ def get_current_user(auth: HTTPAuthorizationCredentials = Depends(bearer_scheme)
         raise credentials_exception
     # Заблокированный пользователь (is_active=False) теряет доступ ко всему API,
     # включая уже выданные сессии — проверка выполняется на каждый запрос.
+    # 401 (а не 403) — чтобы фронт отработал штатным путём авто-логаута: запрос →
+    # 401 → silent-refresh (тоже упрётся в блок) → чистый редирект на /signin.
     if not getattr(user, "is_active", True):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Учётная запись заблокирована",
+            headers={"WWW-Authenticate": "Bearer"},
         )
     if AUTH_REQUIRE_EMAIL_VERIFIED and not getattr(user, "email_verified", True):
         raise HTTPException(
