@@ -1,645 +1,444 @@
 <template>
-  <div class="kimi-shell" :class="{ 'kimi-shell--ready': mounted, 'kimi-shell--collapsed': sideCollapsed, 'kimi-shell--dark': isDarkMode }">
-    <aside class="kimi-sidebar">
-      <div class="kimi-sidebar__brand-row">
-        <div class="kimi-brand-group">
-          <button class="kimi-icon-button kimi-back" type="button" aria-label="К дашборду" title="К дашборду" @click="goBack">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+  <section class="assistant-page" :class="{ 'assistant-page--dark': isDarkMode }">
+    <aside class="assistant-rail" :class="{ 'assistant-rail--open': railOpen }" aria-label="История ассистента">
+      <div v-if="!railOpen" class="assistant-rail__compact">
+        <button class="rail-icon-button" type="button" title="Открыть историю" aria-label="Открыть историю" @click="railOpen = true">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h9"/></svg>
+        </button>
+        <button class="rail-icon-button" type="button" title="Новый диалог" aria-label="Новый диалог" @click="newChat">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+        <button class="rail-icon-button" type="button" title="Сохранённые вопросы" aria-label="Сохранённые вопросы">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5h10a1.5 1.5 0 0 1 1.5 1.5v13l-6.5-3.5L5.5 19V6A1.5 1.5 0 0 1 7 4.5Z"/></svg>
+        </button>
+      </div>
+
+      <div v-else class="assistant-rail__expanded">
+        <div class="rail-heading">
+          <span>История</span>
+          <button class="rail-icon-button" type="button" title="Свернуть историю" aria-label="Свернуть историю" @click="railOpen = false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6"/></svg>
           </button>
-          <span v-if="planName" class="kimi-plan-badge" :title="`Тариф: ${planName}`">
-            <svg class="kimi-plan-badge__spark" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8.2 7.4 12 12 5.2 16.6 12 21 8.2l-1.7 9.6a1 1 0 0 1-.99.82H5.69a1 1 0 0 1-.99-.82z"/></svg>
-            <span class="kimi-plan-badge__name">{{ planName }}</span>
-          </span>
         </div>
-        <button
-          class="kimi-icon-button kimi-sidebar__toggle"
-          type="button"
-          :aria-label="sideCollapsed ? 'Развернуть меню' : 'Свернуть меню'"
-          @click="sideCollapsed = !sideCollapsed"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M10 4v16"/></svg>
+
+        <button class="rail-new-chat" type="button" @click="newChat">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          <span>Новый диалог</span>
         </button>
-      </div>
 
-      <button class="kimi-new-chat" type="button" @click="newChat">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.25"/><path d="M12 8.5v7M8.5 12h7"/></svg>
-        <span>Новый чат</span>
-      </button>
+        <div class="rail-history">
+          <button
+            v-for="chat in chats"
+            :key="chat.id"
+            type="button"
+            class="rail-history__item"
+            :class="{ 'is-active': chat.id === activeChatId }"
+            :title="chat.title"
+            @click="selectChat(chat.id)"
+          >
+            <span class="rail-history__title">{{ chat.title }}</span>
+            <span class="rail-history__date">{{ formatChatDate(chat.ts) }}</span>
+          </button>
 
-      <!-- История чатов: занимает всё место до блока «Основное», скроллится,
-           у нижнего края — лёгкий фейд последнего чата (mask-image). -->
-      <div class="kimi-history" aria-label="История чатов">
-        <button
-          v-for="chat in chats"
-          :key="chat.id"
-          type="button"
-          class="kimi-history__item"
-          :class="{ 'is-active': chat.id === activeChatId }"
-          :title="chat.title"
-          @click="selectChat(chat.id)"
-        >
-          <span class="kimi-history__title">{{ chat.title }}</span>
-        </button>
-      </div>
+          <div v-if="!chats.length" class="rail-history__empty">Здесь появятся ваши вопросы.</div>
+        </div>
 
-      <div class="kimi-projects-label">Основное</div>
-
-      <div class="kimi-info-card">
-        <button v-for="item in mainItems" :key="item.label" type="button">
-          <span class="kimi-info-card__icon" v-html="item.icon"></span>
-          <span>{{ item.label }}</span>
-          <svg class="kimi-info-card__chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
-        </button>
-      </div>
-
-      <div class="kimi-sidebar__footer">
-        <button class="kimi-account" type="button" :title="displayName">
-          <span class="kimi-account__avatar">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.2"/><path d="M5.5 19.5c.8-3.2 3-5 6.5-5s5.7 1.8 6.5 5"/></svg>
-          </span>
-          <span>{{ displayName }}</span>
-        </button>
+        <div class="assistant-projects-label">Основное</div>
+        <div class="assistant-info-card">
+          <button v-for="item in mainItems" :key="item.label" type="button">
+            <span class="assistant-info-card__icon" v-html="item.icon"></span>
+            <span>{{ item.label }}</span>
+            <svg class="assistant-info-card__chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+          </button>
+        </div>
       </div>
     </aside>
 
-    <main class="kimi-main">
-      <section class="kimi-stage">
-        <div class="kimi-center">
-          <div class="kimi-wordmark-space" aria-hidden="true"></div>
+    <section class="assistant-stage" aria-label="AI-ассистент">
+      <header class="assistant-stage__head">
+        <h1>Ассистент</h1>
+        <span class="assistant-limit">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.6 5.4L19 10l-5.4 1.6L12 17l-1.6-5.4L5 10l5.4-1.6L12 3Z"/><path d="m18.5 15 .65 2.15L21.3 18l-2.15.65L18.5 20.8l-.65-2.15L15.7 18l2.15-.85.65-2.15Z"/></svg>
+          <b>{{ aiRemaining }}</b><span>из {{ aiLimit }} AI</span>
+        </span>
+      </header>
 
-          <div class="kimi-composer">
+      <div v-if="!activeChat" class="assistant-empty">
+        <div class="assistant-welcome">
+          <span class="assistant-welcome__spark">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.6 5.4L19 10l-5.4 1.6L12 17l-1.6-5.4L5 10l5.4-1.6L12 3Z"/></svg>
+          </span>
+          <h2>Спросите про {{ projectContextTitle }}</h2>
+          <p>{{ projectContextDescription }}</p>
+        </div>
+
+        <div class="assistant-context">
+          <span class="assistant-context__chip">
+            <i></i><b>{{ projectContextTitle }}</b>{{ currentProjectId ? ' · выбран в шапке' : '' }}
+          </span>
+          <span class="assistant-context__chip">Период укажите прямо в вопросе</span>
+        </div>
+
+        <div class="assistant-composer">
+          <textarea
+            ref="textarea"
+            v-model="prompt"
+            rows="1"
+            aria-label="Запрос ассистенту"
+            placeholder="Например: почему изменилась стоимость лида в этом месяце?"
+            @input="autoGrow"
+            @keydown.enter.exact.prevent="sendPrompt"
+          ></textarea>
+          <div class="assistant-composer__actions">
+            <button class="composer-icon" type="button" aria-label="Добавить данные">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+            <button class="composer-icon" type="button" aria-label="Сохранить вопрос">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5h10a1.5 1.5 0 0 1 1.5 1.5v13l-6.5-3.5L5.5 19V6A1.5 1.5 0 0 1 7 4.5Z"/></svg>
+            </button>
+            <span class="assistant-composer__hint">1 запрос из лимита</span>
+            <div class="assistant-depth" aria-label="Глубина ответа">
+              <button type="button" :class="{ 'is-active': responseMode === 'quick' }" @click="responseMode = 'quick'">Быстрый ответ</button>
+              <button type="button" :class="{ 'is-active': responseMode === 'deep' }" @click="responseMode = 'deep'">Глубокий разбор · 3 запроса</button>
+            </div>
+            <button class="composer-send" type="button" aria-label="Отправить" :class="{ 'is-active': prompt.trim() }" @click="sendPrompt">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 14-7-4.5 14-3-5-6.5-2Z"/><path d="m11.5 14 2.2-2.2"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="assistant-suggestions">
+          <p class="assistant-suggestions__label">СЕЙЧАС В ПРОЕКТЕ</p>
+          <button class="assistant-suggestion assistant-suggestion--alert" type="button" @click="useSuggestion('Разобрать активные отклонения и подсказать, что проверить в первую очередь')">
+            <span class="assistant-suggestion__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5 20 19H4L12 4.5Z"/><path d="M12 9v4.5M12 16.3h.01"/></svg></span>
+            <span><b>Разобрать активные отклонения</b><small>Приоритет проблем и следующие действия по проекту</small></span>
+            <em>Спросить →</em>
+          </button>
+
+          <p class="assistant-suggestions__label">СРЕЗЫ, КОТОРЫХ НЕТ В ДАШБОРДЕ</p>
+          <div class="assistant-suggestions__grid">
+            <button v-for="item in suggestions" :key="item.title" class="assistant-suggestion" type="button" @click="useSuggestion(item.question)">
+              <span class="assistant-suggestion__icon" v-html="item.icon"></span>
+              <span><b>{{ item.title }}</b><small>{{ item.description }}</small></span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div v-else class="assistant-thread">
+        <div class="assistant-thread__inner">
+          <div v-for="message in activeChat.messages" :key="message.id" :class="['assistant-message', `assistant-message--${message.role}`]">
+            <template v-if="message.role === 'assistant'">
+              <span class="assistant-message__avatar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.6 5.4L19 10l-5.4 1.6L12 17l-1.6-5.4L5 10l5.4-1.6L12 3Z"/></svg></span>
+              <div>
+                <div class="assistant-message__meta"><span>{{ projectContextTitle }}</span><span>Период указан в вопросе</span></div>
+                <div class="assistant-message__bubble">
+                  <b>{{ message.title }}</b>
+                  <p>{{ message.text }}</p>
+                  <div class="assistant-message__actions"><button type="button">Уточнить вопрос</button><button type="button">Сохранить</button></div>
+                </div>
+              </div>
+            </template>
+            <div v-else class="assistant-message__bubble">{{ message.text }}</div>
+          </div>
+        </div>
+
+        <div class="assistant-thread__composer">
+          <div class="assistant-composer">
             <textarea
-              ref="textarea"
+              ref="threadTextarea"
               v-model="prompt"
               rows="1"
-              aria-label="Запрос ассистенту"
-              placeholder="Спросите что угодно или поручите задачу…"
+              aria-label="Уточнить вопрос"
+              placeholder="Уточните: «за прошлую неделю», «только по Директу»…"
               @input="autoGrow"
               @keydown.enter.exact.prevent="sendPrompt"
             ></textarea>
-            <div class="kimi-composer__actions">
-              <button class="kimi-plus" type="button" aria-label="Добавить">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-              </button>
-              <div class="kimi-composer__right">
-                <button class="kimi-model" type="button">
-                  <span>Instant</span><strong>High</strong>
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
-                </button>
-                <button class="kimi-send" type="button" aria-label="Отправить" :class="{ 'kimi-send--active': prompt.trim() }" @click="sendPrompt">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 18V6m0 0-5 5m5-5 5 5"/></svg>
-                </button>
-              </div>
+            <div class="assistant-composer__actions">
+              <button class="composer-icon" type="button" aria-label="Добавить данные"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+              <span class="assistant-composer__hint">1 запрос из лимита</span>
+              <div class="assistant-depth"><button type="button" :class="{ 'is-active': responseMode === 'quick' }" @click="responseMode = 'quick'">Быстрый ответ</button><button type="button" :class="{ 'is-active': responseMode === 'deep' }" @click="responseMode = 'deep'">Глубокий разбор · 3 запроса</button></div>
+              <button class="composer-send" type="button" aria-label="Отправить" :class="{ 'is-active': prompt.trim() }" @click="sendPrompt"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 14-7-4.5 14-3-5-6.5-2Z"/><path d="m11.5 14 2.2-2.2"/></svg></button>
             </div>
           </div>
+          <p>Период меняется прямо в вопросе — отдельный календарь не нужен.</p>
         </div>
-      </section>
-    </main>
-  </div>
+      </div>
+    </section>
+  </section>
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import api from '@/api/axios'
 import { useTheme } from '../../composables/useTheme'
-import { useAuth } from '../../composables/useAuth'
+import { useProjects } from '../../composables/useProjects'
 
-const router = useRouter()
 const { isDarkMode } = useTheme()
-const { user } = useAuth()
-const mounted = ref(false)
-const sideCollapsed = ref(false)
+const { currentProjectId, currentProjectName, fetchProjects } = useProjects()
+
+const railOpen = ref(false)
 const prompt = ref('')
 const textarea = ref(null)
+const threadTextarea = ref(null)
+const responseMode = ref('quick')
+const aiRemaining = ref(0)
+const aiLimit = ref(0)
 
-// Текущий тариф пользователя — показываем бейджем в шапке сайдбара.
-const planName = ref('')
-const loadPlan = async () => {
-  try {
-    const { data } = await api.get('billing/subscription')
-    planName.value = data?.plan_name || ''
-  } catch (e) { /* бейдж просто не покажем */ }
-}
-
-const displayName = computed(() => {
-  const u = user.value
-  if (!u) return 'Профиль'
-  if (u.first_name || u.last_name) return `${u.first_name || ''} ${u.last_name || ''}`.trim()
-  return u.username || u.email || 'Профиль'
-})
+const projectContextTitle = computed(() => currentProjectId.value ? currentProjectName.value : 'все проекты')
+const projectContextDescription = computed(() => currentProjectId.value
+  ? 'Отвечаю по данным выбранного проекта: рекламные кабинеты, цели, Метрика и отклонения.'
+  : 'Помогу сравнить рекламу по всем проектам, найти отклонения и подготовить следующий шаг.')
 
 const icons = {
-  smile: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.25"/><path d="M9 10h.01M15 10h.01M9 14.2c1.7 1.5 4.3 1.5 6 0"/></svg>',
-  clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.25"/><path d="M12 7.5v5l3.3 2"/><path d="m5.5 4.8-1.7 1.7M18.5 4.8l1.7 1.7"/></svg>',
-  swarm: '<svg viewBox="0 0 24 24"><circle cx="5" cy="7" r="1.7"/><circle cx="12" cy="5" r="1.7"/><circle cx="19" cy="7" r="1.7"/><path d="M5 8.8v4.5l3.5 2M19 8.8v4.5l-3.5 2M12 6.8V18"/></svg>',
-  slides: '<svg viewBox="0 0 24 24"><rect x="4.5" y="5" width="15" height="11" rx="1.5"/><path d="M8 19l4-3 4 3M9 9h6M9 12h4"/></svg>',
-  research: '<svg viewBox="0 0 24 24"><path d="M5 17.5 8 20l3-3-2.5-2.5L5 17.5Z"/><path d="m9 14 7.8-7.8 2 2L11 16M14 19H6"/><circle cx="17.5" cy="5.5" r="1.5"/></svg>',
-  website: '<svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M4 9h16M8 7h.01"/></svg>',
-  doc: '<svg viewBox="0 0 24 24"><path d="M7 3.8h7l4 4V20H7z"/><path d="M14 3.8V8h4M10 12h5M10 15h5"/></svg>',
-  sheet: '<svg viewBox="0 0 24 24"><rect x="4.5" y="4" width="15" height="16" rx="2"/><path d="M4.5 9h15M4.5 14h15M10 9v11M15 9v11"/></svg>',
-  design: '<svg viewBox="0 0 24 24"><path d="M4.5 18.5 7 12l5-5 5 5-5 5-6.5 2.5Z"/><path d="m13.5 5.5 2-2 5 5-2 2M7 12l5 5"/></svg>',
-  monitor: '<svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="12" rx="2"/><path d="M8 20h8M12 16.5V20"/></svg>',
-  code: '<svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="m8 10-2 2 2 2m8-4 2 2-2 2m-5 2 2-8"/></svg>',
-  agent: '<svg viewBox="0 0 24 24"><path d="M8.5 18.5c-3.8 0-5.5-2.1-4-4.8.7-1.2 1.8-1.7 3.1-1.7-.4-3.6 1.4-6.5 4.7-6.5 2.8 0 4.5 2 4.6 4.5 2.4.1 3.6 1.4 3.6 3.4 0 2.4-1.9 4.1-4.7 4.1"/><path d="m10 14 2 2 4-5"/></svg>',
-  download: '<svg viewBox="0 0 24 24"><path d="M12 4v10m0 0 4-4m-4 4-4-4M5 18h14"/></svg>',
-  info: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.25"/><path d="M12 11v5M12 8h.01"/></svg>',
-  language: '<svg viewBox="0 0 24 24"><path d="M4 5h9M8.5 3v2c0 4-1.6 7.3-4.5 9.5M7 9c1.2 2.1 2.8 3.7 4.8 4.9M13 20l3.5-9 3.5 9M14.2 17h4.6"/></svg>',
-  help: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.25"/><path d="M9.7 9.3a2.5 2.5 0 0 1 4.8.9c0 1.8-2.5 2.1-2.5 4M12 17h.01"/></svg>',
   link: '<svg viewBox="0 0 24 24"><path d="M9.5 14.5l5-5M10.5 6.8l1.3-1.3a3.6 3.6 0 0 1 5.1 5.1l-2 2M13.5 17.2l-1.3 1.3a3.6 3.6 0 0 1-5.1-5.1l2-2"/></svg>',
   stack: '<svg viewBox="0 0 24 24"><rect x="4" y="4.5" width="16" height="6" rx="1.6"/><rect x="4" y="13.5" width="16" height="6" rx="1.6"/></svg>',
+  audience: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.2"/><path d="M5.5 19.5c.8-3.2 3-5 6.5-5s5.7 1.8 6.5 5"/></svg>',
+  device: '<svg viewBox="0 0 24 24"><rect x="5" y="3.8" width="14" height="16.4" rx="2"/><path d="M9.5 17h5"/></svg>',
+  campaign: '<svg viewBox="0 0 24 24"><path d="M5 5.5h14M5 12h14M5 18.5h14"/><circle cx="7.5" cy="5.5" r="1.1"/><circle cx="12" cy="12" r="1.1"/><circle cx="16.5" cy="18.5" r="1.1"/></svg>',
+  compare: '<svg viewBox="0 0 24 24"><path d="M7 7h11l-3-3M17 17H6l3 3M18 7l-4 4M6 17l4-4"/></svg>',
 }
 
-// Блок «Основное» — пока без переходов (заглушки).
+// Существующий блок «Основное» сохранён намеренно: переходы подключим,
+// когда согласуем их сценарии в ассистенте.
 const mainItems = [
   { label: 'Интеграции', icon: icons.link },
   { label: 'Проекты', icon: icons.stack },
 ]
 
-// ── История чатов (пока фронт-мокап на localStorage; позже — бэкенд) ──────────
+const suggestions = [
+  { title: 'Какая аудитория приносит заявки?', description: 'Возраст и пол по конверсиям из Метрики', question: 'Какая аудитория приносит больше всего заявок и какая у неё стоимость лида?', icon: icons.audience },
+  { title: 'С каких устройств конвертят?', description: 'Десктоп и мобильные по цене заявки', question: 'Сравни устройства по количеству лидов и стоимости заявки', icon: icons.device },
+  { title: 'Какая кампания самая невыгодная?', description: 'По CPL относительно цели', question: 'Какая кампания сейчас самая невыгодная относительно целевой стоимости заявки?', icon: icons.campaign },
+  { title: 'Сравни с прошлым месяцем', description: 'Расход, лиды и CPL — что изменилось', question: 'Сравни текущий месяц с прошлым: расход, лиды и стоимость заявки', icon: icons.compare },
+]
+
 const CHATS_KEY = 'admirra_ai_chats_v2'
 const chats = ref([])
 const activeChatId = ref(null)
 
-const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
+const activeChat = computed(() => chats.value.find(chat => chat.id === activeChatId.value) || null)
+
+const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`
 
 const persistChats = () => {
-  try { localStorage.setItem(CHATS_KEY, JSON.stringify(chats.value)) } catch (e) { /* ignore */ }
+  try { localStorage.setItem(CHATS_KEY, JSON.stringify(chats.value)) } catch { /* storage can be unavailable */ }
 }
 
 const loadChats = () => {
   try {
-    const raw = localStorage.getItem(CHATS_KEY)
-    const parsed = raw ? JSON.parse(raw) : null
-    if (Array.isArray(parsed)) { chats.value = parsed }
-  } catch (e) { /* ignore */ }
+    const parsed = JSON.parse(localStorage.getItem(CHATS_KEY) || '[]')
+    chats.value = Array.isArray(parsed) ? parsed.filter(chat => chat?.id && chat?.title) : []
+  } catch { chats.value = [] }
 }
 
-const newChat = () => {
-  const chat = { id: uid(), title: 'Новый чат', ts: Date.now() }
-  chats.value.unshift(chat)
-  activeChatId.value = chat.id
-  prompt.value = ''
-  persistChats()
-  nextTick(() => textarea.value?.focus())
+const formatChatDate = (timestamp) => {
+  if (!timestamp) return ''
+  const date = new Date(timestamp)
+  const today = new Date()
+  if (date.toDateString() === today.toDateString()) return 'сегодня'
+  return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
 }
 
-const selectChat = (id) => { activeChatId.value = id }
-
-const sendPrompt = () => {
-  const text = prompt.value.trim()
-  if (!text) return
-  let chat = chats.value.find((c) => c.id === activeChatId.value)
-  if (!chat) {
-    chat = { id: uid(), title: '', ts: Date.now() }
-    chats.value.unshift(chat)
-    activeChatId.value = chat.id
-  }
-  if (!chat.title || chat.title === 'Новый чат') {
-    chat.title = text.length > 42 ? `${text.slice(0, 42)}…` : text
-  }
-  chat.ts = Date.now()
-  // Активный чат всплывает наверх истории.
-  chats.value = [chat, ...chats.value.filter((c) => c.id !== chat.id)]
+const newChat = async () => {
+  activeChatId.value = null
   prompt.value = ''
-  autoGrow()
-  persistChats()
+  await nextTick()
+  textarea.value?.focus()
+}
+
+const selectChat = (id) => {
+  activeChatId.value = id
+  railOpen.value = false
 }
 
 const autoGrow = () => {
-  const element = textarea.value
+  const element = textarea.value || threadTextarea.value
   if (!element) return
   element.style.height = 'auto'
-  element.style.height = `${Math.min(element.scrollHeight, 80)}px`
+  element.style.height = `${Math.min(element.scrollHeight, 104)}px`
 }
 
-const goBack = () => router.push('/dashboard/general-3')
+const useSuggestion = (question) => {
+  prompt.value = question
+  sendPrompt()
+}
 
-let previousOverflow = ''
-onMounted(async () => {
-  loadChats()
-  loadPlan()
-  previousOverflow = document.documentElement.style.overflow
-  document.documentElement.style.overflow = 'hidden'
+const sendPrompt = async () => {
+  const question = prompt.value.trim()
+  if (!question) return
+
+  let chat = activeChat.value
+  if (!chat) {
+    chat = { id: uid(), title: question.length > 46 ? `${question.slice(0, 46)}…` : question, ts: Date.now(), messages: [] }
+    chats.value.unshift(chat)
+    activeChatId.value = chat.id
+  }
+
+  if (!Array.isArray(chat.messages)) chat.messages = []
+  chat.messages.push({ id: uid(), role: 'user', text: question })
+  chat.messages.push({
+    id: uid(),
+    role: 'assistant',
+    title: 'Запрос добавлен в диалог',
+    text: 'Интерфейс нового ассистента готов. Подключение ответов по реальным данным проекта будет следующим этапом — без изменения выбранного в шапке проекта и без отдельного календаря.',
+  })
+  chat.ts = Date.now()
+  chats.value = [chat, ...chats.value.filter(item => item.id !== chat.id)]
+  prompt.value = ''
+  persistChats()
   await nextTick()
-  requestAnimationFrame(() => { mounted.value = true })
-})
+  autoGrow()
+  threadTextarea.value?.focus()
+}
 
-onBeforeUnmount(() => {
-  document.documentElement.style.overflow = previousOverflow
+const loadUsage = async () => {
+  try {
+    const { data } = await api.get('billing/subscription')
+    aiRemaining.value = data?.ai_requests_remaining ?? 0
+    aiLimit.value = data?.max_ai_requests_per_period ?? 0
+  } catch {
+    aiRemaining.value = 0
+    aiLimit.value = 0
+  }
+}
+
+onMounted(() => {
+  loadChats()
+  fetchProjects({ preferCache: true })
+  loadUsage()
 })
 </script>
 
 <style scoped>
-.kimi-shell {
-  --sidebar-bg: #fafafa;
-  --panel-bg: #fff;
-  --composer-bg: #fff;
-  --utility-bg: #fff;
-  --hover-bg: #f2f2f2;
-  --text: #202020;
-  --muted: #8b8b8b;
-  --soft: #a7a7a7;
-  --line: #e8e8e8;
-  --strong-line: #d8d8d8;
-  position: fixed;
-  inset: 0;
-  z-index: 60;
+.assistant-page {
+  --assistant-bg: #ffffff;
+  --assistant-panel: #ffffff;
+  --assistant-muted: #8d99ad;
+  --assistant-text: #1b2437;
+  --assistant-sub: #5c6b84;
+  --assistant-line: #e6ebf2;
+  --assistant-strong-line: #d8e0eb;
+  --assistant-soft: #f5f7fa;
+  --assistant-blue: #2f6bea;
+  --assistant-blue-soft: #eaf0fe;
+  --assistant-violet: #7c6ff0;
+  --assistant-amber: #bd7d16;
+  --assistant-amber-soft: #fff5df;
   display: flex;
+  width: 100%;
+  height: min(56.25rem, calc(100vh - 8.8rem));
+  min-height: 38rem;
   overflow: hidden;
-  background: var(--sidebar-bg);
-  color: var(--text);
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-  font-size: 14px;
-  opacity: 0;
-  transition: opacity 180ms ease;
+  border: 1px solid var(--assistant-line);
+  border-radius: 1rem;
+  background: var(--assistant-bg);
+  color: var(--assistant-text);
+  box-shadow: 0 .4rem 1.4rem rgba(36, 54, 89, .05);
 }
 
-.kimi-shell--ready { opacity: 1; }
-
-.kimi-shell--dark {
-  --sidebar-bg: #181817;
-  --panel-bg: #111;
-  --composer-bg: #1f1f1f;
-  --utility-bg: #292929;
-  --hover-bg: #242424;
-  --text: #e7e7e7;
-  --muted: #929292;
-  --soft: #777;
-  --line: #303030;
-  --strong-line: #414141;
+.assistant-page--dark {
+  --assistant-bg: #202332;
+  --assistant-panel: #1a1d29;
+  --assistant-muted: #9ca6ba;
+  --assistant-text: #f2f4fb;
+  --assistant-sub: #c1c9d8;
+  --assistant-line: rgba(255,255,255,.09);
+  --assistant-strong-line: rgba(255,255,255,.16);
+  --assistant-soft: #282c3d;
+  --assistant-blue-soft: rgba(74, 122, 255, .17);
+  --assistant-amber-soft: rgba(187, 125, 22, .16);
 }
 
-.kimi-sidebar {
-  width: 240px;
-  flex: 0 0 240px;
-  min-width: 0;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  padding: 12px 8px 9px;
-  overflow: hidden;
-  background: var(--sidebar-bg);
-  opacity: 0;
-  transform: translateX(-14px);
-  transition: width 220ms ease, flex-basis 220ms ease;
-}
-
-.kimi-shell--ready .kimi-sidebar {
-  animation: kimi-sidebar-enter 450ms cubic-bezier(0.22, 1, 0.36, 1) 50ms forwards;
-}
-
-.kimi-sidebar__brand-row {
-  height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 8px;
-}
-
-.kimi-brand-group { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.kimi-back svg { transform: translateX(-0.5px); }
-
-/* Бейдж текущего тарифа вместо логотипа — на фирменном градиенте проекта. */
-.kimi-plan-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 29px;
-  max-width: 132px;
-  padding: 0 11px 0 9px;
-  border-radius: 9px;
-  background: linear-gradient(135deg, #2563eb 0%, #1f9de4 52%, #06b5d4 100%);
-  color: #fff;
-  font: 600 12.5px/29px Inter, sans-serif;
-  letter-spacing: 0.01em;
-  box-shadow: 0 1px 4px rgba(37, 99, 235, 0.28);
-}
-.kimi-plan-badge__spark { width: 14px; height: 14px; flex: 0 0 14px; fill: #fff; stroke: none; }
-.kimi-plan-badge__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.kimi-brand {
-  position: relative;
-  width: 29px;
-  height: 29px;
-  flex: 0 0 29px;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: 8px;
-  background: #090909;
-  color: #fff;
-  font: 800 18px/1 Inter, sans-serif;
-  letter-spacing: -1px;
-  cursor: default;
-}
-
-.kimi-shell--dark .kimi-brand { background: #f5f5f5; color: #111; }
-.kimi-brand i { position: absolute; top: 5px; right: 5px; width: 4px; height: 4px; border-radius: 50%; background: #3979ff; }
-
-.kimi-icon-button {
-  width: 31px;
-  height: 31px;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: #6f6f6f;
-  cursor: pointer;
-}
-
-.kimi-icon-button:hover { background: var(--hover-bg); color: var(--text); }
-.kimi-icon-button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
-
-.kimi-new-chat {
-  width: 100%;
-  height: 47px;
-  flex: 0 0 47px;
-  margin-top: 12px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 0 9px;
-  border: 1px solid var(--strong-line);
-  border-radius: 12px;
-  background: var(--utility-bg);
-  color: var(--text);
-  font: 500 14px/1 Inter, sans-serif;
-  cursor: pointer;
-}
-
-.kimi-new-chat:hover { background: var(--hover-bg); }
-.kimi-new-chat > svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
-.kimi-new-chat > span { flex: 1; text-align: left; white-space: nowrap; }
-.kimi-new-chat kbd { display: flex; gap: 4px; font-family: inherit; }
-.kimi-new-chat kbd b { width: 20px; height: 20px; display: grid; place-items: center; border-radius: 4px; background: var(--hover-bg); color: var(--muted); font-size: 12px; font-weight: 500; }
-
-.kimi-nav { display: flex; flex-direction: column; }
-.kimi-nav--primary { margin-top: 10px; }
-.kimi-nav--secondary { margin-top: 4px; }
-
-.kimi-nav__item {
-  width: 100%;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 0 9px;
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--text);
-  font: 400 14px/1 Inter, sans-serif;
-  text-align: left;
-  cursor: pointer;
-}
-
-.kimi-nav__item:hover { background: var(--hover-bg); }
-.kimi-nav__icon { width: 18px; height: 18px; flex: 0 0 18px; display: grid; place-items: center; }
-.kimi-nav__icon :deep(svg), .kimi-info-card__icon :deep(svg), .kimi-pill :deep(svg) { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
-.kimi-nav__text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.kimi-beta { margin-left: 1px; padding: 3px 5px; border-radius: 4px; background: #e7f2ff; color: #1683ea; font-size: 11px; line-height: 1; }
-.kimi-shell--dark .kimi-beta { background: #0b304e; color: #58aef5; }
-
-.kimi-collapse-row {
-  width: 100%;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 0 9px;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font: 400 14px/1 Inter, sans-serif;
-  cursor: pointer;
-}
-
-.kimi-collapse-row__dots { width: 18px; color: var(--muted); letter-spacing: 2px; transform: translateY(-2px); }
-.kimi-collapse-row svg { width: 16px; height: 16px; margin-left: auto; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; transition: transform 180ms ease; }
-.kimi-collapse-row svg.is-closed { transform: rotate(-90deg); }
-
-/* История чатов: flex:1 забирает всё место до «Основного», скроллится,
-   нижние ~26px маскируются градиентом — последний чат мягко угасает. */
-.kimi-history {
-  flex: 1;
-  min-height: 0;
-  margin-top: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  overflow-y: auto;
-  scrollbar-width: none;
-  padding-bottom: 6px;
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent);
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent);
-}
-.kimi-history::-webkit-scrollbar { width: 0; height: 0; }
-.kimi-history__item {
-  width: 100%;
-  height: 38px;
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  padding: 0 9px;
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--text);
-  font: 400 14px/1 Inter, sans-serif;
-  text-align: left;
-  cursor: pointer;
-}
-.kimi-history__item:hover { background: var(--hover-bg); }
-.kimi-history__item.is-active { background: var(--hover-bg); font-weight: 500; }
-.kimi-history__title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.kimi-projects-label { padding: 4px 8px 4px; color: var(--muted); font-size: 14px; line-height: 18px; }
-
-.kimi-info-card {
-  width: 100%;
-  flex: 0 0 auto;
-  padding: 8px;
-  border: 1px solid var(--strong-line);
-  border-radius: 16px;
-  background: var(--utility-bg);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
-}
-
-.kimi-info-card button {
-  width: 100%;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text);
-  font: 400 14px/1 Inter, sans-serif;
-  cursor: pointer;
-}
-
-.kimi-info-card button:hover { background: var(--hover-bg); }
-.kimi-info-card__icon { width: 17px; height: 17px; display: grid; place-items: center; }
-.kimi-info-card__icon :deep(svg) { width: 17px; height: 17px; }
-.kimi-info-card__chevron { width: 15px; height: 15px; margin-left: auto; fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-
-.kimi-sidebar__footer { width: 240px; height: 60px; flex: 0 0 60px; margin: 0 -8px -9px; display: flex; align-items: center; padding: 0 8px; background: var(--sidebar-bg); }
-.kimi-account { min-width: 0; height: 44px; flex: 1 1 auto; display: flex; align-items: center; gap: 9px; padding: 8px; border: 0; border-radius: 12px; background: transparent; color: var(--text); font: 400 14px/1 Inter, sans-serif; cursor: pointer; }
-.kimi-account:hover { background: var(--hover-bg); }
-.kimi-account__avatar { width: 28px; height: 28px; flex: 0 0 28px; display: grid; place-items: center; border-radius: 50%; background: #e8e8e8; color: #aaa; }
-.kimi-shell--dark .kimi-account__avatar { background: #3b3b3b; color: #777; }
-.kimi-account__avatar svg { width: 20px; height: 20px; fill: currentColor; stroke: none; }
-.kimi-account > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.kimi-download { width: 30px; height: 30px; margin-left: auto; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
-.kimi-download:hover { background: var(--hover-bg); }
-.kimi-download svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
-
-.kimi-main {
-  flex: 1;
-  min-width: 0;
-  padding: 6px 6px 6px 0;
-  background: var(--sidebar-bg);
-}
-
-.kimi-stage {
-  position: relative;
-  width: 100%;
-  height: 100%;
+.assistant-rail {
+  width: 3.5rem;
+  flex: 0 0 3.5rem;
   min-width: 0;
   overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: var(--panel-bg);
-  opacity: 0;
-  transform: translateY(4px);
+  border-right: 1px solid var(--assistant-line);
+  background: var(--assistant-panel);
+  transition: width .18s ease, flex-basis .18s ease;
 }
 
-.kimi-shell--ready .kimi-stage {
-  animation: kimi-stage-enter 360ms cubic-bezier(0.22, 1, 0.36, 1) 40ms forwards;
-}
+.assistant-rail--open { width: 16.5rem; flex-basis: 16.5rem; }
+.assistant-rail__compact { display: flex; flex-direction: column; align-items: center; gap: .35rem; padding-top: .85rem; }
+.assistant-rail__expanded { display: flex; flex-direction: column; height: 100%; padding: .85rem .7rem .7rem; }
 
-.kimi-center {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: min(768px, calc(100% - 64px));
-  transform: translate(-50%, -60%) translateY(1px);
-}
-
-.kimi-wordmark-space { height: 78px; }
-
-.kimi-composer {
-  height: 130px;
-  padding: 14px 10px 9px 18px;
-  display: flex;
-  flex-direction: column;
-  border: 1px solid #d5d5d5;
-  border-radius: 24px;
-  background: var(--composer-bg);
-  box-shadow: 0 5px 12px rgba(0, 0, 0, 0.08);
-  opacity: 0;
-  transform: translateY(10px);
-}
-
-.kimi-shell--ready .kimi-composer {
-  animation: kimi-rise 500ms cubic-bezier(0.22, 1, 0.36, 1) 120ms forwards;
-}
-
-.kimi-shell--dark .kimi-composer { border-color: #424242; box-shadow: 0 5px 14px rgba(0, 0, 0, 0.25); }
-
-.kimi-composer textarea {
-  width: 100%;
-  min-height: 54px;
-  max-height: 80px;
-  flex: 1;
-  /* боковой отступ: без него overflow-y обрезал левый край первой буквы плейсхолдера */
-  padding: 0 6px;
+.rail-icon-button,
+.composer-icon,
+.composer-send,
+.assistant-depth button,
+.assistant-info-card button,
+.assistant-suggestion,
+.assistant-message__actions button {
   border: 0;
-  outline: 0;
-  resize: none;
-  overflow-y: auto;
-  background: transparent;
-  color: var(--text);
-  font: 400 16px/1.45 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font: inherit;
+  cursor: pointer;
 }
 
-.kimi-composer textarea::placeholder { color: #999; opacity: 1; }
-.kimi-shell--dark .kimi-composer textarea::placeholder { color: #858585; }
+.rail-icon-button { display: grid; width: 2.25rem; height: 2.25rem; place-items: center; border-radius: .625rem; background: transparent; color: var(--assistant-sub); }
+.rail-icon-button:hover { background: var(--assistant-soft); color: var(--assistant-text); }
+.rail-icon-button svg, .rail-new-chat svg, .assistant-info-card svg, .composer-icon svg, .composer-send svg, .assistant-welcome__spark svg, .assistant-limit svg, .assistant-suggestion__icon :deep(svg), .assistant-message__avatar svg { width: 1.1rem; height: 1.1rem; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
 
-.kimi-composer__actions { height: 39px; display: flex; align-items: center; justify-content: space-between; }
-.kimi-plus { width: 34px; height: 34px; margin-left: -10px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: #555; cursor: pointer; }
-.kimi-plus:hover { background: var(--hover-bg); }
-.kimi-shell--dark .kimi-plus { color: #aaa; }
-.kimi-plus svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
-.kimi-composer__right { display: flex; align-items: center; gap: 12px; }
-.kimi-model { height: 34px; display: inline-flex; align-items: center; gap: 5px; padding: 0 2px 0 8px; border: 0; background: transparent; color: #313131; font: 400 14px/1 Inter, sans-serif; cursor: pointer; }
-.kimi-shell--dark .kimi-model { color: #ddd; }
-.kimi-model strong { color: var(--muted); font-weight: 400; }
-.kimi-model svg { width: 15px; height: 15px; fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.kimi-send { width: 37px; height: 37px; display: grid; place-items: center; border: 0; border-radius: 50%; background: #dedede; color: #fff; cursor: default; transition: background 120ms ease; }
-.kimi-shell--dark .kimi-send { background: #4b4b4b; color: #202020; }
-.kimi-send--active { background: #111; color: #fff; cursor: pointer; }
-.kimi-shell--dark .kimi-send--active { background: #f1f1f1; color: #111; }
-.kimi-send svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.rail-heading { display: flex; align-items: center; justify-content: space-between; padding: 0 .2rem; margin-bottom: .55rem; font-size: .8125rem; font-weight: 700; }
+.rail-new-chat { display: flex; align-items: center; gap: .5rem; width: 100%; height: 2.55rem; padding: 0 .65rem; border: 1.5px dashed var(--assistant-strong-line); border-radius: .625rem; background: transparent; color: var(--assistant-sub); font: 500 .8125rem/1 Inter, sans-serif; cursor: pointer; }
+.rail-new-chat:hover { border-color: var(--assistant-blue); color: var(--assistant-blue); }
+.rail-history { display: flex; flex: 1; flex-direction: column; min-height: 0; gap: .2rem; margin-top: .65rem; overflow-y: auto; scrollbar-width: none; }
+.rail-history::-webkit-scrollbar { width: 0; }
+.rail-history__item { display: flex; flex-direction: column; gap: .18rem; width: 100%; padding: .55rem .62rem; border: 0; border-radius: .625rem; background: transparent; color: var(--assistant-text); text-align: left; cursor: pointer; }
+.rail-history__item:hover, .rail-history__item.is-active { background: var(--assistant-soft); }
+.rail-history__title { overflow: hidden; font-size: .78rem; font-weight: 500; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.rail-history__date, .rail-history__empty { color: var(--assistant-muted); font-size: .6875rem; }
+.rail-history__empty { padding: .6rem; line-height: 1.4; }
 
-.kimi-shell--collapsed .kimi-sidebar { width: 64px; flex-basis: 64px; }
-.kimi-shell--collapsed .kimi-sidebar__brand-row { padding: 0 9px; justify-content: center; }
-.kimi-shell--collapsed .kimi-back,
-.kimi-shell--collapsed .kimi-sidebar__toggle,
-.kimi-shell--collapsed .kimi-new-chat > span,
-.kimi-shell--collapsed .kimi-new-chat kbd,
-.kimi-shell--collapsed .kimi-history,
-.kimi-shell--collapsed .kimi-projects-label,
-.kimi-shell--collapsed .kimi-info-card,
-.kimi-shell--collapsed .kimi-account > span:last-child { display: none; }
-.kimi-shell--collapsed .kimi-new-chat { width: 43px; margin-inline: auto; justify-content: center; padding: 0; }
-.kimi-shell--collapsed .kimi-sidebar__footer { justify-content: center; padding-inline: 0; }
-.kimi-shell--collapsed .kimi-account { flex: 0 0 auto; }
+.assistant-projects-label { padding: .55rem .5rem .3rem; color: var(--assistant-muted); font-size: .75rem; font-weight: 600; }
+.assistant-info-card { padding: .4rem; border: 1px solid var(--assistant-strong-line); border-radius: .875rem; background: var(--assistant-soft); box-shadow: 0 .12rem .35rem rgba(27,36,55,.06); }
+.assistant-info-card button { display: flex; align-items: center; gap: .48rem; width: 100%; height: 2.25rem; padding: 0 .45rem; border-radius: .5rem; background: transparent; color: var(--assistant-text); font-size: .8rem; text-align: left; }
+.assistant-info-card button:hover { background: var(--assistant-panel); }
+.assistant-info-card__icon { display: grid; width: 1rem; height: 1rem; place-items: center; color: var(--assistant-sub); }
+.assistant-info-card__icon svg { width: 1rem; height: 1rem; }
+.assistant-info-card__chevron { width: .9rem !important; height: .9rem !important; margin-left: auto; color: var(--assistant-muted); }
 
-@keyframes kimi-stage-enter {
-  to { opacity: 1; transform: none; }
-}
+.assistant-stage { display: flex; flex: 1; flex-direction: column; min-width: 0; background: var(--assistant-bg); }
+.assistant-stage__head { display: flex; align-items: center; gap: 1rem; padding: 1.1rem 1.6rem .1rem; }
+.assistant-stage__head h1 { margin: 0; font-size: 1.26rem; font-weight: 700; letter-spacing: -.02em; }
+.assistant-limit { display: inline-flex; align-items: center; gap: .4rem; margin-left: auto; padding: .45rem .75rem; border-radius: .68rem; background: linear-gradient(105deg, #5b8def, #7c6ff0); color: #fff; font-size: .75rem; }
+.assistant-limit svg { width: .9rem; height: .9rem; stroke-width: 1.9; }
+.assistant-limit b { font-size: .8rem; }.assistant-limit span { opacity: .88; }
 
-@keyframes kimi-sidebar-enter {
-  to { opacity: 1; transform: none; }
-}
+.assistant-empty { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; min-height: 0; padding: 1.4rem 1.75rem 2.5rem; overflow-y: auto; }
+.assistant-welcome { max-width: 45rem; text-align: center; }
+.assistant-welcome__spark { display: inline-grid; width: 2.65rem; height: 2.65rem; margin-bottom: .65rem; place-items: center; border-radius: .8rem; background: linear-gradient(135deg, #5b8def, #7c6ff0); color: #fff; }
+.assistant-welcome__spark svg { width: 1.25rem; height: 1.25rem; stroke-width: 1.9; }
+.assistant-welcome h2 { margin: 0; font-size: 1.35rem; letter-spacing: -.02em; }
+.assistant-welcome p { margin: .35rem 0 0; color: var(--assistant-sub); font-size: .82rem; }
+.assistant-context { display: flex; justify-content: center; gap: .5rem; flex-wrap: wrap; max-width: 45rem; margin: .95rem 0; }
+.assistant-context__chip { display: inline-flex; align-items: center; gap: .38rem; padding: .35rem .62rem; border: 1px solid var(--assistant-strong-line); border-radius: 1rem; background: var(--assistant-panel); color: var(--assistant-sub); font-size: .73rem; }
+.assistant-context__chip b { color: var(--assistant-text); font-weight: 600; }.assistant-context__chip i { width: .42rem; height: .42rem; border-radius: 50%; background: #1fa55b; }
 
-@keyframes kimi-rise {
-  to { opacity: 1; transform: none; }
-}
+.assistant-composer { width: min(45rem, 100%); padding: .88rem .9rem .68rem; border: 1px solid var(--assistant-strong-line); border-radius: 1rem; background: var(--assistant-panel); box-shadow: 0 .45rem 1.75rem rgba(27,36,55,.07); }
+.assistant-composer textarea { width: 100%; min-height: 3.25rem; max-height: 6.5rem; padding: 0; border: 0; outline: 0; resize: none; overflow-y: auto; background: transparent; color: var(--assistant-text); font: 400 .9rem/1.45 Inter, sans-serif; }
+.assistant-composer textarea::placeholder { color: var(--assistant-muted); }
+.assistant-composer__actions { display: flex; align-items: center; gap: .32rem; margin-top: .3rem; }
+.composer-icon { display: grid; width: 2rem; height: 2rem; place-items: center; border-radius: .55rem; background: transparent; color: var(--assistant-muted); }.composer-icon:hover { background: var(--assistant-soft); color: var(--assistant-sub); }
+.composer-icon svg { width: 1.05rem; height: 1.05rem; }
+.assistant-composer__hint { margin-left: .22rem; color: var(--assistant-muted); font-size: .66rem; white-space: nowrap; }
+.assistant-depth { display: inline-flex; gap: .1rem; margin-left: auto; padding: .16rem; border-radius: .55rem; background: var(--assistant-soft); }
+.assistant-depth button { padding: .32rem .55rem; border-radius: .43rem; background: transparent; color: var(--assistant-sub); font-size: .67rem; white-space: nowrap; }.assistant-depth button.is-active { background: var(--assistant-panel); color: var(--assistant-text); font-weight: 600; box-shadow: 0 .06rem .18rem rgba(27,36,55,.12); }
+.composer-send { display: grid; width: 2.2rem; height: 2.2rem; margin-left: .15rem; place-items: center; border-radius: .68rem; background: #dfe4ea; color: #fff; }.composer-send.is-active { background: var(--assistant-blue); }.composer-send svg { width: 1.1rem; height: 1.1rem; }
 
-@media (max-height: 760px) {
-  .kimi-info-card button { height: 31px; }
-  .kimi-center { transform: translate(-50%, -54%); }
-}
+.assistant-suggestions { width: min(45rem, 100%); margin-top: 1rem; }.assistant-suggestions__label { margin: .85rem .15rem .42rem; color: var(--assistant-muted); font-size: .65rem; font-weight: 700; letter-spacing: .08em; }.assistant-suggestions__label:first-child { margin-top: 0; }
+.assistant-suggestions__grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+.assistant-suggestion { display: flex; align-items: flex-start; gap: .65rem; width: 100%; padding: .72rem .8rem; border: 1px solid var(--assistant-line); border-radius: .78rem; background: var(--assistant-panel); color: var(--assistant-text); text-align: left; transition: border-color .15s ease, box-shadow .15s ease; }.assistant-suggestion:hover { border-color: var(--assistant-blue); box-shadow: 0 .25rem .85rem rgba(47,107,234,.1); }
+.assistant-suggestion--alert { border-color: #f2dfb8; background: var(--assistant-amber-soft); }.assistant-suggestion--alert:hover { border-color: #e7ad46; box-shadow: 0 .25rem .85rem rgba(239,168,39,.15); }
+.assistant-suggestion__icon { display: grid; width: 1.85rem; height: 1.85rem; flex: 0 0 1.85rem; place-items: center; border-radius: .55rem; background: var(--assistant-blue-soft); color: var(--assistant-blue); }.assistant-suggestion--alert .assistant-suggestion__icon { background: var(--assistant-panel); color: var(--assistant-amber); }
+.assistant-suggestion b, .assistant-suggestion small { display: block; }.assistant-suggestion b { font-size: .77rem; line-height: 1.3; }.assistant-suggestion small { margin-top: .14rem; color: var(--assistant-muted); font-size: .68rem; line-height: 1.3; }.assistant-suggestion--alert small { color: var(--assistant-amber); }.assistant-suggestion em { align-self: center; margin-left: auto; color: var(--assistant-blue); font-size: .7rem; font-style: normal; font-weight: 600; white-space: nowrap; }.assistant-suggestion--alert em { color: var(--assistant-amber); }
 
-@media (max-width: 900px) {
-  .kimi-sidebar { width: 64px; flex-basis: 64px; }
-  .kimi-sidebar__brand-row { padding: 0 9px; justify-content: center; }
-  .kimi-back, .kimi-sidebar__toggle, .kimi-new-chat > span, .kimi-new-chat kbd, .kimi-history,
-  .kimi-projects-label, .kimi-info-card,
-  .kimi-account > span:last-child { display: none; }
-  .kimi-new-chat { width: 43px; margin-inline: auto; justify-content: center; padding: 0; }
-  .kimi-sidebar__footer { justify-content: center; padding-inline: 0; }
-  .kimi-account { flex: 0 0 auto; }
-  .kimi-center { width: calc(100% - 40px); }
-}
+.assistant-thread { display: flex; flex: 1; flex-direction: column; min-height: 0; }.assistant-thread__inner { display: flex; flex: 1; flex-direction: column; gap: .85rem; width: min(47.5rem, 100%); margin: 0 auto; padding: 1.25rem 1.75rem; overflow-y: auto; }.assistant-message { display: flex; gap: .62rem; }.assistant-message--user { justify-content: flex-end; }.assistant-message--user .assistant-message__bubble { max-width: 78%; border-radius: .95rem .95rem .28rem .95rem; background: var(--assistant-blue); color: #fff; }.assistant-message--assistant { max-width: 94%; }.assistant-message__avatar { display: grid; width: 2rem; height: 2rem; flex: 0 0 2rem; margin-top: .1rem; place-items: center; border-radius: .58rem; background: linear-gradient(135deg, #5b8def, #7c6ff0); color: #fff; }.assistant-message__avatar svg { width: 1rem; height: 1rem; stroke-width: 1.8; }.assistant-message__meta { display: flex; gap: .35rem; flex-wrap: wrap; margin-bottom: .35rem; }.assistant-message__meta span { padding: .23rem .5rem; border-radius: 1rem; background: var(--assistant-blue-soft); color: var(--assistant-blue); font-size: .65rem; font-weight: 600; }.assistant-message__meta span+span { background: var(--assistant-soft); color: var(--assistant-sub); font-weight: 500; }.assistant-message__bubble { padding: .75rem .9rem; border: 1px solid var(--assistant-line); border-radius: .28rem .95rem .95rem .95rem; background: var(--assistant-panel); font-size: .82rem; line-height: 1.5; }.assistant-message__bubble b { display: block; margin-bottom: .28rem; }.assistant-message__bubble p { margin: 0; color: var(--assistant-sub); }.assistant-message__actions { display: flex; gap: .35rem; margin-top: .65rem; }.assistant-message__actions button { padding: .32rem .5rem; border-radius: .43rem; background: var(--assistant-soft); color: var(--assistant-sub); font-size: .66rem; }.assistant-message__actions button:hover { color: var(--assistant-blue); }
+.assistant-thread__composer { flex: 0 0 auto; padding: .6rem 1.75rem .9rem; border-top: 1px solid var(--assistant-line); }.assistant-thread__composer .assistant-composer { margin: 0 auto; box-shadow: 0 .25rem 1rem rgba(27,36,55,.05); }.assistant-thread__composer p { width: min(45rem, 100%); margin: .35rem auto 0; color: var(--assistant-muted); font-size: .65rem; }
 
-@media (prefers-reduced-motion: reduce) {
-  .kimi-shell,
-  .kimi-sidebar,
-  .kimi-stage,
-  .kimi-composer {
-    transition: none !important;
-    animation: none !important;
-    opacity: 1 !important;
-  }
-
-  .kimi-sidebar,
-  .kimi-stage,
-  .kimi-composer { transform: none !important; }
-}
+@media (max-width: 1180px) { .assistant-rail:not(.assistant-rail--open) { width: 3.5rem; flex-basis: 3.5rem; }.assistant-page { min-height: 34rem; }.assistant-depth button:last-child { display: none; } }
+@media (max-width: 820px) { .assistant-page { height: calc(100vh - 7.7rem); min-height: 32rem; border-radius: .8rem; }.assistant-stage__head { padding-inline: 1rem; }.assistant-empty { padding-inline: 1rem; }.assistant-suggestions__grid { grid-template-columns: 1fr; }.assistant-depth { display: none; }.assistant-composer__hint { margin-left: auto; }.assistant-thread__inner, .assistant-thread__composer { padding-inline: 1rem; }.assistant-limit span { display: none; } }
+@media (max-width: 560px) { .assistant-rail { display: none; }.assistant-stage__head { padding-top: .85rem; }.assistant-welcome h2 { font-size: 1.15rem; }.assistant-context { display: none; }.assistant-empty { justify-content: flex-start; padding-top: 2.3rem; }.assistant-suggestion--alert em { display: none; } }
+@media (prefers-reduced-motion: reduce) { .assistant-rail, .assistant-suggestion { transition: none; } }
 </style>

@@ -109,12 +109,9 @@ const routes = [
     component: () => import('../views/Product/Products.vue')
   },
   {
-    // Новый AI-ассистент (полноэкранный, свой layout без шелла). Пока макет —
-    // бэкенд-агент и гейт по дорогим тарифам добавляются отдельно.
     path: '/ai',
     name: 'AiAssistant',
-    component: () => import('../views/AiAssistant/AiAssistant.vue'),
-    meta: { layout: 'fullscreen' }
+    component: () => import('../views/AiAssistant/AiAssistant.vue')
   },
   {
     path: '/projects',
