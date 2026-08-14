@@ -994,13 +994,24 @@ button {
   z-index: 0;
   height: auto;
   pointer-events: none;
-
 }
 
-.feat-illu--dashboard   { left: 441.947px;  top: -44.288px; width: 681.98px; }
-.feat-illu--detector    { left: -631.185px; top: -29.421px; width: 599.157px; }
-.feat-illu--directions  { left: 441.947px;  top: -44.288px; width: 681.98px; }
-.feat-illu--ai          { left: -617.624px; top: -26.377px; width: 537.161px; }
+.feat-illu--dashboard,
+.feat-illu--detector,
+.feat-illu--directions,
+.feat-illu--ai {
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 22.5px;
+  background: #f6f7fb;
+  box-shadow:
+    0 25px 58px rgba(32, 54, 108, 0.16),
+    0 5px 16px rgba(32, 54, 108, 0.08);
+}
+
+.feat-illu--dashboard   { left: 455px;  top: -40px; width: 650px; }
+.feat-illu--detector    { left: -550px; top: -31px; width: 510px; }
+.feat-illu--directions  { left: 420px;  top: -13px; width: 705px; }
+.feat-illu--ai          { left: -545px; top: -18px; width: 475px; }
 .feat-illu--reports     { left: 398.995px;  top: -33.874px; width: 726.498px; }
 .feat-illu--white-label { left: -627.524px; top: -15.577px; width: 537.161px; }
 
@@ -2472,13 +2483,13 @@ button {
     max-width: 681.98px;
   }
   .feat-illu--detector {
-    width: min(140%, 599.157px);
-    max-width: 599.157px;
+    width: min(140%, 520px);
+    max-width: 520px;
     transform: translateX(-4.5%);
   }
   .feat-illu--ai {
-    width: min(140%, 537.161px);
-    max-width: 537.161px;
+    width: min(140%, 500px);
+    max-width: 500px;
     transform: translateX(-8.5%);
   }
   .feat-illu--reports {
@@ -2641,6 +2652,10 @@ button {
     max-width: 612px;
     transform: none;
   }
+  .feat-illu--dashboard { max-width: 560px; }
+  .feat-illu--detector { max-width: 520px; }
+  .feat-illu--directions { max-width: 612px; }
+  .feat-illu--ai { max-width: 500px; }
 
   .pricing__cards { grid-template-columns: repeat(2, minmax(270px, 1fr)); }
   .price-wl { grid-template-columns: minmax(216px, 1fr) minmax(225px, 1fr); }
