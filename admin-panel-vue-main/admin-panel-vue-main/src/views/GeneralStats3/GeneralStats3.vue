@@ -596,13 +596,13 @@
             <strong>{{ item.name }}</strong>
             <span>{{ item.campaign_count }} камп.</span>
           </div>
-          <div class="direction-card__money">{{ formatMoney(withVat(item.expenses)) }}</div>
+          <div class="direction-card__money">{{ formatNumber(item.leads) }} лидов · CPL {{ formatMoney(withVat(item.cpl)) }}</div>
           <div class="direction-share">
             <span :style="{ width: `${Math.min(item.budget_share, 100)}%` }"></span>
           </div>
           <div class="direction-card__bottom">
             <span>{{ formatNumber(item.budget_share, 1) }}% бюджета</span>
-            <strong>{{ formatNumber(item.leads) }} лидов · CPL {{ formatMoney(withVat(item.cpl)) }}</strong>
+            <strong>{{ formatMoney(withVat(item.expenses)) }}</strong>
           </div>
         </button>
       </div>
@@ -8260,8 +8260,11 @@ onMounted(() => {
 }
 
 .direction-card__money {
-  font-size: 2rem;
+  font-size: 1.35rem;
   font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .direction-share {

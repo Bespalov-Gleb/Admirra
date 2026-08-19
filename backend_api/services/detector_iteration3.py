@@ -1342,12 +1342,12 @@ def metric_plan_context(db: Session, client_id: uuid.UUID, today: date | None = 
     forecast_spend = spend / elapsed * total_days
     gap_spend = forecast_spend - total_budget
     if gap_spend > total_budget * 0.02:
-        exp_ctx["gap"] = f"не хватит ~{_money(gap_spend)}"
+        exp_ctx["gap"] = f"по темпу перерасход ~{_money(gap_spend)}"
         exp_ctx["gap_dir"] = "short"
         if spend >= total_budget:
             exp_ctx["verdict"] = "исчерпан"
     elif gap_spend < -total_budget * 0.05:
-        exp_ctx["gap"] = f"остаток ~{_money(-gap_spend)}"
+        exp_ctx["gap"] = f"по темпу недорасход ~{_money(-gap_spend)}"
         exp_ctx["gap_dir"] = "surplus"
     result["expenses"] = exp_ctx
 
