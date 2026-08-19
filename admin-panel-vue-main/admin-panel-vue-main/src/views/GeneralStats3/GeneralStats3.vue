@@ -579,7 +579,7 @@
           <span class="direction-table-name">{{ item.name }}</span>
           <span>{{ formatMoney(withVat(item.expenses)) }}</span>
           <span>{{ formatNumber(item.budget_share, 1) }}%</span>
-          <span>{{ formatNumber(item.leads) }} лидов</span>
+          <span>{{ formatNumber(item.leads) }} {{ declLeads(item.leads) }}</span>
           <strong>{{ formatMoney(withVat(item.cpl)) }}</strong>
         </button>
       </div>
@@ -596,7 +596,7 @@
             <strong>{{ item.name }}</strong>
             <span>{{ item.campaign_count }} камп.</span>
           </div>
-          <div class="direction-card__money">{{ formatNumber(item.leads) }} лидов · CPL {{ formatMoney(withVat(item.cpl)) }}</div>
+          <div class="direction-card__money">{{ formatNumber(item.leads) }} {{ declLeads(item.leads) }} · CPL {{ formatMoney(withVat(item.cpl)) }}</div>
           <div class="direction-share">
             <span :style="{ width: `${Math.min(item.budget_share, 100)}%` }"></span>
           </div>
@@ -1180,7 +1180,7 @@
           </template>
           <template v-else-if="campaign.aggregate">
             <button type="button" class="campaign-aggregate-cell" @click="showAllCampaignRows = true">
-              <span>Ещё {{ campaign.count }} {{ campaign.count === 1 ? 'кампания' : 'кампаний' }} · {{ campaign.cost }} · {{ campaign.leads }} {{ campaign.leads === 1 ? 'лид' : 'лидов' }}</span>
+              <span>Ещё {{ campaign.count }} {{ campaign.count === 1 ? 'кампания' : 'кампаний' }} · {{ campaign.cost }} · {{ campaign.leads }} {{ declLeads(campaign.leads) }}</span>
               <b>развернуть все →</b>
             </button>
           </template>
@@ -1794,6 +1794,14 @@ const onDetectorShieldClick = () => {
   else openDetectorSidebar()
 }
 const declOtkl = (n) => (n === 1 ? 'отклонение' : n > 1 && n < 5 ? 'отклонения' : 'отклонений')
+// Склонение «лид»: 1 лид, 2–4 лида, 5+ лидов (с учётом 11–14 → лидов).
+const declLeads = (n) => {
+  const a = Math.abs(Math.trunc(Number(n) || 0))
+  const d10 = a % 10, d100 = a % 100
+  if (d10 === 1 && d100 !== 11) return 'лид'
+  if (d10 >= 2 && d10 <= 4 && (d100 < 12 || d100 > 14)) return 'лида'
+  return 'лидов'
+}
 // Вариант Б: чип-состояние детектора — иконка + надпись + число по состоянию.
 const detectorChip = computed(() => {
   const state = detectorShieldState.value
@@ -4044,7 +4052,7 @@ const channelOverview = computed(() => {
     impressions: formatNumber(item.summary.impressions || 0),
     leads: item.summary.goals_syncing
       ? 'цели синхронизируются'
-      : `${formatNumber(item.summary.leads || 0)} лидов`,
+      : `${formatNumber(item.summary.leads || 0)} ${declLeads(item.summary.leads || 0)}`,
   }))
 })
 
