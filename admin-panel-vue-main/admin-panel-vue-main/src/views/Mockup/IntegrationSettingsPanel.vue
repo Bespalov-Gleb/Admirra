@@ -906,6 +906,13 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
 }
+/* Поиск целей — отдельная строка между подсказкой и списком. Небольшой
+   отрицательный отступ сверху и запас снизу визуально центрируют поле в
+   свободной зоне, не прижимая его к первой цели. */
+.ip-goal-search {
+  margin-top: -0.25rem;
+  margin-bottom: 1.15rem;
+}
 .ip-counter-search input {
   width: min(100%, 17.5rem);
   height: 2.0833rem;
