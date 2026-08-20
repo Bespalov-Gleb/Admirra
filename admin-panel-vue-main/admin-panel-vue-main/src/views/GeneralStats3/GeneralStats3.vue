@@ -1286,6 +1286,7 @@
       :channel="filters.channel"
       :campaign-ids="filters.campaign_ids"
       :include-vat="includeVat"
+      :direction-active="!!selectedDirectionId"
     />
 
     <div

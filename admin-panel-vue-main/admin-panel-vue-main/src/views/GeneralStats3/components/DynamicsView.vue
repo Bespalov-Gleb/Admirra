@@ -186,8 +186,9 @@
               <th>CPC</th>
               <th v-if="hasLeadsData" class="dyn-th-group">Лиды</th>
               <th v-if="hasLeadsData">CPL</th>
-              <template v-for="g in goals" :key="g.id">
-                <th class="dyn-th-goal">{{ g.name }}</th>
+              <!-- При выборе направления столбцы целей скрываем — оставляем до CPL. -->
+              <template v-if="!directionActive">
+                <th v-for="g in goals" :key="g.id" class="dyn-th-goal">{{ g.name }}</th>
               </template>
             </tr>
           </thead>
@@ -204,8 +205,8 @@
               <td v-html="cell(adjCpc(p), p.deltas.cpc, 'rate', 'money')"></td>
               <td v-if="hasLeadsData" v-html="cell(leadsOf(p), leadsDelta(p), 'conv', 'int')"></td>
               <td v-if="hasLeadsData" v-html="cell(leadsOf(p) > 0 ? adjOverallCpl(p) : null, cplDelta(p), 'rate', 'money')"></td>
-              <template v-for="g in goals" :key="g.id">
-                <td class="dyn-td-goal" v-html="goalCountCell(p, g.id)"></td>
+              <template v-if="!directionActive">
+                <td v-for="g in goals" :key="g.id" class="dyn-td-goal" v-html="goalCountCell(p, g.id)"></td>
               </template>
             </tr>
           </tbody>
@@ -227,6 +228,7 @@ const props = defineProps({
   channel: { type: String, default: 'all' },     // platform: all|yandex|vk|avito
   campaignIds: { type: Array, default: () => [] }, // фильтр направления
   includeVat: { type: Boolean, default: true },
+  directionActive: { type: Boolean, default: false }, // выбрано направление → скрыть столбцы целей
 })
 
 const VAT = 1.22
