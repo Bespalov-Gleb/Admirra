@@ -254,7 +254,8 @@ class StatsService:
         d_end: datetime.date,
         platform: str = "all",
         campaign_ids: Optional[List[uuid.UUID]] = None,
-        vk_goal_action_ids: Optional[List[str]] = None
+        vk_goal_action_ids: Optional[List[str]] = None,
+        include_trends: bool = True,
     ):
         if not client_ids:
             return {
@@ -705,9 +706,12 @@ class StatsService:
             ).scalar() or 0
             goals_syncing = metrika_rows_count == 0
         
-        # Previous period data for trends
+        # Previous period data for trends. Сводка ТОП-проектов использует только
+        # текущий период: не делаем тяжёлые запросы за прошлый период, когда их
+        # результат не будет показан пользователю.
+        prev = None
         trends = None
-        if d_start:
+        if include_trends and d_start:
             delta = (d_end - d_start).days + 1
             prev_start = d_start - timedelta(days=delta)
             prev_end = d_start - timedelta(days=1)

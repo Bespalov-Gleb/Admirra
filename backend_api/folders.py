@@ -74,6 +74,44 @@ def _accessible_clients(db: Session, current_user: models.User) -> List[models.C
     return db.query(models.Client).filter(models.Client.id.in_(ids)).all()
 
 
+def _summary_with_combined_leads_cpl(
+    db: Session,
+    client_ids: List[uuid.UUID],
+    d_start,
+    d_end,
+    *,
+    include_trends: bool = True,
+) -> dict:
+    """Собирает лиды и CPL по той же формуле, что и KPI дашборда.
+
+    Базовый ``aggregate_summary(..., platform='all')`` не подходит для
+    смешанного набора Яндекс/VK/Авито: у каналов разные источники лидов и
+    лидовый расход. Поэтому общий итог складывается из трёх канальных итогов.
+    """
+    summary = StatsService.aggregate_summary(
+        db, client_ids, d_start, d_end, include_trends=include_trends
+    )
+    total_leads = 0
+    lead_cost = 0.0
+    for platform in ("yandex", "vk", "avito"):
+        channel_summary = StatsService.aggregate_summary(
+            db,
+            client_ids,
+            d_start,
+            d_end,
+            platform,
+            include_trends=False,
+        )
+        total_leads += int(channel_summary.get("leads") or 0)
+        lead_cost += float((channel_summary.get("lead_cost_by_platform") or {}).get(platform) or 0)
+
+    summary["leads"] = total_leads
+    summary["cpa"] = round(lead_cost / total_leads, 2) if total_leads > 0 else 0
+    summary["leads_available"] = True
+    summary["cpa_available"] = True
+    return summary
+
+
 def _assign_projects(db: Session, ctx, current_user, folder: models.Folder, project_ids: List[uuid.UUID]) -> int:
     """Назначает доступные проекты в папку. Возвращает число перемещённых."""
     if not project_ids:
@@ -382,25 +420,6 @@ def folder_breakdown(
         c for c in db.query(models.Client).filter(models.Client.folder_id == folder.id).all()
         if c.id in accessible
     ]
-    def _with_combined_leads_cpl(client_ids):
-        """Лиды/CPL филиала — по той же формуле, что и KPI сводки (ТЗ единого
-        дашборда п.13): лиды = сумма по каналам (Яндекс — выбранные цели, VK —
-        лидовые действия, Авито — по UTM); CPL = сумма лидовых расходов ÷ лиды.
-        Базовый aggregate_summary(all) для смешанных Яндекс+VK отдаёт лиды только
-        Яндекса и CPL от всего расхода, поэтому пересобираем по каналам."""
-        summary = StatsService.aggregate_summary(db, client_ids, d_start, d_end)
-        total_leads = 0
-        lead_cost = 0.0
-        for plat in ("yandex", "vk", "avito"):
-            s = StatsService.aggregate_summary(db, client_ids, d_start, d_end, plat)
-            total_leads += int(s.get("leads") or 0)
-            lead_cost += float((s.get("lead_cost_by_platform") or {}).get(plat) or 0)
-        summary["leads"] = total_leads
-        summary["cpa"] = round(lead_cost / total_leads, 2) if total_leads > 0 else 0
-        summary["leads_available"] = True
-        summary["cpa_available"] = True
-        return summary
-
     items = []
     for c in members:
         # summary уже содержит balance филиала (Integration.balance активных
@@ -410,11 +429,64 @@ def folder_breakdown(
             "name": c.name,
             "status": c.status.value.lower() if hasattr(c.status, "value") else str(c.status).lower(),
             "avatar_url": c.avatar_url,
-            "summary": _with_combined_leads_cpl([c.id]),
+            "summary": _summary_with_combined_leads_cpl(db, [c.id], d_start, d_end),
         })
-    total = _with_combined_leads_cpl([c.id for c in members]) if members else None
+    total = _summary_with_combined_leads_cpl(db, [c.id for c in members], d_start, d_end) if members else None
     return {
         "folder": _folder_to_schema(folder, _folder_counts(db, [folder.id])).model_dump(mode="json"),
         "total": total,
         "items": items,
     }
+
+
+@router.get("/top-projects")
+def top_projects(
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    limit: int = Query(5, ge=1, le=10),
+    include_vat: bool = Query(True),
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Лучшие проекты текущего периода для общей сводки.
+
+    Проекты без лидов остаются в самом конце и не могут попасть в список, пока
+    есть проекты с рассчитанным CPL. Это исключает ложное «лучшее» значение 0 ₽.
+    """
+    d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
+    d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else d_end - timedelta(days=6)
+    members = _accessible_clients(db, current_user)
+
+    items = []
+    for client in members:
+        summary = _summary_with_combined_leads_cpl(
+            db,
+            [client.id],
+            d_start,
+            d_end,
+            include_trends=False,
+        )
+        items.append({
+            "client_id": str(client.id),
+            "name": client.name,
+            "status": client.status.value.lower() if hasattr(client.status, "value") else str(client.status).lower(),
+            "avatar_url": client.avatar_url,
+            "summary": summary,
+        })
+
+    def rank(item: dict):
+        summary = item["summary"]
+        leads = int(summary.get("leads") or 0)
+        lead_costs = summary.get("lead_cost_by_platform") or summary.get("cost_by_platform") or {}
+        lead_cost = sum(
+            float(lead_costs.get(platform) or 0) * (1.22 if include_vat and platform in {"yandex", "vk"} else 1)
+            for platform in ("yandex", "vk", "avito")
+        )
+        cpl = lead_cost / leads if leads > 0 else 0
+        expenses = float(summary.get("expenses") or 0)
+        # Сначала валидный CPL, затем меньший CPL; равные значения стабилизируем
+        # числом лидов и расходом, чтобы порядок не «прыгал» при перезагрузке.
+        return (0, cpl, -leads, -expenses, item["name"].lower()) if leads > 0 and cpl > 0 else (1, float("inf"), -leads, -expenses, item["name"].lower())
+
+    items.sort(key=rank)
+    return {"items": items[:limit], "total_projects": len(items)}

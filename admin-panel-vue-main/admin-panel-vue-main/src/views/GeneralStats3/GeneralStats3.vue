@@ -616,7 +616,13 @@
 
     <!-- Раскладка как было: «Все каналы» — стек (график сверху, цели во всю ширину
          снизу); обычный дашборд (выбран канал) — слева график, справа целевые. -->
-    <section class="chart-goals-grid" :class="{ 'chart-goals-grid--stacked': isAllChannelsMode }">
+    <section
+      class="chart-goals-grid"
+      :class="{
+        'chart-goals-grid--stacked': isAllChannelsMode,
+        'chart-goals-grid--summary': isAllProjectsSummary,
+      }"
+    >
       <article
         class="panel chart-panel"
         :class="{
@@ -844,7 +850,11 @@
         </div>
       </article>
 
-      <article class="panel goals-panel" :class="{ 'panel--syncing': dashboardSyncInProgress || allChannelsDataLoading }">
+      <article
+        v-if="!isAllProjectsSummary"
+        class="panel goals-panel"
+        :class="{ 'panel--syncing': dashboardSyncInProgress || allChannelsDataLoading }"
+      >
         <div class="goals-panel__header">
           <h2>Целевые действия</h2>
         </div>
@@ -926,18 +936,19 @@
     </section>
 
     <!-- ══ Аналитика папки: разбивка по проектам (drill-down уровень «проект») ══ -->
-    <section v-if="folderMode" class="panel folder-branches-panel">
+    <section v-if="folderMode || isAllProjectsSummary" class="panel folder-branches-panel">
       <div class="panel-title-row">
-        <h2>Проекты папки «{{ folderMode.name }}»</h2>
-        <span class="folder-branches-count">{{ folderBreakdown.length }}</span>
+        <h2>{{ folderMode ? `Проекты папки «${folderMode.name}»` : 'ТОП-5 проектов за период' }}</h2>
+        <span class="folder-branches-count">{{ summaryProjectItems.length }}</span>
       </div>
-      <div v-if="folderBreakdownLoading" class="folder-branches-empty">Загружаем проекты…</div>
-      <div v-else-if="!folderBreakdown.length" class="folder-branches-empty">В папке нет доступных проектов</div>
+      <p v-if="isAllProjectsSummary" class="top-projects-caption">Лучшие проекты по стоимости лида за выбранный период</p>
+      <div v-if="summaryProjectsLoading" class="folder-branches-empty">{{ folderMode ? 'Загружаем проекты…' : 'Собираем ТОП проектов…' }}</div>
+      <div v-else-if="!summaryProjectItems.length" class="folder-branches-empty">{{ folderMode ? 'В папке нет доступных проектов' : 'За выбранный период нет проектов с лидами' }}</div>
       <div v-else class="folder-branches-table-wrap">
         <table class="folder-branches-table">
           <thead>
             <tr>
-              <th>Филиал</th>
+              <th>{{ folderMode ? 'Филиал' : 'Проект' }}</th>
               <th>Показы</th>
               <th>Клики</th>
               <th>CPC</th>
@@ -949,7 +960,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in folderBreakdown" :key="item.client_id" :class="{ 'folder-branch--paused': item.status === 'paused' }">
+            <tr v-for="item in summaryProjectItems" :key="item.client_id" :class="{ 'folder-branch--paused': item.status === 'paused' }">
               <td class="folder-branch-name">
                 <span class="folder-branch-avatar">
                   <img v-if="item.avatar_url" :src="item.avatar_url" :alt="item.name" />
@@ -980,7 +991,7 @@
       </div>
     </section>
 
-    <section class="bottom-grid">
+    <section v-if="!isAllProjectsSummary" class="bottom-grid">
       <article class="panel ai-panel ai-comment" :class="{ 'panel--syncing': dashboardSyncInProgress, 'ai-comment--collapsed': aiCommentCollapsed }">
         <div class="ai-comment__head">
           <span class="ai-comment__icon"><SparklesIcon /></span>
@@ -1098,7 +1109,7 @@
       </article>
     </section>
 
-    <section class="panel campaigns-panel" :class="{ 'panel--syncing': dashboardSyncInProgress || allChannelsDataLoading }">
+    <section v-if="!isAllProjectsSummary" class="panel campaigns-panel" :class="{ 'panel--syncing': dashboardSyncInProgress || allChannelsDataLoading }">
       <div class="panel-title-row">
         <h2>Рекламные кампании</h2>
         <div class="campaign-sort-tabs" aria-label="Сортировка кампаний">
@@ -2362,8 +2373,12 @@ const directionEditor = ref({ id: null, name: '', masks: [] })
 // Разбивка по каналам внутри KPI-карточек: всегда видна при 2+ каналах
 // (отдельный блок «Распределение по источникам» убран как дубль). При одном
 // канале сплита нет (ТЗ единого дашборда п.2, п.14).
+// Общая сводка — отдельный продуктовый уровень: KPI + график + ТОП проектов.
+// В ней не показываем детализацию KPI по кабинетам, цели, кампании и AI-комментарий.
+const isAllProjectsSummary = computed(() => !filters.client_id && !filters.folder_id)
 const showKpiChannelSplit = computed(() =>
-  isAllChannelsMode.value
+  !isAllProjectsSummary.value
+  && isAllChannelsMode.value
   && hasCompleteChannelBreakdown.value
   && availableDashboardChannels.value.length > 1
 )
@@ -4270,6 +4285,27 @@ const buildChartFillPath = (points, path) => {
 }
 
 const chartSeries = computed(() => {
+  // В общей сводке график тоже единый: канальные линии и переключатель
+  // разбивки убраны, чтобы экран отвечал на вопрос «что происходит со всеми
+  // проектами», а не повторял детализацию проекта.
+  if (isAllProjectsSummary.value && isAllChannelsMode.value) {
+    const metricKey = activeChartMetricKeys.value[0] || 'expenses'
+    const values = buildChartTotalValues(metricKey)
+    const points = buildChartPoints(values)
+    const path = buildSmoothChartPath(points)
+    return [{
+      key: `summary-${metricKey}`,
+      metricKey,
+      label: 'Все кабинеты',
+      color: '#3464f3',
+      asset: null,
+      money: Boolean(chartChipByKey.value[metricKey]?.money),
+      values,
+      points,
+      path,
+      fillPath: buildChartFillPath(points, path),
+    }]
+  }
   if (isAllChannelsMode.value && chartBreakdownMode.value === 'channels') {
     const metricKey = activeChartMetricKeys.value[0] || 'expenses'
     const rows = availableDashboardChannels.value
@@ -5680,6 +5716,16 @@ async function confirmReportChannelLinked({ silent = false } = {}) {
 const folderMode = ref(null) // { id, name }
 const folderBreakdown = ref([])
 const folderBreakdownLoading = ref(false)
+const topProjects = ref([])
+const topProjectsLoading = ref(false)
+let topProjectsRequestId = 0
+
+const summaryProjectItems = computed(() =>
+  folderMode.value ? folderBreakdown.value : topProjects.value
+)
+const summaryProjectsLoading = computed(() =>
+  folderMode.value ? folderBreakdownLoading.value : topProjectsLoading.value
+)
 
 const fetchFolderBreakdown = async () => {
   if (!filters.folder_id) { folderBreakdown.value = []; return }
@@ -5699,6 +5745,32 @@ const fetchFolderBreakdown = async () => {
   }
 }
 
+const fetchTopProjects = async () => {
+  if (!isAllProjectsSummary.value) {
+    topProjectsRequestId += 1
+    topProjects.value = []
+    topProjectsLoading.value = false
+    return
+  }
+  const requestId = ++topProjectsRequestId
+  topProjectsLoading.value = true
+  try {
+    const { data } = await api.get('folders/top-projects', {
+      params: {
+        start_date: filters.start_date,
+        end_date: filters.end_date,
+        limit: 5,
+        include_vat: includeVat.value,
+      },
+    })
+    if (requestId === topProjectsRequestId) topProjects.value = data?.items || []
+  } catch {
+    if (requestId === topProjectsRequestId) topProjects.value = []
+  } finally {
+    if (requestId === topProjectsRequestId) topProjectsLoading.value = false
+  }
+}
+
 watch(() => route.query.folder_id, (fid) => {
   if (fid) {
     folderMode.value = { id: String(fid), name: String(route.query.folder_name || 'Папка') }
@@ -5712,6 +5784,7 @@ watch(() => route.query.folder_id, (fid) => {
     folderMode.value = null
     filters.folder_id = null
     folderBreakdown.value = []
+    if (!filters.client_id) fetchTopProjects()
   }
 }, { immediate: true })
 
@@ -5728,6 +5801,15 @@ const openFolderBranch = (item) => {
 watch(() => [filters.start_date, filters.end_date], () => {
   if (filters.folder_id) fetchFolderBreakdown()
 }, { deep: true })
+
+watch(() => [filters.start_date, filters.end_date, filters.client_id, filters.folder_id, includeVat.value], () => {
+  if (isAllProjectsSummary.value) fetchTopProjects()
+  else {
+    topProjectsRequestId += 1
+    topProjects.value = []
+    topProjectsLoading.value = false
+  }
+}, { immediate: true })
 
 watch(currentProjectId, (newId) => {
   // В режиме папки выбранный ранее проект не должен перекрывать сводку папки
@@ -9070,6 +9152,24 @@ onMounted(() => {
 .chart-goals-grid.chart-goals-grid--stacked {
   grid-template-columns: 1fr;
 }
+
+/* Общая сводка: после KPI оставляем только полноширинный график; цели,
+   кампании и AI-комментарий на этом уровне намеренно не дублируются. */
+.chart-goals-grid.chart-goals-grid--summary {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.chart-goals-grid--summary .chart-panel {
+  min-height: 0;
+}
+
+.chart-goals-grid--summary .chart-area {
+  flex: 0 0 auto;
+  min-height: 0;
+  height: auto;
+}
+
+.chart-goals-grid--summary .chart-area svg { height: auto; }
 
 .chart-goals-grid--stacked .chart-panel,
 .chart-goals-grid--stacked .goals-panel {
@@ -15473,6 +15573,11 @@ onMounted(() => {
 }
 
 .folder-branches-empty { padding: 1.4rem 0; color: rgba(105,105,105,0.6); font-size: 0.9rem; }
+.top-projects-caption {
+  margin: 0.35rem 0 0;
+  color: rgba(105, 105, 105, 0.68);
+  font-size: 0.9rem;
+}
 .folder-branches-table-wrap { margin-top: 1.6rem; overflow-x: auto; }
 
 .folder-branches-table { width: 100%; border-collapse: collapse; }
@@ -15530,6 +15635,7 @@ onMounted(() => {
 
 .figma-dashboard.is-dark .folder-branches-table td { color: rgba(255,255,255,0.88); border-color: rgba(255,255,255,0.06); }
 .figma-dashboard.is-dark .folder-branch--paused td { opacity: 0.5; }
+.figma-dashboard.is-dark .top-projects-caption { color: rgba(255,255,255,0.56); }
 
 
 .detector-popover__drill {
