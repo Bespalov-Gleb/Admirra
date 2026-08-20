@@ -112,11 +112,6 @@
         </div>
 
         <template v-else>
-        <!-- ── New goal notice (only when new goals exist) ─- -->
-        <div v-if="hasNewGoals" class="ip-notice">
-          В Метрике появилась новая цель, ещё не отслеживается. Отметьте, если нужна.
-        </div>
-
         <!-- ── Counter + Goals block ── -->
         <div class="ip-main">
 
@@ -181,11 +176,17 @@
           <h4 class="ip-section-title mb-[0.4167rem]">Цели и конверсии</h4>
           <p class="ip-goals-hint">Отметьте галочкой цели, которые нужно отслеживать.</p>
 
+          <!-- Поиск по целям -->
+          <div v-if="!loadingGoals && goals.length > 6" class="ip-counter-search ip-goal-search">
+            <input v-model="goalSearch" type="text" placeholder="Поиск по целям" />
+          </div>
+
           <!-- Goals list -->
           <div v-if="loadingGoals" class="ip-goals-loading">Загрузка целей…</div>
           <div v-else class="ip-goals">
+            <div v-if="goalSearch && !filteredGoals.length" class="ip-goals-loading">Ничего не найдено.</div>
             <div
-              v-for="goal in goals"
+              v-for="goal in filteredGoals"
               :key="goal.id"
               class="ip-goal"
               :class="{
@@ -301,6 +302,12 @@ const loadingGoals = ref(false)
 const deleteConfirmOpen = ref(false)
 const deleteConfirmText = ref('')
 const counterSearch = ref('')
+const goalSearch = ref('')
+const filteredGoals = computed(() => {
+  const q = goalSearch.value.trim().toLowerCase()
+  if (!q) return goals.value
+  return goals.value.filter((g) => String(g.name || '').toLowerCase().includes(q))
+})
 const addingCounter = ref(false)
 const utmSource = ref('avito-ads')
 const vkLeadActions = ref([])

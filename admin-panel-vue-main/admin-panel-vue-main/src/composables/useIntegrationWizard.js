@@ -36,6 +36,7 @@ const selectedCampaignIds = ref([])
 const allFromProfile = ref(false)
 
 const counters = ref([])
+const countersFetched = ref(false) // была ли завершена загрузка счётчиков (чтобы не показывать «нет счётчиков» до первой загрузки)
 const selectedCounterIds = ref([])
 const allFromCounters = ref(false)
 
@@ -188,6 +189,7 @@ export function useIntegrationWizard() {
       counters.value = []
     } finally {
       loadingStates.counters = false
+      countersFetched.value = true
     }
   }
 
@@ -395,6 +397,7 @@ export function useIntegrationWizard() {
     selectedCampaignIds,
     allFromProfile,
     counters,
+    countersFetched,
     selectedCounterIds,
     allFromCounters,
     goals,

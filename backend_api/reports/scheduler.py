@@ -617,7 +617,7 @@ def _delivery_message_text(delivery, snapshot: dict) -> str:
     ]
     balance = summary.get("balance")
     if isinstance(balance, (int, float)):
-        lines.append(f"Остаток: {float(balance):,.0f} ₽".replace(",", " "))
+        lines.append(f"Остаток: {_with_channel_vat(balance, platform):,.0f} ₽".replace(",", " "))
     lines.append(f"Заявки: {leads:,}".replace(",", " "))
     if cpl is not None:
         cpl_line = f"CPL: {cpl:,.0f} ₽".replace(",", " ")

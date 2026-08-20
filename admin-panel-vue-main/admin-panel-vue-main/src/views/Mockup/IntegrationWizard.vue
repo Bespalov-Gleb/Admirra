@@ -522,7 +522,7 @@
             </div>
           </div>
 
-          <div v-if="loadingStates.counters" class="empty-line dark:!text-white/55">Загрузка счетчиков...</div>
+          <div v-if="loadingStates.counters || !countersFetched" class="empty-line dark:!text-white/55">Поиск и загрузка счётчиков Метрики…</div>
           <div v-else-if="counters.length === 0" class="empty-line dark:!text-white/55">Нет доступных счетчиков.</div>
           <div v-else-if="counterSearch && filteredCounters.length === 0" class="empty-line dark:!text-white/55">Ничего не найдено по «{{ counterSearch }}»</div>
 
@@ -772,6 +772,7 @@ const { projects, currentProjectId, fetchProjects } = useProjects()
 const toaster = useToaster()
 
 const {
+  countersFetched,
   error,
   form,
   loadingStates,
