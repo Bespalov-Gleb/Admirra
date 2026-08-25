@@ -424,6 +424,53 @@ def _latest_targets(
     return list(latest.values())
 
 
+PLAN_ALERT_MODES = ("plan", "plan_spend", "plan_cpl", "plan_leads")
+
+
+def plan_warmup_state(
+    db: Session,
+    client_id: uuid.UUID,
+    reference_date: date | None = None,
+) -> dict:
+    """Return the grace-period state for the active agreement.
+
+    A plan is an agreement for a period, not a historical baseline.  During
+    the first configured calendar days we still show the plan as a reference,
+    but deliberately do not forecast its outcome or create P-1/P-2/P-3
+    alerts.  Budgets and CPA targets can be saved independently, therefore
+    the newest active period start is the start of the current agreement.
+    """
+    ref = reference_date or date.today()
+    pause_days = max(int(get_config().detector.plan_start_pause_days or 0), 0)
+    if pause_days <= 0:
+        return {"is_warming_up": False, "days_left": 0, "period_start": None}
+
+    budgets = _latest_budgets(db, client_id, ref)
+    targets = _latest_targets(db, client_id, ref)
+    starts = [row.period_start for row in budgets.values() if row and row.period_start]
+    starts.extend(
+        row.period_start
+        for row in targets
+        if row and row.period_start and row.control_enabled and float(row.target_cpa or 0) > 0
+    )
+    if not starts:
+        return {"is_warming_up": False, "days_left": 0, "period_start": None}
+
+    period_start = max(starts)
+    elapsed_days = max((ref - period_start).days, 0)
+    is_warming_up = elapsed_days < pause_days
+    return {
+        "is_warming_up": is_warming_up,
+        "days_left": max(pause_days - elapsed_days, 0) if is_warming_up else 0,
+        "period_start": period_start,
+    }
+
+
+def _is_plan_warming_up(period_start: date, reference_date: date, cfg: DetectorCfg) -> bool:
+    """One shared P-1/P-2/P-3 guard; day of saving is day zero."""
+    return (reference_date - period_start).days < max(int(cfg.plan_start_pause_days or 0), 0)
+
+
 def _budget_for_channel(
     budgets: dict[models.IntegrationPlatform | None, models.ProjectBudget],
     channel: models.IntegrationPlatform,
@@ -475,7 +522,7 @@ def _make_plan_spend(
     total_days = (budget.period_end - budget.period_start).days + 1
     start = max(budget.period_start, client.actual_start_date or budget.period_start)
     elapsed = (reference_date - start).days + 1
-    if total_days <= 0 or elapsed <= 0 or (reference_date - budget.period_start).days < cfg.plan_start_pause_days:
+    if total_days <= 0 or elapsed <= 0 or _is_plan_warming_up(budget.period_start, reference_date, cfg):
         return None
     expected = float(budget.amount) * elapsed / total_days
     if expected < cfg.plan_min_expected_spend:
@@ -595,7 +642,7 @@ def _make_plan_cpl(
     # число в алерте совпадает с карточкой при фильтре по периоду. Правило
     # «окно минимум 7 дней» отменено: ранний шум отсекают денежные фильтры.
     period_first = target.period_start
-    if reference_date < period_first:
+    if reference_date < period_first or _is_plan_warming_up(period_first, reference_date, cfg):
         return None
     spend, _, _ = _sum_channel_stats(db, client_id, channel, period_first, reference_date, selected)
     leads = _sum_goal_leads(db, client_id, channel, target.goal_id, bool(target.is_summary), period_first, reference_date, selected, vk_codes)
@@ -687,7 +734,7 @@ def _make_plan_leads(
     start = max(budget.period_start, client.actual_start_date or budget.period_start)
     elapsed = (reference_date - start).days + 1
     total_days = (budget.period_end - budget.period_start).days + 1
-    if elapsed <= 0 or total_days <= 0:
+    if elapsed <= 0 or total_days <= 0 or _is_plan_warming_up(budget.period_start, reference_date, cfg):
         return None
     expected = planned * elapsed / total_days
     if expected < cfg.plan_min_expected_leads:
@@ -1300,6 +1347,7 @@ def metric_plan_context(db: Session, client_id: uuid.UUID, today: date | None = 
     слово-вердикт (фронт показывает только при активном отклонении, §5).
     """
     ref = today or date.today()
+    plan_warming_up = bool(plan_warmup_state(db, client_id, ref).get("is_warming_up"))
     integrations = _ad_integrations(db, client_id)
     if not integrations:
         return None
@@ -1341,12 +1389,12 @@ def metric_plan_context(db: Session, client_id: uuid.UUID, today: date | None = 
     exp_ctx: dict = {"reference": f"План {_money(total_budget)}"}
     forecast_spend = spend / elapsed * total_days
     gap_spend = forecast_spend - total_budget
-    if gap_spend > total_budget * 0.02:
+    if not plan_warming_up and gap_spend > total_budget * 0.02:
         exp_ctx["gap"] = f"по темпу перерасход ~{_money(gap_spend)}"
         exp_ctx["gap_dir"] = "short"
         if spend >= total_budget:
             exp_ctx["verdict"] = "исчерпан"
-    elif gap_spend < -total_budget * 0.05:
+    elif not plan_warming_up and gap_spend < -total_budget * 0.05:
         exp_ctx["gap"] = f"по темпу недорасход ~{_money(-gap_spend)}"
         exp_ctx["gap_dir"] = "surplus"
     result["expenses"] = exp_ctx
@@ -1386,10 +1434,10 @@ def metric_plan_context(db: Session, client_id: uuid.UUID, today: date | None = 
         lead_ctx: dict = {"reference": f"План {planned_leads}"}
         forecast_leads = leads / elapsed * total_days
         gap_leads = planned_leads - forecast_leads
-        if gap_leads > max(1.0, planned_leads * 0.02):
+        if not plan_warming_up and gap_leads > max(1.0, planned_leads * 0.02):
             lead_ctx["gap"] = f"не доберём ~{int(round(gap_leads))}"
             lead_ctx["gap_dir"] = "short"
-        elif gap_leads < -max(1.0, planned_leads * 0.05):
+        elif not plan_warming_up and gap_leads < -max(1.0, planned_leads * 0.05):
             lead_ctx["gap"] = f"с запасом +{int(round(-gap_leads))}"
             lead_ctx["gap_dir"] = "surplus"
         result["leads"] = lead_ctx
@@ -1398,7 +1446,7 @@ def metric_plan_context(db: Session, client_id: uuid.UUID, today: date | None = 
     if target_cpl and target_cpl > 0:
         cpl_ctx: dict = {"reference": f"Цель {_money(target_cpl)}"}
         cpl_fact = spend / leads if leads > 0 else None
-        if cpl_fact is not None:
+        if not plan_warming_up and cpl_fact is not None:
             if cpl_fact > target_cpl * 1.01:
                 cpl_ctx["verdict"] = "дорожает"
             elif cpl_fact < target_cpl * 0.99:
@@ -1535,13 +1583,17 @@ def run_detector_iteration3(
         # A changed agreement is not a recovery.  Close P alerts that no
         # longer match immediately, as the settings save promised the user.
         now = datetime.now(timezone.utc)
-        fired_channels = {candidate.channel for candidate in plan_alerts}
+        fired_checks = {(candidate.channel, candidate.mode) for candidate in plan_alerts}
         for alert in (
             db.query(models.DetectorAlert)
-            .filter(models.DetectorAlert.client_id == client_id, models.DetectorAlert.mode == "plan", models.DetectorAlert.status.in_(("open", "dismissed")))
+            .filter(
+                models.DetectorAlert.client_id == client_id,
+                models.DetectorAlert.mode.in_(PLAN_ALERT_MODES),
+                models.DetectorAlert.status.in_(("open", "dismissed")),
+            )
             .all()
         ):
-            if alert.channel not in fired_channels:
+            if (alert.channel, alert.mode) not in fired_checks:
                 alert.status = "closed"
                 alert.closed_at = now
                 alert.meta = {**(alert.meta or {}), "close_reason": "plan_recalculated"}

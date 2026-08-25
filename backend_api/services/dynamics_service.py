@@ -142,6 +142,7 @@ def get_dynamics_series(
     platform: str = "all",
     campaign_ids: Optional[List[uuid.UUID]] = None,
     granularity: str = "month",
+    campaign_lead_overrides_by_period: Optional[dict[tuple[str, str], dict]] = None,
 ) -> dict:
     if not client_ids:
         return {"granularity": granularity, "goals": [], "periods": []}
@@ -183,8 +184,21 @@ def get_dynamics_series(
 
     periods = []
     for start, end, label in buckets:
+        # The API layer prepares exact per-campaign attribution asynchronously
+        # (it may query Metrika).  This service deliberately remains a pure
+        # read/aggregation function so report PDF generation can reuse it.
+        campaign_lead_overrides = (campaign_lead_overrides_by_period or {}).get(
+            (start.isoformat(), end.isoformat()), {}
+        )
         summary = StatsService.aggregate_summary(
-            db, client_ids, start, end, platform, campaign_ids
+            db,
+            client_ids,
+            start,
+            end,
+            platform,
+            campaign_ids,
+            include_trends=False,
+            campaign_lead_overrides=campaign_lead_overrides,
         )
         cost = float(summary.get("expenses") or 0)
         clicks = int(summary.get("clicks") or 0)
@@ -235,7 +249,16 @@ def get_dynamics_series(
         if platform in ("yandex", "all") and yandex_cost > 0:
             y_sum = (
                 summary if platform == "yandex"
-                else StatsService.aggregate_summary(db, client_ids, start, end, "yandex", campaign_ids)
+                else StatsService.aggregate_summary(
+                    db,
+                    client_ids,
+                    start,
+                    end,
+                    "yandex",
+                    campaign_ids,
+                    include_trends=False,
+                    campaign_lead_overrides=campaign_lead_overrides,
+                )
             )
             yconv = int(y_sum.get("leads") or 0)
             yandex_summary = {

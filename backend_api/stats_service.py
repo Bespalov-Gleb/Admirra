@@ -256,6 +256,8 @@ class StatsService:
         campaign_ids: Optional[List[uuid.UUID]] = None,
         vk_goal_action_ids: Optional[List[str]] = None,
         include_trends: bool = True,
+        campaign_lead_overrides: Optional[dict] = None,
+        previous_campaign_lead_overrides: Optional[dict] = None,
     ):
         if not client_ids:
             return {
@@ -320,6 +322,16 @@ class StatsService:
         )
 
         def get_data(start, end):
+            # MetrikaGoals are not keyed by campaign.  A direction drill-down
+            # therefore needs campaign attribution prepared by the API layer.
+            # Without it this function used a cost-share approximation and
+            # could show a different lead total than the direction card and
+            # campaign table.  The override is exact (or the same deterministic
+            # allocation used by campaign rows) for the selected campaigns.
+            if start == d_start and end == d_end:
+                exact_leads = campaign_lead_overrides or {}
+            else:
+                exact_leads = previous_campaign_lead_overrides or {}
             y_q = db.query(
                 func.sum(models.YandexStats.cost).label("total_cost"),
                 func.sum(models.YandexStats.impressions).label("total_impressions"),
@@ -536,13 +548,21 @@ class StatsService:
                 else metrica_convs
             )
             if campaign_ids:
+                exact_yandex_leads = exact_leads.get("yandex")
                 yandex_metrika_convs = (
-                    int(round(metrica_convs * (yandex_cost / yandex_scope_cost)))
-                    if metrica_convs > 0 and yandex_cost > 0 and yandex_scope_cost > 0
-                    else 0
+                    int(exact_yandex_leads)
+                    if exact_yandex_leads is not None
+                    else (
+                        int(round(metrica_convs * (yandex_cost / yandex_scope_cost)))
+                        if metrica_convs > 0 and yandex_cost > 0 and yandex_scope_cost > 0
+                        else 0
+                    )
                 )
             else:
                 yandex_metrika_convs = metrica_convs
+
+            if campaign_ids and exact_leads.get("avito") is not None:
+                avito_metrika_convs = int(exact_leads["avito"])
             
             if platform == "vk":
                 convs = vk_convs

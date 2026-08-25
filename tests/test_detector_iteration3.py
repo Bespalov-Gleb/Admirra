@@ -81,6 +81,27 @@ def test_p1_is_silent_for_first_three_days_and_small_expected_volume(monkeypatch
     assert iteration3._make_plan_spend(None, "p", models.IntegrationPlatform.YANDEX_DIRECT, low, date(2026, 7, 4), client(), cfg()) is None
 
 
+def test_p2_and_p3_are_also_silent_for_first_three_plan_days(monkeypatch):
+    """The plan grace period must be one rule, not P-1-only."""
+    monkeypatch.setattr(iteration3, "_target_exists", lambda *_: True)
+    monkeypatch.setattr(iteration3, "_target_window_start", lambda *_: date(2026, 7, 1))
+    monkeypatch.setattr(iteration3, "_sum_channel_stats", lambda *_: (50_000, 0, 0))
+    monkeypatch.setattr(iteration3, "_sum_goal_leads", lambda *_: 0)
+    assert iteration3._make_plan_cpl(
+        None, "p", target(1_000), budget(100_000), date(2026, 7, 3), cfg(),
+    ) is None
+    assert iteration3._make_plan_leads(
+        None,
+        "p",
+        models.IntegrationPlatform.YANDEX_DIRECT,
+        budget(100_000),
+        target(1_000),
+        date(2026, 7, 3),
+        client(),
+        cfg(),
+    ) is None
+
+
 def test_p1_red_overpace_has_forecast_and_exhaustion_has_special_copy(monkeypatch):
     monkeypatch.setattr(iteration3, "_sum_channel_stats", lambda *_: (145_000, 0, 0))
     normal = iteration3._make_plan_spend(None, "p", models.IntegrationPlatform.YANDEX_DIRECT, budget(200_000), date(2026, 7, 15), client(), cfg())

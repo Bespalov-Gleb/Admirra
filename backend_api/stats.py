@@ -320,6 +320,61 @@ async def _metrika_campaign_conv_map(
     return conv_map, goals_available
 
 
+async def _metrika_campaign_daily_conv_map(
+    integration: models.Integration,
+    d_start: Optional[date],
+    d_end: date,
+) -> tuple[dict[date, dict[str, float]], bool]:
+    """Exact Metrika DirectClickOrder conversions split by date and campaign."""
+    counters, goals = _metrika_integration_goal_context(integration)
+    if not counters or not goals:
+        return {}, False
+    try:
+        access_token = security.decrypt_token(integration.access_token)
+    except Exception:
+        return {}, False
+
+    from automation.yandex_metrica import YandexMetricaAPI
+
+    api = YandexMetricaAPI(access_token, client_login=_selected_yandex_direct_profile(integration))
+    date_from = (d_start or d_end).strftime("%Y-%m-%d")
+    date_to = d_end.strftime("%Y-%m-%d")
+    result: dict[date, dict[str, float]] = {}
+    goals_available = False
+    for counter in counters:
+        try:
+            available_goal_ids = await _get_metrika_counter_goal_ids(api, integration.id, str(counter))
+        except Exception as err:
+            logger.warning("Metrika daily campaign goals fetch failed for counter %s: %s", counter, err)
+            continue
+        counter_goal_ids = [goal_id for goal_id in goals if goal_id in available_goal_ids]
+        if not counter_goal_ids:
+            continue
+        goals_available = True
+        for goals_batch in _chunks(counter_goal_ids, 20):
+            rows = await api.get_conversions_by_dimension(
+                counter_id=str(counter),
+                date_from=date_from,
+                date_to=date_to,
+                goal_ids=goals_batch,
+                dimension="ym:s:<attribution>DirectClickOrder",
+                extra_dimension="ym:s:date",
+            )
+            for row in rows:
+                dimensions = row.get("dimensions") or []
+                if len(dimensions) < 2:
+                    continue
+                try:
+                    day = datetime.strptime(str((dimensions[0] or {}).get("name") or ""), "%Y-%m-%d").date()
+                except (TypeError, ValueError):
+                    continue
+                key = _normalize_direct_name((dimensions[1] or {}).get("name"))
+                if key:
+                    day_map = result.setdefault(day, {})
+                    day_map[key] = day_map.get(key, 0.0) + float(row.get("conversions") or 0)
+    return result, goals_available
+
+
 async def _build_yandex_campaign_conversion_overrides(
     db: Session,
     client_ids: List[uuid.UUID],
@@ -363,6 +418,51 @@ async def _build_yandex_campaign_conversion_overrides(
     return overrides
 
 
+async def _build_yandex_campaign_daily_conversion_overrides(
+    db: Session,
+    client_ids: List[uuid.UUID],
+    d_start: Optional[date],
+    d_end: date,
+) -> tuple[dict[date, dict[str, int]], bool]:
+    """Campaign attribution for the compact daily dashboard chart.
+
+    Unlike the old cost-share calculation, this preserves the same Metrika
+    DirectClickOrder attribution as a direction card for every day.
+    """
+    campaigns = (
+        db.query(models.Campaign)
+        .join(models.Integration, models.Campaign.integration_id == models.Integration.id)
+        .filter(
+            models.Integration.client_id.in_(client_ids),
+            models.Integration.platform == models.IntegrationPlatform.YANDEX_DIRECT,
+        )
+        .all()
+    )
+    campaigns_by_integration: dict = {}
+    for campaign in campaigns:
+        if campaign.integration:
+            campaigns_by_integration.setdefault(campaign.integration.id, []).append(campaign)
+
+    result: dict[date, dict[str, int]] = {}
+    any_available = False
+    for grouped_campaigns in campaigns_by_integration.values():
+        daily_map, available = await _metrika_campaign_daily_conv_map(grouped_campaigns[0].integration, d_start, d_end)
+        any_available = any_available or available
+        if not available:
+            continue
+        name_counts: dict[str, int] = {}
+        for campaign in grouped_campaigns:
+            key = _normalize_direct_name(campaign.name)
+            name_counts[key] = name_counts.get(key, 0) + 1
+        for day, by_name in daily_map.items():
+            overrides = result.setdefault(day, {})
+            for campaign in grouped_campaigns:
+                key = _normalize_direct_name(campaign.name)
+                if name_counts.get(key, 0) == 1:
+                    overrides[str(campaign.id)] = int(round(by_name.get(key, 0)))
+    return result, any_available
+
+
 async def _build_avito_campaign_conversion_overrides(
     db: Session,
     client_ids: List[uuid.UUID],
@@ -385,6 +485,70 @@ async def _build_avito_campaign_conversion_overrides(
         for external_id, conversions in campaign_map.items():
             overrides[str(external_id)] = int(round(float(conversions or 0)))
     return overrides
+
+
+async def _campaign_scope_lead_overrides(
+    db: Session,
+    client_ids: List[uuid.UUID],
+    d_start: Optional[date],
+    d_end: date,
+    campaign_ids: Optional[List[uuid.UUID]],
+    platform: str = "all",
+) -> dict:
+    """Exact lead totals for a selected campaign/direction scope.
+
+    ``MetrikaGoals`` has no ``campaign_id``.  Campaign and direction screens
+    already solve this through DirectClickOrder / UTM attribution, with a
+    deterministic residual allocation.  Reusing their *full-project* rows is
+    important: building rows only for the selected direction would allocate a
+    remaining project conversion back into that direction and turn its exact
+    34 leads into the project-wide 65 again.
+    """
+    if not campaign_ids:
+        return {}
+
+    selected_rows = (
+        db.query(models.Campaign.id, models.Integration.platform)
+        .join(models.Integration, models.Campaign.integration_id == models.Integration.id)
+        .filter(models.Campaign.id.in_(campaign_ids))
+        .all()
+    )
+    selected_by_platform = {
+        "yandex": {str(cid) for cid, p in selected_rows if p == models.IntegrationPlatform.YANDEX_DIRECT},
+        "avito": {str(cid) for cid, p in selected_rows if p == models.IntegrationPlatform.AVITO_ADS},
+    }
+    if not any(selected_by_platform.values()):
+        return {}
+
+    yandex_overrides = (
+        await _build_yandex_campaign_conversion_overrides(db, client_ids, d_start, d_end)
+        if selected_by_platform["yandex"] and platform in ("all", "yandex")
+        else None
+    )
+    avito_overrides = (
+        await _build_avito_campaign_conversion_overrides(db, client_ids, d_start, d_end)
+        if selected_by_platform["avito"] and platform in ("all", "avito")
+        else None
+    )
+    rows = StatsService.get_campaign_stats(
+        db,
+        client_ids,
+        d_start,
+        d_end,
+        platform=platform,
+        yandex_conversion_overrides=yandex_overrides,
+        avito_conversion_overrides=avito_overrides,
+    )
+    result: dict[str, int] = {}
+    for key, ids in selected_by_platform.items():
+        if not ids:
+            continue
+        result[key] = sum(
+            int(row.get("conversions") or 0)
+            for row in rows
+            if row.get("platform") == key and str(row.get("id")) in ids
+        )
+    return result
 
 
 async def _ensure_yandex_hierarchy_rows_for_campaign(
@@ -1149,9 +1313,33 @@ async def get_summary(
 
     d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else d_end - timedelta(days=13)
-    
+
+    campaign_lead_overrides = {}
+    previous_campaign_lead_overrides = {}
+    if u_campaign_ids:
+        campaign_lead_overrides = await _campaign_scope_lead_overrides(
+            db, effective_client_ids, d_start, d_end, u_campaign_ids, platform or "all"
+        )
+        delta = (d_end - d_start).days + 1
+        previous_campaign_lead_overrides = await _campaign_scope_lead_overrides(
+            db,
+            effective_client_ids,
+            d_start - timedelta(days=delta),
+            d_start - timedelta(days=1),
+            u_campaign_ids,
+            platform or "all",
+        )
+
     result = StatsService.aggregate_summary(
-        db, effective_client_ids, d_start, d_end, platform, u_campaign_ids, u_goal_action_ids,
+        db,
+        effective_client_ids,
+        d_start,
+        d_end,
+        platform,
+        u_campaign_ids,
+        u_goal_action_ids,
+        campaign_lead_overrides=campaign_lead_overrides,
+        previous_campaign_lead_overrides=previous_campaign_lead_overrides,
     )
 
     # §9.2/§9.5: метку просмотра и snapshot пишем ТОЛЬКО после проверки доступа.
@@ -1247,6 +1435,18 @@ async def get_dynamics(
     # Defaults
     d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else d_end - timedelta(days=13)
+
+    # Direction/campaign scope must use the same exact DirectClickOrder
+    # attribution as its card.  Build it once for the whole chart rather than
+    # asking Metrika separately for every day.
+    exact_yandex_daily_overrides: dict[date, dict[str, int]] = {}
+    exact_yandex_daily_available = False
+    if u_campaign_ids and platform in ["all", "yandex"]:
+        exact_yandex_daily_overrides, exact_yandex_daily_available = (
+            await _build_yandex_campaign_daily_conversion_overrides(
+                db, effective_client_ids, d_start, d_end
+            )
+        )
     
     y_stats = db.query(
         models.YandexStats.date,
@@ -1541,10 +1741,20 @@ async def get_dynamics(
         elif u_campaign_ids:
             selected_yandex_cost = float((y_s.cost if y_s else 0) or 0)
             yandex_scope_cost = y_scope_cost_by_date.get(d, selected_yandex_cost)
+            exact_yandex_leads = None
+            if exact_yandex_daily_available:
+                exact_yandex_leads = sum(
+                    int((exact_yandex_daily_overrides.get(d) or {}).get(str(cid), 0) or 0)
+                    for cid in u_campaign_ids
+                )
             yandex_metrika_le = (
-                int(round(metrika_le * (selected_yandex_cost / yandex_scope_cost)))
-                if metrika_le > 0 and selected_yandex_cost > 0 and yandex_scope_cost > 0
-                else 0
+                int(exact_yandex_leads)
+                if exact_yandex_leads is not None
+                else (
+                    int(round(metrika_le * (selected_yandex_cost / yandex_scope_cost)))
+                    if metrika_le > 0 and selected_yandex_cost > 0 and yandex_scope_cost > 0
+                    else 0
+                )
             )
             selected_avito_cost = float((a_s.cost if a_s else 0) or 0)
             avito_scope_cost = avito_scope_cost_by_date.get(d, selected_avito_cost)
@@ -1627,9 +1837,34 @@ async def get_dynamics_series_endpoint(
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else (d_end - timedelta(days=90))
     gran = "week" if str(granularity).lower().startswith("w") else "month"
 
-    from backend_api.services.dynamics_service import get_dynamics_series
+    from backend_api.services.dynamics_service import (
+        _month_buckets,
+        _week_buckets,
+        get_dynamics_series,
+    )
+    campaign_lead_overrides_by_period = {}
+    if u_campaign_ids:
+        buckets = _week_buckets(d_start, d_end) if gran == "week" else _month_buckets(d_start, d_end)
+        for period_start, period_end, _label in buckets:
+            campaign_lead_overrides_by_period[(period_start.isoformat(), period_end.isoformat())] = (
+                await _campaign_scope_lead_overrides(
+                    db,
+                    effective_client_ids,
+                    period_start,
+                    period_end,
+                    u_campaign_ids,
+                    platform or "all",
+                )
+            )
     return get_dynamics_series(
-        db, effective_client_ids, d_start, d_end, platform, u_campaign_ids, gran
+        db,
+        effective_client_ids,
+        d_start,
+        d_end,
+        platform,
+        u_campaign_ids,
+        gran,
+        campaign_lead_overrides_by_period=campaign_lead_overrides_by_period,
     )
 
 
@@ -2608,6 +2843,23 @@ async def get_goals(
                     for gid in matching_goal_ids
                 ]
 
+        current_campaign_lead_overrides = await _campaign_scope_lead_overrides(
+            db,
+            effective_client_ids,
+            date_from_obj,
+            date_to_obj,
+            u_campaign_ids,
+            platform_key,
+        )
+        prev_date_from, prev_date_to = resolve_previous_period(date_from_obj, date_to_obj, period_preset)
+        previous_campaign_lead_overrides = await _campaign_scope_lead_overrides(
+            db,
+            effective_client_ids,
+            prev_date_from,
+            prev_date_to,
+            u_campaign_ids,
+            platform_key,
+        )
         current_summary = StatsService.aggregate_summary(
             db,
             effective_client_ids,
@@ -2615,8 +2867,9 @@ async def get_goals(
             date_to_obj,
             platform_key,
             u_campaign_ids,
+            campaign_lead_overrides=current_campaign_lead_overrides,
+            previous_campaign_lead_overrides=previous_campaign_lead_overrides,
         )
-        prev_date_from, prev_date_to = resolve_previous_period(date_from_obj, date_to_obj, period_preset)
         prev_has_data = _has_prev_stats_coverage(db, effective_client_ids, prev_date_from, prev_date_to, platform_key)
         prev_summary = StatsService.aggregate_summary(
             db,
@@ -2625,6 +2878,7 @@ async def get_goals(
             prev_date_to,
             platform_key,
             u_campaign_ids,
+            campaign_lead_overrides=previous_campaign_lead_overrides,
         )
 
         current_count = int(current_summary.get("leads") or 0)

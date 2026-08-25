@@ -1736,6 +1736,14 @@ const detectorStatusChip = computed(() => {
       hint: 'Детектор собирает достаточно истории для надёжных проверок.',
     }
   }
+  if (state.plan_warmup_status) {
+    const days = Number(state.plan_warmup_days_left || 0)
+    return {
+      kind: 'warmup',
+      label: days > 0 ? `Накопление данных · ${days} дн.` : 'Накопление данных',
+      hint: 'Новый план сохранён: прогноз и плановые сигналы появятся после накопления трёх дней данных.',
+    }
+  }
   if (state.plan_status === 'configured') {
     return { kind: 'on', label: 'В норме', hint: 'Активных отклонений нет. Детектор следит за планом.' }
   }
@@ -1782,6 +1790,7 @@ const detectorShieldState = computed(() => {
   if (s.warmup_status === 'warming_up') return 'warmup'
   if ((detectorSummary.value?.alerts || []).some((a) => a.severity === 'problem')) return 'problem'
   if ((detectorSummary.value?.alerts || []).length) return 'warning'
+  if (s.plan_warmup_status) return 'warmup'
   return 'ok'
 })
 const detectorShieldCount = computed(() => (detectorSummary.value?.alerts || []).length)
@@ -1819,7 +1828,9 @@ const detectorChip = computed(() => {
   const state = detectorShieldState.value
   const n = detectorShieldCount.value
   if (state === 'problem' || state === 'warning') return { icon: 'triangle', label: `${n} ${declOtkl(n)}` }
-  if (state === 'warmup') return { icon: 'clock', label: 'Прогрев' }
+  if (state === 'warmup') {
+    return { icon: 'clock', label: detectorSummary.value?.plan_warmup_status ? 'Накопление' : 'Прогрев' }
+  }
   if (state === 'off') return { icon: 'off', label: 'Выключен' }
   return { icon: 'check', label: 'В норме' }
 })
@@ -6007,7 +6018,9 @@ const metricFooters = computed(() => {
   const out = {}
   if (!detectorFooterEnabled.value) return out
   const plan = detectorSummary.value?.metric_plan || {}
-  const warming = detectorSummary.value?.warmup_status === 'warming_up'
+  const historicalWarmup = detectorSummary.value?.warmup_status === 'warming_up'
+  const planWarmup = detectorSummary.value?.plan_warmup_status === true
+  const warming = historicalWarmup || planWarmup
   for (const key of (visibleSlots.value || [])) {
     const alert = getAlertForMetric(key)
     const p = plan[key] || null

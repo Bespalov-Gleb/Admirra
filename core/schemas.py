@@ -1030,6 +1030,9 @@ class DetectorSummaryResponse(BaseModel):
     max_severity: Optional[str] = None
     warmup_status: Optional[str] = None
     warmup_days_left: Optional[int] = None
+    # Отдельно от исторического прогрева: первые дни после нового плана.
+    plan_warmup_status: bool = False
+    plan_warmup_days_left: Optional[int] = None
     alerts: List[DetectorAlertResponse] = []
     hidden_alerts: List[DetectorAlertResponse] = []
     plan_status: Optional[str] = None  # configured|missing|incomplete|expired

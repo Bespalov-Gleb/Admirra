@@ -319,6 +319,15 @@ def _metric_plan(db: Session, client_id: uuid.UUID, today) -> dict | None:
         return None
 
 
+def _plan_warmup(db: Session, client_id: uuid.UUID, today) -> dict:
+    """Grace-period metadata for the dashboard, separate from history warmup."""
+    try:
+        from backend_api.services.detector_iteration3 import plan_warmup_state
+        return plan_warmup_state(db, client_id, today)
+    except Exception:
+        return {"is_warming_up": False, "days_left": 0, "period_start": None}
+
+
 @router.get("/{client_id}/summary", response_model=schemas.DetectorSummaryResponse)
 def get_detector_summary(
     client_id: uuid.UUID,
@@ -339,12 +348,15 @@ def get_detector_summary(
     if warmup_status in {"disabled", "paused"}:
         today = _now().date()
         plan_status = _plan_status(db, client_id, today)
+        plan_warmup = _plan_warmup(db, client_id, today)
         return {
             "warning_count": 0,
             "problem_count": 0,
             "max_severity": None,
             "warmup_status": warmup_status,
             "warmup_days_left": None,
+            "plan_warmup_status": bool(plan_warmup.get("is_warming_up")),
+            "plan_warmup_days_left": int(plan_warmup.get("days_left") or 0),
             "hidden_count": 0,
             "alerts": [],
             "hidden_alerts": [],
@@ -404,6 +416,7 @@ def get_detector_summary(
         visible_from = min(a.opened_at for a in alerts)
 
     plan_status = _plan_status(db, client_id, now.date())
+    plan_warmup = _plan_warmup(db, client_id, now.date())
     return {
         "warning_count": warning_count,
         "problem_count": problem_count,
@@ -411,6 +424,8 @@ def get_detector_summary(
         "max_severity": max_severity,
         "warmup_status": warmup_status,
         "warmup_days_left": warmup_days_left,
+        "plan_warmup_status": bool(plan_warmup.get("is_warming_up")),
+        "plan_warmup_days_left": int(plan_warmup.get("days_left") or 0),
         "alerts": [_alert_to_response(a, now, views.get(a.id)) for a in alerts],
         "hidden_alerts": [_alert_to_response(a, now, views.get(a.id)) for a in hidden_alerts],
         "plan_status": plan_status,
