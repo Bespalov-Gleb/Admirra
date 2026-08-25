@@ -427,6 +427,24 @@ def _latest_targets(
 PLAN_ALERT_MODES = ("plan", "plan_spend", "plan_cpl", "plan_leads")
 
 
+def _plan_saved_on(row) -> date | None:
+    """Date when the current version of a plan was agreed/saved.
+
+    Plans are append-only: editing a value in the middle of a month creates a
+    new row with the same period, but a new ``created_at``.  The detector must
+    give that newly agreed value its own grace period; using only
+    ``period_start`` would immediately judge a plan that was just saved on the
+    20th of the month.  Old/imported rows without a timestamp keep the
+    historical period-start fallback.
+    """
+    saved_at = getattr(row, "created_at", None)
+    if isinstance(saved_at, datetime):
+        return saved_at.date()
+    if isinstance(saved_at, date):
+        return saved_at
+    return getattr(row, "period_start", None)
+
+
 def plan_warmup_state(
     db: Session,
     client_id: uuid.UUID,
@@ -438,7 +456,7 @@ def plan_warmup_state(
     the first configured calendar days we still show the plan as a reference,
     but deliberately do not forecast its outcome or create P-1/P-2/P-3
     alerts.  Budgets and CPA targets can be saved independently, therefore
-    the newest active period start is the start of the current agreement.
+    the newest active *saved version* is the start of the current agreement.
     """
     ref = reference_date or date.today()
     pause_days = max(int(get_config().detector.plan_start_pause_days or 0), 0)
@@ -447,22 +465,26 @@ def plan_warmup_state(
 
     budgets = _latest_budgets(db, client_id, ref)
     targets = _latest_targets(db, client_id, ref)
-    starts = [row.period_start for row in budgets.values() if row and row.period_start]
-    starts.extend(
-        row.period_start
+    rows = [row for row in budgets.values() if row and row.period_start]
+    rows.extend(
+        row
         for row in targets
         if row and row.period_start and row.control_enabled and float(row.target_cpa or 0) > 0
     )
-    if not starts:
+    if not rows:
         return {"is_warming_up": False, "days_left": 0, "period_start": None}
 
-    period_start = max(starts)
-    elapsed_days = max((ref - period_start).days, 0)
+    # The period itself remains useful for displaying the plan reference, but
+    # the grace counter starts when its latest version was saved.
+    period_start = max(row.period_start for row in rows)
+    saved_on = max((_plan_saved_on(row) or row.period_start) for row in rows)
+    elapsed_days = max((ref - saved_on).days, 0)
     is_warming_up = elapsed_days < pause_days
     return {
         "is_warming_up": is_warming_up,
         "days_left": max(pause_days - elapsed_days, 0) if is_warming_up else 0,
         "period_start": period_start,
+        "saved_on": saved_on,
     }
 
 
@@ -522,7 +544,7 @@ def _make_plan_spend(
     total_days = (budget.period_end - budget.period_start).days + 1
     start = max(budget.period_start, client.actual_start_date or budget.period_start)
     elapsed = (reference_date - start).days + 1
-    if total_days <= 0 or elapsed <= 0 or _is_plan_warming_up(budget.period_start, reference_date, cfg):
+    if total_days <= 0 or elapsed <= 0 or _is_plan_warming_up(_plan_saved_on(budget) or budget.period_start, reference_date, cfg):
         return None
     expected = float(budget.amount) * elapsed / total_days
     if expected < cfg.plan_min_expected_spend:
@@ -642,7 +664,7 @@ def _make_plan_cpl(
     # число в алерте совпадает с карточкой при фильтре по периоду. Правило
     # «окно минимум 7 дней» отменено: ранний шум отсекают денежные фильтры.
     period_first = target.period_start
-    if reference_date < period_first or _is_plan_warming_up(period_first, reference_date, cfg):
+    if reference_date < period_first or _is_plan_warming_up(_plan_saved_on(target) or period_first, reference_date, cfg):
         return None
     spend, _, _ = _sum_channel_stats(db, client_id, channel, period_first, reference_date, selected)
     leads = _sum_goal_leads(db, client_id, channel, target.goal_id, bool(target.is_summary), period_first, reference_date, selected, vk_codes)
@@ -734,7 +756,7 @@ def _make_plan_leads(
     start = max(budget.period_start, client.actual_start_date or budget.period_start)
     elapsed = (reference_date - start).days + 1
     total_days = (budget.period_end - budget.period_start).days + 1
-    if elapsed <= 0 or total_days <= 0 or _is_plan_warming_up(budget.period_start, reference_date, cfg):
+    if elapsed <= 0 or total_days <= 0 or _is_plan_warming_up(_plan_saved_on(budget) or budget.period_start, reference_date, cfg):
         return None
     expected = planned * elapsed / total_days
     if expected < cfg.plan_min_expected_leads:

@@ -348,15 +348,16 @@ def get_detector_summary(
     if warmup_status in {"disabled", "paused"}:
         today = _now().date()
         plan_status = _plan_status(db, client_id, today)
-        plan_warmup = _plan_warmup(db, client_id, today)
         return {
             "warning_count": 0,
             "problem_count": 0,
             "max_severity": None,
             "warmup_status": warmup_status,
             "warmup_days_left": None,
-            "plan_warmup_status": bool(plan_warmup.get("is_warming_up")),
-            "plan_warmup_days_left": int(plan_warmup.get("days_left") or 0),
+            # Плановые статусы — часть работающего детектора. Когда контроль
+            # выключен или проект на паузе, не показываем «накопление данных».
+            "plan_warmup_status": False,
+            "plan_warmup_days_left": 0,
             "hidden_count": 0,
             "alerts": [],
             "hidden_alerts": [],

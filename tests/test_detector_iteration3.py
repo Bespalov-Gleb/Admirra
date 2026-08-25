@@ -102,6 +102,22 @@ def test_p2_and_p3_are_also_silent_for_first_three_plan_days(monkeypatch):
     ) is None
 
 
+def test_resaving_an_active_period_restarts_three_day_plan_grace(monkeypatch):
+    """A new agreement on day 15 must not be judged against days 1–14."""
+    monkeypatch.setattr(iteration3, "_target_exists", lambda *_: True)
+    monkeypatch.setattr(iteration3, "_target_window_start", lambda *_: date(2026, 7, 10))
+    monkeypatch.setattr(iteration3, "_sum_channel_stats", lambda *_: (90_000, 0, 0))
+    monkeypatch.setattr(iteration3, "_sum_goal_leads", lambda *_: 0)
+    b = budget(100_000)
+    t = target(1_000)
+    b.created_at = datetime(2026, 7, 15, 12, 0)
+    t.created_at = datetime(2026, 7, 15, 12, 0)
+    ref = date(2026, 7, 16)
+    assert iteration3._make_plan_spend(None, "p", models.IntegrationPlatform.YANDEX_DIRECT, b, ref, client(), cfg()) is None
+    assert iteration3._make_plan_cpl(None, "p", t, b, ref, cfg()) is None
+    assert iteration3._make_plan_leads(None, "p", models.IntegrationPlatform.YANDEX_DIRECT, b, t, ref, client(), cfg()) is None
+
+
 def test_p1_red_overpace_has_forecast_and_exhaustion_has_special_copy(monkeypatch):
     monkeypatch.setattr(iteration3, "_sum_channel_stats", lambda *_: (145_000, 0, 0))
     normal = iteration3._make_plan_spend(None, "p", models.IntegrationPlatform.YANDEX_DIRECT, budget(200_000), date(2026, 7, 15), client(), cfg())
