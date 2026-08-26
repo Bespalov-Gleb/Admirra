@@ -273,6 +273,14 @@
           <h4 id="payment-confirm-title">{{ paymentConfirm.title }}</h4>
           <p>{{ paymentConfirm.text }}</p>
 
+          <div class="billing-confirm-total" :class="{ 'billing-confirm-total--discounted': promoApplied }">
+            <span>К списанию сейчас</span>
+            <div class="billing-confirm-total__amount">
+              <s v-if="promoApplied" class="billing-confirm-total__old">{{ formatRub(paymentConfirm.originalAmount) }}</s>
+              <strong>{{ formatRub(paymentConfirm.amount) }}</strong>
+            </div>
+          </div>
+
           <!-- Промокод (только для оплаты тарифа) -->
           <div v-if="paymentConfirm.promo" class="billing-promo">
             <template v-if="!promoApplied">
@@ -281,7 +289,7 @@
                   v-model="promoInput"
                   type="text"
                   class="billing-promo__input"
-                  placeholder="Промокод"
+                  placeholder="Есть промокод?"
                   :disabled="promoChecking"
                   @input="promoInput = promoInput.toUpperCase(); promoError = ''"
                   @keydown.enter.prevent="applyPromo"
@@ -293,21 +301,17 @@
               <p v-if="promoError" class="billing-promo__error">{{ promoError }}</p>
             </template>
             <div v-else class="billing-promo__applied">
-              <span><b>{{ promoApplied.code }}</b> · −{{ promoApplied.discount_percent }}%</span>
+              <span class="billing-promo__applied-main">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.4 4.4L19 7.2"/></svg>
+                <span>Промокод <b>{{ promoApplied.code }}</b> · −{{ promoApplied.discount_percent }}%</span>
+              </span>
               <button type="button" class="billing-promo__remove" @click="removePromo">убрать</button>
             </div>
           </div>
 
-          <div class="billing-confirm-total">
-            <span>К списанию сейчас</span>
-            <div class="billing-confirm-total__amount">
-              <s v-if="promoApplied" class="billing-confirm-total__old">{{ formatRub(paymentConfirm.originalAmount) }}</s>
-              <strong>{{ formatRub(paymentConfirm.amount) }}</strong>
-            </div>
-          </div>
           <p v-if="paymentConfirm.note" class="billing-modal__note">{{ paymentConfirm.note }}</p>
           <div class="billing-modal__actions">
-            <button type="button" class="billing-modal__confirm" @click="resolvePaymentConfirm(true)">
+            <button type="button" class="billing-modal__confirm billing-modal__confirm--pay" @click="resolvePaymentConfirm(true)">
               Перейти к оплате
             </button>
             <button type="button" class="billing-modal__cancel" @click="resolvePaymentConfirm(false)">
@@ -1545,25 +1549,27 @@ function onContactWl() {
 }
 
 .billing-modal {
-  width: min(100%, 31.25rem);
-  padding: 2.0833rem;
-  border-radius: 1.3889rem;
+  /* +15% к прежнему размеру окна (ширина/паддинг). */
+  width: min(100%, 35.94rem);
+  padding: 2.396rem;
+  border-radius: 1.5rem;
   background: #fff;
-  box-shadow: 0 1.3889rem 4.1667rem rgba(15, 23, 42, 0.18);
+  box-shadow: 0 1.6rem 4.6rem rgba(15, 23, 42, 0.2);
 }
 
 .billing-modal h4 {
   margin: 0;
   color: #171717;
-  font-size: 1.4583rem;
+  font-size: 1.5625rem;
   font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .billing-modal p {
-  margin: 0.8333rem 0 1.7361rem;
+  margin: 0.7rem 0 1.4rem;
   color: rgba(105, 105, 105, 0.72);
   font-size: 1.0417rem;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
 /* В модалке теперь два абзаца: основной текст и предупреждение про удаление
@@ -1582,56 +1588,69 @@ function onContactWl() {
   justify-content: space-between;
   gap: 1rem;
   margin: 1rem 0;
-  padding: 1rem 1.1rem;
-  border-radius: 0.85rem;
+  padding: 1.15rem 1.25rem;
+  border-radius: 1rem;
   background: #f4f7ff;
   color: #64748b;
-  font-size: 0.95rem;
+  font-size: 0.98rem;
+  transition: background 0.2s ease;
 }
+.billing-confirm-total--discounted { background: #eefaf2; }
 
 .billing-confirm-total strong {
   color: #0f172a;
-  font-size: 1.2rem;
+  font-size: 1.55rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
-.billing-confirm-total__amount { display: flex; align-items: baseline; gap: 0.5rem; }
-.billing-confirm-total__old { color: #94a3b8; font-size: 0.9rem; }
+.billing-confirm-total__amount { display: flex; align-items: baseline; gap: 0.55rem; }
+.billing-confirm-total__old { color: #94a3b8; font-size: 1rem; text-decoration-thickness: 1px; }
 
 /* Промокод в модалке */
-.billing-promo { margin: 0.9rem 0 0.2rem; }
-.billing-promo__row { display: flex; gap: 0.5rem; }
+.billing-promo { margin: 0 0 0.3rem; }
+.billing-promo__row { display: flex; gap: 0.55rem; }
 .billing-promo__input {
-  flex: 1; min-width: 0; height: 2.6rem; padding: 0 0.8rem;
-  border: 1px solid #dbe3ef; border-radius: 0.7rem; background: #fff;
-  color: #0f172a; font: 500 0.92rem/1 Inter, sans-serif; text-transform: uppercase;
+  flex: 1; min-width: 0; height: 3rem; padding: 0 0.95rem;
+  border: 1px solid #dbe3ef; border-radius: 0.85rem; background: #fbfcfe;
+  color: #0f172a; font: 500 0.98rem/1 Inter, sans-serif; text-transform: uppercase;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
-.billing-promo__input:focus { outline: none; border-color: #2f6bea; }
+.billing-promo__input::placeholder { text-transform: none; color: #9aa6ba; }
+.billing-promo__input:focus { outline: none; border-color: #2f6bea; background: #fff; }
 .billing-promo__apply {
-  flex-shrink: 0; height: 2.6rem; padding: 0 1rem; border: 0; border-radius: 0.7rem;
-  background: #eef2fb; color: #2f6bea; font: 600 0.9rem/1 Inter, sans-serif; cursor: pointer;
+  flex-shrink: 0; height: 3rem; padding: 0 1.25rem; border: 0; border-radius: 0.85rem;
+  background: #eef2fb; color: #2f6bea; font: 600 0.95rem/1 Inter, sans-serif; cursor: pointer;
+  transition: background 0.15s ease;
 }
-.billing-promo__apply:disabled { opacity: 0.55; cursor: default; }
-.billing-promo__error { margin: 0.4rem 0 0; color: #c0392b; font-size: 0.82rem; }
+.billing-promo__apply:hover:not(:disabled) { background: #e2e9fb; }
+.billing-promo__apply:disabled { opacity: 0.5; cursor: default; }
+.billing-promo__error { margin: 0.45rem 0 0; color: #c0392b; font-size: 0.86rem; }
 .billing-promo__applied {
   display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
-  padding: 0.6rem 0.85rem; border-radius: 0.7rem; background: #eafaf1;
-  color: #1a8f4c; font-size: 0.9rem;
+  padding: 0.75rem 1rem; border-radius: 0.85rem; background: #eafaf1;
+  color: #1a8f4c; font-size: 0.95rem;
 }
+.billing-promo__applied-main { display: inline-flex; align-items: center; gap: 0.5rem; }
+.billing-promo__applied-main svg { width: 1.05rem; height: 1.05rem; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 .billing-promo__applied b { font-weight: 700; }
-.billing-promo__remove { border: 0; background: none; color: #6b7a90; font-size: 0.8rem; cursor: pointer; text-decoration: underline; }
+.billing-promo__remove { border: 0; background: none; color: #6b7a90; font-size: 0.84rem; cursor: pointer; text-decoration: underline; }
+.billing-promo__remove:hover { color: #475569; }
 
 .billing-modal__actions {
   display: flex;
   justify-content: flex-end;
   gap: 0.8333rem;
+  margin-top: 1.5rem;
 }
 
 .billing-modal__actions button {
-  min-height: 3.125rem;
-  padding: 0 1.3889rem;
-  border-radius: 0.8333rem;
-  font-size: 0.9722rem;
+  min-height: 3.35rem;
+  padding: 0 1.6rem;
+  border-radius: 0.95rem;
+  font-size: 1.0069rem;
   font-weight: 700;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
 .billing-modal__confirm {
@@ -1640,10 +1659,24 @@ function onContactWl() {
   color: #fff;
 }
 
+/* Позитивная кнопка «Перейти к оплате» — бренд-градиент, не деструктивный красный. */
+.billing-modal__confirm--pay {
+  border: 0;
+  background: linear-gradient(135deg, #3b7bed, #2f6bea);
+  box-shadow: 0 0.5rem 1.1rem rgba(47, 107, 234, 0.32);
+}
+.billing-modal__confirm--pay:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0.7rem 1.4rem rgba(47, 107, 234, 0.4);
+}
+
 .billing-modal__cancel {
   border: 1px solid rgba(15, 23, 42, 0.12);
   background: #fff;
   color: #2563eb;
+}
+.billing-modal__cancel:hover {
+  background: #f6f8fc;
 }
 
 .plans-section {
