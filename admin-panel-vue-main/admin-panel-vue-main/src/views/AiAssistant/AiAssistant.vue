@@ -69,21 +69,21 @@
               @keydown.enter.exact.prevent="sendPrompt"
             ></textarea>
             <div class="assistant-composer__actions">
-              <div class="assistant-model" v-click-outside="() => (modelMenuOpen = false)">
-                <button type="button" class="assistant-model__btn" @click="modelMenuOpen = !modelMenuOpen">
+              <div class="assistant-model" :class="{ 'assistant-model--open': modelMenuOpen }" v-click-outside="() => (modelMenuOpen = false)">
+                <button type="button" class="assistant-model__btn" :aria-expanded="modelMenuOpen" aria-haspopup="listbox" @click="modelMenuOpen = !modelMenuOpen">
                   <span>Модель · <b>{{ selectedModel.label }}</b></span>
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
                 </button>
-                <div v-if="modelMenuOpen" class="assistant-model__menu">
+                <div v-if="modelMenuOpen" class="assistant-model__menu assistant-model__menu--up" role="listbox" aria-label="Выбор модели">
                   <button v-for="m in models" :key="m.id" type="button" :title="m.description" :class="{ 'is-active': m.id === selectedModelId }" @click="pickModel(m.id)">{{ m.label }}</button>
                 </div>
               </div>
-              <div v-if="selectedModel.reasoning" class="assistant-model" v-click-outside="() => (effortMenuOpen = false)">
-                <button type="button" class="assistant-model__btn" @click="effortMenuOpen = !effortMenuOpen">
+              <div v-if="selectedModel.reasoning" class="assistant-model" :class="{ 'assistant-model--open': effortMenuOpen }" v-click-outside="() => (effortMenuOpen = false)">
+                <button type="button" class="assistant-model__btn" :aria-expanded="effortMenuOpen" aria-haspopup="listbox" @click="effortMenuOpen = !effortMenuOpen">
                   <span>Уровень размышлений · <b>{{ effortLabel }}</b></span>
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
                 </button>
-                <div v-if="effortMenuOpen" class="assistant-model__menu">
+                <div v-if="effortMenuOpen" class="assistant-model__menu assistant-model__menu--up" role="listbox" aria-label="Выбор уровня размышлений">
                   <button v-for="e in selectedModel.efforts" :key="e" type="button" :class="{ 'is-active': e === selectedEffort }" @click="pickEffort(e)">{{ effortName(e) }}</button>
                 </div>
               </div>
@@ -185,21 +185,21 @@
               @keydown.enter.exact.prevent="sendPrompt"
             ></textarea>
             <div class="assistant-composer__actions">
-              <div class="assistant-model" v-click-outside="() => (modelMenuOpen = false)">
-                <button type="button" class="assistant-model__btn" @click="modelMenuOpen = !modelMenuOpen">
+              <div class="assistant-model" :class="{ 'assistant-model--open': modelMenuOpen }" v-click-outside="() => (modelMenuOpen = false)">
+                <button type="button" class="assistant-model__btn" :aria-expanded="modelMenuOpen" aria-haspopup="listbox" @click="modelMenuOpen = !modelMenuOpen">
                   <span>Модель · <b>{{ selectedModel.label }}</b></span>
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
                 </button>
-                <div v-if="modelMenuOpen" class="assistant-model__menu assistant-model__menu--up">
+                <div v-if="modelMenuOpen" class="assistant-model__menu assistant-model__menu--up" role="listbox" aria-label="Выбор модели">
                   <button v-for="m in models" :key="m.id" type="button" :title="m.description" :class="{ 'is-active': m.id === selectedModelId }" @click="pickModel(m.id)">{{ m.label }}</button>
                 </div>
               </div>
-              <div v-if="selectedModel.reasoning" class="assistant-model" v-click-outside="() => (effortMenuOpen = false)">
-                <button type="button" class="assistant-model__btn" @click="effortMenuOpen = !effortMenuOpen">
+              <div v-if="selectedModel.reasoning" class="assistant-model" :class="{ 'assistant-model--open': effortMenuOpen }" v-click-outside="() => (effortMenuOpen = false)">
+                <button type="button" class="assistant-model__btn" :aria-expanded="effortMenuOpen" aria-haspopup="listbox" @click="effortMenuOpen = !effortMenuOpen">
                   <span>Уровень размышлений · <b>{{ effortLabel }}</b></span>
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
                 </button>
-                <div v-if="effortMenuOpen" class="assistant-model__menu assistant-model__menu--up">
+                <div v-if="effortMenuOpen" class="assistant-model__menu assistant-model__menu--up" role="listbox" aria-label="Выбор уровня размышлений">
                   <button v-for="e in selectedModel.efforts" :key="e" type="button" :class="{ 'is-active': e === selectedEffort }" @click="pickEffort(e)">{{ effortName(e) }}</button>
                 </div>
               </div>
@@ -597,12 +597,13 @@ onUnmounted(() => {
 .rail-icon-button svg, .rail-new-chat svg, .assistant-info-card svg, .composer-icon svg, .composer-send svg, .assistant-limit svg, .assistant-suggestion__icon :deep(svg), .assistant-message__avatar svg { width: 1.1rem; height: 1.1rem; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
 
 /* Выбор модели в композере */
-.assistant-model { position: relative; margin-left: auto; }
+.assistant-model { position: relative; z-index: 1; margin-left: auto; }
+.assistant-model--open { z-index: 30; }
 .assistant-model__btn { display: inline-flex; align-items: center; gap: .38rem; height: 2.42rem; padding: 0 .56rem 0 .8rem; border: 1px solid var(--assistant-line); border-radius: .68rem; background: var(--assistant-soft); color: var(--assistant-sub); font: 500 .9rem/1 Inter, sans-serif; cursor: pointer; }
 .assistant-model__btn:hover { border-color: var(--assistant-strong-line); }
 .assistant-model__btn b { color: var(--assistant-text); font-weight: 600; }
 .assistant-model__btn svg { width: .95rem; height: .95rem; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.assistant-model__menu { position: absolute; right: 0; top: calc(100% + .35rem); min-width: 11rem; padding: .3rem; border: 1px solid var(--assistant-strong-line); border-radius: .7rem; background: var(--assistant-panel); box-shadow: 0 .5rem 1.6rem rgba(27,36,55,.16); z-index: 30; display: flex; flex-direction: column; gap: .12rem; }
+.assistant-model__menu { position: absolute; right: 0; top: calc(100% + .35rem); min-width: 11rem; padding: .3rem; border: 1px solid var(--assistant-strong-line); border-radius: .7rem; background: var(--assistant-panel); box-shadow: 0 .5rem 1.6rem rgba(27,36,55,.16); z-index: 40; display: flex; flex-direction: column; gap: .12rem; }
 .assistant-model__menu--up { top: auto; bottom: calc(100% + .35rem); }
 .assistant-model__menu button { display: flex; width: 100%; padding: .5rem .6rem; border: 0; border-radius: .5rem; background: transparent; color: var(--assistant-text); font: 500 .85rem/1.2 Inter, sans-serif; text-align: left; cursor: pointer; }
 .assistant-model__menu button:hover { background: var(--assistant-soft); }
@@ -706,7 +707,7 @@ onUnmounted(() => {
 .assistant-context__chip { display: inline-flex; align-items: center; gap: .45rem; padding: .48rem .78rem; border: 1px solid var(--assistant-strong-line); border-radius: 1rem; background: var(--assistant-panel); color: var(--assistant-sub); font-size: .85rem; }
 .assistant-context__chip b { color: var(--assistant-text); font-weight: 600; }.assistant-context__chip i { width: .42rem; height: .42rem; border-radius: 50%; background: #1fa55b; }
 
-.assistant-composer { box-sizing: border-box; width: min(78rem, 100%); overflow: hidden; padding: 1.32rem 1.45rem 1rem; border: 1px solid var(--assistant-strong-line); border-radius: 1.38rem; background: var(--assistant-panel); box-shadow: 0 .5rem 1.9rem rgba(27,36,55,.075); }
+.assistant-composer { position: relative; z-index: 2; box-sizing: border-box; width: min(78rem, 100%); overflow: visible; isolation: isolate; padding: 1.32rem 1.45rem 1rem; border: 1px solid var(--assistant-strong-line); border-radius: 1.38rem; background: var(--assistant-panel); box-shadow: 0 .5rem 1.9rem rgba(27,36,55,.075); }
 .assistant-composer textarea { box-sizing: border-box; display: block; width: 100%; min-width: 0; min-height: 5.25rem; max-height: 8.25rem; padding: 0; border: 0; border-radius: 0; outline: 0; resize: none; overflow-x: hidden; overflow-y: auto; appearance: none; background: transparent; box-shadow: none; color: var(--assistant-text); font: 400 1.13rem/1.5 Inter, sans-serif; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
 .assistant-composer textarea::placeholder { color: var(--assistant-muted); }
 .assistant-composer__actions { display: flex; align-items: center; gap: .48rem; margin-top: .78rem; }
@@ -751,7 +752,7 @@ onUnmounted(() => {
 .assistant-typing { display: inline-flex; align-items: center; min-height: 1.65rem; gap: .32rem; padding: .1rem .05rem; }.assistant-typing i { width: .38rem; height: .38rem; border-radius: 50%; background: var(--assistant-blue); opacity: .32; animation: typing-pulse 1.12s ease-in-out infinite; }.assistant-typing i:nth-child(2) { animation-delay: .14s; }.assistant-typing i:nth-child(3) { animation-delay: .28s; }@keyframes typing-pulse { 0%, 100% { transform: translateY(0); opacity: .24; } 45% { transform: translateY(-.2rem); opacity: 1; } }
 .chat-message-enter-active { transition: opacity .28s ease, transform .28s cubic-bezier(.2,.8,.2,1); }.chat-message-enter-from { opacity: 0; transform: translateY(.5rem); }
 .assistant-message__actions { display: flex; gap: .42rem; margin-top: .75rem; }.assistant-message__actions button { padding: .38rem .62rem; border-radius: .5rem; background: var(--assistant-soft); color: var(--assistant-sub); font-size: .75rem; }.assistant-message__actions button:hover { color: var(--assistant-blue); }
-.assistant-thread__composer { position: relative; z-index: 2; flex: 0 0 auto; padding: 1rem 2.5rem 1.35rem; border-top: 1px solid var(--assistant-line); background: color-mix(in srgb, var(--assistant-bg) 94%, transparent); backdrop-filter: blur(12px); }.assistant-thread__composer .assistant-composer { width: min(66rem, 100%); margin: 0 auto; box-shadow: 0 .35rem 1.35rem rgba(27,36,55,.055); }.assistant-thread__composer p { width: min(66rem, 100%); margin: .45rem auto 0; color: var(--assistant-muted); font-size: .75rem; }
+.assistant-thread__composer { position: relative; z-index: 10; flex: 0 0 auto; overflow: visible; padding: 1rem 2.5rem 1.35rem; border-top: 1px solid var(--assistant-line); background: color-mix(in srgb, var(--assistant-bg) 94%, transparent); backdrop-filter: blur(12px); }.assistant-thread__composer .assistant-composer { width: min(66rem, 100%); margin: 0 auto; box-shadow: 0 .35rem 1.35rem rgba(27,36,55,.055); }.assistant-thread__composer p { width: min(66rem, 100%); margin: .45rem auto 0; color: var(--assistant-muted); font-size: .75rem; }
 
 @media (max-width: 1180px) {
   .assistant-rail:not(.assistant-rail--open) { width: 3.5rem; flex-basis: 3.5rem; }
