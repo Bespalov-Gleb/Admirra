@@ -8,8 +8,8 @@
         <button class="rail-icon-button" type="button" title="Новый диалог" aria-label="Новый диалог" @click="newChat">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
         </button>
-        <button class="rail-icon-button" type="button" title="Сохранённые вопросы" aria-label="Сохранённые вопросы">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5h10a1.5 1.5 0 0 1 1.5 1.5v13l-6.5-3.5L5.5 19V6A1.5 1.5 0 0 1 7 4.5Z"/></svg>
+        <button class="rail-icon-button" type="button" title="Поиск по чатам" aria-label="Поиск по чатам" @click="openChatSearch">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="5.8"/><path d="m15.2 15.2 4 4"/></svg>
         </button>
       </div>
 
@@ -26,9 +26,14 @@
           <span>Новый диалог</span>
         </button>
 
+        <label class="rail-search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="5.8"/><path d="m15.2 15.2 4 4"/></svg>
+          <input ref="historySearchInput" v-model="historySearch" type="search" placeholder="Поиск по чатам" aria-label="Поиск по чатам" />
+        </label>
+
         <div class="rail-history">
           <button
-            v-for="conv in conversations"
+            v-for="conv in filteredConversations"
             :key="conv.id"
             type="button"
             class="rail-history__item"
@@ -41,15 +46,12 @@
           </button>
 
           <div v-if="!conversations.length" class="rail-history__empty">Здесь появятся ваши вопросы.</div>
+          <div v-else-if="!filteredConversations.length" class="rail-history__empty">Ничего не найдено.</div>
         </div>
       </div>
     </aside>
 
     <section class="assistant-stage" aria-label="AI-ассистент">
-      <header class="assistant-stage__head">
-        <h1>Ассистент</h1>
-      </header>
-
       <div v-if="!hasThread" ref="emptyScroll" class="assistant-empty">
         <div class="assistant-hero">
           <h2 class="assistant-hero__title">Спросите про свою рекламу</h2>
@@ -67,7 +69,6 @@
               @keydown.enter.exact.prevent="sendPrompt"
             ></textarea>
             <div class="assistant-composer__actions">
-              <span class="assistant-composer__hint">Enter — отправить · Shift + Enter — новая строка</span>
               <div class="assistant-model" v-click-outside="() => (modelMenuOpen = false)">
                 <button type="button" class="assistant-model__btn" @click="modelMenuOpen = !modelMenuOpen">
                   <span>Модель · <b>{{ selectedModel.label }}</b></span>
@@ -79,7 +80,7 @@
               </div>
               <div v-if="selectedModel.reasoning" class="assistant-model" v-click-outside="() => (effortMenuOpen = false)">
                 <button type="button" class="assistant-model__btn" @click="effortMenuOpen = !effortMenuOpen">
-                  <span>Глубина · <b>{{ effortLabel }}</b></span>
+                  <span>Уровень размышлений · <b>{{ effortLabel }}</b></span>
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
                 </button>
                 <div v-if="effortMenuOpen" class="assistant-model__menu">
@@ -180,7 +181,6 @@
               @keydown.enter.exact.prevent="sendPrompt"
             ></textarea>
             <div class="assistant-composer__actions">
-              <span class="assistant-composer__hint">Enter — отправить · Shift + Enter — новая строка</span>
               <div class="assistant-model" v-click-outside="() => (modelMenuOpen = false)">
                 <button type="button" class="assistant-model__btn" @click="modelMenuOpen = !modelMenuOpen">
                   <span>Модель · <b>{{ selectedModel.label }}</b></span>
@@ -192,7 +192,7 @@
               </div>
               <div v-if="selectedModel.reasoning" class="assistant-model" v-click-outside="() => (effortMenuOpen = false)">
                 <button type="button" class="assistant-model__btn" @click="effortMenuOpen = !effortMenuOpen">
-                  <span>Глубина · <b>{{ effortLabel }}</b></span>
+                  <span>Уровень размышлений · <b>{{ effortLabel }}</b></span>
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
                 </button>
                 <div v-if="effortMenuOpen" class="assistant-model__menu assistant-model__menu--up">
@@ -223,6 +223,7 @@ const pageRef = ref(null)
 const textarea = ref(null)
 const threadTextarea = ref(null)
 const threadInner = ref(null)
+const historySearchInput = ref(null)
 const sending = ref(false)
 const toolActivity = ref('')
 
@@ -287,7 +288,11 @@ let _copyTimer = null
 const scrollToPrompts = async () => {
   promptsVisible.value = true
   await nextTick()
-  promptsSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  const container = emptyScroll.value
+  const target = promptsSection.value
+  if (!container || !target) return
+  const top = target.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - 16
+  container.scrollTo({ top, behavior: 'smooth' })
 }
 
 const copyPrompt = async (text, i) => {
@@ -306,9 +311,21 @@ const fillPrompt = async (text) => {
 
 // ── Диалоги (серверная история) ──────────────────────────────────────────────
 const conversations = ref([])
+const historySearch = ref('')
 const activeConversationId = ref(null)
 const activeMessages = ref([])
 const hasThread = computed(() => activeMessages.value.length > 0)
+const filteredConversations = computed(() => {
+  const query = historySearch.value.trim().toLocaleLowerCase('ru-RU')
+  if (!query) return conversations.value
+  return conversations.value.filter((conversation) => String(conversation.title || '').toLocaleLowerCase('ru-RU').includes(query))
+})
+
+const openChatSearch = async () => {
+  railOpen.value = true
+  await nextTick()
+  historySearchInput.value?.focus()
+}
 
 const formatChatDate = (value) => {
   if (!value) return ''
@@ -474,57 +491,12 @@ const sendPrompt = async () => {
   }
 }
 
-// У /ai должен быть свой рабочий canvas без отступов контейнера роутера. Не
-// трогаем MainLayout: при входе временно расправляем только промежуточные
-// оболочки между страницей и <main>, при выходе возвращаем их исходные стили.
-const _fullBleedNodes = []
-const rememberAndSet = (node, styles) => {
-  if (!node) return
-  const previous = {}
-  Object.entries(styles).forEach(([key, value]) => {
-    previous[key] = node.style[key]
-    node.style[key] = value
-  })
-  _fullBleedNodes.push({ node, previous })
-}
-
-const applyFullBleed = () => {
-  const page = pageRef.value
-  const main = page?.closest('main')
-  if (!page || !main) return
-
-  // main в layout — ограниченный flex-элемент. Его скролл переносим на
-  // приветственный экран или список сообщений, иначе composer уезжает вниз.
-  rememberAndSet(main, { overflowY: 'hidden' })
-
-  let node = page.parentElement
-  while (node && node !== main) {
-    rememberAndSet(node, {
-      padding: '0',
-      height: '100%',
-      minHeight: '0',
-      display: 'flex',
-      flexDirection: 'column',
-      flex: '1 1 auto',
-    })
-    node = node.parentElement
-  }
-}
-
-const clearFullBleed = () => {
-  _fullBleedNodes.splice(0).reverse().forEach(({ node, previous }) => {
-    Object.entries(previous).forEach(([key, value]) => { node.style[key] = value })
-  })
-}
-
 onMounted(() => {
   loadModels()
   loadConversations()
-  applyFullBleed()
 })
 
 onUnmounted(() => {
-  clearFullBleed()
   clearTimeout(_copyTimer)
 })
 </script>
@@ -547,9 +519,7 @@ onUnmounted(() => {
   --assistant-green: #1fa55b;
   --assistant-green-soft: rgba(31, 165, 91, .13);
   display: flex;
-  width: auto;
-  /* Full-bleed: padding обёртки <main> гасится в onMounted, а высоту берём
-     100% от неё — окно касается хедера и сайдбара без зазоров. */
+  width: 100%;
   margin: 0;
   flex: 1 1 auto;
   align-self: stretch;
@@ -632,6 +602,11 @@ onUnmounted(() => {
 .rail-heading { display: flex; align-items: center; justify-content: space-between; padding: 0 .25rem; margin-bottom: .7rem; font-size: .9rem; font-weight: 700; }
 .rail-new-chat { display: flex; align-items: center; gap: .58rem; width: 100%; height: 2.85rem; padding: 0 .8rem; border: 1.5px dashed var(--assistant-strong-line); border-radius: .72rem; background: transparent; color: var(--assistant-sub); font: 500 .9rem/1 Inter, sans-serif; cursor: pointer; }
 .rail-new-chat:hover { border-color: var(--assistant-blue); color: var(--assistant-blue); }
+.rail-search { display: flex; align-items: center; gap: .48rem; height: 2.55rem; margin-top: .72rem; padding: 0 .7rem; border: 1px solid var(--assistant-line); border-radius: .72rem; background: var(--assistant-soft); color: var(--assistant-muted); }
+.rail-search:focus-within { border-color: var(--assistant-blue); box-shadow: 0 0 0 .18rem var(--assistant-blue-soft); }
+.rail-search svg { width: .95rem; height: .95rem; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.rail-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--assistant-text); font: 400 .82rem/1 Inter, sans-serif; }
+.rail-search input::placeholder { color: var(--assistant-muted); }
 .rail-history { display: flex; flex: 1; flex-direction: column; min-height: 0; gap: .25rem; margin-top: .8rem; overflow-y: auto; scrollbar-width: none; }
 .rail-history::-webkit-scrollbar { width: 0; }
 .rail-history__item { display: flex; flex-direction: column; gap: .2rem; width: 100%; padding: .66rem .72rem; border: 0; border-radius: .7rem; background: transparent; color: var(--assistant-text); text-align: left; cursor: pointer; }
@@ -649,8 +624,6 @@ onUnmounted(() => {
 .assistant-info-card__chevron { width: .9rem !important; height: .9rem !important; margin-left: auto; color: var(--assistant-muted); }
 
 .assistant-stage { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; background: var(--assistant-bg); }
-.assistant-stage__head { display: flex; align-items: center; gap: 1rem; flex: 0 0 auto; padding: 1.45rem 2.75rem .55rem; }
-.assistant-stage__head h1 { margin: 0; font-size: 1.82rem; font-weight: 700; letter-spacing: -.03em; }
 .assistant-limit { display: inline-flex; align-items: center; gap: .48rem; margin-left: auto; padding: .58rem .92rem; border-radius: .78rem; background: linear-gradient(105deg, #5b8def, #7c6ff0); color: #fff; font-size: .85rem; }
 .assistant-limit svg { width: 1rem; height: 1rem; stroke-width: 1.9; }
 .assistant-limit b { font-size: .92rem; }.assistant-limit span { opacity: .88; }
@@ -660,7 +633,7 @@ onUnmounted(() => {
 .assistant-hero { box-sizing: border-box; display: flex; flex: 1 0 auto; flex-direction: column; align-items: center; justify-content: center; width: 100%; max-width: 68rem; min-height: 100%; padding: 2.35rem 2.75rem 2.45rem; text-align: center; }
 .assistant-hero__title { margin: 0; font-size: clamp(2.15rem, 2.65vw, 2.6rem); font-weight: 700; letter-spacing: -.04em; text-wrap: balance; }
 .assistant-hero__sub { margin: .72rem auto 0; max-width: 42rem; color: var(--assistant-sub); font-size: 1.12rem; line-height: 1.55; text-wrap: balance; }
-.assistant-hero .assistant-composer { width: min(57rem, 100%); margin-top: 1.95rem; text-align: left; }
+.assistant-hero .assistant-composer { width: min(65.5rem, 100%); margin-top: 1.95rem; text-align: left; }
 
 /* Источники данных */
 .assistant-sources { width: min(57rem, 100%); margin-top: 1.7rem; text-align: left; }
@@ -753,7 +726,7 @@ onUnmounted(() => {
   .assistant-composer__hint { display: none; }
   .assistant-model__btn { padding-inline: .55rem; }
 }
-@media (max-width: 560px) { .assistant-rail { display: none; }.assistant-stage__head { padding-top: .85rem; }.assistant-hero__title { font-size: 1.4rem; } }
+@media (max-width: 560px) { .assistant-rail { display: none; }.assistant-hero__title { font-size: 1.4rem; } }
 @media (prefers-reduced-motion: reduce) { .assistant-scrollhint svg { animation: none; }.prompt-tile { transition: opacity .2s ease; transform: none; }.prompt-tile__copy.is-copied { animation: none; } }
 @media (prefers-reduced-motion: reduce) { .assistant-rail, .assistant-suggestion { transition: none; } }
 </style>
