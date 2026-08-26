@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import json
 import time
+from datetime import date, timedelta
 from typing import Any, Optional
 
 import httpx
@@ -140,15 +141,18 @@ async def top_requests(
 ) -> dict:
     phrase = _validate_phrase(phrase)
     body: dict = {"phrase": phrase}
+    # Search API ТРЕБУЕТ numPhrases (без него — 400 «Value must be in the range
+    # 1..2000», рабочего дефолта у API нет), поэтому подставляем 20.
+    count = 20
     if num_phrases is not None:
         try:
             count = int(num_phrases)
         except (TypeError, ValueError) as exc:
             raise WordstatError("Количество фраз Wordstat должно быть числом") from exc
-        if not 1 <= count <= MAX_TOP_PHRASES:
-            raise WordstatError("Wordstat возвращает от 1 до 2000 фраз")
-        # int64 в JSON-схеме Yandex передаётся строкой.
-        body["numPhrases"] = str(count)
+    if not 1 <= count <= MAX_TOP_PHRASES:
+        raise WordstatError("Wordstat возвращает от 1 до 2000 фраз")
+    # int64 в JSON-схеме Yandex передаётся строкой.
+    body["numPhrases"] = str(count)
     region_ids = _validate_regions(regions)
     if region_ids:
         body["regions"] = region_ids
@@ -165,15 +169,39 @@ async def top_requests(
     }
 
 
+def _default_dynamics_dates(period_enum: str) -> tuple[str, str]:
+    """Корректный по периоду диапазон по умолчанию: API требует обе даты и
+    выравнивание (monthly → последний день месяца, weekly → воскресенье,
+    daily → вчера). Возвращает (from, to) в формате YYYY-MM-DD."""
+    today = date.today()
+    if period_enum == "PERIOD_WEEKLY":
+        to_d = today - timedelta(days=(today.weekday() + 1) % 7 or 7)  # прошлое воскресенье
+        from_d = to_d - timedelta(weeks=26)
+    elif period_enum == "PERIOD_DAILY":
+        to_d = today - timedelta(days=1)
+        from_d = to_d - timedelta(days=90)
+    else:  # PERIOD_MONTHLY
+        to_d = today.replace(day=1) - timedelta(days=1)  # последний день прошлого месяца
+        m0 = to_d.month - 11
+        y0 = to_d.year + (m0 - 1) // 12
+        from_d = date(y0, (m0 - 1) % 12 + 1, 1)          # первый день месяца ~12 мес. назад
+    return from_d.isoformat(), to_d.isoformat()
+
+
 async def dynamics(phrase: str, period: str = "monthly", from_date: Optional[str] = None,
                    to_date: Optional[str] = None, devices: Optional[list[str]] = None,
                    regions: Optional[list[str]] = None) -> dict:
     phrase = _validate_phrase(phrase)
-    body: dict = {"phrase": phrase, "period": _PERIOD_MAP.get((period or "monthly").lower(), "PERIOD_MONTHLY")}
-    if from_date:
-        body["fromDate"] = f"{from_date}T00:00:00Z"
-    if to_date:
-        body["toDate"] = f"{to_date}T00:00:00Z"
+    period_enum = _PERIOD_MAP.get((period or "monthly").lower(), "PERIOD_MONTHLY")
+    body: dict = {"phrase": phrase, "period": period_enum}
+    # fromDate/toDate обязательны у API — если модель их не задала, берём
+    # корректный для периода диапазон, иначе получим 400.
+    if not from_date or not to_date:
+        d_from, d_to = _default_dynamics_dates(period_enum)
+        from_date = from_date or d_from
+        to_date = to_date or d_to
+    body["fromDate"] = f"{from_date}T00:00:00Z"
+    body["toDate"] = f"{to_date}T00:00:00Z"
     region_ids = _validate_regions(regions)
     if region_ids:
         body["regions"] = region_ids
