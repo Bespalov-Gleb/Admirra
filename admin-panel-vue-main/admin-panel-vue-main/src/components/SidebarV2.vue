@@ -145,7 +145,7 @@
                 :class="[
                   'group w-full flex items-center min-h-[3.1944rem] rounded-xl transition-all duration-500 text-left',
                   isActive(item.path)
-                    ? 'bg-[#ecf3fe] dark:bg-white/10'
+                    ? (item.path === '/ai' ? 'bg-transparent dark:bg-transparent' : 'bg-[#ecf3fe] dark:bg-white/10')
                     : 'hover:bg-[#ecf3fe]/60 dark:hover:bg-white/5',
                 ]"
               >
