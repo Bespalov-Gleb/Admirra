@@ -111,7 +111,7 @@
                   <span class="source-card__name">{{ s.name }}</span>
                   <span class="source-card__description">{{ s.description }}</span>
                 </span>
-                <span class="source-card__status" :class="{ 'is-available': s.available }"><i></i>{{ s.available ? 'доступно' : 'скоро' }}</span>
+                <span class="source-card__status" :class="{ 'is-available': s.available }"><i></i>{{ s.available ? 'доступно' : (s.unavailableLabel || 'скоро') }}</span>
               </article>
             </div>
           </div>
@@ -155,18 +155,22 @@
 
       <div v-else class="assistant-thread">
         <div ref="threadInner" class="assistant-thread__inner">
-          <div v-for="(message, i) in activeMessages" :key="i" :class="['assistant-message', `assistant-message--${message.role}`]">
-            <template v-if="message.role === 'assistant'">
-              <span class="assistant-message__avatar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.6 5.4L19 10l-5.4 1.6L12 17l-1.6-5.4L5 10l5.4-1.6L12 3Z"/></svg></span>
-              <div class="assistant-message__body">
-                <div class="assistant-message__bubble">
-                  <p class="assistant-message__text">{{ message.content }}<span v-if="message.pending && !message.content" class="assistant-caret">▍</span></p>
-                  <div v-if="message.pending && toolActivity" class="assistant-tool-note">Смотрю данные: {{ toolActivity }}…</div>
+          <TransitionGroup name="chat-message" tag="div" class="assistant-thread__messages">
+            <article v-for="message in activeMessages" :key="message.id" :class="['assistant-message', `assistant-message--${message.role}`]">
+              <template v-if="message.role === 'assistant'">
+                <span class="assistant-message__avatar" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3 1.6 5.4L19 10l-5.4 1.6L12 17l-1.6-5.4L5 10l5.4-1.6L12 3Z"/></svg></span>
+                <div class="assistant-message__body">
+                  <div class="assistant-message__label">AdMirra AI</div>
+                  <div class="assistant-message__bubble">
+                    <div v-if="message.content" class="assistant-markdown" v-html="renderMarkdown(message.content)"></div>
+                    <div v-else-if="message.pending" class="assistant-typing" aria-label="Ассистент готовит ответ"><i></i><i></i><i></i></div>
+                    <div v-if="message.pending && toolActivity" class="assistant-tool-note"><span></span>Читаю данные: {{ toolActivity }}</div>
+                  </div>
                 </div>
-              </div>
-            </template>
-            <div v-else class="assistant-message__bubble">{{ message.content }}</div>
-          </div>
+              </template>
+              <div v-else class="assistant-message__bubble"><p>{{ message.content }}</p></div>
+            </article>
+          </TransitionGroup>
         </div>
 
         <div class="assistant-thread__composer">
@@ -210,6 +214,7 @@
 
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import MarkdownIt from 'markdown-it'
 import { useTheme } from '../../composables/useTheme'
 import api from '../../api/axios'
 import { getAccessToken } from '../../utils/authToken'
@@ -226,6 +231,14 @@ const threadInner = ref(null)
 const historySearchInput = ref(null)
 const sending = ref(false)
 const toolActivity = ref('')
+const wordstatConfigured = ref(false)
+let messageSequence = 0
+
+// raw HTML в ответах модели выключен: MarkdownIt безопасно экранирует его.
+// Так сохраняются заголовки, списки, таблицы, ссылки и кодовые блоки без XSS.
+const markdown = new MarkdownIt({ html: false, breaks: true, linkify: true, typographer: true })
+const renderMarkdown = (value) => markdown.render(String(value || ''))
+const nextMessageId = (prefix = 'local') => `${prefix}-${Date.now()}-${++messageSequence}`
 
 // ── Модели и режим размышлений (из GET /assistant/models) ────────────────────
 const models = ref([])
@@ -260,13 +273,13 @@ const vClickOutside = {
 const projectContextDescription = 'Назовите проект или спросите, какие доступны — и я проанализирую его рекламу: расход, лиды, CPL, цели Метрики. Ещё умею Wordstat.'
 
 // ── Экран приветствия: источники данных и готовые промпты ────────────────────
-const dataSources = [
+const dataSources = computed(() => [
   { id: 'yandex-direct', name: 'Яндекс Директ', description: 'Расход и кампании', icon: '/admirra/img/icons/yandex-direct.png', available: true },
   { id: 'metrika', name: 'Яндекс Метрика', description: 'Цели и конверсии', icon: yandexMetrikaIcon, available: true },
-  { id: 'wordstat', name: 'Wordstat', description: 'Спрос и семантика', available: true },
+  { id: 'wordstat', name: 'Wordstat', description: 'Спрос и семантика', available: wordstatConfigured.value, unavailableLabel: 'не подключён' },
   { id: 'avito', name: 'Avito Ads', description: 'Площадка объявлений', icon: '/admirra/img/icons/avito.svg', available: false },
   { id: 'vk', name: 'VK Реклама', description: 'Реклама VK', icon: '/admirra/img/icons/vk-ads.png', available: false },
-]
+])
 
 // Макетные готовые промпты (реальные добавим позже). Клик по плитке — вставить
 // в поле ввода, кнопка копирования — скопировать текст промпта.
@@ -341,6 +354,7 @@ const loadModels = async () => {
     const { data } = await api.get('assistant/models')
     models.value = Array.isArray(data.models) ? data.models : []
     configured.value = !!data.configured
+    wordstatConfigured.value = !!data.wordstat_configured
     selectedModelId.value = data.default_model || models.value[0]?.id || ''
     syncEffortToModel()
   } catch { /* пустой каталог — покажем недоступность */ }
@@ -367,7 +381,7 @@ const selectConversation = async (id) => {
   try {
     const { data } = await api.get(`assistant/conversations/${id}`)
     activeConversationId.value = data.id
-    activeMessages.value = (data.messages || []).map((m) => ({ role: m.role, content: m.content || '' }))
+    activeMessages.value = (data.messages || []).map((m) => ({ id: m.id || nextMessageId('saved'), role: m.role, content: m.content || '' }))
     await nextTick(); scrollThread()
   } catch { /* ignore */ }
 }
@@ -457,9 +471,9 @@ const sendPrompt = async () => {
   sending.value = true
   toolActivity.value = ''
 
-  activeMessages.value.push({ role: 'user', content: question })
+  activeMessages.value.push({ id: nextMessageId('user'), role: 'user', content: question })
   // Берём реактивный прокси из массива — иначе мутации при стриме не обновят UI.
-  activeMessages.value.push({ role: 'assistant', content: '', pending: true })
+  activeMessages.value.push({ id: nextMessageId('assistant'), role: 'assistant', content: '', pending: true })
   const assistantMsg = activeMessages.value[activeMessages.value.length - 1]
   prompt.value = ''
   await nextTick(); autoGrow(); scrollThread()
@@ -593,10 +607,9 @@ onUnmounted(() => {
 
 /* Потоковый ответ */
 .assistant-message__body { min-width: 0; }
-.assistant-message__text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.assistant-caret { display: inline-block; width: .5ch; animation: assistant-blink 1s steps(2, start) infinite; }
-@keyframes assistant-blink { to { opacity: 0; } }
-.assistant-tool-note { margin-top: .5rem; color: var(--assistant-muted); font-size: .8rem; font-style: italic; }
+.assistant-tool-note { display: inline-flex; align-items: center; gap: .42rem; margin-top: .8rem; padding: .42rem .58rem; border: 1px solid var(--assistant-line); border-radius: .58rem; background: var(--assistant-soft); color: var(--assistant-sub); font-size: .78rem; line-height: 1.25; }
+.assistant-tool-note span { width: .55rem; height: .55rem; border: 1.5px solid var(--assistant-blue); border-right-color: transparent; border-radius: 50%; animation: assistant-spin .72s linear infinite; }
+@keyframes assistant-spin { to { transform: rotate(360deg); } }
 .assistant-welcome__note { margin-top: .65rem; color: var(--assistant-amber); font-size: .88rem; }
 
 .rail-heading { display: flex; align-items: center; justify-content: space-between; padding: 0 .25rem; margin-bottom: .7rem; font-size: .9rem; font-weight: 700; }
@@ -705,8 +718,34 @@ onUnmounted(() => {
 .assistant-suggestion__icon { display: grid; width: 2.25rem; height: 2.25rem; flex: 0 0 2.25rem; place-items: center; border-radius: .7rem; background: var(--assistant-blue-soft); color: var(--assistant-blue); }.assistant-suggestion--alert .assistant-suggestion__icon { background: var(--assistant-panel); color: var(--assistant-amber); }
 .assistant-suggestion b, .assistant-suggestion small { display: block; }.assistant-suggestion b { font-size: .9rem; line-height: 1.3; }.assistant-suggestion small { margin-top: .18rem; color: var(--assistant-muted); font-size: .78rem; line-height: 1.3; }.assistant-suggestion--alert small { color: var(--assistant-amber); }.assistant-suggestion em { align-self: center; margin-left: auto; color: var(--assistant-blue); font-size: .8rem; font-style: normal; font-weight: 600; white-space: nowrap; }.assistant-suggestion--alert em { color: var(--assistant-amber); }
 
-.assistant-thread { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; overflow: hidden; }.assistant-thread__inner { box-sizing: border-box; display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; gap: 1rem; width: min(74rem, 100%); margin: 0 auto; padding: 1.6rem 2.5rem; overflow-y: auto; overscroll-behavior-y: contain; }.assistant-message { display: flex; gap: .78rem; }.assistant-message--user { justify-content: flex-end; }.assistant-message--user .assistant-message__bubble { max-width: 78%; border-radius: 1.12rem 1.12rem .34rem 1.12rem; background: var(--assistant-blue); color: #fff; }.assistant-message--assistant { max-width: 94%; }.assistant-message__avatar { display: grid; width: 2.4rem; height: 2.4rem; flex: 0 0 2.4rem; margin-top: .1rem; place-items: center; border-radius: .7rem; background: linear-gradient(135deg, #5b8def, #7c6ff0); color: #fff; }.assistant-message__avatar svg { width: 1.2rem; height: 1.2rem; stroke-width: 1.8; }.assistant-message__meta { display: flex; gap: .42rem; flex-wrap: wrap; margin-bottom: .45rem; }.assistant-message__meta span { padding: .28rem .6rem; border-radius: 1rem; background: var(--assistant-blue-soft); color: var(--assistant-blue); font-size: .74rem; font-weight: 600; }.assistant-message__meta span+span { background: var(--assistant-soft); color: var(--assistant-sub); font-weight: 500; }.assistant-message__bubble { padding: .95rem 1.1rem; border: 1px solid var(--assistant-line); border-radius: .34rem 1.12rem 1.12rem 1.12rem; background: var(--assistant-panel); font-size: .96rem; line-height: 1.5; }.assistant-message__bubble b { display: block; margin-bottom: .35rem; }.assistant-message__bubble p { margin: 0; color: var(--assistant-sub); }.assistant-message__actions { display: flex; gap: .42rem; margin-top: .75rem; }.assistant-message__actions button { padding: .38rem .62rem; border-radius: .5rem; background: var(--assistant-soft); color: var(--assistant-sub); font-size: .75rem; }.assistant-message__actions button:hover { color: var(--assistant-blue); }
-.assistant-thread__composer { position: relative; z-index: 2; flex: 0 0 auto; padding: .9rem 2.5rem 1.25rem; border-top: 1px solid var(--assistant-line); background: var(--assistant-bg); }.assistant-thread__composer .assistant-composer { margin: 0 auto; box-shadow: 0 .25rem 1rem rgba(27,36,55,.05); }.assistant-thread__composer p { width: min(68rem, 100%); margin: .45rem auto 0; color: var(--assistant-muted); font-size: .75rem; }
+.assistant-thread { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; overflow: hidden; }
+.assistant-thread__inner { box-sizing: border-box; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; }
+.assistant-thread__messages { display: flex; flex-direction: column; gap: 1.45rem; width: min(66rem, 100%); min-height: 100%; margin: 0 auto; padding: 2.4rem 2.5rem 3.6rem; }
+.assistant-message { display: flex; gap: .82rem; min-width: 0; }
+.assistant-message--user { justify-content: flex-end; }
+.assistant-message--user .assistant-message__bubble { max-width: min(44rem, 78%); padding: .82rem 1rem; border: 1px solid transparent; border-radius: 1.15rem 1.15rem .42rem 1.15rem; background: linear-gradient(135deg, #3276ed, #2864dc); color: #fff; box-shadow: 0 .45rem 1.1rem rgba(40,100,220,.16); }
+.assistant-message--user .assistant-message__bubble p { margin: 0; color: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
+.assistant-message--assistant { max-width: min(58rem, 94%); align-items: flex-start; }
+.assistant-message__avatar { display: grid; width: 2.5rem; height: 2.5rem; flex: 0 0 2.5rem; margin-top: .12rem; place-items: center; border: 1px solid rgba(47,107,234,.12); border-radius: .82rem; background: var(--assistant-blue-soft); color: var(--assistant-blue); }
+.assistant-message__avatar svg { width: 1.16rem; height: 1.16rem; stroke-width: 1.85; }
+.assistant-message__label { margin: .18rem 0 .46rem; color: var(--assistant-muted); font-size: .74rem; font-weight: 700; letter-spacing: .01em; }
+.assistant-message__bubble { padding: 1.08rem 1.18rem; border: 1px solid var(--assistant-line); border-radius: .38rem 1.12rem 1.12rem 1.12rem; background: var(--assistant-panel); box-shadow: 0 .16rem .54rem rgba(27,36,55,.035); font-size: .98rem; line-height: 1.62; }
+.assistant-markdown { color: var(--assistant-sub); overflow-wrap: anywhere; }
+.assistant-markdown :deep(p) { margin: 0 0 .82rem; }
+.assistant-markdown :deep(p:last-child) { margin-bottom: 0; }
+.assistant-markdown :deep(h1), .assistant-markdown :deep(h2), .assistant-markdown :deep(h3), .assistant-markdown :deep(h4) { margin: 1.15rem 0 .62rem; color: var(--assistant-text); font-weight: 700; letter-spacing: -.02em; line-height: 1.25; }
+.assistant-markdown :deep(h1) { font-size: 1.25rem; }.assistant-markdown :deep(h2) { font-size: 1.14rem; }.assistant-markdown :deep(h3), .assistant-markdown :deep(h4) { font-size: 1.02rem; }
+.assistant-markdown :deep(h1:first-child), .assistant-markdown :deep(h2:first-child), .assistant-markdown :deep(h3:first-child), .assistant-markdown :deep(h4:first-child) { margin-top: 0; }
+.assistant-markdown :deep(ul), .assistant-markdown :deep(ol) { margin: .76rem 0; padding-left: 1.25rem; }.assistant-markdown :deep(li + li) { margin-top: .3rem; }
+.assistant-markdown :deep(blockquote) { margin: .9rem 0; padding: .1rem 0 .1rem .85rem; border-left: .18rem solid var(--assistant-blue); color: var(--assistant-sub); }
+.assistant-markdown :deep(code) { padding: .1rem .32rem; border-radius: .32rem; background: var(--assistant-soft); color: var(--assistant-text); font: .88em/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+.assistant-markdown :deep(pre) { margin: .88rem 0; padding: .85rem 1rem; overflow-x: auto; border: 1px solid var(--assistant-line); border-radius: .72rem; background: var(--assistant-soft); }.assistant-markdown :deep(pre code) { padding: 0; background: transparent; }
+.assistant-markdown :deep(a) { color: var(--assistant-blue); text-decoration: underline; text-decoration-color: rgba(47,107,234,.35); text-underline-offset: .14em; }
+.assistant-markdown :deep(table) { display: block; width: 100%; margin: .9rem 0; overflow-x: auto; border-collapse: collapse; font-size: .9em; }.assistant-markdown :deep(th), .assistant-markdown :deep(td) { padding: .48rem .6rem; border: 1px solid var(--assistant-line); text-align: left; white-space: nowrap; }.assistant-markdown :deep(th) { background: var(--assistant-soft); color: var(--assistant-text); font-weight: 700; }
+.assistant-typing { display: inline-flex; align-items: center; min-height: 1.65rem; gap: .32rem; padding: .1rem .05rem; }.assistant-typing i { width: .38rem; height: .38rem; border-radius: 50%; background: var(--assistant-blue); opacity: .32; animation: typing-pulse 1.12s ease-in-out infinite; }.assistant-typing i:nth-child(2) { animation-delay: .14s; }.assistant-typing i:nth-child(3) { animation-delay: .28s; }@keyframes typing-pulse { 0%, 100% { transform: translateY(0); opacity: .24; } 45% { transform: translateY(-.2rem); opacity: 1; } }
+.chat-message-enter-active { transition: opacity .28s ease, transform .28s cubic-bezier(.2,.8,.2,1); }.chat-message-enter-from { opacity: 0; transform: translateY(.5rem); }
+.assistant-message__actions { display: flex; gap: .42rem; margin-top: .75rem; }.assistant-message__actions button { padding: .38rem .62rem; border-radius: .5rem; background: var(--assistant-soft); color: var(--assistant-sub); font-size: .75rem; }.assistant-message__actions button:hover { color: var(--assistant-blue); }
+.assistant-thread__composer { position: relative; z-index: 2; flex: 0 0 auto; padding: 1rem 2.5rem 1.35rem; border-top: 1px solid var(--assistant-line); background: color-mix(in srgb, var(--assistant-bg) 94%, transparent); backdrop-filter: blur(12px); }.assistant-thread__composer .assistant-composer { width: min(66rem, 100%); margin: 0 auto; box-shadow: 0 .35rem 1.35rem rgba(27,36,55,.055); }.assistant-thread__composer p { width: min(66rem, 100%); margin: .45rem auto 0; color: var(--assistant-muted); font-size: .75rem; }
 
 @media (max-width: 1180px) {
   .assistant-rail:not(.assistant-rail--open) { width: 3.5rem; flex-basis: 3.5rem; }
@@ -727,6 +766,6 @@ onUnmounted(() => {
   .assistant-model__btn { padding-inline: .55rem; }
 }
 @media (max-width: 560px) { .assistant-rail { display: none; }.assistant-hero__title { font-size: 1.4rem; } }
-@media (prefers-reduced-motion: reduce) { .assistant-scrollhint svg { animation: none; }.prompt-tile { transition: opacity .2s ease; transform: none; }.prompt-tile__copy.is-copied { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .assistant-scrollhint svg, .assistant-tool-note span, .assistant-typing i { animation: none; }.prompt-tile { transition: opacity .2s ease; transform: none; }.prompt-tile__copy.is-copied { animation: none; }.chat-message-enter-active { transition: none; } }
 @media (prefers-reduced-motion: reduce) { .assistant-rail, .assistant-suggestion { transition: none; } }
 </style>

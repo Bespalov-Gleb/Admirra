@@ -16,7 +16,7 @@ from core import models, security
 from core.database import get_db
 from backend_api.access_control import get_accessible_client_ids
 
-from . import agent, llm
+from . import agent, llm, wordstat_client
 from .models_catalog import DEFAULT_MODEL_ID, catalog_public, get_model, normalize_effort
 
 router = APIRouter(prefix="/assistant", tags=["AI Assistant"])
@@ -85,6 +85,9 @@ def list_models(current_user: models.User = Depends(security.get_current_user)):
         "provider": get_config().openrouter.provider,
         "default_model": DEFAULT_MODEL_ID,
         "models": catalog_public(),
+        # Фронт не предполагает доступность Wordstat: API сообщает фактическое
+        # состояние конфигурации, не раскрывая ни ключ, ни ID каталога.
+        "wordstat_configured": wordstat_client.is_configured(),
     }
 
 

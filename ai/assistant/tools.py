@@ -257,12 +257,14 @@ def _slim_metrika(data: dict, by_time: bool = False) -> dict:
 
 # ── Wordstat (общий ключ, без привязки к проекту) ────────────────────────────
 async def _exec_wordstat_top_requests(ctx: ToolContext, args: dict) -> str:
-    return _dump(await wordstat_client.top_requests(args["phrase"], args.get("devices")))
+    return _dump(await wordstat_client.top_requests(
+        args["phrase"], args.get("devices"), args.get("regions"), args.get("num_phrases")))
 
 
 async def _exec_wordstat_dynamics(ctx: ToolContext, args: dict) -> str:
     return _dump(await wordstat_client.dynamics(
-        args["phrase"], args.get("period", "monthly"), args.get("from_date"), args.get("to_date"), args.get("devices")))
+        args["phrase"], args.get("period", "monthly"), args.get("from_date"), args.get("to_date"),
+        args.get("devices"), args.get("regions")))
 
 
 async def _exec_wordstat_regions(ctx: ToolContext, args: dict) -> str:
@@ -273,6 +275,8 @@ async def _exec_wordstat_regions(ctx: ToolContext, args: dict) -> str:
 _Executor = Callable[[ToolContext, dict], Awaitable[str]]
 _DEVICES = {"type": "array", "items": {"type": "string", "enum": ["all", "desktop", "phone", "tablet"]},
             "description": "Устройства (опционально)."}
+_WORDSTAT_REGIONS = {"type": "array", "items": {"type": "string"},
+                     "description": "Коды регионов Wordstat, если пользователь явно попросил фильтр по региону."}
 
 _REGISTRY: dict[str, tuple[dict, _Executor]] = {
     "list_projects": (
@@ -365,7 +369,10 @@ _REGISTRY: dict[str, tuple[dict, _Executor]] = {
         {"name": "wordstat_top_requests",
          "description": "Wordstat: популярные поисковые запросы и ассоциации по фразе (спрос в Яндексе). Не требует проекта.",
          "parameters": {"type": "object", "properties": {
-             "phrase": {"type": "string", "description": "Ключевая фраза."}, "devices": _DEVICES},
+             "phrase": {"type": "string", "description": "Ключевая фраза."}, "devices": _DEVICES,
+             "regions": _WORDSTAT_REGIONS,
+             "num_phrases": {"type": "integer", "minimum": 1, "maximum": 2000,
+                             "description": "Сколько фраз вернуть. По умолчанию достаточно ответа API."}},
              "required": ["phrase"]}},
         _exec_wordstat_top_requests,
     ),
@@ -377,7 +384,7 @@ _REGISTRY: dict[str, tuple[dict, _Executor]] = {
              "period": {"type": "string", "enum": ["monthly", "weekly", "daily"]},
              "from_date": {"type": "string", "description": "YYYY-MM-DD"},
              "to_date": {"type": "string", "description": "YYYY-MM-DD"},
-             "devices": _DEVICES},
+             "devices": _DEVICES, "regions": _WORDSTAT_REGIONS},
              "required": ["phrase"]}},
         _exec_wordstat_dynamics,
     ),

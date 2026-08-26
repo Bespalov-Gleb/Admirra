@@ -110,8 +110,8 @@ class OpenRouterConfig:
 class WordstatConfig:
     """Yandex Wordstat для ассистента. Старый OAuth-API отключён — теперь это
     Yandex Cloud Search API v2, авторизация Api-Key сервисного аккаунта (наш общий
-    ключ на всех пользователей, не OAuth клиента). Пустой ключ — инструменты
-    Wordstat не предлагаются. folder_id опционален (ключ SA внутри каталога)."""
+    ключ на всех пользователей, не OAuth клиента). Инструменты доступны только
+    при наличии ключа и folder_id: каталог обязателен в каждом запросе v2."""
     api_key: str
     folder_id: str
     base_url: str
