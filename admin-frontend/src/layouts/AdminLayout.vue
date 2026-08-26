@@ -61,6 +61,7 @@ import {
   FingerPrintIcon,
   KeyIcon,
   RectangleStackIcon,
+  ReceiptPercentIcon,
   ShieldCheckIcon,
   UserGroupIcon,
   UsersIcon,
@@ -109,6 +110,7 @@ const menu = computed(() => {
     { label: 'Управление', items: [
       { to: '/staff', label: 'Сотрудники', icon: UserGroupIcon },
       { to: '/integrations', label: 'Интеграции', icon: CircleStackIcon },
+      { to: '/promo-codes', label: 'Промокоды', icon: ReceiptPercentIcon },
       { to: '/security', label: 'Безопасность', icon: ShieldCheckIcon },
     ] },
     { label: 'Контент', items: [

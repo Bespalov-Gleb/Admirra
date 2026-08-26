@@ -16,6 +16,7 @@ const routes = [
       { path: 'staff', component: () => import('../views/StaffView.vue'), meta: { roles: ['SUPERADMIN', 'ADMIN'], title: 'Сотрудники' } },
       { path: 'activity', component: () => import('../views/ActivityView.vue'), meta: { roles: ['SUPERADMIN', 'ADMIN'], title: 'Активность' } },
       { path: 'integrations', component: () => import('../views/IntegrationsView.vue'), meta: { roles: ['SUPERADMIN', 'ADMIN'], title: 'Интеграции' } },
+      { path: 'promo-codes', component: () => import('../views/PromoView.vue'), meta: { roles: ['SUPERADMIN', 'ADMIN'], title: 'Промокоды' } },
       { path: 'security', component: () => import('../views/SecurityView.vue'), meta: { roles: ['SUPERADMIN', 'ADMIN'], title: 'Безопасность и настройки' } },
       { path: 'manager', component: () => import('../views/ManagerView.vue'), meta: { roles: ['STAFF_MANAGER', 'SUPPORT'], title: 'Клиенты' } },
       { path: 'manager/users/:id', component: () => import('../views/UserDetailView.vue'), meta: { roles: ['STAFF_MANAGER', 'SUPPORT'], manager: true, title: 'Карточка клиента' } },

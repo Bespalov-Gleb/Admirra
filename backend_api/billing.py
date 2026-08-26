@@ -15,6 +15,7 @@ from backend_api.services.cloudpayments import CloudPaymentsService
 from backend_api.services.notifications import create_notification
 from backend_api.services.history import log_history_event
 from backend_api.services.subscription import SubscriptionService
+from backend_api.services import promo as promo_service
 from core import models, pricing, schemas, security
 from core.config import get_config
 from core.database import get_db
@@ -399,6 +400,31 @@ def _build_cloudpayments_receipt_items(
             "provision": 0.0,
         },
     }
+
+
+def _scale_receipt_to_total(receipt: Optional[Dict[str, Any]], target_total: int) -> Optional[Dict[str, Any]]:
+    """Масштабирует позиции чека под сумму со скидкой, чтобы итог фискального чека
+    совпал с фактически списанной суммой (иначе онлайн-чек будет некорректен).
+    Последняя позиция забирает остаток от округления."""
+    if not receipt:
+        return receipt
+    items = receipt.get("items") or []
+    orig_total = round(sum(float(i.get("amount") or 0) for i in items), 2)
+    if not items or orig_total <= 0 or target_total >= orig_total:
+        return receipt
+    running = 0.0
+    n = len(items)
+    for idx, it in enumerate(items):
+        new_amt = round(float(it.get("amount") or 0) * target_total / orig_total, 2) if idx < n - 1 \
+            else round(target_total - running, 2)
+        running = round(running + new_amt, 2)
+        it["price"] = new_amt
+        it["amount"] = new_amt
+        it["label"] = f"{it.get('label', '')} (промокод)"
+    amounts = receipt.get("amounts")
+    if isinstance(amounts, dict):
+        amounts["electronic"] = round(float(target_total), 2)
+    return receipt
 
 
 def _subscription_receipt(plan, billing_period: str, slots: int, email: str, cfg) -> Dict[str, Any]:
@@ -842,11 +868,40 @@ async def subscribe(
         plan, billing_period, target_slots, account_user.email or "", cfg,
     )
 
-    purchase_snapshot = (
-        dict(sub.price_book_snapshot)
-        if requested_spec.code == cur_plan.code and isinstance(getattr(sub, "price_book_snapshot", None), dict)
-        else pricing.plan_snapshot(requested_spec)
-    )
+    # Промокод: скидка считается на сервере и ложится в сумму заказа/чек/intent.
+    # Вебхук сверит фактически списанную сумму именно с этим intent.amount, поэтому
+    # фронт повлиять на сумму не может. Скидка — только на этот (первый) платёж.
+    original_amount = amount
+    promo_quote = None
+    if (body.promo_code or "").strip():
+        try:
+            promo_quote = promo_service.validate(
+                db, code=body.promo_code, plan_code=plan.code,
+                billing_period=billing_period, user=account_user, original_amount=amount,
+            )
+        except promo_service.PromoError as exc:
+            raise HTTPException(status_code=409, detail={"reason": f"promo_{exc.reason}", "message": exc.message})
+        amount = promo_quote.final_amount
+        receipt = _scale_receipt_to_total(receipt, amount)
+
+    intent_payload = {
+        "target_slots": target_slots,
+        "price_book_version": pricing.current_price_book_version(),
+        "price_book_snapshot": (
+            dict(sub.price_book_snapshot)
+            if requested_spec.code == cur_plan.code and isinstance(getattr(sub, "price_book_snapshot", None), dict)
+            else pricing.plan_snapshot(requested_spec)
+        ),
+    }
+    if promo_quote is not None:
+        intent_payload["promo"] = {
+            "code_id": str(promo_quote.promo.id),
+            "code": promo_quote.promo.code,
+            "discount_percent": promo_quote.discount_percent,
+            "original_amount": promo_quote.original_amount,
+            "discount_amount": promo_quote.discount_amount,
+            "final_amount": promo_quote.final_amount,
+        }
     invoice_id = _reuse_or_create_invoice(
         db,
         user=account_user,
@@ -856,11 +911,7 @@ async def subscribe(
         amount=amount,
         currency=cfg.cloudpayments.currency,
         purpose="plan",
-        intent_payload={
-            "target_slots": target_slots,
-            "price_book_version": pricing.current_price_book_version(),
-            "price_book_snapshot": purchase_snapshot,
-        },
+        intent_payload=intent_payload,
     )
     db.commit()
 
@@ -878,6 +929,48 @@ async def subscribe(
         recurrent=_recurrent_for_billing_period(plan, billing_period),
         receipt=receipt,
         invoice_id=invoice_id,
+        promo_code=(promo_quote.promo.code if promo_quote else None),
+        discount_amount=(promo_quote.discount_amount if promo_quote else 0),
+        original_amount=original_amount,
+    )
+
+
+@router.post("/promo/validate", response_model=schemas.BillingPromoValidateResponse)
+def validate_promo(
+    body: schemas.BillingPromoValidateRequest,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Превью применения промокода для модалки оплаты. Ничего не списывает.
+    Авторитетную скидку применяет /billing/subscribe при оплате."""
+    account_user = SubscriptionService.get_billing_account_user(db, current_user)
+    cfg = get_config()
+    try:
+        requested_spec = pricing.resolve_plan_strict(body.plan_code, cfg.billing)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Тариф не найден")
+    if requested_spec.white_label or requested_spec.code not in PURCHASABLE_PLAN_CODES:
+        raise HTTPException(status_code=409, detail="Тариф недоступен для онлайн-оплаты")
+
+    billing_period = _normalize_billing_period(body.billing_period)
+    plan = SubscriptionService.get_plan_from_config(requested_spec.code, spec=requested_spec)
+    original_amount = _subscription_total(plan, billing_period, 0)
+    try:
+        quote = promo_service.validate(
+            db, code=body.code, plan_code=plan.code, billing_period=billing_period,
+            user=account_user, original_amount=original_amount,
+        )
+    except promo_service.PromoError as exc:
+        return schemas.BillingPromoValidateResponse(valid=False, message=exc.message)
+    return schemas.BillingPromoValidateResponse(
+        valid=True,
+        code=quote.promo.code,
+        discount_percent=quote.discount_percent,
+        original_amount=quote.original_amount,
+        discount_amount=quote.discount_amount,
+        final_amount=quote.final_amount,
+        currency=cfg.cloudpayments.currency,
+        message=f"Промокод применён: −{quote.discount_percent}%",
     )
 
 
@@ -1572,6 +1665,32 @@ async def cloudpayments_webhook(
             target_id=str(sub.id),
             meta={"plan_code": plan.code, "billing_period": billing_period},
         )
+
+        # Промокод: фиксируем погашение (для админ-аналитики) и, т.к. скидка только
+        # на первый платёж, поднимаем рекуррент CloudPayments до полной цены, чтобы
+        # автопродления шли без скидки.
+        promo_meta = intent_payload.get("promo") if intent else None
+        if intent and purpose == "plan" and isinstance(promo_meta, dict):
+            try:
+                promo_service.record_redemption(
+                    db,
+                    promo_id=uuid.UUID(str(promo_meta.get("code_id"))),
+                    user_id=user.id,
+                    invoice_id=invoice_id or intent.invoice_id,
+                    transaction_id=(str(data.get("TransactionId") or "") or None),
+                    plan_code=plan.code,
+                    billing_period=billing_period,
+                    original_amount=promo_meta.get("original_amount"),
+                    discount_amount=promo_meta.get("discount_amount"),
+                    final_amount=paid,
+                )
+            except Exception as _promo_err:
+                logger.warning("Promo redemption record failed: %s", _promo_err)
+            try:
+                _promo_slots = max(0, int(intent_payload.get("target_slots") or 0))
+                await _update_recurrent_total(sub, plan, billing_period, _promo_slots, user.email or "")
+            except Exception as _rec_err:
+                logger.warning("Promo recurrent bump failed: %s", _rec_err)
 
         # Серверная офлайн-конверсия в Метрику (выручка → рекламный источник).
         # Повторное списание по подписке CP приходит как Pay с SubscriptionId —

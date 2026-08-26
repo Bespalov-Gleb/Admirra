@@ -12,6 +12,7 @@ from internal_admin.routers.integrations import router as integrations_router
 from internal_admin.routers.security_settings import router as security_router, settings_router
 from internal_admin.routers.events import router as events_router
 from internal_admin.routers.sessions_audit import sessions_router, audit_router
+from internal_admin.routers.promo import router as promo_router
 
 
 def require_internal_admin_enabled() -> None:
@@ -37,3 +38,4 @@ router.include_router(settings_router)
 router.include_router(events_router)
 router.include_router(sessions_router)
 router.include_router(audit_router)
+router.include_router(promo_router)

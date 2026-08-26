@@ -1319,6 +1319,26 @@ class BillingSubscribeRequest(BaseModel):
     billing_period: str = "month"
     success_url: Optional[str] = None
     fail_url: Optional[str] = None
+    # Промокод на скидку первого платежа (валидируется и применяется на сервере).
+    promo_code: Optional[str] = None
+
+
+class BillingPromoValidateRequest(BaseModel):
+    code: str
+    plan_code: str
+    billing_period: str = "month"
+
+
+class BillingPromoValidateResponse(BaseModel):
+    """Превью применения промокода для модалки оплаты (ничего не списывает)."""
+    valid: bool
+    code: Optional[str] = None
+    discount_percent: Optional[int] = None
+    original_amount: Optional[int] = None
+    discount_amount: Optional[int] = None
+    final_amount: Optional[int] = None
+    currency: str = "RUB"
+    message: Optional[str] = None
 
 
 class BillingRecurrentParams(BaseModel):
@@ -1352,6 +1372,10 @@ class BillingSubscribeResponse(BaseModel):
     action: str = "pay"
     effective_at: Optional[datetime] = None
     expected_purchased_slots: Optional[int] = None
+    # Применённый промокод (эхо для UI): код и суммы до/после скидки.
+    promo_code: Optional[str] = None
+    discount_amount: int = 0
+    original_amount: Optional[int] = None
 
 
 class BillingSlotQuoteRequest(BaseModel):

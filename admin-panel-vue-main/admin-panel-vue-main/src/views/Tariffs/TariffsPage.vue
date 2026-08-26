@@ -272,9 +272,38 @@
         <div class="billing-modal" role="dialog" aria-modal="true" aria-labelledby="payment-confirm-title">
           <h4 id="payment-confirm-title">{{ paymentConfirm.title }}</h4>
           <p>{{ paymentConfirm.text }}</p>
+
+          <!-- Промокод (только для оплаты тарифа) -->
+          <div v-if="paymentConfirm.promo" class="billing-promo">
+            <template v-if="!promoApplied">
+              <div class="billing-promo__row">
+                <input
+                  v-model="promoInput"
+                  type="text"
+                  class="billing-promo__input"
+                  placeholder="Промокод"
+                  :disabled="promoChecking"
+                  @input="promoInput = promoInput.toUpperCase(); promoError = ''"
+                  @keydown.enter.prevent="applyPromo"
+                />
+                <button type="button" class="billing-promo__apply" :disabled="promoChecking || !promoInput.trim()" @click="applyPromo">
+                  {{ promoChecking ? '…' : 'Применить' }}
+                </button>
+              </div>
+              <p v-if="promoError" class="billing-promo__error">{{ promoError }}</p>
+            </template>
+            <div v-else class="billing-promo__applied">
+              <span><b>{{ promoApplied.code }}</b> · −{{ promoApplied.discount_percent }}%</span>
+              <button type="button" class="billing-promo__remove" @click="removePromo">убрать</button>
+            </div>
+          </div>
+
           <div class="billing-confirm-total">
             <span>К списанию сейчас</span>
-            <strong>{{ formatRub(paymentConfirm.amount) }}</strong>
+            <div class="billing-confirm-total__amount">
+              <s v-if="promoApplied" class="billing-confirm-total__old">{{ formatRub(paymentConfirm.originalAmount) }}</s>
+              <strong>{{ formatRub(paymentConfirm.amount) }}</strong>
+            </div>
           </div>
           <p v-if="paymentConfirm.note" class="billing-modal__note">{{ paymentConfirm.note }}</p>
           <div class="billing-modal__actions">
@@ -356,6 +385,51 @@ const cancelAutorenewModalOpen = ref(false)
 const cancellingAutorenew = ref(false)
 const paymentConfirm = ref(null)
 let paymentConfirmResolve = null
+
+// Промокод в модалке подтверждения (только оплата тарифа).
+const promoInput = ref('')
+const promoApplied = ref(null)   // ответ /billing/promo/validate при успехе
+const promoError = ref('')
+const promoChecking = ref(false)
+
+function resetPromoState() {
+  promoInput.value = ''
+  promoApplied.value = null
+  promoError.value = ''
+  promoChecking.value = false
+}
+
+async function applyPromo() {
+  const code = promoInput.value.trim()
+  if (!code || !paymentConfirm.value) return
+  promoError.value = ''
+  promoChecking.value = true
+  try {
+    const { data } = await api.post('billing/promo/validate', {
+      code,
+      plan_code: paymentConfirm.value.planCode,
+      billing_period: paymentConfirm.value.billingPeriod,
+    })
+    if (data?.valid) {
+      promoApplied.value = data
+      // Отображаем сумму со скидкой; авторитетную сумму пересчитает subscribe.
+      paymentConfirm.value.amount = Number(data.final_amount) || paymentConfirm.value.amount
+    } else {
+      promoError.value = data?.message || 'Промокод не применён'
+    }
+  } catch (e) {
+    promoError.value = errText(e, 'Не удалось проверить промокод')
+  } finally {
+    promoChecking.value = false
+  }
+}
+
+function removePromo() {
+  promoApplied.value = null
+  promoInput.value = ''
+  promoError.value = ''
+  if (paymentConfirm.value) paymentConfirm.value.amount = paymentConfirm.value.originalAmount
+}
 
 const subscription = ref({
   plan_code: 'start',
@@ -718,33 +792,55 @@ async function onSubscribe(planCode, bp = 'month') {
       note: subscription.value?.price_fixed && isPlanChange
         ? 'При смене тарифа зафиксированная ранее цена заменится актуальной ценой выбранного тарифа.'
         : '',
+      // Промокод показываем только для оплаты тарифа.
+      promo: true,
+      planCode: String(data.plan_code || planCode).toLowerCase(),
+      billingPeriod: data.billing_period || bp,
     })
     if (!confirmed) return
+    // Если применён промокод — пересобираем заказ на сервере со скидкой
+    // (авторитетная сумма/чек/invoice приходят именно отсюда).
+    let payData = data
+    if (promoApplied.value?.code) {
+      try {
+        const resub = await api.post('billing/subscribe', {
+          plan_code: planCode,
+          billing_period: bp,
+          success_url: `${window.location.origin}/settings?tab=tariff`,
+          fail_url: `${window.location.origin}/settings?tab=tariff`,
+          promo_code: promoApplied.value.code,
+        })
+        payData = resub.data
+      } catch (e) {
+        toaster.error(errText(e, 'Не удалось применить промокод'))
+        return
+      }
+    }
     const result = await payWithCloudPayments({
-      public_id: data.public_id,
-      description: data.description,
-      amount: data.amount,
-      currency: data.currency,
-      account_id: data.account_id,
-      email: data.email,
-      plan_code: data.plan_code,
-      billing_period: data.billing_period || bp,
-      recurrent: data.recurrent || null,
+      public_id: payData.public_id,
+      description: payData.description,
+      amount: payData.amount,
+      currency: payData.currency,
+      account_id: payData.account_id,
+      email: payData.email,
+      plan_code: payData.plan_code,
+      billing_period: payData.billing_period || bp,
+      recurrent: payData.recurrent || null,
       // receipt обязателен для фискализации (онлайн-чек CloudKassir): без него
       // CloudPayments не формирует чек покупателю даже при подключённой кассе.
-      receipt: data.receipt || null,
+      receipt: payData.receipt || null,
       // Идентификатор заказа: связывает платёж с намерением на бэкенде и не даёт
       // повторному клику превратиться во второй независимый платёж.
-      invoice_id: data.invoice_id || null,
+      invoice_id: payData.invoice_id || null,
     })
     if (result.status === 'cancelled') return
-    // Успешная оплата — денежная цель с суммой и срезами
-    const newPlan = String(data.plan_code || planCode).toLowerCase()
+    // Успешная оплата — денежная цель с суммой и срезами (фактическая сумма — payData)
+    const newPlan = String(payData.plan_code || planCode).toLowerCase()
     const moneyParams = {
-      order_price: Number(data.amount) || 0,
-      currency: data.currency || 'RUB',
+      order_price: Number(payData.amount) || 0,
+      currency: payData.currency || 'RUB',
       plan: newPlan,
-      billing: data.billing_period || bp,
+      billing: payData.billing_period || bp,
     }
     reachGoal('payment_success', moneyParams)
     // Апгрейд: уже был платный тариф и перешли на старший
@@ -820,7 +916,9 @@ async function buyMoreSlots() {
 
 function requestPaymentConfirm(payload) {
   if (paymentConfirmResolve) paymentConfirmResolve(false)
-  paymentConfirm.value = payload
+  resetPromoState()
+  // Базовая сумма запоминается, чтобы «убрать промокод» вернул её без скидки.
+  paymentConfirm.value = { ...payload, originalAmount: payload.amount }
   return new Promise((resolve) => { paymentConfirmResolve = resolve })
 }
 
@@ -828,6 +926,7 @@ function resolvePaymentConfirm(result) {
   const resolve = paymentConfirmResolve
   paymentConfirmResolve = null
   paymentConfirm.value = null
+  if (!result) resetPromoState()
   if (resolve) resolve(Boolean(result))
 }
 
@@ -1494,6 +1593,32 @@ function onContactWl() {
   color: #0f172a;
   font-size: 1.2rem;
 }
+
+.billing-confirm-total__amount { display: flex; align-items: baseline; gap: 0.5rem; }
+.billing-confirm-total__old { color: #94a3b8; font-size: 0.9rem; }
+
+/* Промокод в модалке */
+.billing-promo { margin: 0.9rem 0 0.2rem; }
+.billing-promo__row { display: flex; gap: 0.5rem; }
+.billing-promo__input {
+  flex: 1; min-width: 0; height: 2.6rem; padding: 0 0.8rem;
+  border: 1px solid #dbe3ef; border-radius: 0.7rem; background: #fff;
+  color: #0f172a; font: 500 0.92rem/1 Inter, sans-serif; text-transform: uppercase;
+}
+.billing-promo__input:focus { outline: none; border-color: #2f6bea; }
+.billing-promo__apply {
+  flex-shrink: 0; height: 2.6rem; padding: 0 1rem; border: 0; border-radius: 0.7rem;
+  background: #eef2fb; color: #2f6bea; font: 600 0.9rem/1 Inter, sans-serif; cursor: pointer;
+}
+.billing-promo__apply:disabled { opacity: 0.55; cursor: default; }
+.billing-promo__error { margin: 0.4rem 0 0; color: #c0392b; font-size: 0.82rem; }
+.billing-promo__applied {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
+  padding: 0.6rem 0.85rem; border-radius: 0.7rem; background: #eafaf1;
+  color: #1a8f4c; font-size: 0.9rem;
+}
+.billing-promo__applied b { font-weight: 700; }
+.billing-promo__remove { border: 0; background: none; color: #6b7a90; font-size: 0.8rem; cursor: pointer; text-decoration: underline; }
 
 .billing-modal__actions {
   display: flex;

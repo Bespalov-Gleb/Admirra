@@ -1608,3 +1608,73 @@ class AiMessage(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
     conversation = relationship("AiConversation", back_populates="messages")
+
+
+class PromoCode(Base):
+    """Промокод на скидку при оплате тарифа. Скидка ТОЛЬКО процентная и только
+    на первый платёж (автопродление идёт по полной цене). Скидка считается и
+    применяется исключительно на сервере (в /billing/subscribe) — фронт не может
+    повлиять на списываемую сумму, вебхук сверяет её с серверным intent."""
+    __tablename__ = "promo_codes"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    code = Column(String(64), nullable=False, unique=True, index=True)  # хранится в UPPER
+    description = Column(String(255), nullable=True)
+    discount_percent = Column(Integer, nullable=False)  # 1..100
+    active = Column(Boolean, nullable=False, default=True, server_default="true")
+
+    # Окно действия (NULL — без ограничения соответствующей границы).
+    valid_from = Column(DateTime(timezone=True), nullable=True)
+    valid_until = Column(DateTime(timezone=True), nullable=True)
+
+    # Лимиты. max_redemptions — глобальный потолок погашений (NULL — без лимита).
+    # per_user_limit — сколько раз один пользователь может применить (по умолчанию 1).
+    max_redemptions = Column(Integer, nullable=True)
+    per_user_limit = Column(Integer, nullable=False, default=1, server_default="1")
+
+    # Ограничения применимости. monthly_only — только помесячная оплата.
+    # applies_to_plans — JSON-список кодов тарифов (NULL/пусто — любые).
+    monthly_only = Column(Boolean, nullable=False, default=False, server_default="false")
+    applies_to_plans = Column(JSON, nullable=True)
+
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    redemptions = relationship("PromoRedemption", back_populates="promo_code",
+                               cascade="all, delete-orphan")
+
+
+class PromoRedemption(Base):
+    """Погашение промокода = факт оплаты тарифа со скидкой. Пишется вебхуком при
+    успешном платеже. Источник админ-аналитики (кто и сколько оплатил по коду).
+    Идемпотентность по transaction_id (как billing_events) — повтор вебхука не
+    задваивает погашение."""
+    __tablename__ = "promo_redemptions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    promo_code_id = Column(UUID(as_uuid=True), ForeignKey("promo_codes.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    invoice_id = Column(String(64), nullable=True, index=True)
+    transaction_id = Column(String(64), nullable=True)
+
+    plan_code = Column(String(32), nullable=True)
+    billing_period = Column(String(8), nullable=True)
+    original_amount = Column(Numeric(14, 2), nullable=True)
+    discount_amount = Column(Numeric(14, 2), nullable=True)
+    final_amount = Column(Numeric(14, 2), nullable=True)
+    redeemed_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
+
+    __table_args__ = (
+        # Идемпотентность: у одного transaction_id — одно погашение.
+        Index(
+            "uq_promo_redemptions_transaction",
+            "transaction_id",
+            unique=True,
+            postgresql_where=text("transaction_id IS NOT NULL"),
+        ),
+        Index("ix_promo_redemptions_code_user", "promo_code_id", "user_id"),
+    )
+
+    promo_code = relationship("PromoCode", back_populates="redemptions")
+    user = relationship("User")
