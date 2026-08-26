@@ -52,9 +52,6 @@
 
       <div v-if="!hasThread" ref="emptyScroll" class="assistant-empty">
         <div class="assistant-hero">
-          <span class="assistant-welcome__spark">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.6 5.4L19 10l-5.4 1.6L12 17l-1.6-5.4L5 10l5.4-1.6L12 3Z"/></svg>
-          </span>
           <h2 class="assistant-hero__title">Спросите про свою рекламу</h2>
           <p class="assistant-hero__sub">{{ projectContextDescription }}</p>
           <p v-if="!configured" class="assistant-welcome__note">Ассистент скоро будет доступен — подключается модель.</p>
@@ -90,7 +87,7 @@
                 </div>
               </div>
               <button class="composer-send" type="button" aria-label="Отправить" :class="{ 'is-active': prompt.trim() && !sending }" :disabled="sending" @click="sendPrompt">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 14-7-4.5 14-3-5-6.5-2Z"/><path d="m11.5 14 2.2-2.2"/></svg>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 18V6m0 0 4.5 4.5M12 6l-4.5 4.5"/></svg>
               </button>
             </div>
           </div>
@@ -202,7 +199,7 @@
                   <button v-for="e in selectedModel.efforts" :key="e" type="button" :class="{ 'is-active': e === selectedEffort }" @click="pickEffort(e)">{{ effortName(e) }}</button>
                 </div>
               </div>
-              <button class="composer-send" type="button" aria-label="Отправить" :class="{ 'is-active': prompt.trim() && !sending }" :disabled="sending" @click="sendPrompt"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 14-7-4.5 14-3-5-6.5-2Z"/><path d="m11.5 14 2.2-2.2"/></svg></button>
+              <button class="composer-send" type="button" aria-label="Отправить" :class="{ 'is-active': prompt.trim() && !sending }" :disabled="sending" @click="sendPrompt"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 18V6m0 0 4.5 4.5M12 6l-4.5 4.5"/></svg></button>
             </div>
           </div>
         </div>
@@ -363,6 +360,9 @@ const autoGrow = () => {
   if (!element) return
   element.style.height = 'auto'
   element.style.height = `${Math.min(element.scrollHeight, 104)}px`
+  // После вставки готового промпта браузер иногда оставляет textarea
+  // горизонтально проскролленной к каретке — начало фразы визуально обрезается.
+  element.scrollLeft = 0
 }
 
 const scrollThread = () => {
@@ -604,7 +604,7 @@ onUnmounted(() => {
 
 .rail-icon-button { display: grid; width: 2.8rem; height: 2.8rem; place-items: center; border-radius: .78rem; background: transparent; color: var(--assistant-sub); }
 .rail-icon-button:hover { background: var(--assistant-soft); color: var(--assistant-text); }
-.rail-icon-button svg, .rail-new-chat svg, .assistant-info-card svg, .composer-icon svg, .composer-send svg, .assistant-welcome__spark svg, .assistant-limit svg, .assistant-suggestion__icon :deep(svg), .assistant-message__avatar svg { width: 1.1rem; height: 1.1rem; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
+.rail-icon-button svg, .rail-new-chat svg, .assistant-info-card svg, .composer-icon svg, .composer-send svg, .assistant-limit svg, .assistant-suggestion__icon :deep(svg), .assistant-message__avatar svg { width: 1.1rem; height: 1.1rem; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
 
 /* Выбор модели в композере */
 .assistant-model { position: relative; margin-left: auto; }
@@ -657,9 +657,7 @@ onUnmounted(() => {
 
 /* Экран приветствия: колонка со скроллом — герой на первый экран, промпты ниже */
 .assistant-empty { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 0; padding: 0; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-gutter: stable both-edges; }
-.assistant-hero { box-sizing: border-box; display: flex; flex: 1 0 auto; flex-direction: column; align-items: center; justify-content: center; width: 100%; max-width: 68rem; min-height: 100%; padding: 2.9rem 2.75rem 2.45rem; text-align: center; }
-.assistant-welcome__spark { display: inline-grid; width: 3.55rem; height: 3.55rem; margin-bottom: 1rem; place-items: center; border-radius: 1rem; background: linear-gradient(135deg, #5b8def, #7c6ff0); color: #fff; box-shadow: 0 .5rem 1.2rem rgba(92,111,240,.28); }
-.assistant-welcome__spark svg { width: 1.55rem; height: 1.55rem; stroke-width: 1.9; }
+.assistant-hero { box-sizing: border-box; display: flex; flex: 1 0 auto; flex-direction: column; align-items: center; justify-content: center; width: 100%; max-width: 68rem; min-height: 100%; padding: 2.35rem 2.75rem 2.45rem; text-align: center; }
 .assistant-hero__title { margin: 0; font-size: clamp(2.15rem, 2.65vw, 2.6rem); font-weight: 700; letter-spacing: -.04em; text-wrap: balance; }
 .assistant-hero__sub { margin: .72rem auto 0; max-width: 42rem; color: var(--assistant-sub); font-size: 1.12rem; line-height: 1.55; text-wrap: balance; }
 .assistant-hero .assistant-composer { width: min(57rem, 100%); margin-top: 1.95rem; text-align: left; }
@@ -716,8 +714,8 @@ onUnmounted(() => {
 .assistant-context__chip { display: inline-flex; align-items: center; gap: .45rem; padding: .48rem .78rem; border: 1px solid var(--assistant-strong-line); border-radius: 1rem; background: var(--assistant-panel); color: var(--assistant-sub); font-size: .85rem; }
 .assistant-context__chip b { color: var(--assistant-text); font-weight: 600; }.assistant-context__chip i { width: .42rem; height: .42rem; border-radius: 50%; background: #1fa55b; }
 
-.assistant-composer { box-sizing: border-box; width: min(78rem, 100%); padding: 1.32rem 1.45rem 1rem; border: 1px solid var(--assistant-strong-line); border-radius: 1.38rem; background: var(--assistant-panel); box-shadow: 0 .5rem 1.9rem rgba(27,36,55,.075); }
-.assistant-composer textarea { box-sizing: border-box; width: 100%; min-height: 5.25rem; max-height: 8.25rem; padding: 0; border: 0; outline: 0; resize: none; overflow-y: auto; background: transparent; color: var(--assistant-text); font: 400 1.13rem/1.5 Inter, sans-serif; }
+.assistant-composer { box-sizing: border-box; width: min(78rem, 100%); overflow: hidden; padding: 1.32rem 1.45rem 1rem; border: 1px solid var(--assistant-strong-line); border-radius: 1.38rem; background: var(--assistant-panel); box-shadow: 0 .5rem 1.9rem rgba(27,36,55,.075); }
+.assistant-composer textarea { box-sizing: border-box; display: block; width: 100%; min-width: 0; min-height: 5.25rem; max-height: 8.25rem; padding: 0; border: 0; border-radius: 0; outline: 0; resize: none; overflow-x: hidden; overflow-y: auto; appearance: none; background: transparent; box-shadow: none; color: var(--assistant-text); font: 400 1.13rem/1.5 Inter, sans-serif; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
 .assistant-composer textarea::placeholder { color: var(--assistant-muted); }
 .assistant-composer__actions { display: flex; align-items: center; gap: .48rem; margin-top: .78rem; }
 .composer-icon { display: grid; width: 2.35rem; height: 2.35rem; place-items: center; border-radius: .65rem; background: transparent; color: var(--assistant-muted); }.composer-icon:hover { background: var(--assistant-soft); color: var(--assistant-sub); }
@@ -725,7 +723,7 @@ onUnmounted(() => {
 .assistant-composer__hint { margin-left: .12rem; margin-right: auto; color: var(--assistant-muted); font-size: .72rem; white-space: nowrap; }
 .assistant-depth { display: inline-flex; gap: .12rem; margin-left: auto; padding: .2rem; border-radius: .65rem; background: var(--assistant-soft); }
 .assistant-depth button { padding: .42rem .72rem; border-radius: .5rem; background: transparent; color: var(--assistant-sub); font-size: .77rem; white-space: nowrap; }.assistant-depth button.is-active { background: var(--assistant-panel); color: var(--assistant-text); font-weight: 600; box-shadow: 0 .06rem .18rem rgba(27,36,55,.12); }
-.composer-send { display: grid; width: 3.2rem; height: 3.2rem; margin-left: .25rem; place-items: center; border-radius: .96rem; background: var(--assistant-soft); color: var(--assistant-muted); transition: transform .18s ease, box-shadow .2s ease, background .2s ease, color .2s ease; }.composer-send.is-active { background: linear-gradient(135deg, #5b8def, #7c6ff0); color: #fff; box-shadow: 0 .35rem .9rem rgba(92,111,240,.35); }.composer-send.is-active:hover { transform: translateY(-1px) scale(1.03); box-shadow: 0 .5rem 1.1rem rgba(92,111,240,.42); }.composer-send:disabled { opacity: .5; cursor: default; }.composer-send svg { width: 1.35rem; height: 1.35rem; }
+.composer-send { display: grid; width: 2.65rem; height: 2.42rem; margin-left: .18rem; place-items: center; border-radius: .68rem; background: var(--assistant-soft); color: var(--assistant-muted); transition: background .16s ease, color .16s ease; }.composer-send.is-active { background: var(--assistant-blue); color: #fff; box-shadow: none; }.composer-send.is-active:hover { background: #1f5fd8; }.composer-send:disabled { opacity: .5; cursor: default; }.composer-send svg { width: 1.14rem; height: 1.14rem; }
 
 .assistant-suggestions { width: min(68rem, 100%); margin-top: 1.25rem; }.assistant-suggestions__label { margin: 1rem .2rem .55rem; color: var(--assistant-muted); font-size: .73rem; font-weight: 700; letter-spacing: .09em; }.assistant-suggestions__label:first-child { margin-top: 0; }
 .assistant-suggestions__grid { display: grid; grid-template-columns: 1fr 1fr; gap: .65rem; }
