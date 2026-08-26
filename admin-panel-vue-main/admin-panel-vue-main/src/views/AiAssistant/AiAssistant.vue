@@ -154,7 +154,7 @@
       </div>
 
       <div v-else class="assistant-thread">
-        <div ref="threadInner" class="assistant-thread__inner">
+        <div ref="threadInner" class="assistant-thread__inner" @scroll.passive="onThreadScroll">
           <TransitionGroup name="chat-message" tag="div" class="assistant-thread__messages">
             <article v-for="message in activeMessages" :key="message.id" :class="['assistant-message', `assistant-message--${message.role}`]">
               <template v-if="message.role === 'assistant'">
@@ -382,7 +382,8 @@ const selectConversation = async (id) => {
     const { data } = await api.get(`assistant/conversations/${id}`)
     activeConversationId.value = data.id
     activeMessages.value = (data.messages || []).map((m) => ({ id: m.id || nextMessageId('saved'), role: m.role, content: m.content || '' }))
-    await nextTick(); scrollThread()
+    threadPinnedToBottom.value = true
+    await scrollThread(true)
   } catch { /* ignore */ }
 }
 
@@ -396,9 +397,23 @@ const autoGrow = () => {
   element.scrollLeft = 0
 }
 
-const scrollThread = () => {
-  const el = threadInner.value
-  if (el) el.scrollTop = el.scrollHeight
+const threadPinnedToBottom = ref(true)
+let threadScrollFrame = null
+
+const onThreadScroll = (event) => {
+  const element = event.currentTarget
+  threadPinnedToBottom.value = element.scrollHeight - element.scrollTop - element.clientHeight < 72
+}
+
+const scrollThread = async (force = false) => {
+  if (!force && !threadPinnedToBottom.value) return
+  await nextTick()
+  cancelAnimationFrame(threadScrollFrame)
+  threadScrollFrame = requestAnimationFrame(() => {
+    const element = threadInner.value
+    if (!element || (!force && !threadPinnedToBottom.value)) return
+    element.scrollTop = element.scrollHeight
+  })
 }
 
 const TOOL_LABELS = {
@@ -476,13 +491,14 @@ const sendPrompt = async () => {
   if (!question || sending.value) return
   sending.value = true
   toolActivity.value = ''
+  threadPinnedToBottom.value = true
 
   activeMessages.value.push({ id: nextMessageId('user'), role: 'user', content: question })
   // Берём реактивный прокси из массива — иначе мутации при стриме не обновят UI.
   activeMessages.value.push({ id: nextMessageId('assistant'), role: 'assistant', content: '', pending: true })
   const assistantMsg = activeMessages.value[activeMessages.value.length - 1]
   prompt.value = ''
-  await nextTick(); autoGrow(); scrollThread()
+  await nextTick(); autoGrow(); scrollThread(true)
 
   const token = getAccessToken()
   const body = {
@@ -518,6 +534,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   clearTimeout(_copyTimer)
+  cancelAnimationFrame(threadScrollFrame)
 })
 </script>
 
@@ -708,10 +725,10 @@ onUnmounted(() => {
 .assistant-context__chip { display: inline-flex; align-items: center; gap: .45rem; padding: .48rem .78rem; border: 1px solid var(--assistant-strong-line); border-radius: 1rem; background: var(--assistant-panel); color: var(--assistant-sub); font-size: .85rem; }
 .assistant-context__chip b { color: var(--assistant-text); font-weight: 600; }.assistant-context__chip i { width: .42rem; height: .42rem; border-radius: 50%; background: #1fa55b; }
 
-.assistant-composer { position: relative; z-index: 2; box-sizing: border-box; width: min(78rem, 100%); overflow: visible; isolation: isolate; padding: 1.32rem 1.45rem 1rem; border: 1px solid var(--assistant-strong-line); border-radius: 1.38rem; background: var(--assistant-panel); box-shadow: 0 .5rem 1.9rem rgba(27,36,55,.075); }
-.assistant-composer textarea { box-sizing: border-box; display: block; width: 100%; min-width: 0; min-height: 5.25rem; max-height: 8.25rem; padding: 0; border: 0; border-radius: 0; outline: 0; resize: none; overflow-x: hidden; overflow-y: auto; appearance: none; background: transparent; box-shadow: none; color: var(--assistant-text); font: 400 1.13rem/1.5 Inter, sans-serif; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+.assistant-composer { position: relative; z-index: 2; box-sizing: border-box; width: min(83.5rem, 100%); overflow: visible; isolation: isolate; padding: 1.41rem 1.55rem 1.07rem; border: 1px solid var(--assistant-strong-line); border-radius: 1.48rem; background: var(--assistant-panel); box-shadow: 0 .5rem 1.9rem rgba(27,36,55,.075); }
+.assistant-composer textarea { box-sizing: border-box; display: block; width: 100%; min-width: 0; min-height: 5.62rem; max-height: 8.82rem; padding: 0; border: 0; border-radius: 0; outline: 0; resize: none; overflow-x: hidden; overflow-y: auto; appearance: none; background: transparent; box-shadow: none; color: var(--assistant-text); font: 400 1.21rem/1.5 Inter, sans-serif; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
 .assistant-composer textarea::placeholder { color: var(--assistant-muted); }
-.assistant-composer__actions { display: flex; align-items: center; gap: .48rem; margin-top: .78rem; }
+.assistant-composer__actions { display: flex; align-items: center; gap: .52rem; margin-top: .84rem; }
 .composer-icon { display: grid; width: 2.35rem; height: 2.35rem; place-items: center; border-radius: .65rem; background: transparent; color: var(--assistant-muted); }.composer-icon:hover { background: var(--assistant-soft); color: var(--assistant-sub); }
 .composer-icon svg { width: 1.18rem; height: 1.18rem; }
 .assistant-composer__hint { margin-left: .12rem; margin-right: auto; color: var(--assistant-muted); font-size: .72rem; white-space: nowrap; }
@@ -728,16 +745,16 @@ onUnmounted(() => {
 
 .assistant-thread { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; overflow: hidden; }
 .assistant-thread__inner { box-sizing: border-box; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; }
-.assistant-thread__messages { display: flex; flex-direction: column; gap: 1.45rem; width: min(66rem, 100%); min-height: 100%; margin: 0 auto; padding: 2.4rem 2.5rem 3.6rem; }
-.assistant-message { display: flex; gap: .82rem; min-width: 0; }
+.assistant-thread__messages { display: flex; flex-direction: column; gap: 1.55rem; width: min(70.6rem, 100%); min-height: 100%; margin: 0 auto; padding: 2.56rem 2.68rem 3.85rem; }
+.assistant-message { display: flex; gap: .88rem; min-width: 0; }
 .assistant-message--user { justify-content: flex-end; }
-.assistant-message--user .assistant-message__bubble { max-width: min(44rem, 78%); padding: .82rem 1rem; border: 1px solid transparent; border-radius: 1.15rem 1.15rem .42rem 1.15rem; background: linear-gradient(135deg, #3276ed, #2864dc); color: #fff; box-shadow: 0 .45rem 1.1rem rgba(40,100,220,.16); }
+.assistant-message--user .assistant-message__bubble { max-width: min(47rem, 78%); padding: .88rem 1.07rem; border: 1px solid transparent; border-radius: 1.22rem 1.22rem .45rem 1.22rem; background: linear-gradient(135deg, #3276ed, #2864dc); color: #fff; box-shadow: 0 .45rem 1.1rem rgba(40,100,220,.16); }
 .assistant-message--user .assistant-message__bubble p { margin: 0; color: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
-.assistant-message--assistant { max-width: min(58rem, 94%); align-items: flex-start; }
-.assistant-message__avatar { display: grid; width: 2.5rem; height: 2.5rem; flex: 0 0 2.5rem; margin-top: .12rem; place-items: center; border: 1px solid rgba(47,107,234,.12); border-radius: .82rem; background: var(--assistant-blue-soft); color: var(--assistant-blue); }
+.assistant-message--assistant { max-width: min(62rem, 94%); align-items: flex-start; }
+.assistant-message__avatar { display: grid; width: 2.68rem; height: 2.68rem; flex: 0 0 2.68rem; margin-top: .12rem; place-items: center; border: 1px solid rgba(47,107,234,.12); border-radius: .88rem; background: var(--assistant-blue-soft); color: var(--assistant-blue); }
 .assistant-message__avatar svg { width: 1.16rem; height: 1.16rem; stroke-width: 1.85; }
 .assistant-message__label { margin: .18rem 0 .46rem; color: var(--assistant-muted); font-size: .74rem; font-weight: 700; letter-spacing: .01em; }
-.assistant-message__bubble { padding: 1.08rem 1.18rem; border: 1px solid var(--assistant-line); border-radius: .38rem 1.12rem 1.12rem 1.12rem; background: var(--assistant-panel); box-shadow: 0 .16rem .54rem rgba(27,36,55,.035); font-size: .98rem; line-height: 1.62; }
+.assistant-message__bubble { padding: 1.15rem 1.26rem; border: 1px solid var(--assistant-line); border-radius: .41rem 1.2rem 1.2rem 1.2rem; background: var(--assistant-panel); box-shadow: 0 .16rem .54rem rgba(27,36,55,.035); font-size: 1.05rem; line-height: 1.62; }
 .assistant-markdown { color: var(--assistant-sub); overflow-wrap: anywhere; }
 .assistant-markdown :deep(p) { margin: 0 0 .82rem; }
 .assistant-markdown :deep(p:last-child) { margin-bottom: 0; }
@@ -753,7 +770,7 @@ onUnmounted(() => {
 .assistant-typing { display: inline-flex; align-items: center; min-height: 1.65rem; gap: .32rem; padding: .1rem .05rem; }.assistant-typing i { width: .38rem; height: .38rem; border-radius: 50%; background: var(--assistant-blue); opacity: .32; animation: typing-pulse 1.12s ease-in-out infinite; }.assistant-typing i:nth-child(2) { animation-delay: .14s; }.assistant-typing i:nth-child(3) { animation-delay: .28s; }@keyframes typing-pulse { 0%, 100% { transform: translateY(0); opacity: .24; } 45% { transform: translateY(-.2rem); opacity: 1; } }
 .chat-message-enter-active { transition: opacity .28s ease, transform .28s cubic-bezier(.2,.8,.2,1); }.chat-message-enter-from { opacity: 0; transform: translateY(.5rem); }
 .assistant-message__actions { display: flex; gap: .42rem; margin-top: .75rem; }.assistant-message__actions button { padding: .38rem .62rem; border-radius: .5rem; background: var(--assistant-soft); color: var(--assistant-sub); font-size: .75rem; }.assistant-message__actions button:hover { color: var(--assistant-blue); }
-.assistant-thread__composer { position: relative; z-index: 10; flex: 0 0 auto; overflow: visible; padding: 1rem 2.5rem 1.35rem; border-top: 1px solid var(--assistant-line); background: color-mix(in srgb, var(--assistant-bg) 94%, transparent); backdrop-filter: blur(12px); }.assistant-thread__composer .assistant-composer { width: min(66rem, 100%); margin: 0 auto; box-shadow: 0 .35rem 1.35rem rgba(27,36,55,.055); }.assistant-thread__composer p { width: min(66rem, 100%); margin: .45rem auto 0; color: var(--assistant-muted); font-size: .75rem; }
+.assistant-thread__composer { position: relative; z-index: 10; flex: 0 0 auto; overflow: visible; padding: 1.07rem 2.68rem 1.45rem; border-top: 0; background: color-mix(in srgb, var(--assistant-bg) 94%, transparent); backdrop-filter: blur(12px); }.assistant-thread__composer .assistant-composer { width: min(70.6rem, 100%); margin: 0 auto; box-shadow: 0 .35rem 1.35rem rgba(27,36,55,.055); }.assistant-thread__composer p { width: min(70.6rem, 100%); margin: .48rem auto 0; color: var(--assistant-muted); font-size: .8rem; }
 
 @media (max-width: 1180px) {
   .assistant-rail:not(.assistant-rail--open) { width: 3.5rem; flex-basis: 3.5rem; }
