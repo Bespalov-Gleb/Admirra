@@ -74,7 +74,7 @@
                   <span>Модель · <b>{{ selectedModel.label }}</b></span>
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
                 </button>
-                <div v-if="modelMenuOpen" class="assistant-model__menu assistant-model__menu--up" role="listbox" aria-label="Выбор модели">
+                <div v-if="modelMenuOpen" class="assistant-model__menu" role="listbox" aria-label="Выбор модели">
                   <button v-for="m in models" :key="m.id" type="button" :title="m.description" :class="{ 'is-active': m.id === selectedModelId }" @click="pickModel(m.id)">{{ m.label }}</button>
                 </div>
               </div>
@@ -83,7 +83,7 @@
                   <span>Уровень размышлений · <b>{{ effortLabel }}</b></span>
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
                 </button>
-                <div v-if="effortMenuOpen" class="assistant-model__menu assistant-model__menu--up" role="listbox" aria-label="Выбор уровня размышлений">
+                <div v-if="effortMenuOpen" class="assistant-model__menu" role="listbox" aria-label="Выбор уровня размышлений">
                   <button v-for="e in selectedModel.efforts" :key="e" type="button" :class="{ 'is-active': e === selectedEffort }" @click="pickEffort(e)">{{ effortName(e) }}</button>
                 </div>
               </div>
@@ -599,15 +599,16 @@ onUnmounted(() => {
 /* Выбор модели в композере */
 .assistant-model { position: relative; z-index: 1; margin-left: auto; }
 .assistant-model--open { z-index: 30; }
-.assistant-model__btn { display: inline-flex; align-items: center; gap: .38rem; height: 2.42rem; padding: 0 .56rem 0 .8rem; border: 1px solid var(--assistant-line); border-radius: .68rem; background: var(--assistant-soft); color: var(--assistant-sub); font: 500 .9rem/1 Inter, sans-serif; cursor: pointer; }
+.assistant-model__btn { display: inline-flex; align-items: center; gap: .45rem; height: 2.68rem; padding: 0 .72rem 0 .94rem; border: 1px solid var(--assistant-line); border-radius: .78rem; background: var(--assistant-soft); color: var(--assistant-sub); font: 500 .98rem/1 Inter, sans-serif; cursor: pointer; }
 .assistant-model__btn:hover { border-color: var(--assistant-strong-line); }
 .assistant-model__btn b { color: var(--assistant-text); font-weight: 600; }
-.assistant-model__btn svg { width: .95rem; height: .95rem; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.assistant-model__menu { position: absolute; right: 0; top: calc(100% + .35rem); min-width: 11rem; padding: .3rem; border: 1px solid var(--assistant-strong-line); border-radius: .7rem; background: var(--assistant-panel); box-shadow: 0 .5rem 1.6rem rgba(27,36,55,.16); z-index: 40; display: flex; flex-direction: column; gap: .12rem; }
-.assistant-model__menu--up { top: auto; bottom: calc(100% + .35rem); }
-.assistant-model__menu button { display: flex; width: 100%; padding: .5rem .6rem; border: 0; border-radius: .5rem; background: transparent; color: var(--assistant-text); font: 500 .85rem/1.2 Inter, sans-serif; text-align: left; cursor: pointer; }
+.assistant-model__btn svg { width: 1rem; height: 1rem; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.assistant-model__menu { position: absolute; right: 0; top: calc(100% + .48rem); min-width: 13.25rem; padding: .4rem; border: 1px solid var(--assistant-strong-line); border-radius: .82rem; background: var(--assistant-panel); box-shadow: 0 .7rem 2rem rgba(27,36,55,.18); z-index: 40; display: flex; flex-direction: column; gap: .16rem; transform-origin: top right; animation: assistant-model-menu-in .16s cubic-bezier(.2,.8,.2,1); }
+.assistant-model__menu--up { top: auto; bottom: calc(100% + .48rem); transform-origin: bottom right; }
+.assistant-model__menu button { display: flex; width: 100%; min-height: 2.45rem; padding: .58rem .72rem; border: 0; border-radius: .6rem; background: transparent; color: var(--assistant-text); font: 500 .92rem/1.25 Inter, sans-serif; text-align: left; cursor: pointer; }
 .assistant-model__menu button:hover { background: var(--assistant-soft); }
 .assistant-model__menu button.is-active { background: var(--assistant-blue-soft); color: var(--assistant-blue); font-weight: 600; }
+@keyframes assistant-model-menu-in { from { opacity: 0; transform: translateY(-.28rem) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
 /* Второй селектор (глубина) стоит вплотную к первому — auto только у первого. */
 .assistant-model + .assistant-model { margin-left: .42rem; }
 .composer-send:disabled { opacity: .55; cursor: default; }
