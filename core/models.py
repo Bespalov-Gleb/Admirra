@@ -1568,3 +1568,43 @@ class Lead(Base):
     
     # Relationships
     project = relationship("PhoneProject", back_populates="leads")
+
+
+class AiConversation(Base):
+    """Диалог AI-ассистента (роут /ai). Привязан к пользователю и, как правило,
+    к проекту (client_id) — именно его данные Директа/Метрики читает ассистент."""
+    __tablename__ = "ai_conversations"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=True, index=True)
+    title = Column(String(200), nullable=True)
+    model = Column(String(64), nullable=True)      # id модели из каталога
+    effort = Column(String(16), nullable=True)     # выбранный режим размышлений
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    messages = relationship(
+        "AiMessage", back_populates="conversation",
+        cascade="all, delete-orphan", order_by="AiMessage.created_at",
+    )
+
+
+class AiMessage(Base):
+    """Сообщение диалога. Роли как в OpenAI-совместимом чате: user/assistant/tool.
+    tool_calls хранит запрошенные ассистентом вызовы инструментов (и, при наличии,
+    reasoning_details); для role=tool заполнены tool_call_id и name."""
+    __tablename__ = "ai_messages"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    conversation_id = Column(UUID(as_uuid=True), ForeignKey("ai_conversations.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = Column(String(16), nullable=False)          # user | assistant | tool | system
+    content = Column(Text, nullable=True)
+    tool_calls = Column(JSON, nullable=True)           # [{id,type,function:{name,arguments}}] + reasoning_details
+    tool_call_id = Column(String(128), nullable=True)  # для role=tool
+    name = Column(String(96), nullable=True)           # имя инструмента для role=tool
+    tokens_in = Column(Integer, nullable=True)
+    tokens_out = Column(Integer, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    conversation = relationship("AiConversation", back_populates="messages")

@@ -335,6 +335,12 @@ except ImportError:
     AI_AVAILABLE = False
 
 try:
+    from ai.assistant.router import router as ai_assistant_router
+    AI_ASSISTANT_AVAILABLE = True
+except ImportError:
+    AI_ASSISTANT_AVAILABLE = False
+
+try:
     from backend_api.reports.router import router as reports_router
     REPORTS_AVAILABLE = True
 except ImportError:
@@ -500,6 +506,9 @@ app.include_router(brand_router, prefix="/api")
 
 if AI_AVAILABLE:
     app.include_router(ai_router, prefix="/api")
+
+if AI_ASSISTANT_AVAILABLE:
+    app.include_router(ai_assistant_router, prefix="/api")
 
 if REPORTS_AVAILABLE:
     app.include_router(reports_router, prefix="/api")

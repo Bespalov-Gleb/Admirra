@@ -81,6 +81,43 @@ class OpenAIConfig:
 
 
 @dataclass
+class OpenRouterConfig:
+    """AI-ассистент (роут /ai) ходит в модели через OpenAI-совместимый
+    /chat/completions с tool-calling и unified reasoning. provider выбирает
+    активного поставщика: 'proxyapi' (сейчас) или 'openrouter' (временно
+    отключён, вернёмся). Оба говорят на одном контракте и на одних слагах
+    (ProxyAPI использует OpenRouter-passthrough). Ключ активного провайдера
+    пустой — ассистент отвечает 503, интерфейс остаётся. referer/title/
+    default_model/итерации/таймаут — общие поведенческие настройки.
+    Слаги моделей — в ai/assistant/models_catalog.py."""
+    provider: str            # proxyapi | openrouter
+    api_key: str             # ключ OpenRouter (при provider=openrouter)
+    base_url: str            # база OpenRouter (OpenAI-совместимая)
+    proxyapi_key: str        # ключ ProxyAPI (при provider=proxyapi)
+    proxyapi_base: str        # корень ProxyAPI, напр. https://api.proxyapi.ru
+    referer: str
+    title: str
+    default_model: str
+    max_tool_iterations: int
+    request_timeout: float
+
+    @property
+    def active_key(self) -> str:
+        return self.proxyapi_key if self.provider == "proxyapi" else self.api_key
+
+
+@dataclass
+class WordstatConfig:
+    """Yandex Wordstat для ассистента. Старый OAuth-API отключён — теперь это
+    Yandex Cloud Search API v2, авторизация Api-Key сервисного аккаунта (наш общий
+    ключ на всех пользователей, не OAuth клиента). Пустой ключ — инструменты
+    Wordstat не предлагаются. folder_id опционален (ключ SA внутри каталога)."""
+    api_key: str
+    folder_id: str
+    base_url: str
+
+
+@dataclass
 class BillingConfig:
     billing_enabled: bool
     billing_env: str
@@ -241,6 +278,8 @@ class Config:
     auth: AuthConfig
     public_domain: PublicDomainConfig
     openai: OpenAIConfig
+    openrouter: OpenRouterConfig
+    wordstat: WordstatConfig
     billing: BillingConfig
     cloudpayments: CloudPaymentsConfig
     telegram_bot: TelegramBotConfig
@@ -337,6 +376,25 @@ def get_config() -> Config:
             api_key=_env("OPENAI_API_KEY"),
             model=_env("OPENAI_MODEL", "claude-sonnet-5"),
             base_url=_env("OPENAI_BASE_URL", "https://byesu.com"),
+        ),
+        openrouter=OpenRouterConfig(
+            # Активный поставщик LLM для ассистента. Временно 'proxyapi'; чтобы
+            # вернуться на OpenRouter — AI_ASSISTANT_PROVIDER=openrouter.
+            provider=_env("AI_ASSISTANT_PROVIDER", "proxyapi").lower(),
+            api_key=_env("OPENROUTER_API_KEY"),
+            base_url=(_env("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")).rstrip("/"),
+            proxyapi_key=_env("PROXYAPI_KEY"),
+            proxyapi_base=(_env("PROXYAPI_BASE", "https://api.proxyapi.ru")).rstrip("/"),
+            referer=_env("OPENROUTER_REFERER", "https://admirra.ru"),
+            title=_env("OPENROUTER_TITLE", "AdMirra"),
+            default_model=_env("OPENROUTER_DEFAULT_MODEL", "anthropic/claude-sonnet-5"),
+            max_tool_iterations=int(_env("OPENROUTER_MAX_TOOL_ITERATIONS", "8")),
+            request_timeout=float(_env("OPENROUTER_REQUEST_TIMEOUT", "120")),
+        ),
+        wordstat=WordstatConfig(
+            api_key=_env("YANDEX_WORDSTAT_API_KEY"),
+            folder_id=_env("YANDEX_CLOUD_FOLDER_ID"),
+            base_url=(_env("YANDEX_WORDSTAT_API_URL", "https://searchapi.api.cloud.yandex.net/v2/wordstat")).rstrip("/"),
         ),
         billing=BillingConfig(
             billing_enabled=_bool("BILLING_ENABLED", False),
