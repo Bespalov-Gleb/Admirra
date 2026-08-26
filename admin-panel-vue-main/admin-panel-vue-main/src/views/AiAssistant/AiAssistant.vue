@@ -277,8 +277,8 @@ const dataSources = computed(() => [
   { id: 'yandex-direct', name: 'Яндекс Директ', description: 'Расход и кампании', icon: '/admirra/img/icons/yandex-direct.png', available: true },
   { id: 'metrika', name: 'Яндекс Метрика', description: 'Цели и конверсии', icon: yandexMetrikaIcon, available: true },
   { id: 'wordstat', name: 'Wordstat', description: 'Спрос и семантика', available: wordstatConfigured.value, unavailableLabel: 'не подключён' },
-  { id: 'avito', name: 'Avito Ads', description: 'Площадка объявлений', icon: '/admirra/img/icons/avito.svg', available: false },
-  { id: 'vk', name: 'VK Реклама', description: 'Реклама VK', icon: '/admirra/img/icons/vk-ads.png', available: false },
+  { id: 'avito', name: 'Avito Ads', description: 'Кампании и расход', icon: '/admirra/img/icons/avito.svg', available: true },
+  { id: 'vk', name: 'VK Реклама', description: 'Кампании и расход', icon: '/admirra/img/icons/vk-ads.png', available: true },
 ])
 
 // Макетные готовые промпты (реальные добавим позже). Клик по плитке — вставить
@@ -416,6 +416,12 @@ const TOOL_LABELS = {
   wordstat_top_requests: 'Wordstat: спрос',
   wordstat_dynamics: 'Wordstat: динамика',
   wordstat_regions: 'Wordstat: регионы',
+  vk_get_campaigns: 'кампании VK',
+  vk_get_statistics: 'статистика VK',
+  vk_get_balance: 'баланс VK',
+  avito_get_campaigns: 'кампании Avito',
+  avito_get_statistics: 'статистика Avito',
+  avito_get_balance: 'баланс Avito',
 }
 const toolLabel = (name) => TOOL_LABELS[name] || name
 

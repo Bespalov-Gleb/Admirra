@@ -14,16 +14,17 @@ from core import models
 from backend_api.access_control import get_accessible_client_ids
 
 
-def _yandex_client_ids(db: Session, client_ids: list[UUID]) -> set[str]:
-    """Из client_ids — те, у кого есть Yandex Direct интеграция с токеном."""
+def _platform_client_ids(db: Session, client_ids: list[UUID], platform, *, token_field="access_token") -> set[str]:
+    """Из client_ids — те, у кого есть интеграция платформы с заполненными кредами."""
     if not client_ids:
         return set()
+    col = getattr(models.Integration, token_field)
     rows = (
         db.query(models.Integration.client_id)
         .filter(
             models.Integration.client_id.in_(client_ids),
-            models.Integration.platform == models.IntegrationPlatform.YANDEX_DIRECT,
-            models.Integration.access_token.isnot(None),
+            models.Integration.platform == platform,
+            col.isnot(None),
         )
         .all()
     )
@@ -31,13 +32,24 @@ def _yandex_client_ids(db: Session, client_ids: list[UUID]) -> set[str]:
 
 
 def list_accessible(db: Session, user: models.User) -> list[dict]:
-    """[{id, name, yandex}] по проектам, к которым у пользователя есть доступ."""
+    """[{id, name, platforms:{yandex,vk,avito}}] по доступным проектам."""
     ids = get_accessible_client_ids(db, user)
     if not ids:
         return []
     clients = db.query(models.Client.id, models.Client.name).filter(models.Client.id.in_(ids)).all()
-    yandex = _yandex_client_ids(db, ids)
-    return [{"id": str(cid), "name": name or "Без названия", "yandex": str(cid) in yandex} for cid, name in clients]
+    yandex = _platform_client_ids(db, ids, models.IntegrationPlatform.YANDEX_DIRECT)
+    vk = _platform_client_ids(db, ids, models.IntegrationPlatform.VK_ADS)
+    # У Avito токен-креды — platform_client_id (client_credentials), не access_token.
+    avito = _platform_client_ids(db, ids, models.IntegrationPlatform.AVITO_ADS, token_field="platform_client_id")
+    out = []
+    for cid, name in clients:
+        sid = str(cid)
+        out.append({
+            "id": sid,
+            "name": name or "Без названия",
+            "platforms": {"yandex": sid in yandex, "vk": sid in vk, "avito": sid in avito},
+        })
+    return out
 
 
 def resolve(db: Session, user: models.User, query: str) -> dict:

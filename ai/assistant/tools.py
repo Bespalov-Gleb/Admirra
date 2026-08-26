@@ -21,7 +21,11 @@ from sqlalchemy.orm import Session
 from core import models
 
 from . import projects, wordstat_client
-from .token_provider import YandexAccess, YandexAccessError, resolve_yandex
+from .token_provider import (
+    AvitoAccess, AvitoAccessError, VkAccess, VkAccessError,
+    YandexAccess, YandexAccessError,
+    resolve_avito, resolve_vk, resolve_yandex,
+)
 from .yandex_client import AiYandexClient, YandexApiError
 
 # ── Значения по умолчанию ────────────────────────────────────────────────────
@@ -31,18 +35,22 @@ DIRECT_REPORT_TYPES = [
     "ADGROUP_PERFORMANCE_REPORT", "CRITERIA_PERFORMANCE_REPORT", "SEARCH_QUERY_PERFORMANCE_REPORT",
 ]
 MAX_ROWS = 200
-_NO_PROJECT = {"error": "Проект не выбран. Сначала вызовите use_project с названием проекта."}
 
 
 @dataclass
 class ToolContext:
     """Контекст исполнения инструментов: доступ пользователя и текущий проект.
-    conversation — чтобы запомнить выбранный проект на весь диалог."""
+    Мультиплатформенный: у проекта могут быть Яндекс, VK и/или Avito. Выбор
+    проекта не требует конкретной платформы — каждый инструмент проверяет свою
+    при исполнении. conversation — чтобы запомнить проект на весь диалог."""
     db: Session
     user: models.User
     conversation: Optional[models.AiConversation] = None
-    access: Optional[YandexAccess] = None
+    client_id: Optional[str] = None
+    access: Optional[YandexAccess] = None   # Яндекс-доступ текущего проекта (или None)
     _client: Optional[AiYandexClient] = None
+    _vk: Optional[VkAccess] = None
+    _avito: Optional[AvitoAccess] = None
 
     @property
     def client(self) -> Optional[AiYandexClient]:
@@ -50,10 +58,38 @@ class ToolContext:
             self._client = AiYandexClient(self.access)
         return self._client
 
+    def vk(self) -> Optional[VkAccess]:
+        return self._vk
+
+    def avito(self) -> Optional[AvitoAccess]:
+        return self._avito
+
     def set_project(self, client_id) -> None:
-        """Переключает текущий проект (может бросить YandexAccessError)."""
-        self.access = resolve_yandex(self.db, client_id)
+        """Переключает текущий проект и резолвит доступ по каждой платформе
+        независимо (недоступная платформа → None, не ошибка)."""
+        self.client_id = str(client_id)
         self._client = None
+        try:
+            self.access = resolve_yandex(self.db, client_id)
+        except YandexAccessError:
+            self.access = None
+        try:
+            self._vk = resolve_vk(self.db, client_id)
+        except VkAccessError:
+            self._vk = None
+        try:
+            self._avito = resolve_avito(self.db, client_id)
+        except AvitoAccessError:
+            self._avito = None
+
+    def platforms(self) -> dict:
+        return {"yandex": self.access is not None, "vk": self._vk is not None, "avito": self._avito is not None}
+
+
+def _needs(ctx: ToolContext, platform_name: str) -> dict:
+    if not ctx.client_id:
+        return {"error": "Проект не выбран. Сначала вызовите use_project с названием проекта."}
+    return {"error": f"У выбранного проекта не подключён {platform_name}."}
 
 
 def _dump(obj: Any) -> str:
@@ -75,27 +111,29 @@ async def _exec_use_project(ctx: ToolContext, args: dict) -> str:
     if "project" not in res:
         return _dump(res)
     p = res["project"]
-    if not p.get("yandex"):
-        return _dump({"error": f"У проекта «{p['name']}» не подключён Яндекс.Директ — данных нет"})
-    try:
-        ctx.set_project(p["id"])
-    except YandexAccessError as exc:
-        return _dump({"error": str(exc)})
+    platforms = p.get("platforms") or {}
+    if not any(platforms.values()):
+        return _dump({"error": f"У проекта «{p['name']}» не подключено ни одной рекламной платформы — данных нет"})
+    ctx.set_project(p["id"])
     # Запоминаем выбор на весь диалог, чтобы следующие сообщения не переспрашивали.
     if ctx.conversation is not None:
-        ctx.conversation.client_id = ctx.access.integration.client_id
+        ctx.conversation.client_id = p["id"]
         try:
             ctx.db.commit()
         except Exception:
             ctx.db.rollback()
-    return _dump({"selected_project": {"id": p["id"], "name": p["name"]},
-                  "cabinet": ctx.access.account_name, "counter_ids": ctx.access.counter_ids})
+    return _dump({
+        "selected_project": {"id": p["id"], "name": p["name"]},
+        "platforms": ctx.platforms(),
+        "cabinet": (ctx.access.account_name if ctx.access else None),
+        "counter_ids": (ctx.access.counter_ids if ctx.access else []),
+    })
 
 
 # ── Yandex Direct ────────────────────────────────────────────────────────────
 async def _exec_direct_get_campaigns(ctx: ToolContext, args: dict) -> str:
     if not ctx.access:
-        return _dump(_NO_PROJECT)
+        return _dump(_needs(ctx, "Яндекс.Директ/Метрику"))
     params: dict = {"SelectionCriteria": {}, "FieldNames": ["Id", "Name", "State", "Status", "Type", "StartDate"]}
     if args.get("states"):
         params["SelectionCriteria"]["States"] = args["states"]
@@ -105,7 +143,7 @@ async def _exec_direct_get_campaigns(ctx: ToolContext, args: dict) -> str:
 
 async def _exec_direct_get_statistics(ctx: ToolContext, args: dict) -> str:
     if not ctx.access:
-        return _dump(_NO_PROJECT)
+        return _dump(_needs(ctx, "Яндекс.Директ/Метрику"))
     date_from, date_to = args["date_from"], args["date_to"]
     report_type = args.get("report_type", "CAMPAIGN_PERFORMANCE_REPORT")
     if report_type not in DIRECT_REPORT_TYPES:
@@ -133,7 +171,7 @@ async def _exec_direct_get_statistics(ctx: ToolContext, args: dict) -> str:
 
 async def _exec_direct_get_adgroups(ctx: ToolContext, args: dict) -> str:
     if not ctx.access:
-        return _dump(_NO_PROJECT)
+        return _dump(_needs(ctx, "Яндекс.Директ/Метрику"))
     sel: dict = {}
     if args.get("campaign_ids"):
         sel["CampaignIds"] = [str(c) for c in args["campaign_ids"]]
@@ -144,7 +182,7 @@ async def _exec_direct_get_adgroups(ctx: ToolContext, args: dict) -> str:
 
 async def _exec_direct_get_ads(ctx: ToolContext, args: dict) -> str:
     if not ctx.access:
-        return _dump(_NO_PROJECT)
+        return _dump(_needs(ctx, "Яндекс.Директ/Метрику"))
     sel: dict = {}
     if args.get("campaign_ids"):
         sel["CampaignIds"] = [str(c) for c in args["campaign_ids"]]
@@ -161,7 +199,7 @@ async def _exec_direct_get_ads(ctx: ToolContext, args: dict) -> str:
 
 async def _exec_direct_get_keywords(ctx: ToolContext, args: dict) -> str:
     if not ctx.access:
-        return _dump(_NO_PROJECT)
+        return _dump(_needs(ctx, "Яндекс.Директ/Метрику"))
     sel: dict = {}
     if args.get("campaign_ids"):
         sel["CampaignIds"] = [str(c) for c in args["campaign_ids"]]
@@ -186,7 +224,7 @@ def _check_counter(access: YandexAccess, counter_id: Any) -> Optional[str]:
 
 async def _exec_metrika_get_counters(ctx: ToolContext, args: dict) -> str:
     if not ctx.access:
-        return _dump(_NO_PROJECT)
+        return _dump(_needs(ctx, "Яндекс.Директ/Метрику"))
     data = await ctx.client.metrika_get("/management/v1/counters", {"per_page": 200})
     allowed = {str(c) for c in ctx.access.counter_ids}
     slim = [{"id": c.get("id"), "name": c.get("name"), "site": c.get("site")}
@@ -196,7 +234,7 @@ async def _exec_metrika_get_counters(ctx: ToolContext, args: dict) -> str:
 
 async def _exec_metrika_get_goals(ctx: ToolContext, args: dict) -> str:
     if not ctx.access:
-        return _dump(_NO_PROJECT)
+        return _dump(_needs(ctx, "Яндекс.Директ/Метрику"))
     counter_id = args["counter_id"]
     err = _check_counter(ctx.access, counter_id)
     if err:
@@ -208,7 +246,7 @@ async def _exec_metrika_get_goals(ctx: ToolContext, args: dict) -> str:
 
 async def _exec_metrika_get_report(ctx: ToolContext, args: dict) -> str:
     if not ctx.access:
-        return _dump(_NO_PROJECT)
+        return _dump(_needs(ctx, "Яндекс.Директ/Метрику"))
     counter_id = args["counter_id"]
     err = _check_counter(ctx.access, counter_id)
     if err:
@@ -225,7 +263,7 @@ async def _exec_metrika_get_report(ctx: ToolContext, args: dict) -> str:
 
 async def _exec_metrika_get_report_by_time(ctx: ToolContext, args: dict) -> str:
     if not ctx.access:
-        return _dump(_NO_PROJECT)
+        return _dump(_needs(ctx, "Яндекс.Директ/Метрику"))
     counter_id = args["counter_id"]
     err = _check_counter(ctx.access, counter_id)
     if err:
@@ -269,6 +307,73 @@ async def _exec_wordstat_dynamics(ctx: ToolContext, args: dict) -> str:
 
 async def _exec_wordstat_regions(ctx: ToolContext, args: dict) -> str:
     return _dump(await wordstat_client.regions(args["phrase"], args.get("region_type", "all"), args.get("devices")))
+
+
+# ── VK Ads (live) ─────────────────────────────────────────────────────────────
+def _vk_campaign_slim(c: dict) -> dict:
+    return {"id": c.get("id"), "name": c.get("name"), "status": c.get("status"),
+            "objective": c.get("objective"), "budget_limit": c.get("budget_limit")}
+
+
+async def _exec_vk_get_campaigns(ctx: ToolContext, args: dict) -> str:
+    vk = ctx.vk()
+    if not vk:
+        return _dump(_needs(ctx, "VK Ads"))
+    api = await vk.api()
+    campaigns = await api.get_campaigns()
+    return _dump({"campaigns": [_vk_campaign_slim(c) for c in _clip(campaigns)]})
+
+
+async def _exec_vk_get_statistics(ctx: ToolContext, args: dict) -> str:
+    vk = ctx.vk()
+    if not vk:
+        return _dump(_needs(ctx, "VK Ads"))
+    api = await vk.api()
+    campaigns = await api.get_campaigns()
+    ids = {str(c.get("id")) for c in args.get("campaign_ids") or []} if args.get("campaign_ids") else None
+    if ids:
+        campaigns = [c for c in campaigns if str(c.get("id")) in ids]
+    rows = await api.get_statistics(args["date_from"], args["date_to"], campaigns=campaigns or None)
+    return _dump({"period": [args["date_from"], args["date_to"]], "rows": _clip(rows), "row_count": len(rows)})
+
+
+async def _exec_vk_get_balance(ctx: ToolContext, args: dict) -> str:
+    vk = ctx.vk()
+    if not vk:
+        return _dump(_needs(ctx, "VK Ads"))
+    api = await vk.api()
+    return _dump({"balance": await api.get_balance()})
+
+
+# ── Avito Ads (live) ──────────────────────────────────────────────────────────
+async def _exec_avito_get_campaigns(ctx: ToolContext, args: dict) -> str:
+    avito = ctx.avito()
+    if not avito:
+        return _dump(_needs(ctx, "Avito Ads"))
+    api = avito.api()
+    campaigns = await api.get_campaigns()
+    return _dump({"campaigns": _clip(campaigns)})
+
+
+async def _exec_avito_get_statistics(ctx: ToolContext, args: dict) -> str:
+    avito = ctx.avito()
+    if not avito:
+        return _dump(_needs(ctx, "Avito Ads"))
+    api = avito.api()
+    ext_ids = [str(c) for c in (args.get("campaign_ids") or [])]
+    if not ext_ids:
+        campaigns = await api.get_campaigns()
+        ext_ids = [str(c.get("id") or c.get("external_id") or "") for c in campaigns if (c.get("id") or c.get("external_id"))]
+    rows = await api.get_statistics(ext_ids[:MAX_ROWS], args["date_from"], args["date_to"])
+    return _dump({"period": [args["date_from"], args["date_to"]], "rows": _clip(rows), "row_count": len(rows)})
+
+
+async def _exec_avito_get_balance(ctx: ToolContext, args: dict) -> str:
+    avito = ctx.avito()
+    if not avito:
+        return _dump(_needs(ctx, "Avito Ads"))
+    api = avito.api()
+    return _dump({"balance": await api.get_balance()})
 
 
 # ── Реестр ───────────────────────────────────────────────────────────────────
@@ -397,6 +502,52 @@ _REGISTRY: dict[str, tuple[dict, _Executor]] = {
              "devices": _DEVICES},
              "required": ["phrase"]}},
         _exec_wordstat_regions,
+    ),
+    # ── VK Ads ──
+    "vk_get_campaigns": (
+        {"name": "vk_get_campaigns",
+         "description": "Кампании (AdPlans) VK Рекламы текущего проекта: id, имя, статус, цель, бюджет. Отсюда берут id для статистики.",
+         "parameters": {"type": "object", "properties": {}}},
+        _exec_vk_get_campaigns,
+    ),
+    "vk_get_statistics": (
+        {"name": "vk_get_statistics",
+         "description": "Статистика VK Рекламы за период по кампаниям (показы, клики, расход, конверсии). Можно ограничить campaign_ids.",
+         "parameters": {"type": "object", "properties": {
+             "date_from": {"type": "string", "description": "YYYY-MM-DD"},
+             "date_to": {"type": "string", "description": "YYYY-MM-DD"},
+             "campaign_ids": {"type": "array", "items": {"type": "string"}, "description": "ID кампаний VK (опционально; по умолчанию все)."}},
+             "required": ["date_from", "date_to"]}},
+        _exec_vk_get_statistics,
+    ),
+    "vk_get_balance": (
+        {"name": "vk_get_balance",
+         "description": "Баланс рекламного кабинета VK Рекламы текущего проекта.",
+         "parameters": {"type": "object", "properties": {}}},
+        _exec_vk_get_balance,
+    ),
+    # ── Avito Ads ──
+    "avito_get_campaigns": (
+        {"name": "avito_get_campaigns",
+         "description": "Кампании Avito Рекламы текущего проекта. Отсюда берут id для статистики.",
+         "parameters": {"type": "object", "properties": {}}},
+        _exec_avito_get_campaigns,
+    ),
+    "avito_get_statistics": (
+        {"name": "avito_get_statistics",
+         "description": "Статистика Avito Рекламы за период по кампаниям (показы, клики, расход). Можно ограничить campaign_ids (по умолчанию все).",
+         "parameters": {"type": "object", "properties": {
+             "date_from": {"type": "string", "description": "YYYY-MM-DD"},
+             "date_to": {"type": "string", "description": "YYYY-MM-DD"},
+             "campaign_ids": {"type": "array", "items": {"type": "string"}}},
+             "required": ["date_from", "date_to"]}},
+        _exec_avito_get_statistics,
+    ),
+    "avito_get_balance": (
+        {"name": "avito_get_balance",
+         "description": "Баланс рекламного кабинета Avito Рекламы текущего проекта.",
+         "parameters": {"type": "object", "properties": {}}},
+        _exec_avito_get_balance,
     ),
 }
 

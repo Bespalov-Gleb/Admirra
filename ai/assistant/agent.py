@@ -18,7 +18,6 @@ from core.config import get_config
 
 from . import llm, tools, wordstat_client
 from .models_catalog import ModelSpec
-from .token_provider import YandexAccessError
 from .tools import ToolContext
 
 logger = logging.getLogger("ai_assistant.agent")
@@ -30,19 +29,26 @@ def _system_prompt(ctx: ToolContext) -> str:
     lines = [
         "Ты — аналитик рекламы AdMirra. Помогаешь по данным рекламных проектов пользователя.",
         f"Сегодня: {today}. Отвечай на русском, конкретными числами.",
-        "Инструменты: чтение Яндекс.Директа и Яндекс.Метрики по проекту" +
+        "Инструменты (по текущему проекту): Яндекс.Директ и Яндекс.Метрика (direct_*/metrika_*), "
+        "VK Реклама (vk_*), Avito Реклама (avito_*)" +
         (", а также Wordstat (спрос в Яндексе по фразам)." if wordstat_client.is_configured() else "."),
+        "У разных проектов подключены разные платформы — используй только те инструменты, "
+        "платформы которых есть у проекта (после use_project смотри поле platforms).",
         "Если нужного проекта нет в текущем контексте — вызови list_projects и use_project, выбрав проект по названию.",
         "Всегда бери числа из инструментов, ничего не выдумывай. Если данных нет — так и скажи.",
         "Wordstat вызывай только по прямому запросу пользователя о спросе, семантике или частотности; не делай повторные одинаковые вызовы.",
         "Формат периодов — YYYY-MM-DD. Конверсия по цели Метрики — метрика ym:s:goal<ID>reaches.",
         "Расходы Директа возвращаются с учётом НДС по умолчанию. Wordstat не требует выбора проекта.",
     ]
-    if ctx.access is not None:
-        cab = ctx.access.account_name or "—"
-        lines.append(f"Текущий проект диалога уже выбран. Рекламный кабинет: {cab}.")
-        if ctx.access.counter_ids:
-            lines.append(f"Счётчики Метрики проекта: {', '.join(map(str, ctx.access.counter_ids))}.")
+    if ctx.client_id is not None:
+        pl = ctx.platforms()
+        connected = [n for n, ok in (("Яндекс", pl["yandex"]), ("VK", pl["vk"]), ("Avito", pl["avito"])) if ok]
+        lines.append(f"Текущий проект диалога выбран. Подключено: {', '.join(connected) or 'нет платформ'}.")
+        if ctx.access is not None:
+            if ctx.access.account_name:
+                lines.append(f"Рекламный кабинет Яндекса: {ctx.access.account_name}.")
+            if ctx.access.counter_ids:
+                lines.append(f"Счётчики Метрики проекта: {', '.join(map(str, ctx.access.counter_ids))}.")
     else:
         lines.append("Проект не выбран. Спроси у пользователя или вызови list_projects, затем use_project по названию.")
     return "\n".join(lines)
@@ -90,12 +96,10 @@ async def run(
 
     # Контекст инструментов. Проект НЕ берётся из шапки: предвыбираем только тот,
     # что агент сам выбрал ранее в этом диалоге (сохранён в conversation.client_id).
+    # set_project резолвит каждую платформу независимо и не бросает исключений.
     ctx = ToolContext(db=db, user=user, conversation=conversation)
     if conversation.client_id:
-        try:
-            ctx.set_project(conversation.client_id)
-        except YandexAccessError:
-            ctx.access = None
+        ctx.set_project(conversation.client_id)
 
     tool_schemas = tools.tool_schemas()
 
