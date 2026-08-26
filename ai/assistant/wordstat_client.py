@@ -41,9 +41,9 @@ class WordstatError(RuntimeError):
 
 
 def is_configured() -> bool:
-    # folderId обязателен в каждом запросе Search API v2 — без него вызовы падают,
-    # поэтому Wordstat считаем подключённым только при наличии и ключа, и folderId.
-    return bool((cfg.wordstat.api_key or "").strip()) and bool((cfg.wordstat.folder_id or "").strip())
+    # Для API-ключа сервисного аккаунта Search API определяет каталог по самому
+    # ключу. folderId остаётся опциональным явным override для другого каталога.
+    return bool((cfg.wordstat.api_key or "").strip())
 
 
 def _map_devices(devices: Optional[list[str]]) -> Optional[list[str]]:
