@@ -890,7 +890,7 @@
           </div>
           <div v-if="group.bars.length" class="goals-bar-list">
             <div
-              v-for="(bar, barIdx) in group.bars"
+              v-for="(bar, barIdx) in visibleGoalBars(group)"
               :key="bar.id"
               class="goals-bar-row"
               :class="bar.alertClass"
@@ -913,6 +913,16 @@
                 <div class="goals-bar-fill" :style="{ width: bar.pct + '%', minWidth: bar.count > 0 ? '3px' : '0', background: bar.color, animationDelay: `${0.05 + barIdx * 0.07}s` }"></div>
               </div>
             </div>
+            <button
+              v-if="folderMode && group.bars.length > GOALS_FOLDER_LIMIT"
+              type="button"
+              class="goals-more-btn"
+              @click="toggleGoalGroup(group.key)"
+            >
+              {{ isGoalGroupExpanded(group.key)
+                ? 'Свернуть'
+                : `Показать ещё ${group.bars.length - GOALS_FOLDER_LIMIT}` }}
+            </button>
           </div>
           <div v-else class="goals-bar-empty">Нет целей за период</div>
           <div class="goals-footer">
@@ -5726,6 +5736,22 @@ async function confirmReportChannelLinked({ silent = false } = {}) {
 // «Проекты». Сводка/график/кампании/цели считаются по всем проектам папки.
 const folderMode = ref(null) // { id, name }
 const folderBreakdown = ref([])
+
+// В папке целей может быть много (агрегат по всем проектам) — показываем 5,
+// остальные под кнопкой «Показать ещё» (по каждому каналу отдельно).
+const GOALS_FOLDER_LIMIT = 5
+const expandedGoalGroups = ref({})
+const isGoalGroupExpanded = (key) => !!expandedGoalGroups.value[key]
+const toggleGoalGroup = (key) => {
+  expandedGoalGroups.value = { ...expandedGoalGroups.value, [key]: !expandedGoalGroups.value[key] }
+}
+const visibleGoalBars = (group) => {
+  const bars = group.bars || []
+  if (folderMode.value && !isGoalGroupExpanded(group.key) && bars.length > GOALS_FOLDER_LIMIT) {
+    return bars.slice(0, GOALS_FOLDER_LIMIT)
+  }
+  return bars
+}
 const folderBreakdownLoading = ref(false)
 const topProjects = ref([])
 const topProjectsLoading = ref(false)
@@ -9762,6 +9788,23 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
 }
+
+.goals-more-btn {
+  align-self: flex-start;
+  margin-top: 0.35rem;
+  padding: 0.32rem 0.7rem;
+  border: 1px solid #e5e9f0;
+  border-radius: 0.55rem;
+  background: #f6f8fc;
+  color: #2f6bea;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.goals-more-btn:hover { background: #eef2fb; border-color: #d5deee; }
+.figma-dashboard.is-dark .goals-more-btn { background: rgba(255,255,255,.05); border-color: rgba(255,255,255,.12); color: #7ea6ff; }
+.figma-dashboard.is-dark .goals-more-btn:hover { background: rgba(255,255,255,.09); }
 
 .goals-footer {
   margin-top: auto;
