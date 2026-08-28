@@ -94,37 +94,23 @@
             </div>
           </div>
 
-          <div class="assistant-sources">
-            <div class="assistant-sources__top">
-              <div>
-                <span class="assistant-sources__label">Источники данных</span>
-                <p>Ассистент использует подключённые кабинеты и аналитику проекта.</p>
-              </div>
-              <span class="assistant-sources__count">{{ dataSources.filter((source) => source.available).length }} доступно</span>
-            </div>
-            <div class="assistant-sources__grid">
-              <article v-for="s in dataSources" :key="s.id" class="source-card" :class="{ 'source-card--off': !s.available }">
-                <span class="source-card__icon" :class="`source-card__icon--${s.id}`">
+          <div class="assistant-sources-row">
+            <span class="assistant-sources-row__label">Откуда беру данные</span>
+            <div class="assistant-sources-row__pills">
+              <span v-for="s in dataSources" :key="s.id" class="source-pill" :class="{ 'source-pill--off': !s.available }" :title="s.available ? s.description : (s.unavailableLabel || 'скоро')">
+                <span class="source-pill__mark">
                   <img v-if="s.icon" :src="s.icon" :alt="s.name" />
                   <svg v-else-if="s.id === 'wordstat'" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 18.5V13m4.7 5.5V9m4.6 9.5V5.5M18.5 18.5v-7" /></svg>
                 </span>
-                <span class="source-card__content">
-                  <span class="source-card__name">{{ s.name }}</span>
-                  <span class="source-card__description">{{ s.description }}</span>
-                </span>
-                <span class="source-card__status" :class="{ 'is-available': s.available }"><i></i>{{ s.available ? 'доступно' : (s.unavailableLabel || 'скоро') }}</span>
-              </article>
+                <span class="source-pill__name">{{ s.name }}</span>
+                <i class="source-pill__dot" :class="{ 'is-on': s.available }"></i>
+              </span>
             </div>
           </div>
-
-          <button type="button" class="assistant-scrollhint" @click="scrollToPrompts">
-            <span><b>Готовые промпты</b><small>Начните с готового сценария</small></span>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
-          </button>
         </div>
 
-        <div v-if="promptsVisible" ref="promptsSection" class="assistant-prompts">
-          <h3 class="assistant-prompts__title">Готовые промпты</h3>
+        <div ref="promptsSection" class="assistant-prompts">
+          <h3 class="assistant-prompts__title">Спросите одним кликом</h3>
           <div class="assistant-prompts__grid">
             <div
               v-for="(p, i) in readyPrompts"
@@ -149,6 +135,10 @@
                 </button>
               </div>
               <span class="prompt-tile__desc">{{ p.desc }}</span>
+              <span class="prompt-tile__service" :class="`prompt-tile__service--${p.service}`" aria-hidden="true">
+                <img v-if="serviceIcon(p.service)" :src="serviceIcon(p.service)" :alt="p.service" />
+                <svg v-else viewBox="0 0 24 24"><path d="M5 18.5V13m4.7 5.5V9m4.6 9.5V5.5M18.5 18.5v-7"/></svg>
+              </span>
             </div>
           </div>
         </div>
@@ -292,30 +282,72 @@ const dataSources = computed(() => [
 
 // Макетные готовые промпты (реальные добавим позже). Клик по плитке — вставить
 // в поле ввода, кнопка копирования — скопировать текст промпта.
+// Иконки сервисов для плиток промптов (реюз ассетов источников).
+const SERVICE_ICON = {
+  direct: '/admirra/img/icons/yandex-direct.png',
+  metrika: yandexMetrikaIcon,
+  vk: '/admirra/img/icons/vk-ads.png',
+  avito: '/admirra/img/icons/avito.svg',
+  wordstat: null, // рисуем svg
+}
+const serviceIcon = (service) => SERVICE_ICON[service] || null
+
+// Готовые промпты по всем сервисам. Клик — полный структурированный запрос
+// уходит в поле ввода. Тексты адаптированы под наш ассистент (live-инструменты).
 const readyPrompts = [
-  { title: 'Аудит Директа', desc: 'Кампании, расход, CTR и явные проблемы за месяц.', prompt: 'Сделай аудит Яндекс.Директа за последний месяц: расход, клики, CTR и где явные проблемы.' },
-  { title: 'Дорогие кампании по CPL', desc: 'Кампании с самым высоким CPL относительно цели.', prompt: 'Найди кампании Директа с самым высоким CPL за последний месяц и покажи их расход и лиды.' },
-  { title: 'Динамика лидов', desc: 'Конверсии по дням за последние 30 дней.', prompt: 'Покажи динамику конверсий (лидов) по дням за последние 30 дней из Метрики.' },
-  { title: 'Куда уходит бюджет', desc: 'Разбивка расхода по кампаниям, где отдача низкая.', prompt: 'Разбей расход Директа по кампаниям за месяц и выдели кампании с низкой отдачей.' },
-  { title: 'Спрос по фразе · Wordstat', desc: 'Частотность, динамика и регионы по фразе.', prompt: 'Собери в Wordstat спрос по фразе «» — общую частотность, динамику и распределение по регионам.' },
-  { title: 'Сравнение с прошлым месяцем', desc: 'Расход, лиды и CPL — что изменилось.', prompt: 'Сравни расход, лиды и CPL с прошлым месяцем и объясни ключевые изменения.' },
+  // ── Яндекс Директ ──
+  { service: 'direct', title: 'Аудит Директа', desc: 'Проверяет кампании, расходы, конверсии и явные проблемы.',
+    prompt: 'Сделай аудит Яндекс.Директа: кампании, группы, объявления, ключевые фразы, бюджеты и отчёты. Найди перерасход, низкую конверсию, дорогие лиды, резкие изменения и странную структуру. Период по умолчанию — последние 30 дней (если в данных доступен другой — используй его и укажи это). Покажи: какие данные проверял (аккаунт, период); таблицу проблем (объект, показатель, что не так, возможная причина, приоритет, рекомендация); короткую сводку по главным показателям; 3–5 первых действий для ручной проверки. Если данных не хватает — прямо напиши это и предложи ближайшую полезную проверку.' },
+  { service: 'direct', title: 'Контроль бюджета Директа', desc: 'Где бюджет расходуется слишком быстро или почти не работает.',
+    prompt: 'Проверь бюджеты и темп расхода Яндекс.Директа: какие кампании расходуют бюджет быстрее плана, какие почти не получают трафик, где расход есть, а результата нет. Период — текущий месяц и последние 7 дней. Покажи таблицу (кампания, расход, результат, средний дневной расход, риск, рекомендация), отдельный список кампаний для срочной ручной проверки и 3–5 первых действий для улучшения бюджета. Если данных не хватает — напиши прямо.' },
+  { service: 'direct', title: 'Поиск лишних расходов', desc: 'Ищет фразы и группы, где расход есть, а результата мало.',
+    prompt: 'Найди лишние расходы в Яндекс.Директе: сравни расход, клики, заявки/продажи и стоимость результата. Период — последние 30 дней. Покажи таблицу (кампания/группа/фраза, расход, клики, результат, стоимость результата, проблема, ручная проверка), сегменты сгруппируй по приоритету, добавь список первых ручных проверок. Если данных не хватает — напиши прямо.' },
+  { service: 'direct', title: 'Качество заявок из Директа', desc: 'Показывает, какие кампании дают больше полезных заявок.',
+    prompt: 'Проанализируй качество заявок из Яндекс.Директа: сравни кампании и группы по лидам, стоимости лида и доступным признакам качества. Период — последние 30 дней. Конверсии считай по отслеживаемым целям проекта. Покажи таблицу по кампаниям (лиды, стоимость лида, признаки качества, проблемы, рекомендации), список данных, которых не хватает для точной оценки, и общие выводы по группам заявок. Если данных не хватает — напиши прямо.' },
+  { service: 'direct', title: 'Месячный отчёт Директа', desc: 'Собирает большой управленческий отчёт за месяц.',
+    prompt: 'Подготовь месячный отчёт по Яндекс.Директу для руководителя и маркетолога за последний полный календарный месяц. Начни с executive summary (5–7 пунктов): общий расход, результат, стоимость заявки, изменение к прошлому периоду, кампании-драйверы, источники потерь, вывод по месяцу. Дай таблицу кампаний (расход, клики, конверсии/лиды, CPA/CPL, доля бюджета, динамика, статус, проблема/точка роста, действие); выдели кампании с высоким расходом и малым результатом, с просадкой и с потенциалом масштабирования. Собери блок рекомендаций (срочные, плановые, гипотезы) с ожидаемым эффектом и финальный чек-лист из 7–10 действий. Цифры не выдумывай: пробелы отмечай явно.' },
+  // ── Wordstat / семантика ──
+  { service: 'wordstat', title: 'Семантическое ядро', desc: 'Собирает базовые фразы, кластеры и минус-темы по продукту и региону.',
+    prompt: 'Собери семантическое ядро для продукта или услуги проекта через Wordstat. Если регион не указан — сделай аккуратное допущение и явно подпиши его. Покажи кластеры (коммерческие, информационные, брендовые, конкуренты, минус-темы), для каждого — примеры фраз и приоритет, и список уточнений, если не хватает региона или тематики.' },
+  { service: 'wordstat', title: 'Минус-темы', desc: 'Находит нерелевантные темы и мусорные запросы для ручной проверки.',
+    prompt: 'Подбери минус-темы и мусорные запросы для тематики через Wordstat. Группируй только то, что есть в данных или явно следует из контекста. Покажи таблицу (минус-тема, примеры фраз, причина исключения, риск ошибки, приоритет ручной проверки), отдельный список спорных тем и список первых ручных проверок.' },
+  { service: 'wordstat', title: 'Спрос по регионам', desc: 'Сравнивает спрос по регионам для рекламы или поиска.',
+    prompt: 'Оцени спрос по регионам для тематики через Wordstat. Если список регионов не задан — предложи разумный набор крупных регионов и отметь это как допущение. Покажи таблицу (регион, уровень спроса, сильные темы, слабые темы, риск нерелевантности, рекомендация), список регионов для глубокой проверки и допущения по географии.' },
+  { service: 'wordstat', title: 'Расширение кластеров', desc: 'Находит новые кластеры спроса вокруг текущей тематики.',
+    prompt: 'Найди новые кластеры спроса вокруг текущей тематики через Wordstat. Раздели их на быстрый рекламный запуск, поиск/контент, спорные гипотезы и нерелевантные темы. Покажи таблицу кластеров (приоритет, примеры фраз, намерение пользователя, риски, следующие шаги), отдельный список спорных гипотез и что можно оценить только после дополнительной проверки.' },
+  // ── Яндекс Метрика ──
+  { service: 'metrika', title: 'Аудит трафика и целей', desc: 'Проверяет каналы, цели и просадки в Яндекс.Метрике.',
+    prompt: 'Сделай аудит трафика и целей в Яндекс.Метрике: источники трафика, цели, конверсия, отказы, резкие изменения и сегменты с потерями. Период — последние 30 дней. Конверсии считай по отслеживаемым целям проекта. Покажи таблицу (канал/сегмент, трафик, конверсия, проблема, возможная причина, рекомендация), список подозрительных целей, использованный период и счётчик. Если данных не хватает — напиши прямо.' },
+  { service: 'metrika', title: 'Страницы с потерей конверсии', desc: 'Находит страницы, где много трафика, но слабый результат.',
+    prompt: 'Найди страницы сайта, где много визитов, но низкая конверсия или высокая доля отказов (Яндекс.Метрика). Период — последние 30 дней. Сравни страницы между собой. Покажи таблицу (страница, визиты, конверсия, отказы, проблема, рекомендация), топ страниц для первичной ручной проверки и ограничения по выбранным целям.' },
+  { service: 'metrika', title: 'Сравнение каналов', desc: 'Сравнивает каналы трафика по целям и качеству визитов.',
+    prompt: 'Сравни каналы трафика в Метрике по визитам, целям, конверсии и отказам. Период — последние 30 дней. Покажи таблицу (канал, визиты, цели, конверсия, качество, вывод), какие каналы усиливать, а какие проверить, и какие цели использовались. Если данных не хватает — напиши прямо.' },
+  { service: 'metrika', title: 'Посадочные страницы', desc: 'Откуда трафик и какие страницы конвертят лучше.',
+    prompt: 'Проанализируй посадочные страницы (Яндекс.Метрика): откуда приходит трафик, какие страницы конвертируют лучше, где есть трафик без результата. Период — последние 30 дней. Покажи таблицу (посадочная, канал, визиты, цель, конверсия, проблема, рекомендация), страницы, где стоит вручную сравнить варианты, и ограничения по данным.' },
+  // ── VK Реклама ──
+  { service: 'vk', title: 'Аудит VK Рекламы', desc: 'Проверяет кампании, группы, баннеры и показатели.',
+    prompt: 'Сделай аудит VK Рекламы: кампании, группы, баннеры, показы, клики, лиды и другие доступные показатели результата. Период — последние 30 дней. Покажи таблицу (кампания/группа/баннер, показатели, проблема, причина, рекомендация), приоритеты ручной проверки и что проверить перед изменением ставок, бюджетов и объявлений. Если данных не хватает — напиши прямо.' },
+  { service: 'vk', title: 'Лид-формы VK', desc: 'Сравнивает формы по объёму, качеству и стоимости заявок.',
+    prompt: 'Проанализируй лид-формы VK Рекламы: сравни формы по объёму лидов, качеству, стоимости или доступным признакам результата. Период — последние 30 дней. Покажи таблицу (форма, заявки, стоимость/качество если доступно, проблема, рекомендация), что нужно из системы продаж для точной оценки и общие выводы по формам заявок.' },
+  { service: 'vk', title: 'Креативы VK', desc: 'CTR, расход без результата и что стоит обновить.',
+    prompt: 'Сравни баннеры и креативы VK Рекламы: найди низкий CTR (долю кликов от показов), высокий расход без результата, резкую просадку и хороший потенциал роста. Период — последние 30 дней. Покажи таблицу (баннер/группа, показы, клики, CTR, результат, вывод, рекомендация), креативы для обновления и что проверить перед обновлением.' },
+  { service: 'vk', title: 'Обзор аккаунта VK', desc: 'Что в кабинете, какая статистика и что требует внимания.',
+    prompt: 'Подготовь обзор аккаунта VK Рекламы: какие кампании, группы и баннеры есть в кабинете, какая по ним статистика и что требует внимания. Период статистики — последние 30 дней. Покажи, какие данные удалось посмотреть, краткий обзор кампаний/групп/баннеров и что важно проверить вручную.' },
+  // ── Avito Реклама ──
+  { service: 'avito', title: 'Аудит Avito Рекламы', desc: 'Проверяет кампании, расходы, клики и точки роста.',
+    prompt: 'Сделай аудит Avito Рекламы: кампании, группы, объявления, расходы, показы, клики и доступные показатели результата. Период — последние 30 дней. Покажи таблицу (кампания/группа, показатели, проблема, причина, рекомендация), приоритеты ручной оптимизации и что проверить перед изменением рекламы. Если данных не хватает — напиши прямо.' },
+  { service: 'avito', title: 'Креативы Avito', desc: 'Сравнивает объявления по показам, кликам и обращениям.',
+    prompt: 'Сравни объявления и креативы Avito Рекламы по показам, кликам, доле кликов от показов, обращениям и расходам (если данные доступны). Период — последние 30 дней. Покажи таблицу (объявление, показы, клики, CTR, результат, вывод, рекомендация), объявления, которые стоит обновить, и что проверить перед обновлением.' },
+  { service: 'avito', title: 'Расходы Avito', desc: 'Находит кампании, где бюджет уходит без результата.',
+    prompt: 'Проверь расходы Avito Рекламы: найди кампании, где бюджет расходуется без результата или слишком быстро. Период — текущий месяц и последние 7 дней. Покажи таблицу (кампания, расход, результат, риск, рекомендация), сигналы для ручной проверки бюджета и что проверить перед изменением бюджета.' },
+  { service: 'avito', title: 'Краткий отчёт Avito', desc: 'Активные кампании, показатели, изменения и риски.',
+    prompt: 'Подготовь краткий отчёт по Avito Рекламе: активные кампании, основные показатели, изменения, риски и рекомендации. Период — последние 7 дней. Покажи сводку в 5–7 пунктов, таблицу основных кампаний и что проверить вручную на следующей неделе.' },
 ]
 
 const emptyScroll = ref(null)
 const promptsSection = ref(null)
-const promptsVisible = ref(false)
 const copiedIndex = ref(-1)
 let _copyTimer = null
-
-const scrollToPrompts = async () => {
-  promptsVisible.value = true
-  await nextTick()
-  const container = emptyScroll.value
-  const target = promptsSection.value
-  if (!container || !target) return
-  const top = target.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - 16
-  container.scrollTo({ top, behavior: 'smooth' })
-}
 
 const copyPrompt = async (text, i) => {
   try { await navigator.clipboard.writeText(text) } catch { /* clipboard может быть недоступен */ }
@@ -708,49 +740,38 @@ onUnmounted(() => {
 
 /* Экран приветствия: колонка со скроллом — герой на первый экран, промпты ниже */
 .assistant-empty { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 0; padding: 0; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-gutter: stable both-edges; }
-.assistant-hero { box-sizing: border-box; display: flex; flex: 1 0 auto; flex-direction: column; align-items: center; justify-content: center; width: 100%; max-width: 68rem; min-height: 100%; padding: 2.35rem 2.75rem 2.45rem; text-align: center; }
+.assistant-hero { box-sizing: border-box; display: flex; flex: 0 0 auto; flex-direction: column; align-items: center; justify-content: flex-start; width: 100%; max-width: 68rem; padding: 3rem 2.75rem 1.6rem; text-align: center; }
 .assistant-hero__title { margin: 0; font-size: clamp(2.15rem, 2.65vw, 2.6rem); font-weight: 700; letter-spacing: -.04em; text-wrap: balance; }
 .assistant-hero__sub { margin: .72rem auto 0; max-width: 42rem; color: var(--assistant-sub); font-size: 1.12rem; line-height: 1.55; text-wrap: balance; }
 .assistant-hero .assistant-composer { width: min(65.5rem, 100%); margin-top: 1.95rem; text-align: left; }
 
-/* Источники данных */
-.assistant-sources { width: min(57rem, 100%); margin-top: 1.7rem; text-align: left; }
-.assistant-sources__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: .7rem; }
-.assistant-sources__label { display: block; margin-bottom: .26rem; color: var(--assistant-text); font-size: .82rem; font-weight: 700; letter-spacing: -.01em; }
-.assistant-sources__top p { margin: 0; color: var(--assistant-muted); font-size: .8rem; line-height: 1.35; }
-.assistant-sources__count { flex: 0 0 auto; display: inline-flex; align-items: center; min-height: 1.75rem; padding: 0 .62rem; border: 1px solid var(--assistant-line); border-radius: 99px; background: var(--assistant-soft); color: var(--assistant-sub); font-size: .72rem; font-weight: 600; }
-.assistant-sources__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .58rem; }
-.source-card { display: flex; align-items: center; min-width: 0; min-height: 4.9rem; gap: .75rem; padding: .72rem .78rem; border: 1px solid var(--assistant-line); border-radius: 1rem; background: var(--assistant-panel); box-shadow: 0 .13rem .42rem rgba(27,36,55,.025); transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease; }
-.source-card:hover { border-color: var(--assistant-strong-line); box-shadow: 0 .42rem 1.25rem rgba(27,36,55,.07); transform: translateY(-1px); }
-.source-card__icon { display: grid; width: 2.9rem; height: 2.9rem; flex: 0 0 2.9rem; place-items: center; overflow: hidden; border-radius: .86rem; background: #f1f5ff; }
-.source-card__icon img { width: 1.85rem; height: 1.85rem; object-fit: contain; }
-.source-card__icon--yandex-direct { background: #fff8e7; }
-.source-card__icon--metrika { background: #fff0f0; }
-.source-card__icon--wordstat { background: #f2efff; color: #7563e7; }
-.source-card__icon--wordstat svg { width: 1.35rem; height: 1.35rem; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
-.source-card__icon--avito { background: #eafaf6; }
-.source-card__icon--vk { background: #edf4ff; }
-.source-card__content { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: .18rem; }
-.source-card__name { overflow: hidden; color: var(--assistant-text); font-size: .89rem; font-weight: 700; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
-.source-card__description { overflow: hidden; color: var(--assistant-muted); font-size: .76rem; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
-.source-card__status { display: inline-flex; align-items: center; flex: 0 0 auto; gap: .28rem; color: var(--assistant-muted); font-size: .68rem; font-weight: 600; white-space: nowrap; }
-.source-card__status i { width: .33rem; height: .33rem; border-radius: 50%; background: currentColor; }
-.source-card__status.is-available { color: var(--assistant-green); }
-.source-card--off { opacity: .68; }
-.source-card--off .source-card__icon { filter: saturate(.75); }
-
-/* Подсказка к готовым промптам */
-.assistant-scrollhint { display: inline-flex; align-items: center; gap: .6rem; margin-top: 1.85rem; padding: .58rem .78rem .58rem 1rem; border: 1px solid var(--assistant-line); border-radius: .8rem; background: var(--assistant-soft); color: var(--assistant-sub); font: 600 .8rem/1 Inter, sans-serif; text-align: left; cursor: pointer; }
-.assistant-scrollhint span { display: flex; flex-direction: column; gap: .15rem; }.assistant-scrollhint b { color: var(--assistant-text); font-size: .78rem; }.assistant-scrollhint small { color: var(--assistant-muted); font-size: .68rem; font-weight: 500; }
-.assistant-scrollhint:hover { color: var(--assistant-text); border-color: var(--assistant-strong-line); }
-.assistant-scrollhint svg { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; animation: hint-bounce 1.6s ease-in-out infinite; }
-@keyframes hint-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(3px); } }
+/* Источники данных — компактный ряд пилюль */
+.assistant-sources-row { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem .8rem; width: min(57rem, 100%); margin-top: 1.5rem; text-align: left; }
+.assistant-sources-row__label { color: var(--assistant-muted); font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+.assistant-sources-row__pills { display: flex; flex-wrap: wrap; gap: .5rem; }
+.source-pill { display: inline-flex; align-items: center; gap: .48rem; padding: .34rem .7rem .34rem .38rem; border: 1px solid var(--assistant-line); border-radius: 999px; background: var(--assistant-panel); box-shadow: 0 .1rem .3rem rgba(27,36,55,.03); }
+.source-pill__mark { display: grid; width: 1.7rem; height: 1.7rem; flex: 0 0 1.7rem; place-items: center; overflow: hidden; border-radius: .5rem; background: #f1f5ff; color: #7563e7; }
+.source-pill__mark img { width: 1.15rem; height: 1.15rem; object-fit: contain; }
+.source-pill__mark svg { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.source-pill__name { color: var(--assistant-text); font-size: .84rem; font-weight: 700; white-space: nowrap; }
+.source-pill__dot { width: .42rem; height: .42rem; border-radius: 50%; background: var(--assistant-muted); }
+.source-pill__dot.is-on { background: var(--assistant-green); box-shadow: 0 0 0 .16rem rgba(31,165,91,.14); }
+.source-pill--off { opacity: .62; }
+.source-pill--off .source-pill__mark { filter: saturate(.7); }
 
 /* Готовые промпты */
-.assistant-prompts { width: 100%; max-width: 76rem; padding: 1.4rem 2.5rem 3.5rem; }
-.assistant-prompts__title { margin: 0 0 1rem; font-size: 1.28rem; font-weight: 700; letter-spacing: -.025em; }
-.assistant-prompts__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; }
-.prompt-tile { display: flex; flex-direction: column; min-height: 7.2rem; gap: .38rem; padding: 1rem 1.08rem 1.1rem; border: 1px solid var(--assistant-line); border-radius: 1rem; background: var(--assistant-panel); text-align: left; cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease; }
+.assistant-prompts { width: 100%; max-width: 64rem; padding: 1.6rem 2.5rem 3.5rem; }
+.assistant-prompts__title { margin: 0 0 1rem; color: var(--assistant-muted); font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.assistant-prompts__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+.prompt-tile { position: relative; display: flex; flex-direction: column; min-height: 8.6rem; gap: .38rem; padding: 1rem 1.08rem 3rem; border: 1px solid var(--assistant-line); border-radius: 1rem; background: var(--assistant-panel); text-align: left; cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease; }
+.prompt-tile__service { position: absolute; right: .9rem; bottom: .82rem; display: grid; width: 2.5rem; height: 2.5rem; place-items: center; overflow: hidden; border-radius: .7rem; background: #f1f5ff; color: #7563e7; }
+.prompt-tile__service img { width: 1.75rem; height: 1.75rem; object-fit: contain; }
+.prompt-tile__service svg { width: 1.35rem; height: 1.35rem; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.prompt-tile__service--direct { background: #fff8e7; }
+.prompt-tile__service--metrika { background: #fff0f0; }
+.prompt-tile__service--vk { background: #edf4ff; }
+.prompt-tile__service--avito { background: #eafaf6; }
+.prompt-tile__service--wordstat { background: #f2efff; }
 .prompt-tile:hover { border-color: var(--assistant-blue); box-shadow: 0 .4rem 1.1rem rgba(47,107,234,.09); }
 .prompt-tile:focus-visible { outline: 2px solid var(--assistant-blue); outline-offset: 2px; }
 .prompt-tile__head { display: flex; align-items: flex-start; justify-content: space-between; gap: .6rem; }
@@ -816,7 +837,6 @@ onUnmounted(() => {
   .assistant-rail:not(.assistant-rail--open) { width: 3.5rem; flex-basis: 3.5rem; }
   .assistant-depth button:last-child { display: none; }
   .assistant-hero { max-width: 52rem; }
-  .assistant-sources__grid, .assistant-prompts__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 820px) {
   .assistant-stage__head { padding-inline: 1rem; }
@@ -825,12 +845,11 @@ onUnmounted(() => {
   .assistant-thread__inner, .assistant-thread__composer { padding-inline: 1rem; }
 }
 @media (max-width: 640px) {
-  .assistant-sources__top { align-items: flex-start; flex-direction: column; gap: .5rem; }
-  .assistant-sources__grid, .assistant-prompts__grid { grid-template-columns: 1fr; }
+  .assistant-prompts__grid { grid-template-columns: 1fr; }
   .assistant-composer__hint { display: none; }
   .assistant-model__btn { padding-inline: .55rem; }
 }
 @media (max-width: 560px) { .assistant-rail { display: none; }.assistant-hero__title { font-size: 1.4rem; } }
-@media (prefers-reduced-motion: reduce) { .assistant-scrollhint svg, .assistant-tool-note span, .assistant-typing i { animation: none; }.prompt-tile { transition: opacity .2s ease; transform: none; }.prompt-tile__copy.is-copied { animation: none; }.chat-message-enter-active { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .assistant-tool-note span, .assistant-typing i { animation: none; }.prompt-tile { transition: opacity .2s ease; transform: none; }.prompt-tile__copy.is-copied { animation: none; }.chat-message-enter-active { transition: none; } }
 @media (prefers-reduced-motion: reduce) { .assistant-rail, .assistant-suggestion { transition: none; } }
 </style>
