@@ -74,6 +74,21 @@ def _counter_ids(integration: models.Integration) -> list[str]:
         return []
 
 
+def _goal_ids(integration: models.Integration) -> list[str]:
+    """Отслеживаемые цели проекта — те же, что на дашборде: selected_goals +
+    primary_goal_id (логика как в backend_api/stats.py)."""
+    raw = integration.selected_goals
+    try:
+        parsed = json.loads(raw) if isinstance(raw, str) else (raw or [])
+        goals = [str(g) for g in parsed if str(g).strip()]
+    except (json.JSONDecodeError, TypeError):
+        goals = []
+    primary = str(integration.primary_goal_id or "").strip()
+    if primary and primary not in goals:
+        goals.append(primary)
+    return goals
+
+
 @dataclass
 class YandexAccess:
     """Живой доступ к Яндекс API одного проекта. Держит расшифрованный токен и
@@ -82,6 +97,7 @@ class YandexAccess:
     integration: models.Integration
     client_login: Optional[str]
     counter_ids: list[str] = field(default_factory=list)
+    goal_ids: list[str] = field(default_factory=list)  # отслеживаемые цели (дашборд)
     _token: Optional[str] = None
 
     @property
@@ -149,6 +165,7 @@ def resolve_yandex(db: Session, client_id: UUID | str) -> YandexAccess:
         integration=integration,
         client_login=_selected_profile(integration),
         counter_ids=_counter_ids(integration),
+        goal_ids=_goal_ids(integration),
     )
 
 

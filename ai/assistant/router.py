@@ -3,6 +3,7 @@
 Отдельный роутер от ai/router.py (AI-комментарии дашборда)."""
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Optional
 from uuid import UUID
@@ -186,12 +187,36 @@ async def chat(
 
     async def event_stream():
         yield _sse({"type": "meta", "conversation_id": conversation_id, "model": model.id})
+        # Мультиплексируем поток агента с heartbeat: при долгом думании/медленных
+        # инструментах агент какое-то время молчит, и без периодических байтов
+        # прокси (nginx) рвёт соединение по таймауту — казалось, что «завис».
+        queue: asyncio.Queue = asyncio.Queue()
+        _DONE = object()
+
+        async def _producer():
+            try:
+                async for ev in agent.run(db, conv, text, model, effort, current_user):
+                    await queue.put(ev)
+            except Exception as exc:  # noqa: BLE001
+                await queue.put({"type": "error", "error": f"Сбой стрима: {exc}"})
+            finally:
+                await queue.put(_DONE)
+
+        task = asyncio.create_task(_producer())
         try:
-            async for ev in agent.run(db, conv, text, model, effort, current_user):
-                yield _sse(ev)
-        except Exception as exc:  # noqa: BLE001 — не рвём соединение без события
-            yield _sse({"type": "error", "error": f"Сбой стрима: {exc}"})
-        yield _sse({"type": "end"})
+            while True:
+                try:
+                    item = await asyncio.wait_for(queue.get(), timeout=12.0)
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"   # SSE-комментарий — клиент игнорирует, соединение живёт
+                    continue
+                if item is _DONE:
+                    break
+                yield _sse(item)
+        finally:
+            if not task.done():
+                task.cancel()
+            yield _sse({"type": "end"})
 
     return StreamingResponse(
         event_stream(),

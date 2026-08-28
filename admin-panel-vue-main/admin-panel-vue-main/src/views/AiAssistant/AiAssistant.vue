@@ -87,8 +87,9 @@
                   <button v-for="e in selectedModel.efforts" :key="e" type="button" :class="{ 'is-active': e === selectedEffort }" @click="pickEffort(e)">{{ effortName(e) }}</button>
                 </div>
               </div>
-              <button class="composer-send" type="button" aria-label="Отправить" :class="{ 'is-active': prompt.trim() && !sending }" :disabled="sending" @click="sendPrompt">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 18V6m0 0 4.5 4.5M12 6l-4.5 4.5"/></svg>
+              <button class="composer-send" type="button" :aria-label="sending ? 'Остановить' : 'Отправить'" :class="{ 'is-active': prompt.trim() && !sending, 'composer-send--stop': sending }" @click="sending ? stopGeneration() : sendPrompt()">
+                <svg v-if="!sending" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 18V6m0 0 4.5 4.5M12 6l-4.5 4.5"/></svg>
+                <svg v-else viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>
               </button>
             </div>
           </div>
@@ -161,9 +162,16 @@
                 <span class="assistant-message__avatar" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3 1.6 5.4L19 10l-5.4 1.6L12 17l-1.6-5.4L5 10l5.4-1.6L12 3Z"/></svg></span>
                 <div class="assistant-message__body">
                   <div class="assistant-message__label">AdMirra AI</div>
+                  <details v-if="message.reasoning" class="assistant-reasoning" :open="message.pending && !message.content">
+                    <summary>
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a6 6 0 0 0-3.5 10.9c.5.4.8 1 .8 1.6v.5h5.4v-.5c0-.6.3-1.2.8-1.6A6 6 0 0 0 12 3Z"/><path d="M9.3 20h5.4M10 17.5h4"/></svg>
+                      <span>{{ message.pending && !message.content ? 'Размышляет…' : 'Размышления' }}</span>
+                    </summary>
+                    <div class="assistant-reasoning__text">{{ message.reasoning }}</div>
+                  </details>
                   <div class="assistant-message__bubble">
                     <div v-if="message.content" class="assistant-markdown" v-html="renderMarkdown(message.content)"></div>
-                    <div v-else-if="message.pending" class="assistant-typing" aria-label="Ассистент готовит ответ"><i></i><i></i><i></i></div>
+                    <div v-else-if="message.pending && !message.reasoning" class="assistant-typing" aria-label="Ассистент готовит ответ"><i></i><i></i><i></i></div>
                     <div v-if="message.pending && toolActivity" class="assistant-tool-note"><span></span>Читаю данные: {{ toolActivity }}</div>
                   </div>
                 </div>
@@ -203,7 +211,7 @@
                   <button v-for="e in selectedModel.efforts" :key="e" type="button" :class="{ 'is-active': e === selectedEffort }" @click="pickEffort(e)">{{ effortName(e) }}</button>
                 </div>
               </div>
-              <button class="composer-send" type="button" aria-label="Отправить" :class="{ 'is-active': prompt.trim() && !sending }" :disabled="sending" @click="sendPrompt"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 18V6m0 0 4.5 4.5M12 6l-4.5 4.5"/></svg></button>
+              <button class="composer-send" type="button" :aria-label="sending ? 'Остановить' : 'Отправить'" :class="{ 'is-active': prompt.trim() && !sending, 'composer-send--stop': sending }" @click="sending ? stopGeneration() : sendPrompt()"><svg v-if="!sending" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 18V6m0 0 4.5 4.5M12 6l-4.5 4.5"/></svg><svg v-else viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/></svg></button>
             </div>
           </div>
         </div>
@@ -232,6 +240,7 @@ const historySearchInput = ref(null)
 const sending = ref(false)
 const toolActivity = ref('')
 const wordstatConfigured = ref(false)
+let abortController = null
 let messageSequence = 0
 
 // raw HTML в ответах модели выключен: MarkdownIt безопасно экранирует его.
@@ -445,6 +454,10 @@ const handleEvent = (ev, assistantMsg) => {
     case 'meta':
       if (ev.conversation_id) activeConversationId.value = ev.conversation_id
       break
+    case 'reasoning':
+      assistantMsg.reasoning = (assistantMsg.reasoning || '') + (ev.delta || '')
+      scrollThread()
+      break
     case 'text':
       assistantMsg.content += ev.delta || ''
       scrollThread()
@@ -495,7 +508,7 @@ const sendPrompt = async () => {
 
   activeMessages.value.push({ id: nextMessageId('user'), role: 'user', content: question })
   // Берём реактивный прокси из массива — иначе мутации при стриме не обновят UI.
-  activeMessages.value.push({ id: nextMessageId('assistant'), role: 'assistant', content: '', pending: true })
+  activeMessages.value.push({ id: nextMessageId('assistant'), role: 'assistant', content: '', reasoning: '', pending: true })
   const assistantMsg = activeMessages.value[activeMessages.value.length - 1]
   prompt.value = ''
   await nextTick(); autoGrow(); scrollThread(true)
@@ -507,24 +520,38 @@ const sendPrompt = async () => {
     model: selectedModelId.value || undefined,
     effort: selectedModel.value.reasoning ? selectedEffort.value : undefined,
   }
+  abortController = new AbortController()
+  let stopped = false
   try {
     const resp = await fetch('/api/assistant/chat', {
       method: 'POST',
       credentials: 'include',
+      signal: abortController.signal,
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify(body),
     })
     if (!resp.ok || !resp.body) throw new Error(`HTTP ${resp.status}`)
     await consumeSSE(resp.body, assistantMsg)
-  } catch {
-    if (!assistantMsg.content) assistantMsg.content = 'Не удалось получить ответ. Попробуйте ещё раз.'
+  } catch (e) {
+    if (e?.name === 'AbortError') {
+      stopped = true
+      assistantMsg.content += (assistantMsg.content ? '\n\n' : '') + '_Остановлено._'
+    } else if (!assistantMsg.content) {
+      assistantMsg.content = 'Не удалось получить ответ. Попробуйте ещё раз.'
+    }
   } finally {
+    abortController = null
     assistantMsg.pending = false
     sending.value = false
     toolActivity.value = ''
-    loadConversations()
+    if (!stopped) loadConversations()
     await nextTick(); scrollThread(); threadTextarea.value?.focus()
   }
+}
+
+// Остановить генерацию: обрываем запрос (бэкенд отменит агент-луп).
+const stopGeneration = () => {
+  try { abortController?.abort() } catch { /* уже завершён */ }
 }
 
 onMounted(() => {
@@ -636,6 +663,19 @@ onUnmounted(() => {
 .assistant-tool-note span { width: .55rem; height: .55rem; border: 1.5px solid var(--assistant-blue); border-right-color: transparent; border-radius: 50%; animation: assistant-spin .72s linear infinite; }
 @keyframes assistant-spin { to { transform: rotate(360deg); } }
 .assistant-welcome__note { margin-top: .65rem; color: var(--assistant-amber); font-size: .88rem; }
+
+/* Блок размышлений — сворачиваемый, одним куском (как в нативном Клоде) */
+.assistant-reasoning { margin-bottom: .5rem; border: 1px solid var(--assistant-line); border-radius: .7rem; background: var(--assistant-soft); overflow: hidden; }
+.assistant-reasoning > summary { display: flex; align-items: center; gap: .4rem; padding: .5rem .7rem; color: var(--assistant-sub); font-size: .8rem; font-weight: 600; cursor: pointer; list-style: none; user-select: none; }
+.assistant-reasoning > summary::-webkit-details-marker { display: none; }
+.assistant-reasoning > summary svg { width: .95rem; height: .95rem; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.assistant-reasoning[open] > summary { border-bottom: 1px solid var(--assistant-line); }
+.assistant-reasoning__text { max-height: 22rem; overflow-y: auto; padding: .6rem .75rem; color: var(--assistant-muted); font-size: .82rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Кнопка «Остановить» (во время генерации) */
+.composer-send--stop { background: #fdecec !important; color: #d9463f !important; }
+.composer-send--stop:hover { background: #fbdcdc !important; }
+.composer-send--stop svg { fill: currentColor; stroke: none; }
 
 .rail-heading { display: flex; align-items: center; justify-content: space-between; padding: 0 .25rem; margin-bottom: .7rem; font-size: .9rem; font-weight: 700; }
 .rail-new-chat { display: flex; align-items: center; gap: .58rem; width: 100%; height: 2.85rem; padding: 0 .8rem; border: 1.5px dashed var(--assistant-strong-line); border-radius: .72rem; background: transparent; color: var(--assistant-sub); font: 500 .9rem/1 Inter, sans-serif; cursor: pointer; }

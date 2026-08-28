@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from core import models
 from core.config import get_config
 
-from . import llm, tools, wordstat_client
+from . import llm, skills, tools, wordstat_client
 from .models_catalog import ModelSpec
 from .tools import ToolContext
 
@@ -26,31 +26,23 @@ cfg = get_config()
 
 def _system_prompt(ctx: ToolContext) -> str:
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    lines = [
-        "Ты — аналитик рекламы AdMirra. Помогаешь по данным рекламных проектов пользователя.",
-        f"Сегодня: {today}. Отвечай на русском, конкретными числами.",
-        "Инструменты (по текущему проекту): Яндекс.Директ и Яндекс.Метрика (direct_*/metrika_*), "
-        "VK Реклама (vk_*), Avito Реклама (avito_*)" +
-        (", а также Wordstat (спрос в Яндексе по фразам)." if wordstat_client.is_configured() else "."),
-        "У разных проектов подключены разные платформы — используй только те инструменты, "
-        "платформы которых есть у проекта (после use_project смотри поле platforms).",
-        "Если нужного проекта нет в текущем контексте — вызови list_projects и use_project, выбрав проект по названию.",
-        "Всегда бери числа из инструментов, ничего не выдумывай. Если данных нет — так и скажи.",
-        "Wordstat вызывай только по прямому запросу пользователя о спросе, семантике или частотности; не делай повторные одинаковые вызовы.",
-        "Формат периодов — YYYY-MM-DD. Конверсия по цели Метрики — метрика ym:s:goal<ID>reaches.",
-        "Расходы Директа возвращаются с учётом НДС по умолчанию. Wordstat не требует выбора проекта.",
-    ]
+    lines = [skills.PROJECT_PLAYBOOK, "", f"Сегодня: {today}. Отвечай на русском."]
+    if wordstat_client.is_configured():
+        lines.append("Wordstat доступен (спрос в Яндексе по фразам) — вызывай по прямому запросу о спросе/семантике.")
     if ctx.client_id is not None:
         pl = ctx.platforms()
         connected = [n for n, ok in (("Яндекс", pl["yandex"]), ("VK", pl["vk"]), ("Avito", pl["avito"])) if ok]
-        lines.append(f"Текущий проект диалога выбран. Подключено: {', '.join(connected) or 'нет платформ'}.")
+        lines.append(f"\nТекущий проект диалога выбран. Подключено: {', '.join(connected) or 'нет платформ'}.")
         if ctx.access is not None:
             if ctx.access.account_name:
                 lines.append(f"Рекламный кабинет Яндекса: {ctx.access.account_name}.")
             if ctx.access.counter_ids:
                 lines.append(f"Счётчики Метрики проекта: {', '.join(map(str, ctx.access.counter_ids))}.")
+            if ctx.access.goal_ids:
+                lines.append(f"Отслеживаемые цели проекта (по ним конверсии): {', '.join(map(str, ctx.access.goal_ids))}. "
+                             "Имена — через metrika_get_tracked_goals.")
     else:
-        lines.append("Проект не выбран. Спроси у пользователя или вызови list_projects, затем use_project по названию.")
+        lines.append("\nПроект пока не выбран — при вопросе про конкретный проект сначала выбери его через use_project.")
     return "\n".join(lines)
 
 

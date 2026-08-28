@@ -127,6 +127,8 @@ async def _exec_use_project(ctx: ToolContext, args: dict) -> str:
         "platforms": ctx.platforms(),
         "cabinet": (ctx.access.account_name if ctx.access else None),
         "counter_ids": (ctx.access.counter_ids if ctx.access else []),
+        # Отслеживаемые цели проекта (как на дашборде). Конверсии считай по ним.
+        "tracked_goals": (ctx.access.goal_ids if ctx.access else []),
     })
 
 
@@ -309,6 +311,36 @@ async def _exec_wordstat_regions(ctx: ToolContext, args: dict) -> str:
     return _dump(await wordstat_client.regions(args["phrase"], args.get("region_type", "all"), args.get("devices")))
 
 
+# ── Метрика: отслеживаемые цели дашборда + справочник ─────────────────────────
+async def _exec_metrika_get_tracked_goals(ctx: ToolContext, args: dict) -> str:
+    if not ctx.access:
+        return _dump(_needs(ctx, "Яндекс.Метрику"))
+    goal_ids = {str(g) for g in ctx.access.goal_ids}
+    if not goal_ids:
+        return _dump({"tracked_goals": [], "note": "У проекта не отмечены цели на дашборде."})
+    named: list[dict] = []
+    seen: set[str] = set()
+    for counter_id in ctx.access.counter_ids or []:
+        try:
+            data = await ctx.client.metrika_get(f"/management/v1/counter/{counter_id}/goals")
+        except YandexApiError:
+            continue
+        for g in data.get("goals", []):
+            gid = str(g.get("id"))
+            if gid in goal_ids and gid not in seen:
+                seen.add(gid)
+                named.append({"id": gid, "name": g.get("name"), "counter_id": str(counter_id)})
+    for gid in goal_ids:
+        if gid not in seen:
+            named.append({"id": gid, "name": None})
+    return _dump({"tracked_goals": named, "reach_metric_hint": "ym:s:goal<ID>reaches"})
+
+
+async def _exec_metrika_reference(ctx: ToolContext, args: dict) -> str:
+    from .skills import METRIKA_REFERENCE
+    return METRIKA_REFERENCE
+
+
 # ── VK Ads (live) ─────────────────────────────────────────────────────────────
 def _vk_campaign_slim(c: dict) -> dict:
     return {"id": c.get("id"), "name": c.get("name"), "status": c.get("status"),
@@ -444,9 +476,21 @@ _REGISTRY: dict[str, tuple[dict, _Executor]] = {
         _exec_metrika_get_counters,
     ),
     "metrika_get_goals": (
-        {"name": "metrika_get_goals", "description": "Цели счётчика Метрики. Конверсия по цели — метрика ym:s:goal<ID>reaches.",
+        {"name": "metrika_get_goals", "description": "ВСЕ цели счётчика Метрики (справочно). Для конверсий/лидов используй metrika_get_tracked_goals — это отмеченные на дашборде цели.",
          "parameters": {"type": "object", "properties": {"counter_id": {"type": "string"}}, "required": ["counter_id"]}},
         _exec_metrika_get_goals,
+    ),
+    "metrika_get_tracked_goals": (
+        {"name": "metrika_get_tracked_goals",
+         "description": "Отслеживаемые цели проекта — те, что пользователь отметил на дашборде (в блоке «Целевые действия»). Именно по ним считай конверсии/лиды (метрика ym:s:goal<ID>reaches). Возвращает id и названия.",
+         "parameters": {"type": "object", "properties": {}}},
+        _exec_metrika_get_tracked_goals,
+    ),
+    "metrika_reference": (
+        {"name": "metrika_reference",
+         "description": "Справочник Yandex Metrika: метрики (ym:s:*), измерения, цели, фильтры, ограничения API. Вызови ПЕРЕД тем как строить нетривиальный запрос к Метрике, если не уверен в названиях метрик/измерений.",
+         "parameters": {"type": "object", "properties": {}}},
+        _exec_metrika_reference,
     ),
     "metrika_get_report": (
         {"name": "metrika_get_report",
