@@ -108,13 +108,9 @@
             </div>
           </div>
 
-          <button type="button" class="assistant-scroll-cue" @click="scrollToPrompts" aria-label="К готовым промптам">
-            <span>Готовые промпты</span>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
-          </button>
         </div>
 
-        <div ref="promptsSection" class="assistant-prompts">
+        <div class="assistant-prompts">
           <h3 class="assistant-prompts__title">Спросите одним кликом</h3>
           <div class="assistant-prompts__grid">
             <div
@@ -350,17 +346,8 @@ const readyPrompts = [
 ]
 
 const emptyScroll = ref(null)
-const promptsSection = ref(null)
 const copiedIndex = ref(-1)
 let _copyTimer = null
-
-const scrollToPrompts = () => {
-  const container = emptyScroll.value
-  const target = promptsSection.value
-  if (!container || !target) return
-  const top = target.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - 12
-  container.scrollTo({ top, behavior: 'smooth' })
-}
 
 const copyPrompt = async (text, i) => {
   try { await navigator.clipboard.writeText(text) } catch { /* clipboard может быть недоступен */ }
@@ -752,15 +739,14 @@ onUnmounted(() => {
 .assistant-limit b { font-size: .92rem; }.assistant-limit span { opacity: .88; }
 
 /* Экран приветствия: колонка со скроллом — герой на первый экран, промпты ниже */
-.assistant-empty { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 0; padding: 0; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-gutter: stable both-edges; }
-/* Первый экран: окно ввода по центру по вертикали, промпты уходят вниз (скролл). */
-.assistant-hero { box-sizing: border-box; display: flex; flex: 1 0 auto; flex-direction: column; align-items: center; justify-content: center; width: 100%; max-width: 64rem; min-height: 100%; padding: 2rem 2.5rem; text-align: center; }
+.assistant-empty { display: flex; flex: 1 1 auto; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 0; padding: 0; overflow-y: scroll; overscroll-behavior-y: contain; scroll-behavior: smooth; scrollbar-gutter: stable; }
+.assistant-hero { box-sizing: border-box; display: flex; flex: 0 0 auto; flex-direction: column; align-items: center; justify-content: center; width: 100%; max-width: 72rem; min-height: min(44rem, 78vh); padding: 2.4rem 2.75rem 2rem; text-align: center; }
 .assistant-hero__title { margin: 0; font-size: clamp(2.15rem, 2.65vw, 2.6rem); font-weight: 700; letter-spacing: -.04em; text-wrap: balance; }
 .assistant-hero__sub { margin: .72rem auto 0; max-width: 42rem; color: var(--assistant-sub); font-size: 1.12rem; line-height: 1.55; text-wrap: balance; }
-.assistant-hero .assistant-composer { width: 100%; margin-top: 1.7rem; text-align: left; }
+.assistant-hero .assistant-composer { width: min(70.6rem, 100%); margin-top: 1.9rem; text-align: left; }
 
 /* Источники данных — компактный ряд пилюль */
-.assistant-sources-row { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem .8rem; width: 100%; margin-top: 1.4rem; text-align: left; }
+.assistant-sources-row { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem .8rem; width: min(70.6rem, 100%); margin-top: 1.5rem; text-align: left; }
 .assistant-sources-row__label { color: var(--assistant-muted); font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
 .assistant-sources-row__pills { display: flex; flex-wrap: wrap; gap: .5rem; }
 .source-pill { display: inline-flex; align-items: center; gap: .48rem; padding: .34rem .7rem .34rem .38rem; border: 1px solid var(--assistant-line); border-radius: 999px; background: var(--assistant-panel); box-shadow: 0 .1rem .3rem rgba(27,36,55,.03); }
@@ -773,17 +759,11 @@ onUnmounted(() => {
 .source-pill--off { opacity: .62; }
 .source-pill--off .source-pill__mark { filter: saturate(.7); }
 
-/* Подсказка-стрелка к готовым промптам */
-.assistant-scroll-cue { display: inline-flex; align-items: center; gap: .4rem; margin-top: 1.7rem; padding: .42rem .9rem; border: 1px solid var(--assistant-line); border-radius: 999px; background: var(--assistant-soft); color: var(--assistant-sub); font: 600 .78rem/1 Inter, sans-serif; cursor: pointer; }
-.assistant-scroll-cue:hover { color: var(--assistant-text); border-color: var(--assistant-strong-line); }
-.assistant-scroll-cue svg { width: .95rem; height: .95rem; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; animation: cue-bounce 1.6s ease-in-out infinite; }
-@keyframes cue-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(3px); } }
-
 /* Готовые промпты */
-.assistant-prompts { width: 100%; max-width: 64rem; padding: .5rem 2.5rem 3.5rem; }
+.assistant-prompts { width: 100%; max-width: 72rem; padding: 1.4rem 2.75rem 3.5rem; }
 .assistant-prompts__title { margin: 0 0 1rem; color: var(--assistant-muted); font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
-.assistant-prompts__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
-.prompt-tile { position: relative; display: flex; flex-direction: column; min-height: 8.6rem; gap: .38rem; padding: 1rem 1.08rem 3rem; border: 1px solid var(--assistant-line); border-radius: 1rem; background: var(--assistant-panel); text-align: left; cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease; }
+.assistant-prompts__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; }
+.prompt-tile { position: relative; display: flex; flex-direction: column; min-height: 7.7rem; gap: .38rem; padding: 1rem 1.08rem 3rem; border: 1px solid var(--assistant-line); border-radius: 1rem; background: var(--assistant-panel); text-align: left; cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease; }
 .prompt-tile__service { position: absolute; right: .9rem; bottom: .82rem; display: grid; width: 2.5rem; height: 2.5rem; place-items: center; overflow: hidden; border-radius: .7rem; background: #f1f5ff; color: #7563e7; }
 .prompt-tile__service img { width: 1.75rem; height: 1.75rem; object-fit: contain; }
 .prompt-tile__service svg { width: 1.35rem; height: 1.35rem; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
@@ -858,6 +838,7 @@ onUnmounted(() => {
   .assistant-depth button:last-child { display: none; }
   .assistant-hero, .assistant-prompts { max-width: 52rem; }
 }
+@media (max-width: 980px) { .assistant-prompts__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 820px) {
   .assistant-stage__head { padding-inline: 1rem; }
   .assistant-hero { padding-inline: 1.1rem; }
@@ -870,6 +851,6 @@ onUnmounted(() => {
   .assistant-model__btn { padding-inline: .55rem; }
 }
 @media (max-width: 560px) { .assistant-rail { display: none; }.assistant-hero__title { font-size: 1.4rem; } }
-@media (prefers-reduced-motion: reduce) { .assistant-scroll-cue svg, .assistant-tool-note span, .assistant-typing i { animation: none; }.prompt-tile { transition: opacity .2s ease; transform: none; }.prompt-tile__copy.is-copied { animation: none; }.chat-message-enter-active { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .assistant-tool-note span, .assistant-typing i { animation: none; }.prompt-tile { transition: opacity .2s ease; transform: none; }.prompt-tile__copy.is-copied { animation: none; }.chat-message-enter-active { transition: none; } }
 @media (prefers-reduced-motion: reduce) { .assistant-rail, .assistant-suggestion { transition: none; } }
 </style>
