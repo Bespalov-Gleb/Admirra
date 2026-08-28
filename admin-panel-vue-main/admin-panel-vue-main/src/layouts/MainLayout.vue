@@ -1,8 +1,8 @@
 <template>
-  <div class="flex min-h-screen bg-[#F4F6F8] dark:bg-[#1A1C2C] font-[Inter]">
+  <div class="flex h-screen overflow-hidden bg-[#F4F6F8] dark:bg-[#1A1C2C] font-[Inter]">
     <SidebarV2 />
     <div :class="[
-      'flex-1 flex flex-col min-h-screen min-w-0 transition-all duration-300 ml-0',
+      'flex-1 flex h-full min-h-0 min-w-0 flex-col transition-all duration-300 ml-0',
       mainMargin
     ]">
       <header class="flex-shrink-0">
