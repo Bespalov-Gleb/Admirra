@@ -107,6 +107,11 @@
               </span>
             </div>
           </div>
+
+          <button type="button" class="assistant-scroll-cue" @click="scrollToPrompts" aria-label="К готовым промптам">
+            <span>Готовые промпты</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
+          </button>
         </div>
 
         <div ref="promptsSection" class="assistant-prompts">
@@ -275,7 +280,7 @@ const projectContextDescription = 'Назовите проект или спро
 const dataSources = computed(() => [
   { id: 'yandex-direct', name: 'Яндекс Директ', description: 'Расход и кампании', icon: '/admirra/img/icons/yandex-direct.png', available: true },
   { id: 'metrika', name: 'Яндекс Метрика', description: 'Цели и конверсии', icon: yandexMetrikaIcon, available: true },
-  { id: 'wordstat', name: 'Wordstat', description: 'Спрос и семантика', available: wordstatConfigured.value, unavailableLabel: 'не подключён' },
+  { id: 'wordstat', name: 'Wordstat', description: 'Спрос и семантика', icon: '/admirra/img/icons/wordstat.webp', available: wordstatConfigured.value, unavailableLabel: 'не подключён' },
   { id: 'avito', name: 'Avito Ads', description: 'Кампании и расход', icon: '/admirra/img/icons/avito.svg', available: true },
   { id: 'vk', name: 'VK Реклама', description: 'Кампании и расход', icon: '/admirra/img/icons/vk-ads.png', available: true },
 ])
@@ -288,7 +293,7 @@ const SERVICE_ICON = {
   metrika: yandexMetrikaIcon,
   vk: '/admirra/img/icons/vk-ads.png',
   avito: '/admirra/img/icons/avito.svg',
-  wordstat: null, // рисуем svg
+  wordstat: '/admirra/img/icons/wordstat.webp',
 }
 const serviceIcon = (service) => SERVICE_ICON[service] || null
 
@@ -348,6 +353,14 @@ const emptyScroll = ref(null)
 const promptsSection = ref(null)
 const copiedIndex = ref(-1)
 let _copyTimer = null
+
+const scrollToPrompts = () => {
+  const container = emptyScroll.value
+  const target = promptsSection.value
+  if (!container || !target) return
+  const top = target.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - 12
+  container.scrollTo({ top, behavior: 'smooth' })
+}
 
 const copyPrompt = async (text, i) => {
   try { await navigator.clipboard.writeText(text) } catch { /* clipboard может быть недоступен */ }
@@ -740,13 +753,14 @@ onUnmounted(() => {
 
 /* Экран приветствия: колонка со скроллом — герой на первый экран, промпты ниже */
 .assistant-empty { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 0; padding: 0; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-gutter: stable both-edges; }
-.assistant-hero { box-sizing: border-box; display: flex; flex: 0 0 auto; flex-direction: column; align-items: center; justify-content: flex-start; width: 100%; max-width: 68rem; padding: 3rem 2.75rem 1.6rem; text-align: center; }
+/* Первый экран: окно ввода по центру по вертикали, промпты уходят вниз (скролл). */
+.assistant-hero { box-sizing: border-box; display: flex; flex: 1 0 auto; flex-direction: column; align-items: center; justify-content: center; width: 100%; max-width: 64rem; min-height: 100%; padding: 2rem 2.5rem; text-align: center; }
 .assistant-hero__title { margin: 0; font-size: clamp(2.15rem, 2.65vw, 2.6rem); font-weight: 700; letter-spacing: -.04em; text-wrap: balance; }
 .assistant-hero__sub { margin: .72rem auto 0; max-width: 42rem; color: var(--assistant-sub); font-size: 1.12rem; line-height: 1.55; text-wrap: balance; }
-.assistant-hero .assistant-composer { width: min(65.5rem, 100%); margin-top: 1.95rem; text-align: left; }
+.assistant-hero .assistant-composer { width: 100%; margin-top: 1.7rem; text-align: left; }
 
 /* Источники данных — компактный ряд пилюль */
-.assistant-sources-row { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem .8rem; width: min(57rem, 100%); margin-top: 1.5rem; text-align: left; }
+.assistant-sources-row { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem .8rem; width: 100%; margin-top: 1.4rem; text-align: left; }
 .assistant-sources-row__label { color: var(--assistant-muted); font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
 .assistant-sources-row__pills { display: flex; flex-wrap: wrap; gap: .5rem; }
 .source-pill { display: inline-flex; align-items: center; gap: .48rem; padding: .34rem .7rem .34rem .38rem; border: 1px solid var(--assistant-line); border-radius: 999px; background: var(--assistant-panel); box-shadow: 0 .1rem .3rem rgba(27,36,55,.03); }
@@ -759,8 +773,14 @@ onUnmounted(() => {
 .source-pill--off { opacity: .62; }
 .source-pill--off .source-pill__mark { filter: saturate(.7); }
 
+/* Подсказка-стрелка к готовым промптам */
+.assistant-scroll-cue { display: inline-flex; align-items: center; gap: .4rem; margin-top: 1.7rem; padding: .42rem .9rem; border: 1px solid var(--assistant-line); border-radius: 999px; background: var(--assistant-soft); color: var(--assistant-sub); font: 600 .78rem/1 Inter, sans-serif; cursor: pointer; }
+.assistant-scroll-cue:hover { color: var(--assistant-text); border-color: var(--assistant-strong-line); }
+.assistant-scroll-cue svg { width: .95rem; height: .95rem; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; animation: cue-bounce 1.6s ease-in-out infinite; }
+@keyframes cue-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(3px); } }
+
 /* Готовые промпты */
-.assistant-prompts { width: 100%; max-width: 64rem; padding: 1.6rem 2.5rem 3.5rem; }
+.assistant-prompts { width: 100%; max-width: 64rem; padding: .5rem 2.5rem 3.5rem; }
 .assistant-prompts__title { margin: 0 0 1rem; color: var(--assistant-muted); font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .assistant-prompts__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
 .prompt-tile { position: relative; display: flex; flex-direction: column; min-height: 8.6rem; gap: .38rem; padding: 1rem 1.08rem 3rem; border: 1px solid var(--assistant-line); border-radius: 1rem; background: var(--assistant-panel); text-align: left; cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease; }
@@ -836,7 +856,7 @@ onUnmounted(() => {
 @media (max-width: 1180px) {
   .assistant-rail:not(.assistant-rail--open) { width: 3.5rem; flex-basis: 3.5rem; }
   .assistant-depth button:last-child { display: none; }
-  .assistant-hero { max-width: 52rem; }
+  .assistant-hero, .assistant-prompts { max-width: 52rem; }
 }
 @media (max-width: 820px) {
   .assistant-stage__head { padding-inline: 1rem; }
@@ -850,6 +870,6 @@ onUnmounted(() => {
   .assistant-model__btn { padding-inline: .55rem; }
 }
 @media (max-width: 560px) { .assistant-rail { display: none; }.assistant-hero__title { font-size: 1.4rem; } }
-@media (prefers-reduced-motion: reduce) { .assistant-tool-note span, .assistant-typing i { animation: none; }.prompt-tile { transition: opacity .2s ease; transform: none; }.prompt-tile__copy.is-copied { animation: none; }.chat-message-enter-active { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .assistant-scroll-cue svg, .assistant-tool-note span, .assistant-typing i { animation: none; }.prompt-tile { transition: opacity .2s ease; transform: none; }.prompt-tile__copy.is-copied { animation: none; }.chat-message-enter-active { transition: none; } }
 @media (prefers-reduced-motion: reduce) { .assistant-rail, .assistant-suggestion { transition: none; } }
 </style>
