@@ -5,6 +5,7 @@
   • proxyapi   — по семейству модели, т.к. ProxyAPI разделяет провайдеров:
         anthropic (Claude) → /anthropic/v1/messages   (нативный, wire_anthropic)
         openai    (GPT)    → /openai/v1/responses      (Responses, wire_responses)
+        google    (Gemini) → /google/v1beta/models/*:streamGenerateContent (wire_google)
         openrouter (Kimi)  → /openrouter/v1/chat/completions (OpenAI-совместимый)
 
 Все пути отдают единый контракт событий, поэтому агент-луп общий:
@@ -21,7 +22,7 @@ import httpx
 
 from core.config import get_config
 
-from . import wire_anthropic, wire_responses
+from . import wire_anthropic, wire_google, wire_responses
 from .models_catalog import ModelSpec, normalize_effort
 
 logger = logging.getLogger("ai_assistant.llm")
@@ -56,6 +57,8 @@ def _route(model: ModelSpec) -> tuple[str, str, str]:
             return "anthropic", f"{o.proxyapi_base}/anthropic/v1", model.native_name
         if model.family == "openai":
             return "responses", f"{o.proxyapi_base}/openai/v1", model.native_name
+        if model.family == "google":
+            return "google", f"{o.proxyapi_base}/google/v1beta", model.native_name
         return "openai_compat", f"{o.proxyapi_base}/openrouter/v1", model.slug
     # provider == openrouter — всё одним контрактом по слагу
     return "openai_compat", o.base_url, model.slug
@@ -83,6 +86,14 @@ async def stream_completion(
         if protocol == "responses":
             async for ev in wire_responses.stream(
                 base_url=base_url, api_key=key, headers_extra=_openai_headers(),
+                timeout=cfg.openrouter.request_timeout,
+                model_name=wire_name, messages=messages, tools=tools, effort=eff,
+            ):
+                yield ev
+            return
+        if protocol == "google":
+            async for ev in wire_google.stream(
+                base_url=base_url, api_key=key, headers_extra={},
                 timeout=cfg.openrouter.request_timeout,
                 model_name=wire_name, messages=messages, tools=tools, effort=eff,
             ):

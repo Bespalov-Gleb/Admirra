@@ -273,7 +273,7 @@ const menuItems = computed(() => [
   { name: 'Проекты', path: '/project-card', icon: RectangleStackIcon, sectionLabel: 'Работа' },
   { name: 'Аналитика', path: '/dashboard/general-3', icon: Squares2X2Icon },
   { name: 'Отчёты', path: '/reports', icon: DocumentTextIcon },
-  { name: 'AI', path: '/ai', icon: SparklesIcon },
+  { name: 'Mirra AI', path: '/ai', icon: SparklesIcon },
   { name: 'Интеграции', path: '/integrations', icon: LinkIcon, sectionLabel: 'Подключения' },
   { name: 'История', path: '/history', icon: ClockIcon, sectionLabel: 'Аккаунт' },
   { name: 'Команда', path: '/team', icon: UserGroupIcon },

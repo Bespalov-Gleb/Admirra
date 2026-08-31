@@ -27,7 +27,7 @@ class ModelSpec:
     label: str         # отображаемое имя
     slug: str          # слаг в форме OpenRouter (provider/model)
     reasoning: bool    # доступен ли выбор effort
-    family: str        # маршрут у ProxyAPI: anthropic | openai | openrouter
+    family: str        # маршрут у ProxyAPI: anthropic | openai | openrouter | google
     description: str = ""
     efforts: tuple[str, ...] = field(default=EFFORT_LEVELS)
     default_effort: str = DEFAULT_EFFORT
@@ -80,6 +80,14 @@ MODELS: tuple[ModelSpec, ...] = (
         reasoning=True,
         family="openrouter",
         description="Moonshot Kimi — длинный контекст и инструменты.",
+    ),
+    ModelSpec(
+        id="gemini-3.7-flash",
+        label="Gemini 3.7 Flash",
+        slug="google/gemini-3.7-flash",
+        reasoning=True,
+        family="google",
+        description="Быстрая мультимодальная от Google, контекст до 1M токенов.",
     ),
 )
 
