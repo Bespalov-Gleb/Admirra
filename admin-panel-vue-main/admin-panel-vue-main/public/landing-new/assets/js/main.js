@@ -279,6 +279,32 @@
 
 
 (() => {
+  // Планшет в герое: скриншот с нарисованной play-кнопкой — постер. По клику
+  // подменяем его на демо-видео в той же рамке (со звуком — жест пользователя
+  // разрешает автозвук). Видео грузится только после клика.
+  const trigger = document.getElementById('heroPlay');
+  const src = trigger && trigger.dataset.video;
+  if (!trigger || !src) return;
+
+  trigger.addEventListener('click', () => {
+    const video = document.createElement('video');
+    video.className = 'hero__screen hero__screen--video';
+    video.src = src;
+    video.controls = true;
+    video.autoplay = true;
+    video.playsInline = true;
+    video.setAttribute('playsinline', '');
+    video.preload = 'auto';
+    video.poster = '/landing-new/assets/img/hero-dashboard.webp';
+
+    trigger.replaceWith(video);
+    const started = video.play();
+    if (started && started.catch) started.catch(() => {});
+    video.focus({ preventScroll: true });
+  }, { once: true });
+})();
+
+(() => {
   const items = document.querySelectorAll('.faq-item');
   if (!items.length) return;
 

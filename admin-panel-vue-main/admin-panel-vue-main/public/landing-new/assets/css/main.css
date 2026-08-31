@@ -579,6 +579,45 @@ button {
   border-radius: 21.6px;
 }
 
+/* Планшет в герое кликабелен: скриншот с play-кнопкой — постер, по клику
+   на его место встаёт демо-видео (см. main.js). Размеры совпадают со
+   .hero__screen, поэтому композиция героя и плавающие карточки не сдвигаются. */
+.hero__play {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  width: 980.1px;
+  height: 680.4px;
+  border-radius: 21.6px;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+.hero__play .hero__screen {
+  transition: filter 0.25s ease;
+}
+.hero__play:hover .hero__screen {
+  filter: brightness(1.05) saturate(1.02);
+}
+.hero__play:focus-visible {
+  outline: 3px solid #5b84f5;
+  outline-offset: 4px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hero__play .hero__screen { transition: filter 0.25s ease, transform 0.4s ease; }
+  .hero__play:hover .hero__screen { transform: scale(1.012); }
+}
+
+.hero__screen--video {
+  width: 980.1px;
+  height: 680.4px;
+  border-radius: 21.6px;
+  object-fit: contain;   /* 16:9 внутри экрана 3:2 — без обрезки контента */
+  background: #05070e;    /* тёмные поля сливаются с корпусом планшета */
+}
+
 .hero__card {
   position: absolute;
   z-index: 1;
