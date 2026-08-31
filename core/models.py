@@ -796,7 +796,7 @@ class TariffPlan(Base):
     max_projects = Column(Integer, nullable=False, default=1)
     max_ai_requests_per_period = Column(Integer, nullable=False, default=30)
     period_days = Column(Integer, nullable=False, default=30)
-    trial_days = Column(Integer, nullable=False, default=14)
+    trial_days = Column(Integer, nullable=False, default=7)
     whitelabel_included = Column(Boolean, nullable=False, default=False)
     is_default = Column(Boolean, nullable=False, default=False)
     is_active = Column(Boolean, nullable=False, default=True)

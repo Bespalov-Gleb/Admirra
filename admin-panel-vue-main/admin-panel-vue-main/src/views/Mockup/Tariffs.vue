@@ -128,7 +128,7 @@ defineProps({
         subPrice: '1590 руб/проект',
         features: ['1 проект', 'Каналы: Яндекс.Директ, ВК', '1 пользователь', '30 запросов AI'],
         buttonText: 'Перейти на тариф Старт',
-        trialInfo: '<span class="accent-gradient">14 дней бесплатно</span> — подключение за&nbsp;5&nbsp;минут'
+        trialInfo: '<span class="accent-gradient">7 дней бесплатно</span> — подключение за&nbsp;5&nbsp;минут'
       }
     ]
   },

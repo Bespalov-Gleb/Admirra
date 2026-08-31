@@ -19,7 +19,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "maintenance_mode": False,
     "registration_enabled": True,
     "team_email_alerts_enabled": True,
-    "trial_days": 14,
+    "trial_days": 7,
     "openai_balance_usd": 87.20,
     "openai_alert_threshold_usd": 50.0,
     "integration_unisender_status": "connected",

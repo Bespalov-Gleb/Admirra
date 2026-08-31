@@ -4,22 +4,22 @@ export const FALLBACK_PLANS = {
   start: {
     code: 'start', name: 'Старт', price_rub: 2900, price_year_rub: 29000,
     max_projects: 3, max_cabinets: 9, max_users: 2,
-    max_ai_requests_per_period: 50, trial_days: 14, recommended: false, white_label: false,
+    max_ai_requests_per_period: 50, trial_days: 7, recommended: false, white_label: false,
   },
   agency: {
     code: 'agency', name: 'Агентство', price_rub: 6900, price_year_rub: 69000,
     max_projects: 10, max_cabinets: 30, max_users: 6,
-    max_ai_requests_per_period: 250, trial_days: 14, recommended: true, white_label: false,
+    max_ai_requests_per_period: 250, trial_days: 7, recommended: true, white_label: false,
   },
   pro: {
     code: 'pro', name: 'Про', price_rub: 13900, price_year_rub: 139000,
     max_projects: 25, max_cabinets: 75, max_users: 15,
-    max_ai_requests_per_period: 700, trial_days: 14, recommended: false, white_label: false,
+    max_ai_requests_per_period: 700, trial_days: 7, recommended: false, white_label: false,
   },
   white_label: {
     code: 'white_label', name: 'White Label', price_rub: 25900, price_year_rub: 0,
     max_projects: 100, max_cabinets: 300, max_users: 50,
-    max_ai_requests_per_period: 2000, trial_days: 14, recommended: false, white_label: true,
+    max_ai_requests_per_period: 2000, trial_days: 7, recommended: false, white_label: true,
   },
 }
 

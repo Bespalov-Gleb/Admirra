@@ -408,7 +408,7 @@ def get_config() -> Config:
             billing_env=_env("BILLING_ENV", "dev").lower(),
             billing_enforce_limits=_bool("BILLING_ENFORCE_LIMITS", False),
             billing_admin_whitelist=_env("BILLING_ADMIN_WHITELIST"),
-            trial_days=int(_env("BILLING_TRIAL_DAYS", "14")),
+            trial_days=int(_env("BILLING_TRIAL_DAYS", "7")),
             # Дефолты = новая линейка §4 (Старт/Агентство/Про). Env BILLING_PLAN_*
             # переопределяют их (на проде — тестовые суммы, пока не боевой запуск).
             # Имена env оставлены (START/BASIC/STANDARD) ради совместимости прод-.env.
