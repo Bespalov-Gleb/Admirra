@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import func
@@ -89,7 +89,8 @@ def validate(
     Проверки: существование, активность, окно дат, помесячность, привязка к
     тарифам, глобальный лимит, лимит на пользователя."""
     promo = get_promo(db, code)
-    if promo is None or not promo.active:
+    # hidden — системный код (win-back и т.п.): для вводимого пути его как бы нет.
+    if promo is None or not promo.active or getattr(promo, "hidden", False):
         raise PromoError("not_found", "Промокод не найден или неактивен")
 
     now = _now()
@@ -170,3 +171,67 @@ def record_redemption(
 
 def _aware(dt: datetime) -> datetime:
     return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+
+
+# ── Win-back: персональная одноразовая скидка при отказе от оплаты ────────────
+# Реализована ПОВЕРХ промо-движка, но НЕВИДИМО для пользователя: отдельный
+# скрытый код (нельзя ввести руками), применяется только серверным путём по
+# гранту (флаг users.winback_offered_at). Сумму, как и у промо, считает и
+# фиксирует сервер — фронт на неё не влияет. Погашения текут в ту же аналитику.
+WINBACK_CODE = "WINBACK25"
+WINBACK_DISCOUNT_PERCENT = 25
+WINBACK_WINDOW_HOURS = 24        # грант живёт с момента показа баннера
+
+
+def ensure_winback_promo(db: Session) -> "models.PromoCode":
+    """Возвращает системный win-back промокод, создавая его при первом обращении."""
+    promo = get_promo(db, WINBACK_CODE)
+    if promo is None:
+        promo = models.PromoCode(
+            code=WINBACK_CODE,
+            description="Персональная win-back скидка (системный код, не для ручного ввода)",
+            discount_percent=WINBACK_DISCOUNT_PERCENT,
+            active=True,
+            hidden=True,
+            per_user_limit=1,
+            max_redemptions=None,
+            monthly_only=False,
+            applies_to_plans=None,
+        )
+        db.add(promo)
+        db.commit()
+        db.refresh(promo)
+    return promo
+
+
+def winback_eligible(db: Session, user: "models.User") -> bool:
+    """Можно ли ПОКАЗАТЬ баннер: скидку ещё ни разу не предлагали и не гасили."""
+    promo = ensure_winback_promo(db)
+    if not promo.active:
+        return False
+    if getattr(user, "winback_offered_at", None) is not None:
+        return False
+    return _user_redemptions(db, promo.id, user.id) < 1
+
+
+def validate_winback(db: Session, *, user: "models.User", original_amount: int) -> PromoQuote:
+    """Авторитетная проверка при оплате: оффер был показан, в окне 24 ч, не погашен.
+    Бросает PromoError, если грант неприменим. Расчёт — тем же compute_amounts."""
+    promo = ensure_winback_promo(db)
+    if not promo.active:
+        raise PromoError("winback_inactive", "Персональная скидка недоступна")
+    offered = getattr(user, "winback_offered_at", None)
+    if offered is None:
+        raise PromoError("winback_not_offered", "Персональная скидка недоступна")
+    if _now() > _aware(offered) + timedelta(hours=WINBACK_WINDOW_HOURS):
+        raise PromoError("winback_expired", "Срок персональной скидки истёк")
+    if _user_redemptions(db, promo.id, user.id) >= 1:
+        raise PromoError("winback_used", "Персональная скидка уже использована")
+    discount_amount, final_amount = compute_amounts(promo.discount_percent, original_amount)
+    return PromoQuote(
+        promo=promo,
+        discount_percent=int(promo.discount_percent),
+        original_amount=int(original_amount),
+        discount_amount=discount_amount,
+        final_amount=final_amount,
+    )

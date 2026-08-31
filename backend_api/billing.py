@@ -1,7 +1,7 @@
 import json
 import logging
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, List, Optional
 from urllib.parse import parse_qs
@@ -873,7 +873,20 @@ async def subscribe(
     # фронт повлиять на сумму не может. Скидка — только на этот (первый) платёж.
     original_amount = amount
     promo_quote = None
-    if (body.promo_code or "").strip():
+    # Win-back — персональная скидка по серверному гранту (не промокод, стекать
+    # с промокодом нельзя). Применяется тем же путём, что и промокод: скидка
+    # ложится в amount/чек/intent, а погашение и сброс рекуррента идут в вебхуке.
+    is_winback = bool(body.winback)
+    if is_winback:
+        try:
+            promo_quote = promo_service.validate_winback(
+                db, user=account_user, original_amount=amount,
+            )
+        except promo_service.PromoError as exc:
+            raise HTTPException(status_code=409, detail={"reason": exc.reason, "message": exc.message})
+        amount = promo_quote.final_amount
+        receipt = _scale_receipt_to_total(receipt, amount)
+    elif (body.promo_code or "").strip():
         try:
             promo_quote = promo_service.validate(
                 db, code=body.promo_code, plan_code=plan.code,
@@ -901,6 +914,7 @@ async def subscribe(
             "original_amount": promo_quote.original_amount,
             "discount_amount": promo_quote.discount_amount,
             "final_amount": promo_quote.final_amount,
+            "winback": is_winback,
         }
     invoice_id = _reuse_or_create_invoice(
         db,
@@ -929,9 +943,12 @@ async def subscribe(
         recurrent=_recurrent_for_billing_period(plan, billing_period),
         receipt=receipt,
         invoice_id=invoice_id,
-        promo_code=(promo_quote.promo.code if promo_quote else None),
+        # Для win-back код наружу не отдаём — фронт покажет «персональную скидку»,
+        # а не чип промокода. Обычный промокод эхоим как раньше.
+        promo_code=(None if is_winback else (promo_quote.promo.code if promo_quote else None)),
         discount_amount=(promo_quote.discount_amount if promo_quote else 0),
         original_amount=original_amount,
+        winback=bool(is_winback and promo_quote is not None),
     )
 
 
@@ -972,6 +989,55 @@ def validate_promo(
         currency=cfg.cloudpayments.currency,
         message=f"Промокод применён: −{quote.discount_percent}%",
     )
+
+
+@router.get("/winback/eligible", response_model=schemas.BillingWinbackEligibleResponse)
+def get_winback_eligible(
+    plan_code: str,
+    billing_period: str = "month",
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Право показать персональную win-back скидку + превью цены со скидкой.
+    Ничего не списывает и не резервирует. Одноразовость — по флагу на аккаунте."""
+    account_user = SubscriptionService.get_billing_account_user(db, current_user)
+    cfg = get_config()
+    if not promo_service.winback_eligible(db, account_user):
+        return schemas.BillingWinbackEligibleResponse(eligible=False)
+    try:
+        requested_spec = pricing.resolve_plan_strict(plan_code, cfg.billing)
+    except ValueError:
+        return schemas.BillingWinbackEligibleResponse(eligible=False)
+    if requested_spec.white_label or requested_spec.code not in PURCHASABLE_PLAN_CODES:
+        return schemas.BillingWinbackEligibleResponse(eligible=False)
+    period = _normalize_billing_period(billing_period)
+    plan = SubscriptionService.get_plan_from_config(requested_spec.code, spec=requested_spec)
+    original_amount = _subscription_total(plan, period, 0)
+    discount_amount, final_amount = promo_service.compute_amounts(
+        promo_service.WINBACK_DISCOUNT_PERCENT, original_amount,
+    )
+    return schemas.BillingWinbackEligibleResponse(
+        eligible=True,
+        discount_percent=promo_service.WINBACK_DISCOUNT_PERCENT,
+        original_amount=original_amount,
+        discount_amount=discount_amount,
+        final_amount=final_amount,
+        currency=cfg.cloudpayments.currency,
+    )
+
+
+@router.post("/winback/mark-offered")
+def mark_winback_offered(
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Фиксирует, что персональную скидку показали (одноразовость на аккаунте).
+    Идемпотентно: повтор не сдвигает окно и не переоткрывает оффер."""
+    account_user = SubscriptionService.get_billing_account_user(db, current_user)
+    if getattr(account_user, "winback_offered_at", None) is None:
+        account_user.winback_offered_at = datetime.now(timezone.utc)
+        db.commit()
+    return {"ok": True}
 
 
 # --- Докупка слотов проектов (§8.6) ---

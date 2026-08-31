@@ -217,6 +217,19 @@ def init_db_with_retry(max_retries=10, retry_delay=2):
                 conn.execute(text("ALTER TABLE ai_comment_generations ADD COLUMN IF NOT EXISTS retry_count INTEGER NOT NULL DEFAULT 0"))
                 conn.execute(text("ALTER TABLE ai_comment_generations ADD COLUMN IF NOT EXISTS validation_failed BOOLEAN NOT NULL DEFAULT FALSE"))
                 conn.execute(text("ALTER TABLE ai_comment_generations ADD COLUMN IF NOT EXISTS viewed_at TIMESTAMP WITH TIME ZONE"))
+                # Win-back: одноразовый показ персональной скидки (флаг на юзере) и
+                # скрытые системные промокоды (нельзя ввести руками). Схему на проде
+                # накатывают эти ALTER'ы, а не alembic (ветвлёный).
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS winback_offered_at TIMESTAMP WITH TIME ZONE"))
+                conn.execute(text("ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT FALSE"))
+                # Системный win-back код (скрытый, −25%, 1 на пользователя). Сеем на
+                # старте, чтобы serve-путь был чистым чтением без коммита в середине
+                # транзакции оплаты. id задаём явно — у модели он Python-дефолт.
+                conn.execute(text(
+                    "INSERT INTO promo_codes (id, code, description, discount_percent, active, hidden, per_user_limit, monthly_only) "
+                    "VALUES (gen_random_uuid(), 'WINBACK25', 'Персональная win-back скидка (системный код)', 25, TRUE, TRUE, 1, FALSE) "
+                    "ON CONFLICT (code) DO NOTHING"
+                ))
                 # §7.3: переименование кодов тарифов старой линейки в новую. Резолвер
                 # понимает и старые коды (алиасы), но в БД приводим к канону, чтобы не
                 # держать оба навсегда. Идемпотентно: повторный прогон ничего не меняет.

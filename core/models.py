@@ -80,6 +80,10 @@ class User(Base):
 
     is_subscribed = Column(Boolean, nullable=False, default=False)
     subscription_expires_at = Column(DateTime(timezone=True), nullable=True)
+    # Win-back: момент, когда пользователю ОДИН раз показали персональную скидку
+    # при отказе от оплаты. NULL — ещё не показывали. Одноразовость держим на
+    # сервере, чтобы её нельзя было обойти чисткой браузера/другим устройством.
+    winback_offered_at = Column(DateTime(timezone=True), nullable=True)
     ai_requests_used = Column(Integer, nullable=False, default=0)
     ai_requests_period_started_at = Column(DateTime(timezone=True), nullable=True)
     # Поля админ-панели (internal_admin): последний вход, UTM регистрации,
@@ -1622,6 +1626,10 @@ class PromoCode(Base):
     description = Column(String(255), nullable=True)
     discount_percent = Column(Integer, nullable=False)  # 1..100
     active = Column(Boolean, nullable=False, default=True, server_default="true")
+    # hidden — системный код (напр. персональная win-back скидка): его НЕЛЬЗЯ
+    # ввести вручную в поле промокода (validate() его отклоняет), применяется
+    # только внутренним серверным путём. Обычные коды создаются с hidden=false.
+    hidden = Column(Boolean, nullable=False, default=False, server_default="false")
 
     # Окно действия (NULL — без ограничения соответствующей границы).
     valid_from = Column(DateTime(timezone=True), nullable=True)

@@ -351,6 +351,48 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- Win-back: персональная скидка при отказе от оплаты. Скидка уже применена
+         (старая цена зачёркнута, новая — ниже); это не поле промокода. -->
+    <Teleport to="body">
+      <transition name="winback-fade">
+        <div
+          v-if="winback"
+          class="billing-modal-backdrop winback-backdrop"
+          @click.self="resolveWinback(false)"
+        >
+          <div class="winback-modal" role="dialog" aria-modal="true" aria-labelledby="winback-title">
+            <button type="button" class="winback-close" aria-label="Закрыть" @click="resolveWinback(false)">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+            <div class="winback-badge">
+              <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 2.5l2.2 5.4 5.8.4-4.5 3.7 1.5 5.6-5-3.1-5 3.1 1.5-5.6-4.5-3.7 5.8-.4z"/></svg>
+              Только для вас — скидка {{ winback.discountPercent }}%
+            </div>
+            <h4 id="winback-title" class="winback-title">Персональная скидка на подписку</h4>
+            <p class="winback-text">
+              Не уходите с пустыми руками. Дарим <b>единоразовую скидку {{ winback.discountPercent }}%</b>,
+              если оформите подписку прямо сейчас.
+            </p>
+            <div class="winback-price">
+              <span class="winback-price__label">Цена со скидкой</span>
+              <span class="winback-price__values">
+                <s class="winback-price__old">{{ formatRub(winback.originalAmount) }}</s>
+                <strong class="winback-price__new">{{ formatRub(winback.finalAmount) }}</strong>
+              </span>
+            </div>
+            <div class="winback-actions">
+              <button type="button" class="winback-accept" @click="resolveWinback(true)">
+                Оформить со скидкой {{ winback.discountPercent }}%
+              </button>
+              <button type="button" class="winback-decline" @click="resolveWinback(false)">
+                Всё равно закрыть
+              </button>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </Teleport>
   </div>
 </template>
 
@@ -801,7 +843,8 @@ async function onSubscribe(planCode, bp = 'month') {
       planCode: String(data.plan_code || planCode).toLowerCase(),
       billingPeriod: data.billing_period || bp,
     })
-    if (!confirmed) return
+    // Закрыл модалку подтверждения, не оплатив — предлагаем персональную скидку.
+    if (!confirmed) { await maybeOfferWinback(planCode, bp, prevPlanCode); return }
     // Если применён промокод — пересобираем заказ на сервере со скидкой
     // (авторитетная сумма/чек/invoice приходят именно отсюда).
     let payData = data
@@ -820,43 +863,9 @@ async function onSubscribe(planCode, bp = 'month') {
         return
       }
     }
-    const result = await payWithCloudPayments({
-      public_id: payData.public_id,
-      description: payData.description,
-      amount: payData.amount,
-      currency: payData.currency,
-      account_id: payData.account_id,
-      email: payData.email,
-      plan_code: payData.plan_code,
-      billing_period: payData.billing_period || bp,
-      recurrent: payData.recurrent || null,
-      // receipt обязателен для фискализации (онлайн-чек CloudKassir): без него
-      // CloudPayments не формирует чек покупателю даже при подключённой кассе.
-      receipt: payData.receipt || null,
-      // Идентификатор заказа: связывает платёж с намерением на бэкенде и не даёт
-      // повторному клику превратиться во второй независимый платёж.
-      invoice_id: payData.invoice_id || null,
-    })
-    if (result.status === 'cancelled') return
-    // Успешная оплата — денежная цель с суммой и срезами (фактическая сумма — payData)
-    const newPlan = String(payData.plan_code || planCode).toLowerCase()
-    const moneyParams = {
-      order_price: Number(payData.amount) || 0,
-      currency: payData.currency || 'RUB',
-      plan: newPlan,
-      billing: payData.billing_period || bp,
-    }
-    reachGoal('payment_success', moneyParams)
-    // Апгрейд: уже был платный тариф и перешли на старший
-    if ((PLAN_RANK[prevPlanCode] ?? 0) >= 1 && (PLAN_RANK[newPlan] ?? 0) > (PLAN_RANK[prevPlanCode] ?? 0)) {
-      reachGoal('plan_upgrade', moneyParams)
-    }
-    toaster.success('Оплата успешно выполнена')
-    await fetchCurrentUser()
-    // Статус/карта приходят вебхуком с задержкой — перечитываем подписку пару раз,
-    // чтобы «Карта привязана •••• 1234» и новый тариф появились без перезагрузки.
-    reloadSubscription()
-    setTimeout(reloadSubscription, 4000)
+    const status = await openPaymentWidget(payData, planCode, bp, prevPlanCode)
+    // Закрыл платёжный виджет, не оплатив — предлагаем персональную скидку один раз.
+    if (status === 'cancelled') { await maybeOfferWinback(planCode, bp, prevPlanCode); return }
   } catch (e) {
     const d = e?.response?.data?.detail
     // detail может быть объектом (например, §8.4 downgrade_blocked с message).
@@ -932,6 +941,103 @@ function resolvePaymentConfirm(result) {
   paymentConfirm.value = null
   if (!result) resetPromoState()
   if (resolve) resolve(Boolean(result))
+}
+
+// --- Win-back: персональная скидка при отказе от оплаты ---
+// Это НЕ промокод: код наружу не отдаётся, отдельная «персональная» модалка со
+// скидкой уже применённой. Одноразовость держит сервер (флаг на аккаунте), сумму
+// со скидкой авторитетно считает /billing/subscribe (фронт на неё не влияет).
+const winback = ref(null)
+let winbackResolve = null
+const winbackOfferedThisSession = ref(false)
+
+function requestWinback(payload) {
+  if (winbackResolve) winbackResolve(false)
+  winback.value = { ...payload }
+  return new Promise((resolve) => { winbackResolve = resolve })
+}
+
+function resolveWinback(result) {
+  const resolve = winbackResolve
+  winbackResolve = null
+  winback.value = null
+  if (resolve) resolve(Boolean(result))
+}
+
+// Оплата через виджет CloudPayments + обработка успеха. 'success' | 'cancelled'.
+async function openPaymentWidget(payData, planCode, bp, prevPlanCode) {
+  const result = await payWithCloudPayments({
+    public_id: payData.public_id,
+    description: payData.description,
+    amount: payData.amount,
+    currency: payData.currency,
+    account_id: payData.account_id,
+    email: payData.email,
+    plan_code: payData.plan_code,
+    billing_period: payData.billing_period || bp,
+    recurrent: payData.recurrent || null,
+    // receipt обязателен для фискализации (онлайн-чек CloudKassir): без него
+    // CloudPayments не формирует чек покупателю даже при подключённой кассе.
+    receipt: payData.receipt || null,
+    // Идентификатор заказа: связывает платёж с намерением на бэкенде и не даёт
+    // повторному клику превратиться во второй независимый платёж.
+    invoice_id: payData.invoice_id || null,
+  })
+  if (result.status === 'cancelled') return 'cancelled'
+  // Успешная оплата — денежная цель с суммой и срезами (фактическая сумма — payData)
+  const newPlan = String(payData.plan_code || planCode).toLowerCase()
+  const moneyParams = {
+    order_price: Number(payData.amount) || 0,
+    currency: payData.currency || 'RUB',
+    plan: newPlan,
+    billing: payData.billing_period || bp,
+  }
+  reachGoal('payment_success', moneyParams)
+  // Апгрейд: уже был платный тариф и перешли на старший
+  if ((PLAN_RANK[prevPlanCode] ?? 0) >= 1 && (PLAN_RANK[newPlan] ?? 0) > (PLAN_RANK[prevPlanCode] ?? 0)) {
+    reachGoal('plan_upgrade', moneyParams)
+  }
+  toaster.success('Оплата успешно выполнена')
+  await fetchCurrentUser()
+  // Статус/карта приходят вебхуком с задержкой — перечитываем подписку пару раз,
+  // чтобы «Карта привязана •••• 1234» и новый тариф появились без перезагрузки.
+  reloadSubscription()
+  setTimeout(reloadSubscription, 4000)
+  return 'success'
+}
+
+async function maybeOfferWinback(planCode, bp, prevPlanCode) {
+  if (winbackOfferedThisSession.value) return
+  let elig
+  try {
+    const { data } = await api.get('billing/winback/eligible', {
+      params: { plan_code: planCode, billing_period: bp },
+    })
+    elig = data
+  } catch { return }
+  if (!elig?.eligible) return
+  winbackOfferedThisSession.value = true
+  // Фиксируем показ на сервере — больше никогда не предлагаем (даже после чистки браузера).
+  try { await api.post('billing/winback/mark-offered') } catch { /* не критично */ }
+  const accepted = await requestWinback({
+    discountPercent: elig.discount_percent,
+    originalAmount: elig.original_amount,
+    finalAmount: elig.final_amount,
+  })
+  if (!accepted) return
+  // Оформление со скидкой: авторитетный subscribe с winback:true → виджет с новой суммой.
+  try {
+    const { data: wbData } = await api.post('billing/subscribe', {
+      plan_code: planCode,
+      billing_period: bp,
+      success_url: `${window.location.origin}/settings?tab=tariff`,
+      fail_url: `${window.location.origin}/settings?tab=tariff`,
+      winback: true,
+    })
+    await openPaymentWidget(wbData, planCode, bp, prevPlanCode)
+  } catch (e) {
+    toaster.error(errText(e, 'Не удалось применить персональную скидку'))
+  }
 }
 
 function formatNumber(value) {
@@ -1677,6 +1783,81 @@ function onContactWl() {
 }
 .billing-modal__cancel:hover {
   background: #f6f8fc;
+}
+
+/* --- Win-back: персональная скидка (подарочный акцент, не путать с чипом промокода) --- */
+.winback-backdrop { z-index: 9500; }
+.winback-modal {
+  position: relative;
+  width: min(100%, 33rem);
+  padding: 2.6rem 2.4rem 2.2rem;
+  border-radius: 1.6rem;
+  background: #fff;
+  box-shadow: 0 1.8rem 5rem rgba(15, 23, 42, 0.28);
+  overflow: hidden;
+}
+.winback-modal::before {
+  content: '';
+  position: absolute; left: 0; right: 0; top: 0; height: 0.35rem;
+  background: linear-gradient(90deg, #3b7bed, #7c5cff);
+}
+.winback-close {
+  position: absolute; top: 1.1rem; right: 1.1rem;
+  width: 2.1rem; height: 2.1rem;
+  display: flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 0.7rem; background: #f1f4f9; color: #64748b; cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.winback-close:hover { background: #e6ebf4; color: #334155; }
+.winback-badge {
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  padding: 0.5rem 0.9rem; border-radius: 999px;
+  background: linear-gradient(135deg, #eef3ff, #f0ecff);
+  color: #4f46e5; font-size: 0.86rem; font-weight: 700; letter-spacing: 0.01em;
+}
+.winback-badge svg { fill: currentColor; }
+.winback-title {
+  margin: 1rem 0 0; color: #171717;
+  font-size: 1.62rem; font-weight: 700; letter-spacing: -0.01em;
+}
+.winback-text {
+  margin: 0.65rem 0 1.3rem; color: rgba(105, 105, 105, 0.82);
+  font-size: 1.02rem; line-height: 1.5;
+}
+.winback-text b { color: #4f46e5; font-weight: 700; }
+.winback-price {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  padding: 1.15rem 1.3rem; border-radius: 1.1rem;
+  background: linear-gradient(135deg, #f3f6ff, #f6f2ff);
+  border: 1px solid #e7e9fb;
+}
+.winback-price__label { color: #64748b; font-size: 0.96rem; font-weight: 600; }
+.winback-price__values { display: flex; align-items: baseline; gap: 0.6rem; }
+.winback-price__old { color: #98a2b3; font-size: 1.05rem; text-decoration-thickness: 1.5px; }
+.winback-price__new {
+  font-size: 1.7rem; font-weight: 800; letter-spacing: -0.01em;
+  background: linear-gradient(135deg, #3b7bed, #7c5cff);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.winback-actions { display: flex; flex-direction: column; gap: 0.7rem; margin-top: 1.5rem; }
+.winback-accept {
+  width: 100%; min-height: 3.5rem; border: 0; border-radius: 1rem;
+  background: linear-gradient(135deg, #3b7bed, #6d5cf0);
+  color: #fff; font-size: 1.05rem; font-weight: 700; cursor: pointer;
+  box-shadow: 0 0.6rem 1.3rem rgba(74, 92, 240, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+.winback-accept:hover { transform: translateY(-1px); box-shadow: 0 0.85rem 1.7rem rgba(74, 92, 240, 0.45); }
+.winback-decline {
+  width: 100%; min-height: 2.9rem; border: 0; background: none;
+  color: #8a94a6; font-size: 0.96rem; font-weight: 600; cursor: pointer;
+  transition: color 0.15s ease;
+}
+.winback-decline:hover { color: #5b6472; }
+.winback-fade-enter-active, .winback-fade-leave-active { transition: opacity 0.2s ease; }
+.winback-fade-enter-from, .winback-fade-leave-to { opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .winback-accept:hover { transform: none; }
 }
 
 .plans-section {

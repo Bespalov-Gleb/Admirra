@@ -1321,6 +1321,9 @@ class BillingSubscribeRequest(BaseModel):
     fail_url: Optional[str] = None
     # Промокод на скидку первого платежа (валидируется и применяется на сервере).
     promo_code: Optional[str] = None
+    # Персональная win-back скидка (не промокод): применяется сервером по гранту
+    # пользователя. Взаимоисключима с promo_code — стекать скидки нельзя.
+    winback: bool = False
 
 
 class BillingPromoValidateRequest(BaseModel):
@@ -1376,6 +1379,19 @@ class BillingSubscribeResponse(BaseModel):
     promo_code: Optional[str] = None
     discount_amount: int = 0
     original_amount: Optional[int] = None
+    # Применена персональная win-back скидка (для UI — отдельный «персональный»
+    # баннер, а не чип промокода). Код при этом наружу НЕ отдаём.
+    winback: bool = False
+
+
+class BillingWinbackEligibleResponse(BaseModel):
+    """Право на показ персональной win-back скидки + превью цены со скидкой."""
+    eligible: bool
+    discount_percent: int = 0
+    original_amount: Optional[int] = None
+    discount_amount: int = 0
+    final_amount: Optional[int] = None
+    currency: str = "RUB"
 
 
 class BillingSlotQuoteRequest(BaseModel):
