@@ -389,7 +389,13 @@ def get_config() -> Config:
             referer=_env("OPENROUTER_REFERER", "https://admirra.ru"),
             title=_env("OPENROUTER_TITLE", "AdMirra"),
             default_model=_env("OPENROUTER_DEFAULT_MODEL", "anthropic/claude-sonnet-5"),
-            max_tool_iterations=int(_env("OPENROUTER_MAX_TOOL_ITERATIONS", "8")),
+            # Один пользовательский вопрос по нескольким проектам обычно требует
+            # пары вызовов на каждый кабинет (выбрать проект → запросить данные).
+            # Это потолок-предохранитель от бесконечного цикла, а не цель: обычный
+            # ответ выходит из цикла сразу, как только модель даёт текст без tool_calls.
+            # 16 не хватало на полноценный мультиплатформенный разбор (модели вроде
+            # Gemini делают много мелких вызовов) — подняли до 100.
+            max_tool_iterations=int(_env("OPENROUTER_MAX_TOOL_ITERATIONS", "100")),
             request_timeout=float(_env("OPENROUTER_REQUEST_TIMEOUT", "120")),
         ),
         wordstat=WordstatConfig(

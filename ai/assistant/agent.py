@@ -108,6 +108,7 @@ async def run(
     messages.append({"role": "user", "content": user_text})
 
     final_text = ""
+    tool_limit_exhausted = False
     try:
         for _iteration in range(max(1, cfg.openrouter.max_tool_iterations)):
             assistant_msg: Optional[dict] = None
@@ -152,9 +153,58 @@ async def run(
                 messages.append({"role": "tool", "tool_call_id": call.get("id"), "name": name, "content": result})
                 _persist(db, conversation.id, "tool", content=result, tool_call_id=call.get("id"), name=name)
 
+        else:
+            # Модель могла корректно собрать несколько источников, но не успеть
+            # сформулировать ответ до общего лимита вызовов. Это не ошибка данных
+            # и не повод показывать пользователю техническое сообщение.
+            tool_limit_exhausted = True
+
+        if tool_limit_exhausted:
+            # Последний ход намеренно без tools: Gemini/GPT получают всю историю
+            # с результатами и обязаны синтезировать ответ, а не продолжать обход
+            # кабинетов. Такой режим также страхует от случайного tool-loop.
+            messages.append({
+                "role": "system",
+                "content": (
+                    "Лимит обращений к источникам в этом ответе исчерпан. "
+                    "Инструменты больше недоступны. Сформируй финальный ответ только "
+                    "по уже полученным данным. Если исходный вопрос подразумевал все "
+                    "проекты или кабинеты, а данных собрано не по всем, прямо скажи, "
+                    "что вывод относится только к уже загруженным проектам; не выдавай "
+                    "частичный анализ за полный."
+                ),
+            })
+            forced_message: Optional[dict] = None
+            forced_usage: Optional[dict] = None
+            async for ev in llm.stream_completion(
+                model=model, effort=effort, messages=messages, tools=None,
+            ):
+                if ev["type"] == "text":
+                    final_text += ev["delta"]
+                    yield ev
+                elif ev["type"] == "reasoning":
+                    yield ev
+                elif ev["type"] == "message":
+                    forced_message = ev["message"]
+                    forced_usage = ev.get("usage")
+
+            if forced_message and (forced_message.get("content") or "").strip():
+                _persist(
+                    db, conversation.id, "assistant", content=forced_message["content"],
+                    tokens_out=(forced_usage or {}).get("completion_tokens"),
+                    tokens_in=(forced_usage or {}).get("prompt_tokens"),
+                )
+                yield {"type": "done", "content": forced_message["content"]}
+                return
+
         if final_text:
             _persist(db, conversation.id, "assistant", content=final_text)
-        yield {"type": "done", "content": final_text or "Достигнут лимит шагов анализа. Уточните запрос."}
+        fallback = (
+            "Не удалось завершить анализ после получения данных. "
+            "Попробуйте сузить период или выбрать конкретный проект."
+            if tool_limit_exhausted else "Не удалось получить ответ модели. Попробуйте ещё раз."
+        )
+        yield {"type": "done", "content": final_text or fallback}
     except llm.LLMError as exc:
         logger.warning("LLM error: %s", exc)
         yield {"type": "error", "error": f"Ошибка модели: {exc}"}
