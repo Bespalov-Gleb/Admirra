@@ -148,7 +148,7 @@
                   <!-- Повторить прошлый план: копирует бюджеты и целевые CPL
                        прошлого периода в текущий, чтобы не заносить вручную -->
                   <button
-                    v-if="previousPlanPeriod"
+                    v-if="previousPlanPeriod && !currentPeriodHasPlan"
                     type="button"
                     class="psm-repeat-plan"
                     @click="repeatPreviousPlan"
@@ -809,13 +809,17 @@ const previousPlanLabel = computed(() => {
   return p ? `${formatRuDate(p.start)} — ${formatRuDate(p.end)}` : ''
 })
 
-// Есть ли уже заполненные значения в текущем периоде — чтобы предупредить
-// о перезаписи перед копированием.
-const currentPeriodHasValues = () => {
+// Есть ли уже назначенный план в текущем периоде — бюджет по каналам или
+// целевой CPL/CPA (введённый вручную либо загруженный из сохранённого).
+// По этому же признаку прячем чип «Повторить план прошлого периода»: помощник
+// нужен только пока план текущего периода пустой.
+const currentPeriodHasPlan = computed(() => {
   const anyBudget = projectChannels.value.some((ch) => String(budgets[ch.id] || '').trim())
   const anyTarget = goalRows.value.some((g) => String(g.targetCpa || '').trim())
   return anyBudget || anyTarget
-}
+})
+// Проверка перезаписи перед копированием — тот же признак.
+const currentPeriodHasValues = () => currentPeriodHasPlan.value
 
 function repeatPreviousPlan() {
   const source = previousPlanPeriod.value
