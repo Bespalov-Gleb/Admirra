@@ -85,3 +85,32 @@ export const getProjectPeriodRange = (value, customRange = null) => {
   const start = new Date(today.getTime() - (days - 1) * DAY_MS)
   return { startDate: toDateParam(start), endDate: toDateParam(today) }
 }
+
+// Единый период по умолчанию для списка проектов и дашборда.
+export const DEFAULT_PROJECT_PERIOD = 'this_week'
+
+// Общее хранилище выбранного периода — чтобы он держался при переходах между
+// списком проектов и дашбордом. Ключ один на оба экрана.
+const PERIOD_STORAGE_KEY = 'admirra:project-period'
+
+export const loadSavedProjectPeriod = () => {
+  try {
+    const raw = localStorage.getItem(PERIOD_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (parsed && typeof parsed.key === 'string' && parsed.key) return parsed
+  } catch { /* приватный режим/битое значение — игнорируем */ }
+  return null
+}
+
+export const saveProjectPeriod = (key, customRange = null) => {
+  try {
+    if (!key) return
+    localStorage.setItem(PERIOD_STORAGE_KEY, JSON.stringify({
+      key,
+      customRange: key === 'custom' && customRange?.start && customRange?.end
+        ? { start: customRange.start, end: customRange.end }
+        : null,
+    }))
+  } catch { /* игнорируем */ }
+}

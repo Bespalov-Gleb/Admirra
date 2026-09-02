@@ -746,7 +746,7 @@ import { useProjects } from '../../composables/useProjects'
 import { useToaster } from '../../composables/useToaster'
 import { hasActiveProjectIntegration, hasProjectPlatform } from '../../utils/projectIntegrations'
 import { relativeSyncLabel } from '../../utils/relativeTime'
-import { getProjectPeriodLabel, getProjectPeriodRange, projectPeriodOptions } from '../../utils/projectPeriods'
+import { getProjectPeriodLabel, getProjectPeriodRange, projectPeriodOptions, DEFAULT_PROJECT_PERIOD, loadSavedProjectPeriod, saveProjectPeriod } from '../../utils/projectPeriods'
 import { projectAvatarUrl, projectInitials } from '../../utils/projectAvatar'
 import DateRangePicker from '../../components/ui/DateRangePicker.vue'
 import ProjectAvatarUploadModal from '../../components/ProjectAvatarUploadModal.vue'
@@ -790,8 +790,17 @@ const {
 } = useSyncStatus()
 
 const projectFilter = ref('active')
-const periodKey = ref('last_7_days')
-const customPeriodRange = ref({ start: null, end: null })
+// Период по умолчанию — «Эта неделя»; при наличии сохранённого (общего с
+// дашбордом) берём его, чтобы выбор держался при переходах между экранами.
+const _savedPeriod = loadSavedProjectPeriod()
+const periodKey = ref(_savedPeriod?.key || DEFAULT_PROJECT_PERIOD)
+const customPeriodRange = ref(
+  _savedPeriod?.key === 'custom' && _savedPeriod.customRange
+    ? { start: _savedPeriod.customRange.start, end: _savedPeriod.customRange.end }
+    : { start: null, end: null }
+)
+// Сохраняем выбор в общее хранилище (список проектов ↔ дашборд).
+watch([periodKey, customPeriodRange], () => saveProjectPeriod(periodKey.value, customPeriodRange.value), { deep: true })
 const search = ref('')
 const openSelect = ref(null)
 const metricsByProjectId = ref({})
@@ -1020,7 +1029,11 @@ const filteredProjects = computed(() => {
   } else if (projectFilter.value === 'paused') {
     list = list.filter(isProjectPaused)
   }
-  return [...list].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ru'))
+  // Сортировка по имени + тай-брейкер по id: при равных именах порядок остаётся
+  // детерминированным и не «плавает» между загрузками (частая жалоба сотрудников).
+  return [...list].sort((a, b) =>
+    (a.name || '').localeCompare(b.name || '', 'ru')
+    || String(a.id || '').localeCompare(String(b.id || '')))
 })
 
 // ТЗ п.6: результат в папке — разворачиваем папку, чтобы карточка была видна
@@ -1083,7 +1096,9 @@ const displayItems = computed(() => {
     }
     return items
   }
-  for (const f of [...folders.value].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))) {
+  for (const f of [...folders.value].sort((a, b) =>
+    (a.sort_order || 0) - (b.sort_order || 0)
+    || (a.name || '').localeCompare(b.name || '', 'ru'))) {
     if (!shouldDisplayFolder(f)) continue
     items.push({ type: 'folder', folder: f })
     if (expandedFolders.value[f.id]) {
@@ -1683,8 +1698,10 @@ const projectChannelSummaries = (project) => {
       ? prevLeadExpenses / prevTotal
       : null
     let cplDeltaPct = null
+    let cplDeltaAbs = null   // отклонение CPL в рублях (без НДС; НДС применим при показе)
     if (summary.avgCpl !== null && summary.avgCpl > 0 && prevAvgCpl !== null && prevAvgCpl > 0) {
       cplDeltaPct = Math.round(((summary.avgCpl - prevAvgCpl) / prevAvgCpl) * 100)
+      cplDeltaAbs = summary.avgCpl - prevAvgCpl
     }
     return {
       ...platform,
@@ -1700,6 +1717,7 @@ const projectChannelSummaries = (project) => {
       prevGoalTotal: prevTotal,
       leadsDelta,
       cplDeltaPct,
+      cplDeltaAbs,
     }
   })
 }
@@ -1756,8 +1774,10 @@ const folderChannelSummaries = (folder) => {
     const avgCpl = goalTotal > 0 ? leadExpenses / goalTotal : null
     const prevAvgCpl = prevGoalTotal != null && prevGoalTotal > 0 ? prevLeadExpenses / prevGoalTotal : null
     let cplDeltaPct = null
+    let cplDeltaAbs = null   // отклонение CPL в рублях (по папке; НДС применим при показе)
     if (avgCpl !== null && avgCpl > 0 && prevAvgCpl !== null && prevAvgCpl > 0) {
       cplDeltaPct = Math.round(((avgCpl - prevAvgCpl) / prevAvgCpl) * 100)
+      cplDeltaAbs = avgCpl - prevAvgCpl
     }
 
     return {
@@ -1776,6 +1796,7 @@ const folderChannelSummaries = (folder) => {
       prevGoalTotal,
       leadsDelta: prevGoalTotal == null ? null : goalTotal - prevGoalTotal,
       cplDeltaPct,
+      cplDeltaAbs,
     }
   })
 }
@@ -1823,8 +1844,15 @@ const leadsDeltaBadge = (channel) => {
 const cplDeltaBadge = (channel) => {
   const pct = channel.cplDeltaPct
   if (pct === null || pct === undefined || pct === 0) return null
+  const pctText = pct > 0 ? `+${pct}%` : `${pct}%`
+  // Отклонение в рублях — с НДС, чтобы совпадало с отображаемым CPL.
+  const abs = channel.cplDeltaAbs
+  const adj = (abs !== null && abs !== undefined && Number.isFinite(abs)) ? withChannelVat(abs, channel.code) : null
+  const money = (adj !== null && Math.round(adj) !== 0)
+    ? (adj > 0 ? `+${formatMoney(adj)}` : `−${formatMoney(Math.abs(adj))}`)
+    : null
   return {
-    text: pct > 0 ? `+${pct}%` : `${pct}%`,
+    text: money ? `${pctText} · ${money}` : pctText,
     dir: pct > 0 ? 'up' : 'down',
     cls: pct < 0 ? 'channel-delta--up' : 'channel-delta--down',
   }
@@ -2966,7 +2994,9 @@ onMounted(async () => {
 
 .project-goal-detail-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 3.8194rem 4.8611rem 3.3333rem;
+  /* Колонка «кол-во + дельта» — auto (не фикс), иначе при дельте вроде −10
+     содержимое переполняло ячейку и налезало на CPL. Имя (1fr) ужимается. */
+  grid-template-columns: minmax(0, 1fr) minmax(3.8194rem, auto) 4.8611rem 3.3333rem;
   align-items: center;
   gap: 0.625rem;
   min-height: 2.2222rem;

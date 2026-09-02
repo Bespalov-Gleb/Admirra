@@ -1672,7 +1672,7 @@ import { refreshReportsQueue } from '@/composables/useReportsQueue'
 import { useToaster } from '@/composables/useToaster'
 import api from '@/api/axios'
 import DateRangePicker from '@/components/ui/DateRangePicker.vue'
-import { projectPeriodOptions, getProjectPeriodLabel, getProjectPeriodRange } from '@/utils/projectPeriods'
+import { projectPeriodOptions, getProjectPeriodLabel, getProjectPeriodRange, DEFAULT_PROJECT_PERIOD, loadSavedProjectPeriod, saveProjectPeriod } from '@/utils/projectPeriods'
 import { VueDraggable } from 'vue-draggable-plus'
 import DetectorBanner from '@/components/DetectorBanner.vue'
 import DetectorSidebar from '@/components/DetectorSidebar.vue'
@@ -2057,15 +2057,29 @@ const buildChartTotalValues = (metricKey) => {
 const chartHoverIndex = ref(-1)
 const chartSvgRef = ref(null)
 const dashboardRef = ref(null)
+// Период по умолчанию — «Эта неделя»; общий с экраном списка проектов
+// (сохраняется в localStorage), чтобы держался при переходах.
+const _savedPeriod = loadSavedProjectPeriod()
 const periodKey = ref(
-  filters.period === 'custom' ? 'custom'
-    : (filters.period || 'last_7_days')
+  _savedPeriod?.key
+    || (filters.period === 'custom' ? 'custom' : (filters.period || DEFAULT_PROJECT_PERIOD))
 )
 const customPeriodRange = ref(
-  filters.period === 'custom' && filters.start_date && filters.end_date
-    ? { start: filters.start_date, end: filters.end_date }
-    : { start: null, end: null }
+  _savedPeriod?.key === 'custom' && _savedPeriod.customRange
+    ? { start: _savedPeriod.customRange.start, end: _savedPeriod.customRange.end }
+    : (filters.period === 'custom' && filters.start_date && filters.end_date
+        ? { start: filters.start_date, end: filters.end_date }
+        : { start: null, end: null })
 )
+// Синхронизируем даты фильтра с выбранным периодом ДО первого fetchStats (mount),
+// чтобы дашборд сразу грузился за сохранённый/дефолтный период, а не за старый.
+{
+  const { startDate, endDate } = getProjectPeriodRange(periodKey.value, customPeriodRange.value)
+  filters.start_date = startDate
+  filters.end_date = endDate
+  filters.period = periodKey.value === 'custom' ? 'custom' : periodKey.value
+}
+watch([periodKey, customPeriodRange], () => saveProjectPeriod(periodKey.value, customPeriodRange.value), { deep: true })
 const periodTriggerRef = ref(null)
 const periodPopoverRef = ref(null)
 const includeVat = ref(true)
