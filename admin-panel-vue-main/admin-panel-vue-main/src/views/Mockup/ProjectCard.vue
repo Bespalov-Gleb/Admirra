@@ -1675,6 +1675,15 @@ const metricLeadExpenses = (metric, platformCode) => {
     : Number(metric?.expenses || 0)
 }
 
+// Лидовый расход за ПРОШЛЫЙ период иногда приходит нулём, хотя заявки и общий
+// расход канала за P′ есть (частый кейс VK: расход лид-кампаний не посчитан за
+// прошлый период). Тогда база CPL пропадала и динамика CPL не показывалась вовсе.
+// Фолбэк: при нулевом лидовом расходе берём общий расход канала за P′ как базу.
+const prevLeadExpensesFor = (metric, platformCode) => {
+  const lead = metricLeadExpenses(metric, platformCode)
+  return lead || Number(metric?.expenses || 0)
+}
+
 const projectChannelSummaries = (project) => {
   if (project.__isFolder) return folderChannelSummaries(project)
   const insights = getProjectInsights(project.id)
@@ -1687,7 +1696,7 @@ const projectChannelSummaries = (project) => {
     const summary = topGoalSummary(goals, platform.code, leadExpenses)
     // ТЗ «Дельта по заявкам» §4: prev = null (нет данных за P′) → дельты нет.
     // База сравнения — предыдущий сопоставимый период, его считает бэк (§6).
-    const prevLeadExpenses = metricLeadExpenses(metric.prev, platform.code)
+    const prevLeadExpenses = prevLeadExpensesFor(metric.prev, platform.code)
     const countedGoals = goals.filter((goal) => goal.summable !== false)
     const isVk = platform.code === 'vk'
     const prevTotal = sumPrevCounts(countedGoals)
@@ -1735,7 +1744,7 @@ const folderChannelSummaries = (folder) => {
       const metric = insights[platform.code] || emptyMetric()
       expenses += Number(metric.expenses || 0)
       leadExpenses += metricLeadExpenses(metric, platform.code)
-      prevLeadExpenses += metricLeadExpenses(metric.prev, platform.code)
+      prevLeadExpenses += prevLeadExpensesFor(metric.prev, platform.code)
 
       for (const goal of normalizeGoalRows(insights.goals?.[platform.code] || [])) {
         // В одной папке у разных проектов один и тот же тип VK-действия может
