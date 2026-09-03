@@ -2922,7 +2922,10 @@ onMounted(async () => {
 
 .project-channel-row {
   display: grid;
-  grid-template-columns: 2.2222rem minmax(8.5rem, 0.85fr) minmax(22.75rem, 1fr);
+  /* Название канала редко требует много места, а CPL теперь содержит ещё и
+     денежную дельту. Отдаём полезную ширину колонкам показателей, чтобы даже
+     «12 345,67 ₽ +10 000 ₽» не наезжало на расход. */
+  grid-template-columns: 2.2222rem minmax(8rem, 0.55fr) minmax(31rem, 1.65fr);
   align-items: center;
   gap: 0.8333rem;
   min-height: 4.1667rem;
@@ -2957,7 +2960,7 @@ onMounted(async () => {
 
 .project-channel-metrics {
   display: grid;
-  grid-template-columns: minmax(6.75rem, 0.9fr) minmax(7.75rem, 1.05fr) minmax(8.25rem, 1.15fr);
+  grid-template-columns: minmax(7.25rem, 0.8fr) minmax(13.75rem, 1.45fr) minmax(10rem, 1fr);
   align-self: stretch;
   min-width: 0;
   overflow: hidden;
