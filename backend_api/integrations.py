@@ -2588,34 +2588,45 @@ async def get_integration_counters(
                     except Exception as e:
                         logger.error(f"❌ Priority 1 FAILED: Failed to fetch counter details from Metrika: {e}")
 
-                    # Счётчики, привязанные к кампаниям, но отсутствующие в get_counters()
-                    # (гостевой/расшаренный доступ или другой профиль Метрики): их цели всё
-                    # равно тянутся напрямую через /goals, поэтому счётчик обязан быть в списке.
-                    # Иначе баг — «цели без счётчика». Дописываем недостающие с fallback-именем.
+                    # По решению владельца показываем ТОЛЬКО ДОСТУПНЫЕ счётчики.
+                    # (1) CounterIds кампаний, отсутствующие в get_counters(): раньше
+                    # дописывались с заглушкой «Счётчик {id}» безусловно — но если счётчик
+                    # токену недоступен, это «фантом» (ни имени, ни целей, выбрать нечего).
+                    # Теперь добавляем такой ID ТОЛЬКО если его цели реально читаются
+                    # (кейс гостевого доступа вне get_counters); иначе скрываем.
                     matched_ids = {c["id"] for c in counters_list}
-                    missing_campaign_ids = [cid for cid in sorted(all_counter_ids) if cid not in matched_ids]
-                    for cid in missing_campaign_ids:
+                    for cid in [c for c in sorted(all_counter_ids) if c not in matched_ids]:
+                        try:
+                            await metrica_api.get_counter_goals(cid)  # 200 → доступен (даже без целей)
+                        except Exception:
+                            logger.info(f"— Priority 1: скрыт недоступный счётчик кампании {cid} (нет доступа токена)")
+                            continue
                         counters_list.append({
-                            "id": cid,
-                            "name": f"Счётчик {cid}",
-                            "site": "",
-                            "owner_login": "",
-                            "source": "campaign",
+                            "id": cid, "name": f"Счётчик {cid}", "site": "",
+                            "owner_login": "", "source": "campaign",
                         })
-                        logger.info(f"➕ Priority 1: added campaign counter {cid} missing from get_counters() (fallback name)")
+                        logger.info(f"➕ Priority 1: guest-доступный счётчик кампании {cid} (fallback-имя)")
 
-                    # Если НИ ОДИН счётчик из кампаний токену недоступен (чужие/
-                    # устаревшие CounterIds в настройках кампаний — кейс РУСТЕХ),
-                    # пользователь видел бы только «неизвестные» ID без имён и без
-                    # целей, и выбрать было бы нечего. Только в этом случае дополняем
-                    # список доступными счётчиками профиля. Пока доступен хотя бы
-                    # один счётчик кампаний — список, как раньше, только из кампаний.
-                    if not matched_ids and all_counters:
+                    # (2) Дополняем ОСТАЛЬНЫМИ доступными счётчиками того же кабинета
+                    # (напр. счётчик без кампании — раньше он вообще не показывался),
+                    # фильтруя по владельцу, чтобы не вывалить счётчики чужих клиентов
+                    # (токен владельца видит всех). Доверенные владельцы = выбранный
+                    # кабинет + владельцы уже совпавших счётчиков кампаний.
+                    def _norm_login(login):
+                        return login.lower().replace('.', '').replace('-', '') if login else ''
+                    trusted_owners = {_norm_login(target_account)} if target_account else set()
+                    for c in counters_list:
+                        trusted_owners.add(_norm_login(c.get("owner_login")))
+                    trusted_owners.discard('')
+                    if trusted_owners and all_counters:
                         listed_ids = {c["id"] for c in counters_list}
-                        appended = 0
                         for counter in sorted(all_counters, key=lambda c: str(c.get("name") or "")):
                             counter_id_str = str(counter.get("id", ""))
                             if not counter_id_str or counter_id_str in listed_ids:
+                                continue
+                            owner_norm = _norm_login(counter.get("owner_login", ""))
+                            # владелец из доверенного кабинета либо счётчик без owner_login
+                            if owner_norm and owner_norm not in trusted_owners:
                                 continue
                             counters_list.append({
                                 "id": counter_id_str,
@@ -2625,8 +2636,6 @@ async def get_integration_counters(
                                 "source": "profile",
                             })
                             listed_ids.add(counter_id_str)
-                            appended += 1
-                        logger.info(f"➕ Priority 1: {len(missing_campaign_ids)} campaign counter(s) inaccessible, appended {appended} accessible profile counters")
                 else:
                     logger.warning(f"⚠️ Priority 1: No CounterIds found in campaigns. campaign_counters_map={campaign_counters_map}")
             else:
