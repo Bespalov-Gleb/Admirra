@@ -1586,6 +1586,9 @@ const normalizeGoalRows = (goals = []) => goals
       // ТЗ «Дельта по заявкам» §4/§7: пустота ≠ ноль. null = данных за прошлый
       // период нет — никаких `prev ?? 0`, чип дельты в этом случае не рендерится.
       prev_count: goal.prev_count == null ? null : Number(goal.prev_count),
+      // prev_cost — лидовый расход цели за прошлый период (та же база, что prev_count).
+      // Нужен для консистентной CPL-дельты канала (см. projectChannelSummaries).
+      prev_cost: goal.prev_cost == null ? null : Number(goal.prev_cost),
       trend: Number(goal.trend || 0),
       hasCost,
       cost,
@@ -1696,10 +1699,16 @@ const projectChannelSummaries = (project) => {
     const summary = topGoalSummary(goals, platform.code, leadExpenses)
     // ТЗ «Дельта по заявкам» §4: prev = null (нет данных за P′) → дельты нет.
     // База сравнения — предыдущий сопоставимый период, его считает бэк (§6).
-    const prevLeadExpenses = prevLeadExpensesFor(metric.prev, platform.code)
     const countedGoals = goals.filter((goal) => goal.summable !== false)
     const isVk = platform.code === 'vk'
     const prevTotal = sumPrevCounts(countedGoals)
+    // prev лидовый расход — из ТЕХ ЖЕ целей, что и prev-заявки (одна база периода/
+    // preset). Раньше брали из summary.prev (встык-окно): для пресетов вроде «эта
+    // неделя/месяц» база расходилась с prev-заявками (из целей, «к дате») и CPL-дельта
+    // пропадала. Фолбэк на summary.prev — только если цели prev_cost не отдают.
+    const prevLeadExpenses = countedGoals.some((g) => g.prev_cost != null)
+      ? countedGoals.reduce((sum, g) => sum + (g.prev_cost != null ? Number(g.prev_cost) : 0), 0)
+      : prevLeadExpensesFor(metric.prev, platform.code)
     const leadsDelta = prevTotal == null ? null : summary.total - prevTotal
     // CPL канала считается как расход/цели — та же формула для прошлого периода.
     // §6: cpl_prev = null при leads_prev ∈ {0, null} — деление на ноль не маскируем.
@@ -1737,14 +1746,14 @@ const folderChannelSummaries = (folder) => {
     const goalMap = new Map()
     let expenses = 0
     let leadExpenses = 0
-    let prevLeadExpenses = 0
+    let prevLeadExpensesSummary = 0   // fallback: prev-расход из summary.prev (встык)
 
     for (const member of members) {
       const insights = getProjectInsights(member.id)
       const metric = insights[platform.code] || emptyMetric()
       expenses += Number(metric.expenses || 0)
       leadExpenses += metricLeadExpenses(metric, platform.code)
-      prevLeadExpenses += prevLeadExpensesFor(metric.prev, platform.code)
+      prevLeadExpensesSummary += prevLeadExpensesFor(metric.prev, platform.code)
 
       for (const goal of normalizeGoalRows(insights.goals?.[platform.code] || [])) {
         // В одной папке у разных проектов один и тот же тип VK-действия может
@@ -1755,6 +1764,7 @@ const folderChannelSummaries = (folder) => {
           ...goal,
           count: 0,
           prev_count: null,
+          prev_cost: null,
           cost: goal.hasCost ? 0 : null,
           syncing: false,
           missingInMetrika: false,
@@ -1764,6 +1774,9 @@ const folderChannelSummaries = (folder) => {
         // число + null = число (частичное покрытие — суммируем известное)
         if (goal.prev_count != null) {
           current.prev_count = Number(current.prev_count || 0) + Number(goal.prev_count)
+        }
+        if (goal.prev_cost != null) {
+          current.prev_cost = Number(current.prev_cost || 0) + Number(goal.prev_cost)
         }
         current.syncing = current.syncing || Boolean(goal.syncing)
         current.missingInMetrika = current.missingInMetrika || Boolean(goal.missingInMetrika)
@@ -1779,6 +1792,11 @@ const folderChannelSummaries = (folder) => {
     const isVk = platform.code === 'vk'
     // §4: null, если данных за P′ нет ни по одной цели папки
     const prevGoalTotal = sumPrevCounts(countedGoals)
+    // prev лидовый расход — из целей (та же база, что prev-заявки), иначе fallback
+    // на summary.prev. Иначе на пресетах «эта неделя/месяц» CPL-дельта пропадала.
+    const prevLeadExpenses = countedGoals.some((g) => g.prev_cost != null)
+      ? countedGoals.reduce((sum, g) => sum + (g.prev_cost != null ? Number(g.prev_cost) : 0), 0)
+      : prevLeadExpensesSummary
     const goalNounValue = goalNoun(goalTotal)
     const avgCpl = goalTotal > 0 ? leadExpenses / goalTotal : null
     const prevAvgCpl = prevGoalTotal != null && prevGoalTotal > 0 ? prevLeadExpenses / prevGoalTotal : null

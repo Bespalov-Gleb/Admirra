@@ -2896,6 +2896,9 @@ async def get_goals(
             "name": "Конверсии выбранных кампаний",
             "count": current_count,
             "prev_count": prev_count if prev_has_data else None,
+            # prev_cost за прошлый период (та же база, что prev_count) — для
+            # консистентной CPL-дельты канала на фронте (см. VK-ветку выше).
+            "prev_cost": prev_cost if prev_has_data else None,
             "trend": trend,
             "cost": current_cost,
         }]
@@ -2980,6 +2983,11 @@ async def get_goals(
                 "name": name,
                 "count": current_count,
                 "prev_count": prev_count if prev_has_data else None,
+                # prev_cost — лидовый расход этого действия за ПРОШЛЫЙ период (та же
+                # база, что и prev_count). Нужен фронту для CPL-дельты канала:
+                # иначе он берёт prev-расход из summary (встык-окно) и рассинхрон
+                # с prev-заявками рушит дельту на пресетах «эта неделя/месяц».
+                "prev_cost": prev_cost if prev_has_data else None,
                 "trend": trend,
                 "cost": current_cost,
                 "category": category,
