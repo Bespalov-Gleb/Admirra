@@ -223,7 +223,7 @@
                     </div>
                     <div class="project-channel-metric project-channel-metric--cpl">
                       <strong>{{ channel.avgCpl !== null ? formatMoney(withChannelVat(channel.avgCpl, channel.code)) : '—' }}
-                        <em v-if="cplDeltaBadge(channel)" class="channel-delta" :class="cplDeltaBadge(channel).cls"><svg class="channel-delta__arrow" :class="{ 'channel-delta__arrow--down': cplDeltaBadge(channel).dir === 'down' }" width="8" height="7" viewBox="0 0 12 9" fill="none" aria-hidden="true"><path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ cplDeltaBadge(channel).text }}</em>
+                        <em v-if="cplDeltaBadge(channel)" class="channel-delta" :class="cplDeltaBadge(channel).cls" :title="cplDeltaBadge(channel).title"><svg class="channel-delta__arrow" :class="{ 'channel-delta__arrow--down': cplDeltaBadge(channel).dir === 'down' }" width="8" height="7" viewBox="0 0 12 9" fill="none" aria-hidden="true"><path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ cplDeltaBadge(channel).text }}</em>
                       </strong>
                       <span>Общий CPL</span>
                     </div>
@@ -448,7 +448,7 @@
                     </div>
                     <div class="project-channel-metric project-channel-metric--cpl">
                       <strong>{{ channel.avgCpl !== null ? formatMoney(withChannelVat(channel.avgCpl, channel.code)) : '—' }}
-                        <em v-if="cplDeltaBadge(channel)" class="channel-delta" :class="cplDeltaBadge(channel).cls"><svg class="channel-delta__arrow" :class="{ 'channel-delta__arrow--down': cplDeltaBadge(channel).dir === 'down' }" width="8" height="7" viewBox="0 0 12 9" fill="none" aria-hidden="true"><path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ cplDeltaBadge(channel).text }}</em>
+                        <em v-if="cplDeltaBadge(channel)" class="channel-delta" :class="cplDeltaBadge(channel).cls" :title="cplDeltaBadge(channel).title"><svg class="channel-delta__arrow" :class="{ 'channel-delta__arrow--down': cplDeltaBadge(channel).dir === 'down' }" width="8" height="7" viewBox="0 0 12 9" fill="none" aria-hidden="true"><path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ cplDeltaBadge(channel).text }}</em>
                       </strong>
                       <span>Общий CPL</span>
                     </div>
@@ -1869,19 +1869,21 @@ const leadsDeltaBadge = (channel) => {
 // CPL: окраска инвертирована — снизился (лучше) = зелёный, вырос = красный.
 // Стрелка (dir) показывает фактическое движение, цвет (cls) — хорошо/плохо.
 const cplDeltaBadge = (channel) => {
-  const pct = channel.cplDeltaPct
-  if (pct === null || pct === undefined || pct === 0) return null
-  const pctText = pct > 0 ? `+${pct}%` : `${pct}%`
-  // Отклонение в рублях — с НДС, чтобы совпадало с отображаемым CPL.
   const abs = channel.cplDeltaAbs
-  const adj = (abs !== null && abs !== undefined && Number.isFinite(abs)) ? withChannelVat(abs, channel.code) : null
-  const money = (adj !== null && Math.round(adj) !== 0)
-    ? (adj > 0 ? `+${formatMoney(adj)}` : `−${formatMoney(Math.abs(adj))}`)
-    : null
+  if (abs === null || abs === undefined || !Number.isFinite(abs) || Math.abs(abs) < 0.005) return null
+
+  // Показываем именно изменение стоимости заявки в рублях, а не процент:
+  // это та же НДС-база, что и основное значение «Общий CPL» рядом.
+  const adjusted = withChannelVat(abs, channel.code)
+  const increased = adjusted > 0
+  const amount = formatMoney(Math.abs(adjusted))
   return {
-    text: money ? `${pctText} · ${money}` : pctText,
-    dir: pct > 0 ? 'up' : 'down',
-    cls: pct < 0 ? 'channel-delta--up' : 'channel-delta--down',
+    text: `${increased ? '+' : '−'}${amount}`,
+    dir: increased ? 'up' : 'down',
+    cls: increased ? 'channel-delta--down' : 'channel-delta--up',
+    title: increased
+      ? `CPL вырос на ${amount} относительно прошлого сопоставимого периода`
+      : `CPL снизился на ${amount} относительно прошлого сопоставимого периода`,
   }
 }
 

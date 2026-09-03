@@ -1158,6 +1158,10 @@ class GoalStat(BaseModel):
     # None = данных за предыдущий период нет (короткая история, разрыв синка) —
     # фронт в этом случае не рендерит чип дельты вовсе.
     prev_count: Optional[int] = None
+    # Расход за предыдущий сопоставимый период. Нужен карточкам проектов для
+    # честной абсолютной динамики CPL: (расход / заявки) текущего периода
+    # против той же формулы за предыдущий.
+    prev_cost: Optional[float] = None
     trend: float
     cost: Optional[float] = 0.0  # Cost for this goal (proportional to conversions)
     category: Optional[str] = None
