@@ -41,6 +41,16 @@ class ModelSpec:
 
 # Порядок = порядок в селекторе. Первый элемент — модель по умолчанию.
 MODELS: tuple[ModelSpec, ...] = (
+    # Gemini — единственная используемая модель ассистента (выбор во фронте убран,
+    # чат жёстко использует дефолт). Первая в списке ⇒ DEFAULT_MODEL_ID = gemini.
+    ModelSpec(
+        id="gemini-3.7-flash",
+        label="Gemini 3.7 Flash",
+        slug="google/gemini-3.7-flash",
+        reasoning=True,
+        family="google",
+        description="Быстрая мультимодальная от Google, контекст до 1M токенов.",
+    ),
     ModelSpec(
         id="claude-sonnet-5",
         label="Claude Sonnet 5",
@@ -80,14 +90,6 @@ MODELS: tuple[ModelSpec, ...] = (
         reasoning=True,
         family="openrouter",
         description="Moonshot Kimi — длинный контекст и инструменты.",
-    ),
-    ModelSpec(
-        id="gemini-3.7-flash",
-        label="Gemini 3.7 Flash",
-        slug="google/gemini-3.7-flash",
-        reasoning=True,
-        family="google",
-        description="Быстрая мультимодальная от Google, контекст до 1M токенов.",
     ),
 )
 

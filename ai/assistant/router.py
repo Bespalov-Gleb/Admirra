@@ -181,7 +181,9 @@ async def chat(
         db.commit()
         db.refresh(conv)
 
-    model = get_model(req.model or conv.model)
+    # Ассистент работает только на Gemini: модель зафиксирована на дефолте,
+    # выбор во фронте убран. Реверт — вернуть get_model(req.model or conv.model).
+    model = get_model(DEFAULT_MODEL_ID)
     effort = normalize_effort(model, req.effort)
     conversation_id = str(conv.id)
 

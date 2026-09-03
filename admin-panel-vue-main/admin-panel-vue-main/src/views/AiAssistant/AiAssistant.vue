@@ -69,15 +69,6 @@
               @keydown.enter.exact.prevent="sendPrompt"
             ></textarea>
             <div class="assistant-composer__actions">
-              <div class="assistant-model" :class="{ 'assistant-model--open': modelMenuOpen }" v-click-outside="() => (modelMenuOpen = false)">
-                <button type="button" class="assistant-model__btn" :aria-expanded="modelMenuOpen" aria-haspopup="listbox" @click="modelMenuOpen = !modelMenuOpen">
-                  <span>Модель · <b>{{ selectedModel.label }}</b></span>
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
-                </button>
-                <div v-if="modelMenuOpen" class="assistant-model__menu" role="listbox" aria-label="Выбор модели">
-                  <button v-for="m in models" :key="m.id" type="button" :title="m.description" :class="{ 'is-active': m.id === selectedModelId }" @click="pickModel(m.id)">{{ m.label }}</button>
-                </div>
-              </div>
               <div v-if="selectedModel.reasoning" class="assistant-model" :class="{ 'assistant-model--open': effortMenuOpen }" v-click-outside="() => (effortMenuOpen = false)">
                 <button type="button" class="assistant-model__btn" :aria-expanded="effortMenuOpen" aria-haspopup="listbox" @click="effortMenuOpen = !effortMenuOpen">
                   <span>Уровень размышлений · <b>{{ effortLabel }}</b></span>
@@ -184,15 +175,6 @@
               @keydown.enter.exact.prevent="sendPrompt"
             ></textarea>
             <div class="assistant-composer__actions">
-              <div class="assistant-model" :class="{ 'assistant-model--open': modelMenuOpen }" v-click-outside="() => (modelMenuOpen = false)">
-                <button type="button" class="assistant-model__btn" :aria-expanded="modelMenuOpen" aria-haspopup="listbox" @click="modelMenuOpen = !modelMenuOpen">
-                  <span>Модель · <b>{{ selectedModel.label }}</b></span>
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
-                </button>
-                <div v-if="modelMenuOpen" class="assistant-model__menu assistant-model__menu--up" role="listbox" aria-label="Выбор модели">
-                  <button v-for="m in models" :key="m.id" type="button" :title="m.description" :class="{ 'is-active': m.id === selectedModelId }" @click="pickModel(m.id)">{{ m.label }}</button>
-                </div>
-              </div>
               <div v-if="selectedModel.reasoning" class="assistant-model" :class="{ 'assistant-model--open': effortMenuOpen }" v-click-outside="() => (effortMenuOpen = false)">
                 <button type="button" class="assistant-model__btn" :aria-expanded="effortMenuOpen" aria-haspopup="listbox" @click="effortMenuOpen = !effortMenuOpen">
                   <span>Уровень размышлений · <b>{{ effortLabel }}</b></span>
@@ -795,7 +777,7 @@ onUnmounted(() => {
 .assistant-composer__hint { margin-left: .12rem; margin-right: auto; color: var(--assistant-muted); font-size: .72rem; white-space: nowrap; }
 .assistant-depth { display: inline-flex; gap: .12rem; margin-left: auto; padding: .2rem; border-radius: .65rem; background: var(--assistant-soft); }
 .assistant-depth button { padding: .42rem .72rem; border-radius: .5rem; background: transparent; color: var(--assistant-sub); font-size: .77rem; white-space: nowrap; }.assistant-depth button.is-active { background: var(--assistant-panel); color: var(--assistant-text); font-weight: 600; box-shadow: 0 .06rem .18rem rgba(27,36,55,.12); }
-.composer-send { display: grid; width: 2.65rem; height: 2.42rem; margin-left: .18rem; place-items: center; border-radius: .68rem; background: var(--assistant-soft); color: var(--assistant-muted); transition: background .16s ease, color .16s ease; }.composer-send.is-active { background: var(--assistant-blue); color: #fff; box-shadow: none; }.composer-send.is-active:hover { background: #1f5fd8; }.composer-send:disabled { opacity: .5; cursor: default; }.composer-send svg { width: 1.14rem; height: 1.14rem; }
+.composer-send { display: grid; width: 3.35rem; height: 3.08rem; margin-left: .28rem; place-items: center; border-radius: .85rem; background: var(--assistant-soft); color: var(--assistant-muted); transition: background .16s ease, color .16s ease; }.composer-send.is-active { background: var(--assistant-blue); color: #fff; box-shadow: none; }.composer-send.is-active:hover { background: #1f5fd8; }.composer-send:disabled { opacity: .5; cursor: default; }.composer-send svg { width: 1.55rem; height: 1.55rem; }
 
 .assistant-suggestions { width: min(68rem, 100%); margin-top: 1.25rem; }.assistant-suggestions__label { margin: 1rem .2rem .55rem; color: var(--assistant-muted); font-size: .73rem; font-weight: 700; letter-spacing: .09em; }.assistant-suggestions__label:first-child { margin-top: 0; }
 .assistant-suggestions__grid { display: grid; grid-template-columns: 1fr 1fr; gap: .65rem; }
