@@ -16208,5 +16208,46 @@ onMounted(() => {
   /* Заголовок проекта: крупнее, метаданные переносятся под название. */
   .dashboard-title-row { flex-wrap: wrap; gap: 0.5rem; }
   .dashboard-title-row h1 { font-size: 1.9rem; }
+
+  /* KPI-карточка: горизонтальный ряд «иконка+текст+дельта» налезал друг на друга
+     на узкой 2-колоночной карточке. Делаем вертикально: подпись → значение →
+     дельта; иконку и крестик прячем (иконки нет и в макете ТЗ). */
+  .metric-card {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 1.15rem 1.15rem;
+  }
+  .metric-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.3rem;
+    width: 100%;
+  }
+  .metric-icon,
+  .card-delete-btn { display: none; }
+  .metric-text { width: 100%; }
+  .metric-card h3 { font-size: 1.25rem; line-height: 1.3; }
+  .metric-text strong { display: block; font-size: 2.1rem; line-height: 1.15; white-space: nowrap; }
+  .trend { align-self: flex-start; font-size: 1.2rem; }
+
+  /* Кнопки действий — аккуратная сетка 2×2 равной ширины, зона нажатия ~44pt.
+     Ряд 1: Обновить | Настройки. Ряд 2: Экспорт | Отправить (сплит). */
+  .dashboard-report-actions {
+    flex: 1 1 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.55rem;
+    margin-top: 0.2rem;
+  }
+  .dashboard-report-actions > .toolbar-btn,
+  .report-export-select > .toolbar-btn {
+    width: 100%;
+    min-height: 3.4rem;
+    justify-content: center;
+  }
+  .report-export-select { width: 100%; }
+  .dashboard-send-split { display: flex; width: 100%; }
+  .dashboard-send-split .dashboard-send-main { flex: 1; min-height: 3.4rem; justify-content: center; }
+  .dashboard-send-split .dashboard-send-caret { flex: none; width: 3.2rem; min-height: 3.4rem; justify-content: center; }
 }
 </style>

@@ -36,7 +36,7 @@
 
         <!-- Project dropdown -->
         <Transition name="dropdown">
-          <div v-if="isProjectMenuOpen" class="absolute left-1/2 top-full z-50 mt-2 w-[24rem] -translate-x-1/2">
+          <div v-if="isProjectMenuOpen" class="hd-project-dropdown absolute left-1/2 top-full z-50 mt-2 w-[24rem] -translate-x-1/2">
             <div class="hd-panel hd-project-panel">
               <div class="hd-section-label">Мои проекты</div>
               <ul class="hd-menu-list">
@@ -1489,4 +1489,19 @@ watch(
 .hd-toggle--on::after { transform: translateX(0.9444rem); }
 :global(.dark) .hd-toggle { background: rgba(255,255,255,0.12); }
 :global(.dark) .hd-toggle--on { background: #2563eb; }
+
+/* Мобилка: дропдаун проектов центрировался фикс-шириной 24rem на триггере у
+   левого края и уезжал за экран. Делаем панель на всю ширину под шапкой. */
+@media (max-width: 640px) {
+  .hd-project-dropdown {
+    position: fixed !important;
+    top: 4.2rem !important;
+    left: 0.6rem !important;
+    right: 0.6rem !important;
+    width: auto !important;
+    max-width: none !important;
+    transform: none !important;
+  }
+  .hd-project-dropdown .hd-project-panel { max-height: 74vh; }
+}
 </style>
