@@ -16259,35 +16259,44 @@ onMounted(() => {
   .dashboard-send-split .dashboard-send-main { flex: 1; min-height: 3.4rem; justify-content: center; }
   .dashboard-send-split .dashboard-send-caret { flex: none; width: 3.2rem; min-height: 3.4rem; justify-content: center; }
 
-  /* Рекламные кампании — панель сортировки. Тумблер «Развернуть/Свернуть всё»
-     переносился на свою строку с висящим бордюром-разделителем слева (border-left)
-     и выглядел сломанным. На мобилке: «Сортировать по» отдельной строкой сверху,
-     кнопки сортировки тянутся по ширине, тумблер — полноширинной строкой снизу
-     как отдельная кнопка (без левого бордюра), зона нажатия ~44pt. */
+  /* Рекламные кампании — панель сортировки. Раньше была «матрёшка» из заливок
+     (синяя капсула → белый чип активного → ещё синяя капсула тумблера). Делаем
+     чисто: одна лёгкая капсула. Заголовок сверху, 4 варианта сортировки сеткой
+     2×2 (активный — единственный белый чип), тумблер «Развернуть/Свернуть всё» —
+     не отдельная заливка-слой, а текстовая кнопка под тонкой линией-разделителем.
+     Зона нажатия ~44pt. */
   .campaigns-panel .campaign-sort-tabs {
     width: 100%;
     flex-wrap: wrap;
-    gap: 0.35rem;
-    padding: 0.4rem;
+    gap: 0.3rem 0.4rem;
+    padding: 0.55rem 0.55rem 0.4rem;
+    border-radius: 1.1rem;
+    background: rgba(37, 99, 235, 0.05);
   }
   .campaigns-panel .campaign-sort-label {
     width: 100%;
-    padding: 0.15rem 0.55rem 0.1rem;
-    font-size: 1.05rem;
+    padding: 0.1rem 0.5rem 0.3rem;
+    font-size: 0.98rem;
+    color: #9aa2b1;
   }
   .campaigns-panel .campaign-sort-tabs button:not(.campaign-expand-all) {
-    flex: 1 1 auto;
-    min-height: 3.1rem;
-    padding: 0 0.85rem;
+    flex: 1 1 40%;
+    min-width: 0;
+    min-height: 3rem;
+    padding: 0 0.6rem;
+    font-size: 1.02rem;
   }
   .campaigns-panel .campaign-sort-tabs .campaign-expand-all {
+    flex: 1 1 100%;
     width: 100%;
-    margin: 0.25rem 0 0;
-    padding: 0;
+    margin: 0.45rem 0 0;
+    padding: 0.55rem 0 0.1rem;
     border-left: 0;
-    border-radius: 999px;
-    min-height: 3.1rem;
-    background: rgba(37, 99, 235, 0.10);
+    border-top: 1px solid rgba(37, 99, 235, 0.14);
+    border-radius: 0;
+    background: transparent;
+    min-height: 2.6rem;
+    text-align: center;
   }
 }
 </style>
