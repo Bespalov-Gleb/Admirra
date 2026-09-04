@@ -16170,4 +16170,43 @@ onMounted(() => {
 .figma-dashboard.is-dark .ai-comment__reco { background: rgba(74,122,255,0.1); border-color: rgba(74,122,255,0.28); }
 .figma-dashboard.is-dark .ai-comment__reco-text { color: #bcd0ff; }
 .figma-dashboard.is-dark .ai-comment__empty p { color: #9ca3af; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Мобильная адаптивность дашборда проекта (ТЗ «мобильный дашборд») — слой 1.
+   Фундамент: одна/две колонки, без горизонтального оверфлоу, наполнение видно.
+   Точную раскладку блоков из макета добавляем следующими слоями.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+  .figma-dashboard {
+    padding: 0.9rem 0.8rem 3rem;
+    max-width: 100%;
+    overflow-x: clip;
+  }
+  /* KPI: 2 в ряд, высота по контенту — фикс 10.4rem резал наполнение (ТЗ §1). */
+  .kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: auto;
+    gap: 0.75rem;
+    margin-top: 1.2rem;
+  }
+  .bottom-grid { gap: 1.2rem; margin-top: 1.2rem; }
+  .heading-section { margin-bottom: 0.6rem; }
+  .panel { border-radius: 1.2rem; }
+
+  /* Тулбар фильтров: у контролов были min-width до 26rem (шире экрана) → оверфлоу.
+     Снимаем большие min-width, растягиваем на всю ширину, вкладки крупнее (44pt). */
+  .filters-row--blocks { gap: 0.55rem; }
+  .filters-row--blocks > * { min-width: 0; max-width: 100%; }
+  .filters-row .filter-btn { min-width: 0; width: auto; }
+  .dashboard-period-select .cs-head { min-width: 0; }
+  .date-btn { min-width: 0; }
+  .dashboard-date-picker { width: 100%; }
+  .filter-wrap { flex: 1 1 100%; }
+  .dashboard-view-tabs { flex: 1 1 100%; }
+  .dashboard-view-tab { flex: 1; min-height: 3.3rem; font-size: 1.28rem; }
+
+  /* Заголовок проекта: крупнее, метаданные переносятся под название. */
+  .dashboard-title-row { flex-wrap: wrap; gap: 0.5rem; }
+  .dashboard-title-row h1 { font-size: 1.9rem; }
+}
 </style>
