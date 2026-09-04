@@ -16258,5 +16258,36 @@ onMounted(() => {
   .dashboard-send-split { display: flex; width: 100%; }
   .dashboard-send-split .dashboard-send-main { flex: 1; min-height: 3.4rem; justify-content: center; }
   .dashboard-send-split .dashboard-send-caret { flex: none; width: 3.2rem; min-height: 3.4rem; justify-content: center; }
+
+  /* Рекламные кампании — панель сортировки. Тумблер «Развернуть/Свернуть всё»
+     переносился на свою строку с висящим бордюром-разделителем слева (border-left)
+     и выглядел сломанным. На мобилке: «Сортировать по» отдельной строкой сверху,
+     кнопки сортировки тянутся по ширине, тумблер — полноширинной строкой снизу
+     как отдельная кнопка (без левого бордюра), зона нажатия ~44pt. */
+  .campaigns-panel .campaign-sort-tabs {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    padding: 0.4rem;
+  }
+  .campaigns-panel .campaign-sort-label {
+    width: 100%;
+    padding: 0.15rem 0.55rem 0.1rem;
+    font-size: 1.05rem;
+  }
+  .campaigns-panel .campaign-sort-tabs button:not(.campaign-expand-all) {
+    flex: 1 1 auto;
+    min-height: 3.1rem;
+    padding: 0 0.85rem;
+  }
+  .campaigns-panel .campaign-sort-tabs .campaign-expand-all {
+    width: 100%;
+    margin: 0.25rem 0 0;
+    padding: 0;
+    border-left: 0;
+    border-radius: 999px;
+    min-height: 3.1rem;
+    background: rgba(37, 99, 235, 0.10);
+  }
 }
 </style>
