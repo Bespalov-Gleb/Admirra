@@ -489,25 +489,31 @@ const fetchProjectTree = async ({ silent = false } = {}) => {
   }
 }
 
+// Тот же детерминированный порядок, что и на карточках проектов: по имени, тай-
+// брейкер по id (чтобы порядок не «плавал» и совпадал у владельца и сотрудников).
+const byNameId = (a, b) => (a?.name || '').localeCompare(b?.name || '', 'ru')
+  || String(a?.id || '').localeCompare(String(b?.id || ''))
 const allHeaderFolders = computed(() => folderTree.value.folders || [])
 const isProjectPaused = (project) => String(project?.status || '').toLowerCase() === 'paused'
-const activeFolderProjects = (folder) => (folder?.projects || []).filter((project) => !isProjectPaused(project))
+const activeFolderProjects = (folder) => (folder?.projects || [])
+  .filter((project) => !isProjectPaused(project))
+  .sort(byNameId)
 const headerFolders = computed(() => allHeaderFolders.value.filter((folder) => (
   !(folder.projects || []).length || activeFolderProjects(folder).length > 0
-)))
+)).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || byNameId(a, b)))
 const headerRootProjects = computed(() => {
   const treeRoot = folderTree.value.root_projects || []
   if (treeRoot.length || allHeaderFolders.value.length) return treeRoot
   return projects.value.filter((project) => !project.folder_id)
 })
-const headerRootActiveProjects = computed(() => headerRootProjects.value.filter((project) => !isProjectPaused(project)))
+const headerRootActiveProjects = computed(() => headerRootProjects.value.filter((project) => !isProjectPaused(project)).sort(byNameId))
 const headerPausedProjects = computed(() => {
   const inFolders = allHeaderFolders.value.flatMap((folder) => (
     (folder.projects || [])
       .filter(isProjectPaused)
       .map((project) => ({ ...project, folderName: folder.name || null }))
   ))
-  return [...inFolders, ...headerRootProjects.value.filter(isProjectPaused)]
+  return [...inFolders, ...headerRootProjects.value.filter(isProjectPaused)].sort(byNameId)
 })
 const currentFolderId = computed(() => route.path.startsWith('/dashboard/general-3') ? String(route.query.folder_id || '') : '')
 const currentFolder = computed(() => allHeaderFolders.value.find((folder) => String(folder.id) === currentFolderId.value) || null)
