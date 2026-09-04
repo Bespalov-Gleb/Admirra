@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, date, timezone
 from typing import List, Optional
 import uuid
 from time import monotonic
-from backend_api.stats_service import StatsService
+from backend_api.stats_service import StatsService, resolve_previous_period
 from backend_api.top_ads_service import get_top_ads_with_images
 import csv
 import io
@@ -1276,6 +1276,7 @@ async def get_summary(
     campaign_ids: Optional[List[str]] = Query(None),
     goal_action_ids: Optional[List[str]] = Query(None),
     platform: Optional[str] = "all", # 'yandex', 'vk', 'all'
+    period_preset: Optional[str] = Query(None, description="Пресет периода (this_week|this_month|last_month|…) — задаёт базу сравнения prev, как у /goals"),
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -1340,6 +1341,7 @@ async def get_summary(
         u_goal_action_ids,
         campaign_lead_overrides=campaign_lead_overrides,
         previous_campaign_lead_overrides=previous_campaign_lead_overrides,
+        period_preset=period_preset,
     )
 
     # §9.2/§9.5: метку просмотра и snapshot пишем ТОЛЬКО после проверки доступа.
@@ -2652,31 +2654,8 @@ async def get_top_clients(
         r["expenses"] = round(r["expenses"], 2)
     return results
 
-def resolve_previous_period(date_from_obj, date_to_obj, preset: Optional[str] = None):
-    """ТЗ «Дельта по заявкам» §2–3: единый предыдущий сопоставимый период.
-
-    Незавершённые календарные пресеты сравниваются «к дате» с той же частью
-    предыдущего календарного периода; завершённый месяц — с прошлым месяцем
-    целиком; всё остальное (дни, недели, свободные диапазоны) — период той же
-    длины встык до начала выбранного.
-    """
-    key = (preset or "").strip().lower()
-    if key == "this_week":
-        # Пн–сегодня против тех же дней прошлой недели: сдвиг ровно на 7 дней.
-        return date_from_obj - timedelta(days=7), date_to_obj - timedelta(days=7)
-    if key == "this_month":
-        # 01–DD текущего месяца против 01–DD прошлого (cap по длине месяца).
-        prev_month_end = date_from_obj - timedelta(days=1)
-        prev_start = prev_month_end.replace(day=1)
-        prev_end = min(prev_start + timedelta(days=(date_to_obj - date_from_obj).days), prev_month_end)
-        return prev_start, prev_end
-    if key == "last_month":
-        # Календарный месяц против предыдущего календарного целиком, без
-        # нормировки на число дней (консистентно с «Таблицей истории»).
-        prev_month_end = date_from_obj - timedelta(days=1)
-        return prev_month_end.replace(day=1), prev_month_end
-    period_days = (date_to_obj - date_from_obj).days + 1
-    return date_from_obj - timedelta(days=period_days), date_from_obj - timedelta(days=1)
+# resolve_previous_period перенесён в stats_service.py (используется и сводкой,
+# и целями). Импортируется выше из backend_api.stats_service.
 
 
 def _has_prev_stats_coverage(db, client_ids, prev_from, prev_to, platform_key: str) -> bool:

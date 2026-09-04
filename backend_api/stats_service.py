@@ -9,6 +9,30 @@ from typing import List, Optional
 
 from automation.vk_goal_action_mapping import get_vk_goal_action_name_ru
 
+
+def resolve_previous_period(date_from_obj, date_to_obj, preset: Optional[str] = None):
+    """ТЗ «Дельта по заявкам» §2–3: единый предыдущий сопоставимый период.
+
+    Незавершённые календарные пресеты сравниваются «к дате» с той же частью
+    предыдущего календарного периода; завершённый месяц — с прошлым месяцем
+    целиком; всё остальное (дни, недели, свободные диапазоны) — период той же
+    длины встык до начала выбранного. Перенесено из stats.py, чтобы одну и ту же
+    базу сравнения использовали и цели (/goals), и сводка (aggregate_summary)."""
+    key = (preset or "").strip().lower()
+    if key == "this_week":
+        return date_from_obj - timedelta(days=7), date_to_obj - timedelta(days=7)
+    if key == "this_month":
+        prev_month_end = date_from_obj - timedelta(days=1)
+        prev_start = prev_month_end.replace(day=1)
+        prev_end = min(prev_start + timedelta(days=(date_to_obj - date_from_obj).days), prev_month_end)
+        return prev_start, prev_end
+    if key == "last_month":
+        prev_month_end = date_from_obj - timedelta(days=1)
+        return prev_month_end.replace(day=1), prev_month_end
+    period_days = (date_to_obj - date_from_obj).days + 1
+    return date_from_obj - timedelta(days=period_days), date_from_obj - timedelta(days=1)
+
+
 class StatsService:
     @staticmethod
     def get_vk_lead_action_scope(
@@ -258,6 +282,7 @@ class StatsService:
         include_trends: bool = True,
         campaign_lead_overrides: Optional[dict] = None,
         previous_campaign_lead_overrides: Optional[dict] = None,
+        period_preset: Optional[str] = None,
     ):
         if not client_ids:
             return {
@@ -732,9 +757,11 @@ class StatsService:
         prev = None
         trends = None
         if include_trends and d_start:
-            delta = (d_end - d_start).days + 1
-            prev_start = d_start - timedelta(days=delta)
-            prev_end = d_start - timedelta(days=1)
+            # База сравнения — тот же предыдущий период, что и у целей (/goals): для
+            # пресетов «эта неделя/месяц» это «к дате», иначе встык. Раньше сводка
+            # всегда считала встык, и prev-лидовый-расход канала рассинхронился с
+            # prev-заявками (из целей) → CPL-дельта пропадала на пресетах.
+            prev_start, prev_end = resolve_previous_period(d_start, d_end, period_preset)
             prev = get_data(prev_start, prev_end)
             
             def calc_trend(c, p):

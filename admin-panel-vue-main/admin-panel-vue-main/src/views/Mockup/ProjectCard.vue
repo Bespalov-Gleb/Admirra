@@ -1985,6 +1985,10 @@ const loadProjectInsight = async (projectId, startDate, endDate, folderId = null
     platform,
     start_date: startDate,
     end_date: endDate,
+    // period_preset задаёт бэку ту же базу сравнения prev, что и у целей — иначе
+    // prev-расход канала (для CPL-дельты) считался встык и рассинхронился с
+    // prev-заявками на пресетах «эта неделя/месяц».
+    ...(periodPreset ? { period_preset: periodPreset } : {}),
   })
   // period_preset задаёт бэку базу сравнения дельты (ТЗ «Дельта по заявкам» §3):
   // «эта неделя/этот месяц» сравниваются «к дате», а не встык.
