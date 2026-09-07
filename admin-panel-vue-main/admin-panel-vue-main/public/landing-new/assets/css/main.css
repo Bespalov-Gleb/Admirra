@@ -637,7 +637,8 @@ button {
 .hero__play-btn svg {
   width: 42px;
   height: 42px;
-  margin-left: 4px;       /* оптическая компенсация треугольника */
+  /* Оптическая центровка треугольника вшита в сам path (сдвиг +0.6 в viewBox,
+     центроид у центра) — это не зависит от размера иконки, поэтому margin не нужен. */
   filter: drop-shadow(0 3px 8px rgba(31, 58, 120, 0.28));
 }
 .hero__play-btn::before {
