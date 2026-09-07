@@ -174,6 +174,16 @@ async def _stream_openai_compat(
                     if delta.get("reasoning"):
                         reasoning_parts.append(delta["reasoning"])
                         yield {"type": "reasoning", "delta": delta["reasoning"]}
+                    elif delta.get("reasoning_details"):
+                        # Актуальный контракт OpenRouter отдаёт рассуждение массивом
+                        # reasoning_details (объекты с полем text), а не legacy-строкой
+                        # reasoning. Поддерживаем оба, чтобы «мышление» показывалось и на
+                        # openrouter-маршруте. proxyapi/Gemini сюда не попадает (wire_google).
+                        for rd in delta["reasoning_details"]:
+                            txt = (rd or {}).get("text")
+                            if txt:
+                                reasoning_parts.append(txt)
+                                yield {"type": "reasoning", "delta": txt}
                     if delta.get("tool_calls"):
                         _merge_tool_call_delta(tool_calls_acc, delta["tool_calls"])
                     if choice.get("finish_reason"):
