@@ -295,7 +295,7 @@
     video.playsInline = true;
     video.setAttribute('playsinline', '');
     video.preload = 'auto';
-    video.poster = '/landing-new/assets/img/hero-dashboard.webp';
+    video.poster = '/landing-new/assets/img/hero-dashboard-16x9.webp';
 
     trigger.replaceWith(video);
     const started = video.play();

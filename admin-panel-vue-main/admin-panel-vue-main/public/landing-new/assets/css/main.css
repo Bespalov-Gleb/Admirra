@@ -565,7 +565,7 @@ button {
   position: relative;
   z-index: 2;
   width: 1064.7px;
-  height: 765px;
+  height: 635.9px;              /* 16:9 экран (551.3) + рамка 2×42.3 */
   padding: 42.3px;
   border-radius: 39.6px;
   background: #05070e;
@@ -575,14 +575,16 @@ button {
 .hero__screen {
   display: block;
   width: 980.1px;
-  height: 680.4px;
+  height: 551.3px;             /* 16:9 под формат демо-видео (1920×1080) */
   border-radius: 21.6px;
+  object-fit: cover;
 }
 
 /* Планшет в герое кликабелен: скриншот с play-кнопкой — постер, по клику
    на его место встаёт демо-видео (см. main.js). Размеры совпадают со
    .hero__screen, поэтому композиция героя и плавающие карточки не сдвигаются. */
 .hero__play {
+  position: relative;
   display: block;
   margin: 0;
   padding: 0;
@@ -590,7 +592,7 @@ button {
   background: none;
   cursor: pointer;
   width: 980.1px;
-  height: 680.4px;
+  height: 551.3px;
   border-radius: 21.6px;
   overflow: hidden;
   -webkit-tap-highlight-color: transparent;
@@ -610,12 +612,64 @@ button {
   .hero__play:hover .hero__screen { transform: scale(1.012); }
 }
 
+/* Кнопка Play — матовое «стекло»: полупрозрачный светлый круг с blur, синий
+   градиентный треугольник (контраст на светлом дашборде + фирменный цвет),
+   мягкая тень и пульсирующее кольцо-подсказка. Вся площадь скрина кликабельна
+   (.hero__play — button); эта кнопка — только визуальный аффорданс. */
+.hero__play-btn {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  width: 108px;
+  height: 108px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.55);
+  -webkit-backdrop-filter: blur(16px) saturate(1.35);
+  backdrop-filter: blur(16px) saturate(1.35);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  box-shadow: 0 20px 50px rgba(31, 58, 120, 0.30), 0 2px 10px rgba(31, 58, 120, 0.14);
+  pointer-events: none;   /* клик уходит на кнопку-обёртку */
+  transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s ease, box-shadow 0.3s ease;
+}
+.hero__play-btn svg {
+  width: 42px;
+  height: 42px;
+  margin-left: 4px;       /* оптическая компенсация треугольника */
+  filter: drop-shadow(0 3px 8px rgba(31, 58, 120, 0.28));
+}
+.hero__play-btn::before {
+  content: '';
+  position: absolute;
+  inset: -9px;
+  border-radius: 999px;
+  border: 2px solid rgba(61, 139, 255, 0.45);
+}
+.hero__play:hover .hero__play-btn {
+  transform: translate(-50%, -50%) scale(1.07);
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: 0 26px 62px rgba(31, 58, 120, 0.36), 0 3px 12px rgba(31, 58, 120, 0.18);
+}
+.hero__play:active .hero__play-btn {
+  transform: translate(-50%, -50%) scale(0.97);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hero__play-btn::before { animation: hero-play-pulse 2.6s ease-out infinite; }
+}
+@keyframes hero-play-pulse {
+  0%   { transform: scale(0.92); opacity: 0.7; }
+  70%  { transform: scale(1.28); opacity: 0; }
+  100% { opacity: 0; }
+}
+
 .hero__screen--video {
   width: 980.1px;
-  height: 680.4px;
+  height: 551.3px;
   border-radius: 21.6px;
-  object-fit: contain;   /* 16:9 внутри экрана 3:2 — без обрезки контента */
-  background: #05070e;    /* тёмные поля сливаются с корпусом планшета */
+  object-fit: cover;      /* видео 16:9 заполняет экран 16:9 без полей */
+  background: #05070e;
 }
 
 .hero__card {
@@ -2618,10 +2672,11 @@ button {
   .hero__tablet {
     width: 100%;
     height: auto;
-    aspect-ratio: 1183 / 850;
+    aspect-ratio: 1065 / 636;   /* 16:9 экран + рамка 4% */
     padding: 4%;
     border-radius: 32.4px;
   }
+  .hero__play { width: 100%; height: auto; aspect-ratio: 16 / 9; }
   .hero__screen { width: 100%; height: auto; border-radius: 18px; }
   .hero__card--tl { left: -6.93%; top: -9.18%; width: 22.74%; }
   .hero__card--tr { left: 82.67%; top: -8.94%; width: 25.27%; }
@@ -2800,6 +2855,8 @@ button {
   .hero__card { display: none; }
   .hero__tablet { border-radius: 19.8px; }
   .hero__screen { border-radius: 12.6px; }
+  .hero__play-btn { width: 78px; height: 78px; }
+  .hero__play-btn svg { width: 30px; height: 30px; }
 
   .eyebrow { font-size: 12.6px; letter-spacing: 2.43px; }
   .section-title,
