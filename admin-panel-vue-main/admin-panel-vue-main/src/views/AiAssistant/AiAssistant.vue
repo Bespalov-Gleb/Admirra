@@ -156,6 +156,19 @@
                     <div v-else-if="message.pending && !message.reasoning" class="assistant-typing" aria-label="Ассистент готовит ответ"><i></i><i></i><i></i></div>
                     <div v-if="message.pending && toolActivity" class="assistant-tool-note"><span></span>Читаю данные: {{ toolActivity }}</div>
                   </div>
+                  <div v-if="message.content && !message.pending" class="assistant-message__actions">
+                    <button
+                      type="button"
+                      class="assistant-copy-btn"
+                      :class="{ 'is-copied': copiedMessageId === message.id }"
+                      :aria-label="copiedMessageId === message.id ? 'Скопировано' : 'Копировать ответ'"
+                      @click="copyAnswer(message)"
+                    >
+                      <svg v-if="copiedMessageId !== message.id" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2.2"/><path d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H16"/></svg>
+                      <svg v-else viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4 4 10-11"/></svg>
+                      <span>{{ copiedMessageId === message.id ? 'Скопировано' : 'Копировать' }}</span>
+                    </button>
+                  </div>
                 </div>
               </template>
               <div v-else class="assistant-message__bubble"><p>{{ message.content }}</p></div>
@@ -336,6 +349,16 @@ const copyPrompt = async (text, i) => {
   copiedIndex.value = i
   clearTimeout(_copyTimer)
   _copyTimer = setTimeout(() => { copiedIndex.value = -1 }, 1600)
+}
+
+// Копирование ответа ассистента: берём исходный текст (markdown), не HTML.
+const copiedMessageId = ref(null)
+let _copyMsgTimer = null
+const copyAnswer = async (message) => {
+  try { await navigator.clipboard.writeText(message?.content || '') } catch { /* clipboard может быть недоступен */ }
+  copiedMessageId.value = message?.id ?? null
+  clearTimeout(_copyMsgTimer)
+  _copyMsgTimer = setTimeout(() => { copiedMessageId.value = null }, 1600)
 }
 
 const fillPrompt = async (text) => {
@@ -796,6 +819,12 @@ onUnmounted(() => {
 .assistant-message--assistant { max-width: min(62rem, 94%); align-items: flex-start; }
 .assistant-message__avatar { display: grid; width: 2.68rem; height: 2.68rem; flex: 0 0 2.68rem; margin-top: .12rem; place-items: center; border: 1px solid rgba(47,107,234,.12); border-radius: .88rem; background: var(--assistant-blue-soft); color: var(--assistant-blue); }
 .assistant-message__avatar svg { width: 1.16rem; height: 1.16rem; stroke-width: 1.85; }
+/* Кнопка «Копировать ответ» под пузырём ответа ассистента. */
+.assistant-message__actions { display: flex; align-items: center; gap: .5rem; margin-top: .5rem; }
+.assistant-copy-btn { display: inline-flex; align-items: center; gap: .38rem; padding: .32rem .62rem .32rem .5rem; border: 1px solid var(--assistant-line); border-radius: .6rem; background: transparent; color: var(--assistant-muted); font-size: .78rem; font-weight: 600; line-height: 1; cursor: pointer; transition: color .15s ease, border-color .15s ease, background .15s ease; }
+.assistant-copy-btn svg { width: .95rem; height: .95rem; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.assistant-copy-btn:hover { color: var(--assistant-blue); border-color: rgba(47,107,234,.35); background: var(--assistant-blue-soft); }
+.assistant-copy-btn.is-copied { color: #16a34a; border-color: rgba(22,163,74,.35); background: rgba(22,163,74,.08); }
 .assistant-message__label { margin: .18rem 0 .46rem; color: var(--assistant-muted); font-size: .74rem; font-weight: 700; letter-spacing: .01em; }
 .assistant-message__bubble { padding: 1.15rem 1.26rem; border: 1px solid var(--assistant-line); border-radius: .41rem 1.2rem 1.2rem 1.2rem; background: var(--assistant-panel); box-shadow: 0 .16rem .54rem rgba(27,36,55,.035); font-size: 1.05rem; line-height: 1.62; }
 .assistant-markdown { color: var(--assistant-sub); overflow-wrap: anywhere; }

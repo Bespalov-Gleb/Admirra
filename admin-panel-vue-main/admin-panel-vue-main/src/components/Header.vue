@@ -107,9 +107,14 @@
                 </li>
                 <li v-if="headerPausedProjects.length" class="hd-paused-group">
                   <div class="hd-divider"></div>
-                  <div class="hd-section-label">Проекты на паузе</div>
+                  <button type="button" class="hd-paused-toggle" :aria-expanded="!pausedCollapsed" @click="pausedCollapsed = !pausedCollapsed">
+                    <span class="hd-section-label hd-section-label--toggle">Проекты на паузе</span>
+                    <span class="hd-paused-count">{{ headerPausedProjects.length }}</span>
+                    <svg class="hd-paused-chevron" :class="{ 'hd-paused-chevron--open': !pausedCollapsed }" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                  </button>
                   <button
                     v-for="project in headerPausedProjects"
+                    v-show="!pausedCollapsed"
                     :key="project.id"
                     @click="handleProjectSelect(project.id, { forceDashboard: true })"
                     :class="['hd-menu-item', 'hd-menu-item--paused', currentProjectId === project.id ? 'hd-menu-item--active' : '']"
@@ -447,6 +452,9 @@ const { user, logout } = useAuth()
 const { projects, currentProjectId, currentProject, currentProjectName, fetchProjects, setCurrentProject } = useProjects()
 
 const isProjectMenuOpen = ref(false)
+// Группа «Проекты на паузе» в меню проектов свёрнута по умолчанию — чтобы
+// активные проекты не тонули в списке пауз. Раскрывается кликом по заголовку.
+const pausedCollapsed = ref(true)
 const projectMenuRef = ref(null)
 const folderTree = ref({ folders: [], root_projects: [] })
 const folderTreeLoading = ref(false)
@@ -1102,6 +1110,46 @@ watch(
   letter-spacing: 0.015em;
 }
 :global(.dark) .hd-section-label { color: rgba(255,255,255,0.3); }
+
+/* Тумблер группы «Проекты на паузе»: свёрнута по умолчанию. */
+.hd-paused-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 0.5rem;
+  transition: background 0.15s ease;
+}
+.hd-paused-toggle:hover { background: rgba(37,99,235,0.06); }
+:global(.dark) .hd-paused-toggle:hover { background: rgba(255,255,255,0.05); }
+.hd-section-label--toggle { flex: 0 0 auto; padding-right: 0.25rem; }
+.hd-paused-count {
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.3rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(105,105,105,0.14);
+  color: rgba(105,105,105,0.85);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1;
+}
+:global(.dark) .hd-paused-count { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); }
+.hd-paused-chevron {
+  margin-left: auto;
+  margin-right: 0.75rem;
+  color: rgba(105,105,105,0.5);
+  transition: transform 0.2s ease;
+}
+.hd-paused-chevron--open { transform: rotate(180deg); }
+:global(.dark) .hd-paused-chevron { color: rgba(255,255,255,0.4); }
 
 .hd-menu-list { list-style: none; padding: 0; margin: 0; }
 
