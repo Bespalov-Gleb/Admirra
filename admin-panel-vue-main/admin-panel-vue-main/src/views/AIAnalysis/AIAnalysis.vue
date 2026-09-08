@@ -2,13 +2,13 @@
   <div class="relative z-[2] flex min-h-full flex-col overflow-hidden px-[1.7361rem] py-[2.0833rem]" >
 
     <!-- Header -->
-    <div class="flex items-start justify-between gap-[1.0417rem] mb-[1.3889rem]">
+    <div class="flex flex-col gap-[1.0417rem] mb-[1.3889rem] sm:flex-row sm:items-start sm:justify-between">
       <div>
         <h3 class="text-[2.0833rem] font-semibold leading-none text-[#171717] dark:text-white">Ассистент</h3>
         <p class="text-[1.0417rem] font-medium text-[rgba(105,105,105,0.56)] dark:text-white/55 mt-[0.4861rem]">Задавайте вопросы по выбранному проекту, периоду, целям и алертам.</p>
       </div>
 
-      <div class="flex items-center gap-[0.6944rem] flex-shrink-0 flex-wrap justify-end">
+      <div class="flex items-center gap-[0.6944rem] flex-wrap w-full justify-start sm:w-auto sm:flex-shrink-0 sm:justify-end">
         <!-- Project select -->
         <div class="custom-select" :class="{ open: openSelect === 'project' }">
           <button type="button" class="cs-head dark:!border-white/10 dark:!bg-[#2C2F3D] dark:!text-white/70" @click="toggleSelect('project')">

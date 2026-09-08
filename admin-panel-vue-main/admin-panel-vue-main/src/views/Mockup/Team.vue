@@ -610,15 +610,22 @@ onMounted(() => Promise.all([fetchMembers(), fetchTeamProjects()]))
 
 @media (max-width: 479.25px) {
   .tab-btn,
-  .add-btn,
+  .add-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Кнопка «Добавить доступ» — на всю ширину в первом ряду; карандаш и корзина
+     остаются рядом в один ряд под ней (а не столбиком). */
   .access-btn {
+    flex: 1 1 100%;
     width: 100%;
     justify-content: center;
   }
 
   .team-actions {
-    flex-direction: column;
-    align-items: stretch;
+    flex-wrap: wrap;
+    align-items: center;
     width: 100%;
   }
 

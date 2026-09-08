@@ -83,7 +83,7 @@
       </div>
 
       <!-- Right: bulk edit + view toggle -->
-      <div class="flex items-center gap-[1.1rem]">
+      <div class="flex flex-wrap items-center gap-x-[1.1rem] gap-y-[0.6rem]">
         <label class="tile-nds-check-wrap">
           <input type="checkbox" v-model="includeVat" class="tile-nds-checkbox" />
           <span class="tile-nds-label">С НДС 22%</span>
