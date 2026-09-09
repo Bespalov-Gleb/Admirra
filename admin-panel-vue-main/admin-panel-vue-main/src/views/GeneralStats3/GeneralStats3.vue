@@ -409,6 +409,7 @@
         v-for="key in visibleSlots"
         :key="key"
         class="metric-card metric-card-item"
+        :data-metric="key"
         :class="[metricAnomalyClass(key), { 'metric-card--foot': metricFooters[key], 'metric-card--clickable': getMetricAnomaly(key) }]"
         :ref="(element) => setMetricFlagRef(key, element)"
         @click="onMetricCardClick(key, $event)"
@@ -4244,10 +4245,24 @@ const getChartSourceValues = (metricKey, platform = null) => {
 
 const chartSourceValues = computed(() => getChartSourceValues(activeChartMetricKeys.value[0] || 'expenses'))
 
+// Круглый максимум оси Y: округляем вверх до «читаемого» шага × 4, чтобы деления
+// были круглыми (0 / 3k / 6k / 9k / 12k), а не «10.5k / 7.9k / 5.3k» (ТЗ §6).
+// Тот же max используется и для оси, и для масштаба кривой — иначе линия не
+// совпадёт с сеткой. Заодно круглые (2–3 символа) подписи не обрезаются по ширине.
+const niceAxisMax = (value) => {
+  if (!(value > 0)) return 1
+  const rough = value / 4
+  const pow = Math.pow(10, Math.floor(Math.log10(rough)))
+  const n = rough / pow
+  const steps = [1, 2, 2.5, 3, 4, 5, 10]
+  const f = steps.find((s) => n <= s + 1e-9) || 10
+  return f * pow * 4
+}
+
 const buildChartPoints = (values, maxOverride = null) => {
   const normalizedValues = values.map((value) => Math.max(0, Number(value) || 0))
   const dataMax = Math.max(Number(maxOverride) || 0, ...normalizedValues, 0)
-  const max = dataMax > 0 ? dataMax * (isAllChannelsMode.value ? 1.08 : 1) : 1
+  const max = dataMax > 0 ? niceAxisMax(dataMax) : 1
   const min = 0
   const span = Math.max(max - min, 1)
   return normalizedValues.map((value, index) => ({
@@ -4595,7 +4610,7 @@ const chartYLabels = computed(() => {
     : chartSourceValues.value
   const dataMax = Math.max(...values, 0)
   if (dataMax === 0) return ['', '', '', '', '0']
-  const rawMax = dataMax * (isAllChannelsMode.value ? 1.08 : 1)
+  const niceMax = niceAxisMax(dataMax)
   const fmt = (v) => {
     if (v === 0) return '0'
     if (v >= 1_000_000) return `${+(v / 1_000_000).toFixed(1)}M`
@@ -4603,10 +4618,10 @@ const chartYLabels = computed(() => {
     return String(Math.round(v))
   }
   return [
-    fmt(rawMax),
-    fmt(rawMax * 0.75),
-    fmt(rawMax * 0.5),
-    fmt(rawMax * 0.25),
+    fmt(niceMax),
+    fmt(niceMax * 0.75),
+    fmt(niceMax * 0.5),
+    fmt(niceMax * 0.25),
     '0'
   ]
 })
@@ -8454,6 +8469,43 @@ onMounted(() => {
   font-weight: 800;
 }
 
+/* Мобильный §5: «Разбивка кампаний» — строки с разделителями, без карточек в
+   карточке (ТЗ §5). Карточный режим: name+кол-во и «leads · CPL» в один ряд,
+   полоса доли, снизу «% бюджета · расход». */
+@media (max-width: 640px) {
+  .directions-grid { display: block; grid-template-columns: none; gap: 0; }
+  .direction-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "top money" "bar bar" "bottom bottom";
+    column-gap: 0.8rem;
+    row-gap: 0.5rem;
+    min-height: 0;
+    padding: 1.05rem 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+  .direction-card + .direction-card { border-top: 1px solid #f1f4f9; }
+  .direction-card__top { grid-area: top; min-width: 0; align-items: baseline; }
+  .direction-card__money { grid-area: money; text-align: right; font-size: 1.25rem; }
+  .direction-share { grid-area: bar; margin: 0.1rem 0; }
+  .direction-card__bottom { grid-area: bottom; }
+  .figma-dashboard.is-dark .direction-card + .direction-card { border-top-color: rgba(255,255,255,.08); }
+  /* Табличный режим: 5 колонок вылезали — переносим в строки. */
+  .directions-table { gap: 0; }
+  .direction-table-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.3rem 0.8rem;
+    padding: 1rem 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+  .direction-table-row > span:nth-child(3) { display: none; } /* доля % — уводим, дублирует расход */
+  .direction-table-row + .direction-table-row { border-top: 1px solid #f1f4f9; }
+}
+
 .metric-card {
   position: relative;
   padding: 2.5rem;
@@ -9744,6 +9796,12 @@ onMounted(() => {
   overflow: hidden;
 }
 
+/* Мобильный §7 (ТЗ): полоса доли — СВЕРХУ блока цели, название и значение с
+   дельтой — под ней. На десктопе порядок прежний. */
+@media (max-width: 640px) {
+  .goals-bar-row .goals-bar-track { order: -1; margin-bottom: 0.1rem; }
+}
+
 @keyframes goals-bar-grow {
   from { transform: scaleX(0); }
 }
@@ -10870,6 +10928,48 @@ onMounted(() => {
   .campaign-row {
     min-width: 84.0278rem;
   }
+}
+
+/* Мобильный §9 (ТЗ): «Рекламные кампании» — 2-уровневые строки с числами вместо
+   горизонтально-прокручиваемой таблицы. Строка: название → расход+дельта →
+   «N · CPA»+дельта. Без шеврона (дерево групп/объявлений — только на десктопе),
+   без горизонтального скролла, полоса отклонения слева. */
+@media (max-width: 640px) {
+  .campaign-table { overflow-x: visible !important; }
+  .campaign-row.header { display: none !important; }
+  .campaign-row:not(.header) {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    grid-template-areas: "name" "cost" "target" !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    row-gap: 0.3rem;
+    padding: 1rem 1.15rem !important;
+    align-items: start;
+    font-size: 1.15rem;
+  }
+  .campaign-row .campaign-tree-toggle,
+  .campaign-row .campaign-tree-placeholder { display: none !important; }
+  .campaign-name-cell { grid-area: name; padding-left: 0 !important; --tree-indent: 0 !important; }
+  .campaign-name-main { font-size: 1.3rem; font-weight: 600; }
+  .campaign-row:not(.header) > span:nth-child(2) {
+    grid-area: cost;
+    display: flex; align-items: baseline; gap: 0.5rem;
+    font-size: 1.57rem; font-weight: 700; color: #1b2333; white-space: nowrap;
+  }
+  .campaign-row:not(.header) > span:nth-child(3),
+  .campaign-row:not(.header) > span:nth-child(4),
+  .campaign-row:not(.header) > span:nth-child(5),
+  .campaign-row:not(.header) > span:nth-child(6) { display: none !important; }
+  .campaign-target-cell {
+    grid-area: target;
+    flex-direction: row; align-items: baseline; gap: 0.45rem;
+    font-size: 1.15rem;
+  }
+  .campaign-target-cell .campaign-target-name { display: none; }
+  .campaign-row--anomaly-problem { box-shadow: inset 0.25rem 0 0 #e5484d; }
+  .campaign-row--anomaly-warning { box-shadow: inset 0.25rem 0 0 #f59e0b; }
+  .campaign-aggregate-cell, .campaign-inactive-cell, .campaign-empty-cell, .campaign-loading-cell { min-width: 0 !important; }
 }
 
 /* Project-scale overrides: this app's mockup pages use px-based density. */
@@ -15916,6 +16016,29 @@ onMounted(() => {
 @media (max-width: 1000px) { .dashboard-service-row { align-items:flex-start; flex-direction:column; }.dashboard-delivery-status,.dashboard-delivery-empty { margin-left:0; text-align:left; }.dashboard-report-actions { width:100%; margin-left:0; } }
 @media (max-width: 620px) { .dashboard-title-row--actions .dashboard-view-tabs { order:4; }.dashboard-report-actions { flex-wrap:wrap; }.dashboard-report-actions .detector-status-chip { order:-1; }.filters-row .sync-status-label { margin-left:0; }.dashboard-delivery-status { font-size:.84rem; }.dashboard-delivery-status > svg,.dashboard-delivery-prefix { display:none; } }
 
+/* ── Мобильный дашборд, фаза 1: порядок блоков по ТЗ ─────────────────────────
+   Промо-доставка («Отчёты могут уходить клиентам сами…») стояла первым блоком —
+   первое, что видел человек, была реклама рассылки. По ТЗ она уходит ВНИЗ экрана.
+   Баланс остаётся сверху. .dashboard-service-row раскрываем через display:contents,
+   чтобы его дети (баланс и промо) стали flex-детьми колонки .figma-dashboard и их
+   можно было переставить order'ом независимо. Десктоп (>640px) не затронут. */
+@media (max-width: 640px) {
+  .figma-dashboard > .dashboard-service-row { display: contents; }
+  .dashboard-service-sources { order: -1; width: 100%; padding-bottom: 0.7rem; }
+  .dashboard-delivery-status,
+  .dashboard-delivery-empty {
+    order: 999;
+    margin: 1.1rem 0 0;
+    padding-top: 1rem;
+    border-top: 1px solid #e9edf3;
+    width: 100%;
+    text-align: left;
+    justify-content: flex-start;
+  }
+  .figma-dashboard.is-dark .dashboard-delivery-status,
+  .figma-dashboard.is-dark .dashboard-delivery-empty { border-top-color: rgba(255,255,255,.1); }
+}
+
 /* ── AI-комментарий за период (ТЗ admirra_ai_comment_delta_july) ──────────
    Короткий комментарий вместо полного отчёта: узкая колонка ≤740px, без
    внутреннего скролла, компактная высота, структура лид/абзацы/рекомендация. */
@@ -16182,13 +16305,21 @@ onMounted(() => {
     max-width: 100%;
     overflow-x: clip;
   }
-  /* KPI: 2 в ряд, высота по контенту — фикс 10.4rem резал наполнение (ТЗ §1). */
+  /* KPI по ТЗ §4: Расходы во всю ширину → Лиды/CPL парой → Показы/Клики/CPC тройкой.
+     6-колоночная сетка, размещение через grid-column span + order по data-metric. */
   .kpi-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     grid-auto-rows: auto;
-    gap: 0.75rem;
+    gap: 0.7rem;
     margin-top: 1.2rem;
   }
+  .kpi-grid > .metric-card { grid-column: span 6; order: 20; }
+  .kpi-grid > .metric-card[data-metric="expenses"]    { grid-column: span 6; order: 1; }
+  .kpi-grid > .metric-card[data-metric="leads"]       { grid-column: span 3; order: 2; }
+  .kpi-grid > .metric-card[data-metric="cpa"]         { grid-column: span 3; order: 3; }
+  .kpi-grid > .metric-card[data-metric="impressions"] { grid-column: span 2; order: 4; }
+  .kpi-grid > .metric-card[data-metric="clicks"]      { grid-column: span 2; order: 5; }
+  .kpi-grid > .metric-card[data-metric="cpc"]         { grid-column: span 2; order: 6; }
   .bottom-grid { gap: 1.2rem; margin-top: 1.2rem; }
   .heading-section { margin-bottom: 0.6rem; }
   .panel { border-radius: 1.2rem; }
@@ -16235,9 +16366,17 @@ onMounted(() => {
   .metric-icon,
   .card-delete-btn { display: none; }
   .metric-text { width: 100%; }
-  .metric-card h3 { font-size: 1.25rem; line-height: 1.3; }
-  .metric-text strong { display: block; font-size: 2.1rem; line-height: 1.15; white-space: nowrap; }
-  .trend { align-self: flex-start; font-size: 1.2rem; }
+  .metric-card h3 { font-size: 1.2rem; line-height: 1.3; }
+  .metric-text strong { display: block; font-size: 2.0rem; line-height: 1.12; white-space: nowrap; }
+  /* Кегль значения по группам (ТЗ §4): Расходы 27pt, пара 22pt, тройка 19pt. */
+  .metric-card[data-metric="expenses"] .metric-text strong { font-size: 2.5rem; }
+  .metric-card[data-metric="impressions"] .metric-text strong,
+  .metric-card[data-metric="clicks"] .metric-text strong,
+  .metric-card[data-metric="cpc"] .metric-text strong { font-size: 1.72rem; }
+  .metric-card[data-metric="impressions"],
+  .metric-card[data-metric="clicks"],
+  .metric-card[data-metric="cpc"] { padding: 1rem 0.85rem; }
+  .trend { align-self: flex-start; font-size: 1.15rem; }
 
   /* Кнопки действий — аккуратная сетка 2×2 равной ширины, зона нажатия ~44pt.
      Ряд 1: Обновить | Настройки. Ряд 2: Экспорт | Отправить (сплит). */
