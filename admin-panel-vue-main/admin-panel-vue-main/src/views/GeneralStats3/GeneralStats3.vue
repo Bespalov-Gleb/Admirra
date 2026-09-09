@@ -13579,10 +13579,18 @@ onMounted(() => {
     min-height: 20rem;
     aspect-ratio: auto;
     margin-top: 1.25rem;
+    overflow: hidden;
   }
 
+  /* График должен помещаться по ширине экрана (ТЗ §6: без горизонтального
+     скролла). Раньше svg фиксировался на 47rem/50rem и вылезал за вьюпорт на
+     ~160px. viewBox 880×300 масштабируется под 100% ширины. */
   .chart-area svg {
-    width: 47.2222rem;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    aspect-ratio: 880 / 300;
   }
 
   .goals-content {
