@@ -129,7 +129,16 @@ async def _invite_member(
         )
         .count()
     )
-    if role_limit >= 0 and current_count >= role_limit and SubscriptionService.billing_enforced():
+    # Лимит роли не применяется к whitelisted-аккаунтам (BILLING_ADMIN_WHITELIST) —
+    # как и все остальные лимиты (проекты, подписка, AI-квота). Раньше проверка
+    # штата единственная игнорировала is_admin_bypass, из-за чего даже админ/тест
+    # аккаунты упирались в лимит сотрудников.
+    if (
+        role_limit >= 0
+        and current_count >= role_limit
+        and SubscriptionService.billing_enforced()
+        and not SubscriptionService.is_admin_bypass(current_user)
+    ):
         log_history_event(
             db,
             actor=current_user,
