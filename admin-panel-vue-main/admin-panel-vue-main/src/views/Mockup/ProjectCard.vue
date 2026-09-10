@@ -184,7 +184,7 @@
 
           <div class="project-tile-stats-wrap" :class="{ 'folder-stats--paused': isFolderPaused(entry.folder) }">
             <div class="project-tile-stats">
-              <div v-for="stat in projectStats(folderAsEntity(entry.folder))" :key="stat.label" class="stat-box">
+              <div v-for="stat in projectStats(folderAsEntity(entry.folder))" :key="stat.label" class="stat-box" :class="{ 'stat-box--accent': stat.accent }">
                 <div class="iconbox flex-shrink-0">
                   <svg width="12" height="12" fill="#2563eb" aria-hidden="true"><use :href="stat.icon" /></svg>
                 </div>
@@ -193,7 +193,7 @@
                   <p>Сумма по проектам</p>
                 </div>
                 <b class="stat-box__value">{{ stat.value }}</b>
-                <span :class="trendBadgeClass(getProjectMetric(entry.folder.id), stat.key)">
+                <span v-if="stat.hasDelta" :class="trendBadgeClass(getProjectMetric(entry.folder.id), stat.key)">
                   <svg :class="trendArrowClass(getProjectMetric(entry.folder.id), stat.key)" width="8" height="7" viewBox="0 0 12 9" fill="none" aria-hidden="true">
                     <path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                   </svg>
@@ -201,6 +201,14 @@
                 </span>
               </div>
             </div>
+          </div>
+
+          <!-- ТЗ §3: трафик сводкой под плитками (моб.). -->
+          <div v-if="isMobile" class="project-traffic-row">
+            <span class="project-traffic-row__label">Трафик</span>
+            <span class="project-traffic-row__vals">
+              {{ projectTraffic(folderAsEntity(entry.folder)).impressions }} показов · {{ projectTraffic(folderAsEntity(entry.folder)).clicks }} кликов · CPC {{ projectTraffic(folderAsEntity(entry.folder)).cpc }}
+            </span>
           </div>
 
           <div class="project-goals-section">
@@ -387,7 +395,7 @@
           </div>
           <div v-else class="project-tile-stats-wrap">
             <div class="project-tile-stats">
-              <div v-for="stat in projectStats(project)" :key="stat.label" class="stat-box">
+              <div v-for="stat in projectStats(project)" :key="stat.label" class="stat-box" :class="{ 'stat-box--accent': stat.accent }">
                 <div class="iconbox flex-shrink-0">
                   <svg width="12" height="12" fill="#2563eb" aria-hidden="true">
                     <use :href="stat.icon" />
@@ -398,7 +406,7 @@
                   <p>{{ stat.subtitle }}</p>
                 </div>
                 <b class="stat-box__value">{{ stat.value }}</b>
-                <span :class="trendBadgeClass(getProjectMetric(project.id), stat.key)">
+                <span v-if="stat.hasDelta" :class="trendBadgeClass(getProjectMetric(project.id), stat.key)">
                   <svg :class="trendArrowClass(getProjectMetric(project.id), stat.key)" width="8" height="7" viewBox="0 0 12 9" fill="none" aria-hidden="true">
                     <path d="M1 8L6 2L11 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                   </svg>
@@ -406,6 +414,14 @@
                 </span>
               </div>
             </div>
+          </div>
+
+          <!-- ТЗ §3: трафик — диагностика, не результат. Сводкой под плитками (моб.). -->
+          <div v-if="isMobile" class="project-traffic-row">
+            <span class="project-traffic-row__label">Трафик</span>
+            <span class="project-traffic-row__vals">
+              {{ projectTraffic(project).impressions }} показов · {{ projectTraffic(project).clicks }} кликов · CPC {{ projectTraffic(project).cpc }}
+            </span>
           </div>
 
           <div class="project-goals-section">
@@ -808,6 +824,21 @@ const openSelect = ref(null)
 const metricsByProjectId = ref({})
 const projectInsightsById = ref({})
 const expandedGoalsByProjectId = ref({})
+
+// Мобильный брейкпоинт (совпадает с @media 42rem). На мобилке карточка
+// показывает метрики по ТЗ §3 (Сводный CPL / Лиды / Расход / CR), на десктопе —
+// прежние Показы/Клики/CPC/Расходы. Десктоп не трогаем.
+const isMobile = ref(false)
+let mobileMq = null
+const updateIsMobile = () => { isMobile.value = mobileMq ? mobileMq.matches : false }
+onMounted(() => {
+  if (typeof window !== 'undefined' && window.matchMedia) {
+    mobileMq = window.matchMedia('(max-width: 42rem)')
+    updateIsMobile()
+    mobileMq.addEventListener('change', updateIsMobile)
+  }
+})
+onUnmounted(() => { if (mobileMq) mobileMq.removeEventListener('change', updateIsMobile) })
 let projectMetricsRequestId = 0
 const PROJECT_INSIGHT_CONCURRENCY = 3
 
@@ -1541,12 +1572,64 @@ const projectStats = (project) => {
     ? platforms.reduce((sum, platform) => sum + Number(insights[platform.code]?.clicks || 0), 0)
     : Number(metric.clicks || 0)
   const adjustedCpc = adjustedClicks > 0 ? adjustedExpenses / adjustedClicks : withProjectVat(metric.cpc)
+
+  // На мобилке — состав метрик по ТЗ §3: Сводный CPL / Лиды / Расход / CR в лид.
+  // Данные готовые из dashboard/summary (leads, cr, флаги доступности); Сводный
+  // CPL считаем из того же VAT-корректного расхода и лидов, что и плитка «Расход».
+  if (isMobile.value) {
+    const leads = Number(metric.leads || 0)
+    const leadsAvailable = metric.leads_available !== false && metric.leads_configured !== false
+    const hasLeads = leadsAvailable && leads > 0
+    const cpl = hasLeads ? adjustedExpenses / leads : null
+    const crValue = Number(metric.cr || 0)
+    const crShown = (leadsAvailable && adjustedClicks > 0)
+      ? `${crValue.toFixed(2).replace('.', ',')}%`
+      : '—'
+    return [
+      { key: 'cpa', label: 'Сводный CPL', subtitle: hasLeads ? 'по всем каналам' : 'нет лидов за период',
+        value: cpl !== null ? formatMoney(cpl) : '—', accent: true, hasDelta: hasLeads,
+        icon: '/admirra/img/svg/sprite.svg#diagrama-circle' },
+      { key: 'leads', label: 'Лиды', subtitle: 'за период',
+        value: leadsAvailable ? formatNumber(leads) : '—', hasDelta: leadsAvailable,
+        icon: '/admirra/img/svg/sprite.svg#cursore' },
+      { key: 'expenses', label: 'Расход', subtitle: 'за период',
+        value: formatMoney(adjustedExpenses), hasDelta: true,
+        icon: '/admirra/img/svg/sprite.svg#wallet' },
+      { key: 'cr', label: 'CR в лид', subtitle: 'лиды / клики',
+        value: crShown, hasDelta: crShown !== '—',
+        icon: '/admirra/img/svg/sprite.svg#diagrama' },
+    ].map((item) => ({ ...item, change: trendText(metric, item.key) }))
+  }
+
   return [
-    { key: 'impressions', label: 'Показы', subtitle: 'По всем каналам', value: formatNumber(metric.impressions), icon: '/admirra/img/svg/sprite.svg#diagrama' },
-    { key: 'clicks', label: 'Клики', subtitle: 'Все переходы', value: formatNumber(metric.clicks), icon: '/admirra/img/svg/sprite.svg#cursore' },
-    { key: 'cpc', label: 'CPC', subtitle: 'Стоимость клика', value: formatMoney(adjustedCpc), icon: '/admirra/img/svg/sprite.svg#diagrama-circle' },
-    { key: 'expenses', label: 'Расходы', subtitle: 'За период', value: formatMoney(adjustedExpenses), icon: '/admirra/img/svg/sprite.svg#wallet' },
+    { key: 'impressions', label: 'Показы', subtitle: 'По всем каналам', value: formatNumber(metric.impressions), hasDelta: true, icon: '/admirra/img/svg/sprite.svg#diagrama' },
+    { key: 'clicks', label: 'Клики', subtitle: 'Все переходы', value: formatNumber(metric.clicks), hasDelta: true, icon: '/admirra/img/svg/sprite.svg#cursore' },
+    { key: 'cpc', label: 'CPC', subtitle: 'Стоимость клика', value: formatMoney(adjustedCpc), hasDelta: true, icon: '/admirra/img/svg/sprite.svg#diagrama-circle' },
+    { key: 'expenses', label: 'Расходы', subtitle: 'За период', value: formatMoney(adjustedExpenses), hasDelta: true, icon: '/admirra/img/svg/sprite.svg#wallet' },
   ].map((item) => ({ ...item, change: trendText(metric, item.key) }))
+}
+
+// Строка «Трафик» под плитками на мобилке — сохраняет показы/клики/CPC, которые
+// на мобилке ушли из плиток (ТЗ §3: трафик — диагностика, не результат).
+const projectTraffic = (project) => {
+  const metric = getProjectMetric(project.id)
+  const withProjectVat = (value) => (isAvitoOnlyProject(project) ? withChannelVat(value, 'avito') : withVat(value))
+  const platforms = projectPlatformCards(project)
+  const insights = getProjectInsights(project.id)
+  const adjustedExpenses = metric.cost_by_platform
+    ? withCostBreakdownVat(metric.expenses, metric.cost_by_platform)
+    : platforms.length
+      ? platforms.reduce((sum, platform) => sum + withChannelVat(insights[platform.code]?.expenses || 0, platform.code), 0)
+      : withProjectVat(metric.expenses)
+  const clicks = platforms.length
+    ? platforms.reduce((sum, platform) => sum + Number(insights[platform.code]?.clicks || 0), 0)
+    : Number(metric.clicks || 0)
+  const cpc = clicks > 0 ? adjustedExpenses / clicks : withProjectVat(metric.cpc)
+  return {
+    impressions: formatNumber(metric.impressions),
+    clicks: formatNumber(clicks),
+    cpc: formatMoney(cpc),
+  }
 }
 
 const platformConfig = {
@@ -3604,6 +3687,38 @@ onMounted(async () => {
     justify-self: start;
     font-size: 1.204rem; /* ≥13pt */
     padding: 0.2rem 0.55rem;
+  }
+
+  /* Плитка «Сводный CPL» — акцентная (ТЗ §3: главная метрика карточки). */
+  .stat-box--accent {
+    background: #eff4fe;
+  }
+
+  .stat-box--accent .stat-box__copy h4 {
+    color: #2563eb;
+  }
+
+  /* Строка «Трафик» под плитками: показы · клики · CPC */
+  .project-traffic-row {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 1rem 0 0.2rem;
+    padding-top: 0.9rem;
+    border-top: 1px solid #f1f4f9;
+  }
+
+  .project-traffic-row__label {
+    font-size: 1.35rem;
+    font-weight: 600;
+    color: #1b2333;
+  }
+
+  .project-traffic-row__vals {
+    font-size: 1.204rem;
+    color: #5b6579;
+    font-variant-numeric: tabular-nums;
   }
 
   .project-channel-row {
