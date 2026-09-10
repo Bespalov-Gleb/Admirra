@@ -91,11 +91,11 @@
 
         <div class="project-sync-meta" v-if="projectSyncStatusText" :title="projectSyncStatusTitle">{{ projectSyncStatusText }}</div>
 
-        <button class="tile-sync-btn" type="button" :disabled="projectsSyncing" @click="handleSyncProjects">
+        <button class="tile-sync-btn" type="button" :disabled="projectsSyncing" @click="handleSyncProjects" :aria-label="projectsSyncing ? 'Обновление…' : 'Обновить данные'">
           <svg :class="{ spinning: projectsSyncing }" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 5v4h4M4 13a8.1 8.1 0 0 0 15.5 2M20 19v-4h-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          {{ projectsSyncing ? 'Обновление...' : 'Обновить данные' }}
+          <span class="tile-sync-btn__label">{{ projectsSyncing ? 'Обновление...' : 'Обновить данные' }}</span>
         </button>
 
         <div class="flex">
@@ -3719,6 +3719,33 @@ onMounted(async () => {
     font-size: 1.204rem;
     color: #5b6579;
     font-variant-numeric: tabular-nums;
+  }
+
+  /* ТЗ §1/§2: липкая зона фильтров слишком высокая (~200pt). Уплотняем:
+     кнопка обновления — только иконка, «Обновлено X мин назад» скрыто
+     (возраст данных виден при обновлении), меньше отступы. */
+  .filters-bar {
+    gap: 0.5rem 0.6rem;
+    padding-top: 0.7rem;
+    padding-bottom: 0.7rem;
+    margin-bottom: 1rem;
+  }
+
+  .project-sync-meta {
+    display: none;
+  }
+
+  .tile-sync-btn__label {
+    display: none;
+  }
+
+  .tile-sync-btn {
+    min-width: 4.074rem;   /* 44pt */
+    min-height: 4.074rem;
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+    aspect-ratio: 1 / 1;
   }
 
   .project-channel-row {
