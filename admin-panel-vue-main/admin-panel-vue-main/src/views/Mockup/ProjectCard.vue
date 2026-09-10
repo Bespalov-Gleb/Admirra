@@ -318,7 +318,9 @@
                   <!-- Бейдж «Организация» перенесён в раздел «Интеграции». -->
                   <span v-if="isProjectPaused(project)" class="paused-badge">На паузе</span>
                 </button>
-                <p class="project-tile-description">{{ project.description || 'Без описания' }}</p>
+                <!-- ТЗ §3/§9: плейсхолдер «Без описания» не рисуется — строка,
+                     сообщающая об отсутствии информации, не несёт смысла. -->
+                <p v-if="project.description" class="project-tile-description">{{ project.description }}</p>
               </div>
             </div>
             <div class="project-tile-actions">
@@ -1439,7 +1441,14 @@ const getProjectInsights = (projectId) => projectInsightsById.value[projectId] |
 
 const VAT_RATE = 1.22
 const formatNumber = (num) => new Intl.NumberFormat('ru-RU').format(Number(num || 0))
-const formatMoney = (num) => `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format(Number(num || 0))} ₽`
+// ТЗ §7/§9: суммы от 1 000 ₽ — целыми рублями (копейки только у мелких значений
+// вроде CPC), знак ₽ не отрывается от числа (неразрывный пробел).
+const formatMoney = (num) => {
+  const value = Number(num || 0)
+  const digits = Math.abs(value) >= 1000 ? 0 : 2
+  const formatted = new Intl.NumberFormat('ru-RU', { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value)
+  return `${formatted} ₽`
+}
 const withVat = (num) => (Number(num) || 0) * (includeVat.value ? VAT_RATE : 1)
 const channelHasVatIncluded = (platformCode) => String(platformCode || '').toLowerCase() === 'avito'
 const withChannelVat = (num, platformCode) => {
@@ -1469,6 +1478,11 @@ const trendText = (metric, key) => {
 }
 
 const costTrendKeys = new Set(['cpc', 'cpa'])
+// ТЗ §6/§9: красным/зелёным окрашиваются только метрики с однозначным
+// направлением (CPC/CPL/CR). Расход, показы и клики сами по себе не «хорошо»
+// и не «плохо» без сопоставления с лидами — их дельта нейтрально-серая
+// со стрелкой направления, чтобы рост расхода не подавался как успех.
+const neutralTrendKeys = new Set(['impressions', 'clicks', 'expenses'])
 
 const isNegativeTrend = (metric, key) => {
   const trend = Number(metric?.trends?.[key] || 0)
@@ -1479,9 +1493,11 @@ const isTrendDown = (metric, key) => Number(metric?.trends?.[key] || 0) < 0
 
 const trendBadgeClass = (metric, key) => [
   'trend-badge shrink-0',
-  isNegativeTrend(metric, key)
-    ? 'trend-badge--negative'
-    : 'trend-badge--positive'
+  neutralTrendKeys.has(key)
+    ? 'trend-badge--neutral'
+    : isNegativeTrend(metric, key)
+      ? 'trend-badge--negative'
+      : 'trend-badge--positive'
 ]
 
 const trendArrowClass = (metric, key) => [
@@ -3417,6 +3433,12 @@ onMounted(async () => {
   color: #dc2626;
 }
 
+/* Нейтральная дельта (расход/показы/клики): серая, направление читается стрелкой */
+.trend-badge--neutral {
+  background-color: rgba(100, 116, 139, 0.12);
+  color: #5b6579;
+}
+
 .trend-arrow {
   transition: transform 0.2s;
 }
@@ -3523,8 +3545,65 @@ onMounted(async () => {
     flex-direction: column;
   }
 
+  /* ТЗ §3/§5: метрики плитками 2×2, а не строками. Внутри плитки —
+     подпись сверху, крупное значение и дельта снизу (макет карточки). */
   .project-tile-stats {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.7rem;
+  }
+
+  .stat-box {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "label"
+      "value"
+      "delta";
+    align-items: start;
+    justify-items: start;
+    row-gap: 0.35rem;
+    min-height: 6rem;
+    padding: 0.95rem 1rem 0.9rem;
+  }
+
+  .stat-box .iconbox {
+    display: none;
+  }
+
+  .stat-box__copy {
+    grid-area: label;
+    max-width: 100%;
+  }
+
+  .stat-box__copy h4 {
+    font-size: 1.204rem; /* ≥13pt */
+    font-weight: 600;
+    color: #5b6579;
+    white-space: normal;
+  }
+
+  /* Подзаголовок плитки скрыт: макет держит плитку из подписи, значения и
+     дельты — «Все переходы»/«За период» повторяют смысл подписи. */
+  .stat-box__copy p {
+    display: none;
+  }
+
+  /* Значение на всю ширину плитки (delta уходит на строку ниже) — длинные
+     суммы вроде «207 952 ₽» больше не обрезаются. */
+  .stat-box__value {
+    grid-area: value;
+    margin-left: 0;
+    max-width: 100%;
+    font-size: 1.9rem;
+    line-height: 1.05;
+    letter-spacing: -0.015em;
+  }
+
+  .stat-box .trend-badge {
+    grid-area: delta;
+    justify-self: start;
+    font-size: 1.204rem; /* ≥13pt */
+    padding: 0.2rem 0.55rem;
   }
 
   .project-channel-row {
@@ -3560,6 +3639,68 @@ onMounted(async () => {
 
   .project-goal-detail-row em {
     display: none;
+  }
+
+  /* ТЗ §1/§5/§9: зоны нажатия ≥44pt (4.074rem при шкале 67.5%) у всего
+     интерактивного на карточке. */
+  .analytics-open-btn,
+  .detector-badge,
+  .project-tile-id--corner,
+  .project-goals-title__action,
+  .project-channel-empty__btn,
+  .project-footer-actions > * {
+    min-height: 4.074rem;
+  }
+
+  .analytics-open-btn,
+  .project-channel-empty__btn {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .detector-badge {
+    min-width: 4.074rem;
+    justify-content: center;
+  }
+
+  .project-tile-id--corner {
+    align-self: flex-start;
+    max-width: 100%;
+  }
+
+  /* Действия в подвале карточки — крупные кнопки в ряд, тянутся по ширине */
+  .project-footer-actions {
+    width: 100%;
+    gap: 0.6rem;
+  }
+
+  .project-footer-actions > * {
+    flex: 1 1 0;
+    justify-content: center;
+  }
+
+  /* ТЗ §1/§9: вспомогательный текст не мельче 13pt */
+  .project-tile-description,
+  .project-goals-title,
+  .project-goals-title__action,
+  .project-channel-metric span,
+  .balance-chip span,
+  .balance-chip strong {
+    font-size: 1.204rem;
+  }
+
+  .project-title-link--tile {
+    font-size: 1.5rem; /* название проекта крупнее — ~16pt, ближе к макету */
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    max-width: 100%;
+  }
+
+  /* Чипы баланса переносятся на новую строку при нехватке ширины (ТЗ §5) */
+  .project-balance-strip {
+    flex-wrap: wrap;
   }
 }
 
