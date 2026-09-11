@@ -25,6 +25,8 @@ logging.basicConfig(
     handlers=[logging.StreamHandler()]
 )
 logger = logging.getLogger("api")
+from core.public_url_logging import install as install_public_url_filter
+install_public_url_filter()
 
 # Enable automatic table creation with retry logic
 def init_db_with_retry(max_retries=10, retry_delay=2):
@@ -390,6 +392,9 @@ app = FastAPI(
 async def startup_event():
     """Инициализация при старте приложения"""
     from core.runtime import env_bool
+    if env_bool("DURABLE_REPORT_LINKS", False):
+        from backend_api.reports.public_links import check_schema
+        check_schema(engine)
     if env_bool("DURABLE_TASKS", False):
         from automation.work_preflight import check
         check()

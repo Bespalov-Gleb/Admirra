@@ -62,7 +62,7 @@ def _summary_platform(campaigns: list) -> str:
     return ""
 
 
-def _get_report_data(db, user_id, client_id, start_date, end_date, comment, folder_id=None, platform="all"):
+def _get_report_data(db, user_id, client_id, start_date, end_date, comment, folder_id=None, platform="all", *, include_scope=False):
     """Общие данные для отчёта (из pdf_service). folder_id — скоуп «папка»."""
     if folder_id and not client_id:
         effective_client_ids = StatsService.resolve_folder_client_ids(db, user_id, folder_id)
@@ -96,7 +96,8 @@ def _get_report_data(db, user_id, client_id, start_date, end_date, comment, fold
         if client:
             client_name = client.name
     ai_comment = (comment or "").strip() if comment else ""
-    return summary, top_campaigns, client_name, ai_comment, start_date, end_date
+    result = (summary, top_campaigns, client_name, ai_comment, start_date, end_date)
+    return (*result, effective_client_ids) if include_scope else result
 
 
 def generate_report_png(
@@ -289,7 +290,15 @@ def save_report_view_data(
     """Сохраняет данные отчёта для страницы просмотра, возвращает токен."""
     import time
     token = str(uuid.uuid4())
-    data = {
+    data = report_view_snapshot(summary, top_campaigns, client_name, ai_comment, start_date, end_date)
+    expires = time.time() + ttl_seconds
+    _report_view_cache[token] = (data, expires)
+    return token
+
+
+def report_view_snapshot(summary, top_campaigns, client_name, ai_comment, start_date, end_date):
+    """The same immutable content for legacy and durable HTML links."""
+    return {
         "summary": summary,
         "top_campaigns": top_campaigns,
         "client_name": client_name or "",
@@ -298,9 +307,6 @@ def save_report_view_data(
         "end_date": end_date,
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
     }
-    expires = time.time() + ttl_seconds
-    _report_view_cache[token] = (data, expires)
-    return token
 
 
 def get_report_view_data(token: str) -> Optional[dict]:

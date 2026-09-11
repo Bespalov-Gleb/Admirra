@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import or_
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, defer
 import uuid
 
@@ -24,9 +25,12 @@ from backend_api.reports.export_service import (
     get_report_file_by_token,
     save_report_view_data,
     get_report_view_data,
+    report_view_snapshot,
     _get_report_data,
 )
 from backend_api.reports.report_html import render_report_html
+from backend_api.reports import public_links
+from core.runtime import env_bool
 
 logger = logging.getLogger(__name__)
 
@@ -428,12 +432,20 @@ class CreateLinkRequest(BaseModel):
 
 
 @router.post("/link")
-async def create_report_link(
+def create_report_link(
     req: CreateLinkRequest,
+    response: Response,
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
     """Создаёт ссылку на страницу с отчётом. Ссылка действительна 24 часа."""
+    response.headers.update(public_links.PRIVATE_HEADERS)
+    use_durable = public_links.enabled()
+    if not use_durable and not env_bool("LEGACY_REPORT_LINK_READS", True):
+        # Rollback may stop new creation while keeping existing durable reads.
+        # Do not return a successful legacy link whose read route is disabled.
+        raise HTTPException(status_code=503, detail="Создание ссылок временно отключено",
+                            headers=public_links.PRIVATE_HEADERS)
     u_client_id = None
     if req.client_id:
         try:
@@ -447,10 +459,16 @@ async def create_report_link(
     # комментария страница просто не показывает этот блок.
     use_comment = (req.comment or "").strip() if req.comment else None
     try:
-        summary, top_campaigns, client_name, _, sd, ed = _get_report_data(
+        result = _get_report_data(
             db, current_user.id, u_client_id,
-            req.start_date, req.end_date, use_comment
+            req.start_date, req.end_date, use_comment, include_scope=True,
         )
+        summary, top_campaigns, client_name, _, sd, ed, scope_ids = result
+        if use_durable:
+            snapshot = report_view_snapshot(summary, top_campaigns, client_name, use_comment or "", sd, ed)
+            created = public_links.create(db, current_user.id, scope_ids, snapshot)
+            db.commit()  # No capability is returned before durable commit.
+            return created
         token = save_report_view_data(
             summary=summary,
             top_campaigns=top_campaigns,
@@ -461,34 +479,89 @@ async def create_report_link(
             ttl_seconds=86400,
         )
         return {"url": f"/api/reports/view/{token}", "token": token}
-    except Exception as e:
-        logger.exception("Link creation failed: %s", e)
-        raise HTTPException(status_code=500, detail="Не удалось создать ссылку")
+    except public_links.LinkUnavailable:
+        db.rollback()
+        raise HTTPException(status_code=403, detail="Нет доступа к данным отчёта", headers=public_links.PRIVATE_HEADERS) from None
+    except public_links.LinkLimitReached:
+        db.rollback()
+        raise HTTPException(status_code=429, detail="Достигнут лимит ссылок. Отзовите ненужные или попробуйте позже.",
+                            headers={**public_links.PRIVATE_HEADERS, "Retry-After": "3600"}) from None
+    except ValueError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Проверьте период и размер отчёта", headers=public_links.PRIVATE_HEADERS) from None
+    except SQLAlchemyError:
+        db.rollback()
+        logger.error("Report link storage unavailable")
+        raise HTTPException(status_code=503, detail="Хранилище отчётов временно недоступно", headers=public_links.PRIVATE_HEADERS) from None
+    except Exception:
+        db.rollback()
+        logger.error("Link creation failed")
+        raise HTTPException(status_code=500, detail="Не удалось создать ссылку", headers=public_links.PRIVATE_HEADERS) from None
+
+
+@router.get("/links")
+def list_public_report_links(response: Response, limit: int = Query(50, ge=1, le=100), before: Optional[uuid.UUID] = None,
+    current_user: models.User = Depends(security.get_current_user), db: Session = Depends(get_db)):
+    """Only this user's link IDs/expiry, never bearer tokens or report bodies."""
+    response.headers.update(public_links.PRIVATE_HEADERS)
+    try:
+        return {"items": public_links.list_owned(db, current_user.id, limit=limit, before=before)}
+    except public_links.LinkUnavailable:
+        raise HTTPException(status_code=404, detail="Ссылка не найдена", headers=public_links.PRIVATE_HEADERS) from None
+    except SQLAlchemyError:
+        raise HTTPException(status_code=503, detail="Хранилище отчётов временно недоступно", headers=public_links.PRIVATE_HEADERS) from None
+
+
+@router.delete("/links/{link_id}", status_code=204)
+def revoke_public_report_link(link_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user), db: Session = Depends(get_db)):
+    # Keep revocation available when creation is disabled during rollback.
+    try:
+        public_links.revoke(db, link_id, current_user.id)
+        db.commit()
+    except public_links.LinkUnavailable:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="Ссылка не найдена", headers=public_links.PRIVATE_HEADERS) from None
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(status_code=503, detail="Хранилище отчётов временно недоступно", headers=public_links.PRIVATE_HEADERS) from None
+    return Response(status_code=204, headers=public_links.PRIVATE_HEADERS)
 
 
 @router.get("/view/{token}")
-async def get_report_view(token: str):
+def get_report_view(token: str, db: Session = Depends(get_db)):
     """Страница с отчётом (открывается по ссылке, без авторизации)."""
-    data = get_report_view_data(token)
+    if public_links.is_durable_token(token):
+        try:
+            data = public_links.read(db, token)
+        except public_links.LinkUnavailable:
+            data = None
+        except (SQLAlchemyError, public_links.SnapshotCorrupt):
+            logger.error("Public report snapshot unavailable")
+            raise HTTPException(status_code=503, detail="Отчёт временно недоступен",
+                                headers=public_links.PRIVATE_HEADERS) from None
+    else:
+        data = get_report_view_data(token) if env_bool("LEGACY_REPORT_LINK_READS", True) else None
     if data is None:
         raise HTTPException(
             status_code=404,
             detail="Ссылка недействительна или истекла (действует 24 часа)",
+            headers=public_links.PRIVATE_HEADERS,
         )
     html = render_report_html(data)
-    return Response(content=html, media_type="text/html; charset=utf-8")
+    return Response(content=html, media_type="text/html; charset=utf-8", headers=public_links.PRIVATE_HEADERS)
 
 
 @router.get("/file/{token}")
-async def get_report_file(token: str):
+def get_report_file(token: str):
     """Скачивание отчёта по временной ссылке (без авторизации — токен является секретом)."""
-    data, media_type, filename = get_report_file_by_token(token)
+    data, media_type, filename = get_report_file_by_token(token) if env_bool("LEGACY_REPORT_LINK_READS", True) else (None, None, None)
     if data is None:
-        raise HTTPException(status_code=404, detail="Ссылка недействительна или истекла")
+        raise HTTPException(status_code=404, detail="Ссылка недействительна или истекла", headers=public_links.PRIVATE_HEADERS)
     return Response(
         content=data,
         media_type=media_type,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={**public_links.PRIVATE_HEADERS, "Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
