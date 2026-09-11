@@ -157,9 +157,27 @@ PNG fallback, ручная сверка и её ownership, миграции/FK/d
 независимых loops, смена scope/token/целей, ошибки и отмена loader, истёкший lock,
 backfill race/rollback/приоритеты/resource locks/retention/cooldown и прежние regression tests.
 
-Финальный номер коммита, результаты image-only прогона и hash образа фиксируются
-после сборки. Это контрольный набор backend-тестов, не весь репозиторный suite и
-не нагрузочная приёмка production.
+Код сохранён локально: `737ea25` и дополнение `c4d0412` (историческая загрузка
+не скрывает ошибки каталога/детализации Direct; проверены пустой и непустой пути).
+Push и production deploy не выполнялись.
+
+Готовый образ на сервере 2: `admirra-devops:c4d0412`.
+Image ID: `sha256:6589648fd2d9ef4b58c8fc16f7094f702cab2f1b52bf91038fa2140137a374e3`.
+Исходники из коммита: `/opt/admirra-staging/release-c4d0412/`.
+
+**Image-only приёмка: 271 passed, 1 deselected, 46 warnings, 16,06 секунды.**
+Bind mount с исходниками отсутствовал. Единственный deselected — Vue-тест: frontend
+намеренно не включён в backend artifact. Это контрольный набор backend-тестов,
+не весь репозиторный suite и не нагрузочная приёмка production.
+
+Дополнительно: `pip check`, единственный Alembic head `ff6a7b8c9d0e`, OCI release label,
+отсутствие `.env`, `.git`, uploads и приватных `.key` в образе; синтаксис prepared
+worker-compose. Секреты и подключения production для этого не использовались.
+
+После приёмки тестовые PostgreSQL/Redis и internal Docker-сеть остановлены/удалены.
+Их данные были синтетическими в tmpfs; образы и исходные release artifacts сохранены.
+Production проверен read-only: HEAD `cdf0a4d`, прежние контейнеры без перезапуска,
+WireGuard active; публичный `https://admirra.ru` вернул HTTP 200.
 
 ## Оставшийся путь к production
 
