@@ -38,15 +38,17 @@ class Runtime:
 def get_runtime(env: Mapping[str, str] | None = None) -> Runtime:
     values = os.environ if env is None else env
     role = values.get("APP_PROCESS_ROLE", "legacy").strip().lower()
-    if role not in {"legacy", "api", "sync", "scheduler", "test"}:
+    if role not in {"legacy", "api", "sync", "worker", "scheduler", "test"}:
         raise ValueError("Unsupported APP_PROCESS_ROLE")
     bootstrap = env_bool("DB_AUTO_BOOTSTRAP", role == "legacy", values)
     sync = env_bool("RUN_SYNC_WORKER", role in {"legacy", "sync"}, values)
     scheduler = env_bool("RUN_API_SCHEDULER", role == "legacy", values)
     if role != "legacy" and bootstrap:
         raise ValueError("DB_AUTO_BOOTSTRAP is allowed only in legacy mode; use a migration job")
-    if role in {"api", "scheduler", "test"} and sync:
+    if role in {"api", "worker", "scheduler", "test"} and sync:
         raise ValueError("This process role cannot run the embedded sync worker")
     if role != "legacy" and scheduler:
         raise ValueError("Embedded API scheduler is allowed only in legacy mode")
+    if env_bool("DURABLE_TASKS", False, values) and role in {"legacy", "sync"}:
+        raise ValueError("Durable tasks require explicit api/worker/scheduler roles, never a legacy worker")
     return Runtime(role, bootstrap, sync, scheduler)

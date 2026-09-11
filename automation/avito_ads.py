@@ -15,6 +15,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import httpx
+from automation.provider_transport import provider_client
 
 # Документированные и встречающиеся статусы кампании (CampaignStatus).
 # Точные значения Avito API нужно пополнять по логам, но неизвестные статусы
@@ -104,7 +105,7 @@ class AvitoAdsAPI:
         if not self.client_id or not self.client_secret:
             raise ValueError("client_id и client_secret обязательны для client_credentials")
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
+        async with provider_client("avito", timeout=self.timeout) as client:
             response = await client.post(
                 f"{self.base_url}/token",
                 data={
@@ -134,7 +135,7 @@ class AvitoAdsAPI:
     ) -> dict:
         token = await self._get_bearer_token()
         headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-        async with httpx.AsyncClient(timeout=self.timeout, headers=headers) as client:
+        async with provider_client("avito", timeout=self.timeout, headers=headers) as client:
             response = await client.request(
                 method,
                 f"{self.base_url}{path}",

@@ -13,6 +13,7 @@
 - Фильтр: ya_direct, ya_undefined (НЕ yandex_direct).
 """
 import httpx
+from automation.provider_transport import provider_client
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 import logging
@@ -50,7 +51,7 @@ class YandexMetricaAPI:
             "sort": "ym:s:date"
         }
 
-        async with httpx.AsyncClient() as client:
+        async with provider_client("metrica") as client:
             response = await client.get(self.base_url, params=params, headers=self.headers)
             if response.status_code == 200:
                 data = response.json()
@@ -99,7 +100,7 @@ class YandexMetricaAPI:
         if goal_id:
             params["goal_id"] = goal_id
         logger.info(f"📊 Metrika data API: GET stat/v1/data counter={counter_id} date1={date_from} date2={date_to} dimensions=TrafficSource+date attribution=AUTOMATIC")
-        async with httpx.AsyncClient() as client:
+        async with provider_client("metrica") as client:
             response = await client.get(self.base_url, params=params, headers=self.headers, timeout=30.0)
             if response.status_code == 200:
                 data = response.json()
@@ -245,7 +246,7 @@ class YandexMetricaAPI:
         }
         results: List[Dict[str, Any]] = []
         try:
-            async with httpx.AsyncClient(timeout=120) as client:
+            async with provider_client("metrica", timeout=120) as client:
                 response = await client.get(self.base_url, params=params, headers=self.headers)
         except Exception as err:
             logger.warning("Metrika conversions-by-dimension request failed: %s", err)
@@ -284,7 +285,7 @@ class YandexMetricaAPI:
         else:
             logger.info(f"📊 YandexMetricaAPI.get_counters: No client_login, fetching all accessible counters")
             
-        async with httpx.AsyncClient() as client:
+        async with provider_client("metrica") as client:
             response = await client.get(url, headers=self.headers, params=params)
             if response.status_code == 200:
                 data = response.json()
@@ -310,7 +311,7 @@ class YandexMetricaAPI:
         if self.client_login:
             params["ulogin"] = self.client_login
             
-        async with httpx.AsyncClient() as client:
+        async with provider_client("metrica") as client:
             response = await client.get(url, headers=self.headers, params=params)
             if response.status_code == 200:
                 data = response.json()
@@ -343,7 +344,7 @@ class YandexMetricaAPI:
             "accuracy": "full",
             "limit": "100",
         }
-        async with httpx.AsyncClient() as client:
+        async with provider_client("metrica") as client:
             response = await client.get(self.base_url, params=params, headers=self.headers, timeout=30.0)
             if response.status_code == 200:
                 data = response.json()
@@ -371,7 +372,7 @@ class YandexMetricaAPI:
         }
         if filters:
             params["filters"] = filters
-        async with httpx.AsyncClient() as client:
+        async with provider_client("metrica") as client:
             response = await client.get(self.base_url, params=params, headers=self.headers, timeout=30.0)
             if response.status_code == 200:
                 data = response.json()
@@ -400,7 +401,7 @@ class YandexMetricaAPI:
         }
         if filters:
             params["filters"] = filters
-        async with httpx.AsyncClient() as client:
+        async with provider_client("metrica") as client:
             response = await client.get(self.base_url, params=params, headers=self.headers, timeout=30.0)
             if response.status_code == 200:
                 data = response.json()

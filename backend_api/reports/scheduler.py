@@ -406,8 +406,8 @@ def _rule_blocking_anomaly(db: Session, rule) -> str | None:
     return f"Детектор остановил автоотправку: {metric}{pct}"
 
 
-def create_pending_delivery_for_schedule(db: Session, rule, *, reason: str | None = None, source: str = "auto"):
-    now = datetime.now(MSK)
+def create_pending_delivery_for_schedule(db: Session, rule, *, reason: str | None = None, source: str = "auto", scheduled_at: datetime | None = None):
+    now = scheduled_at.astimezone(MSK) if scheduled_at else datetime.now(MSK)
     end_date = now.date()
     start_date = end_date - timedelta(days=max(int(rule.period_days or 7) - 1, 0))
     existing = db.query(models.ReportDelivery).filter(
@@ -1296,12 +1296,12 @@ async def send_report_for_schedule(db: Session, rule, user) -> dict:
     return results
 
 
-async def run_scheduled_report_rules():
+async def run_scheduled_report_rules(scheduled_at: datetime | None = None):
     """Каждую минуту обрабатывает единственную настройку каждого проекта/папки."""
     db: Session = SessionLocal()
     try:
-        now = datetime.now(MSK)
-        stale_before = now - timedelta(minutes=15)
+        now = scheduled_at.astimezone(MSK) if scheduled_at else datetime.now(MSK)
+        stale_before = datetime.now(MSK) - timedelta(minutes=15)
         stale_deliveries = db.query(models.ReportDelivery).filter(
             models.ReportDelivery.status == "sending",
             models.ReportDelivery.updated_at < stale_before,
@@ -1310,7 +1310,7 @@ async def run_scheduled_report_rules():
             delivery.status = "failed"
             previous = dict(delivery.delivery_results or {})
             errors = dict(previous.get("errors") or {})
-            errors["system"] = "Отправка прервана. Можно безопасно повторить неуспешные маршруты."
+            errors["system"] = "Отправка прервана; результат последних запросов неизвестен. Проверьте получение перед повтором."
             previous["errors"] = errors
             delivery.delivery_results = previous
         if stale_deliveries:
@@ -1337,7 +1337,7 @@ async def run_scheduled_report_rules():
                 continue
             try:
                 reason = _rule_blocking_anomaly(db, rule)
-                delivery = create_pending_delivery_for_schedule(db, rule, reason=reason)
+                delivery = create_pending_delivery_for_schedule(db, rule, reason=reason, scheduled_at=now)
                 db.flush()
                 await build_delivery_snapshot(db, delivery, user)
                 if bool(getattr(rule, "approval_required", True)) or reason:

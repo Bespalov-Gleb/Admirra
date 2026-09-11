@@ -1,6 +1,18 @@
 # Only synthetic data; no host ports, production credentials or outbound network.
 name: admirra-devops-test
 services:
+  test-redis:
+    image: redis:7.4-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--maxmemory", "64mb", "--maxmemory-policy", "noeviction"]
+    tmpfs: [/data:size=128m]
+    mem_limit: 192m
+    cpus: 0.5
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    networks: [isolated]
   test-db:
     image: postgres:15.18-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f
     environment:
@@ -20,16 +32,21 @@ services:
       retries: 30
     networks: [isolated]
   tests:
-    image: admirra-devops:staging
+    image: ${TEST_IMAGE:-admirra-devops:staging}
     entrypoint: ["python", "-m", "ops.run_isolated_tests"]
     command:
       - --disable-warnings
       - tests/test_runtime_roles.py
+      - tests/test_durable_work.py
+      - tests/test_celery_recovery.py
+      - tests/test_provider_transport.py
+      - tests/test_private_link.py
       - tests/test_request_queue_lifecycle.py
       - tests/test_backend_packaging.py
       - tests/test_runtime_health.py
       - tests/test_api_role_boot.py
       - tests/test_sync_job_retry.py
+      - tests/test_sync.py
       - tests/test_sync_detector_isolation.py
       - tests/test_metrika_goal_batch.py
       - tests/test_metrika_api_failure.py
@@ -51,6 +68,7 @@ services:
       WW_TEST_ID: devops-postgres
       DATABASE_URL: postgresql://test:isolated-test-only@test-db:5432/test
       ISOLATED_POSTGRES_URL: postgresql://test:isolated-test-only@test-db:5432/test
+      ISOLATED_REDIS_URL: redis://test-redis:6379/15
     volumes:
       - ..:/app:ro
     read_only: true
@@ -63,6 +81,8 @@ services:
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     depends_on:
+      test-redis:
+        condition: service_healthy
       test-db:
         condition: service_healthy
     networks: [isolated]

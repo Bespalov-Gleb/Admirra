@@ -1,4 +1,5 @@
 import httpx
+from automation.provider_transport import provider_client
 import logging
 import asyncio
 import json
@@ -148,7 +149,7 @@ async def _vk_agency_client_credentials_attempts(
         uniq.append(p)
 
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
-    async with httpx.AsyncClient() as client:
+    async with provider_client("vk") as client:
         for i, data in enumerate(uniq):
             try:
                 r = await client.post(
@@ -327,7 +328,7 @@ class VKAdsAPI:
         url = f"{self.base_url}/agency/clients.json"
         agency_unavailable = False
         try:
-            async with httpx.AsyncClient() as client:
+            async with provider_client("vk") as client:
                 await self._throttle()
                 response = await client.get(url, headers=self.headers, timeout=20.0)
                 if response.status_code == 200:
@@ -342,7 +343,7 @@ class VKAdsAPI:
         manager_url = "https://ads.vk.com/api/v3/manager/clients.json"
         manager_unavailable = False
         try:
-            async with httpx.AsyncClient() as client:
+            async with provider_client("vk") as client:
                 await self._throttle()
                 response = await client.get(manager_url, headers=self.headers, timeout=20.0)
                 if response.status_code == 200:
@@ -495,7 +496,7 @@ class VKAdsAPI:
         self._push_debug(f"account_id={self.account_id} cabinet_id={self.cabinet_id} send_client_id={self.send_client_id}")
             
         try:
-            async with httpx.AsyncClient() as client:
+            async with provider_client("vk") as client:
                 campaigns = []
                 limit = 200
                 offset = 0
@@ -647,7 +648,7 @@ class VKAdsAPI:
         # как фолбэк, а результат дополнительно фильтруется по ad_plan_id вызывающим кодом.
         param_variants = ["_ad_plan_id__in", "ad_plan_id", "ad_plan_ids", "campaign_id", "campaign_ids"]
 
-        async with httpx.AsyncClient() as client:
+        async with provider_client("vk") as client:
             for param_name in param_variants:
                 try:
                     # Пагинация: без limit VK отдаёт только первые 20 групп
@@ -762,7 +763,7 @@ class VKAdsAPI:
         limit = 200
         max_pages = 50
 
-        async with httpx.AsyncClient() as client:
+        async with provider_client("vk") as client:
             for chunk_start in range(0, len(group_ids), 200):
                 chunk = group_ids[chunk_start:chunk_start + 200]
                 offset = 0
@@ -822,7 +823,7 @@ class VKAdsAPI:
         date_chunks = self._split_date_range(date_from, date_to, 90)
         results: List[Dict[str, Any]] = []
 
-        async with httpx.AsyncClient() as client:
+        async with provider_client("vk") as client:
             for d_from, d_to in date_chunks:
                 for id_offset in range(0, len(object_ids), 200):
                     id_chunk = object_ids[id_offset:id_offset + 200]
@@ -876,7 +877,7 @@ class VKAdsAPI:
         offset = 0
         max_pages = 50  # Увеличиваем кол-во страниц, так как limit меньше
 
-        async with httpx.AsyncClient() as client:
+        async with provider_client("vk") as client:
             for _ in range(max_pages):
                 params = {"limit": limit, "offset": offset}
                 if self.account_id:
@@ -937,7 +938,7 @@ class VKAdsAPI:
         if not package_ids:
             return packages
         
-        async with httpx.AsyncClient() as client:
+        async with provider_client("vk") as client:
             for package_id in package_ids:
                 try:
                     url = f"{self.base_url}/packages/{package_id}.json"
@@ -1126,7 +1127,7 @@ class VKAdsAPI:
                 # FALLBACK: Для кампаний без целей (особенно без AdGroups) пробуем индивидуальные запросы
                 if len(campaigns_without_goals) <= 15:  # Ограничиваем количество
                     logger.info(f"🔄 Пробуем fallback: запрашиваем objective для {len(campaigns_without_goals)} кампаний...")
-                    async with httpx.AsyncClient() as client:
+                    async with provider_client("vk") as client:
                         for idx, camp_id in enumerate(sorted(list(campaigns_without_goals))[:15]):
                             try:
                                 ad_plan_url = f"{self.base_url}/ad_plans/{camp_id}.json"
@@ -1195,7 +1196,7 @@ class VKAdsAPI:
             pass
         
         try:
-            async with httpx.AsyncClient() as client:
+            async with provider_client("vk") as client:
                 await self._throttle()
                 response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
                 
@@ -1256,7 +1257,7 @@ class VKAdsAPI:
         date_chunks = self._split_date_range(date_from, date_to, 90)
         all_results = []
 
-        async with httpx.AsyncClient() as client:
+        async with provider_client("vk") as client:
             for d_from, d_to in date_chunks:
                 for id_offset in range(0, len(campaign_ids), 200):
                     id_chunk = campaign_ids[id_offset:id_offset + 200]
@@ -1465,7 +1466,7 @@ class VKAdsAPI:
                 "metrics": "base"  # Базовые метрики для получения списка кабинетов
             }
             
-            async with httpx.AsyncClient() as client:
+            async with provider_client("vk") as client:
                 await self._throttle()
                 response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
                 
@@ -1535,7 +1536,7 @@ class VKAdsAPI:
         # Метод 2: Fallback - пытаемся использовать старый endpoint
         try:
             url = f"{self.base_url}/ad_accounts.json"
-            async with httpx.AsyncClient() as client:
+            async with provider_client("vk") as client:
                 await self._throttle()
                 response = await client.get(url, headers=self.headers, timeout=30.0)
                 
@@ -1656,7 +1657,7 @@ class VKAdsAPI:
                     names_by_id.setdefault(normalized, name)
 
         try:
-            async with httpx.AsyncClient() as client:
+            async with provider_client("vk") as client:
                 # Personal advertiser profile. The endpoint returns a user
                 # object; its account.id is the same identifier exposed by
                 # statistics for a personal cabinet.
@@ -1785,7 +1786,7 @@ class VKAdsAPI:
         max_items = 1000
 
         try:
-            async with httpx.AsyncClient() as client:
+            async with provider_client("vk") as client:
                 while offset < max_items:
                     await self._throttle()
                     response = await client.get(
@@ -1846,7 +1847,7 @@ class VKAdsAPI:
                 "metrics": "base"  # Базовые метрики
             }
             
-            async with httpx.AsyncClient() as client:
+            async with provider_client("vk") as client:
                 await self._throttle()
                 response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
                 
@@ -2086,7 +2087,7 @@ class VKAdsAPI:
             if self.account_id:
                 params["client_id"] = self.account_id
             
-            async with httpx.AsyncClient() as client:
+            async with provider_client("vk") as client:
                 await self._throttle()
                 response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
                 if response.status_code == 200:
@@ -2140,7 +2141,7 @@ class VKAdsAPI:
             if self.account_id:
                 params["client_id"] = self.account_id
             
-            async with httpx.AsyncClient() as client:
+            async with provider_client("vk") as client:
                 await self._throttle()
                 response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
                 if response.status_code == 200:
@@ -2197,7 +2198,7 @@ class VKAdsAPI:
             if self.account_id:
                 params["client_id"] = self.account_id
             
-            async with httpx.AsyncClient() as client:
+            async with provider_client("vk") as client:
                 await self._throttle()
                 response = await client.get(url, params=params, headers=self.headers, timeout=30.0)
                 if response.status_code == 200:

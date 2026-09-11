@@ -1,0 +1,135 @@
+"""PostgreSQL jobs + transactional outbox. Redis is transport, never job truth."""
+from datetime import timedelta
+import uuid
+import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import insert
+
+from automation.work_tables import jobs, outbox
+from core.runtime import env_int
+
+CLAIM_LOCK = 731971031
+
+
+def submit(db, *, kind, queue, key, resource, tenant, payload, replay_safe=False, max_attempts=3):
+    """Caller commits the business change and this outbox record atomically."""
+    job_id = uuid.uuid4()
+    inserted = db.execute(insert(jobs).values(
+        id=job_id, kind=kind, queue=queue, dedupe_key=key, resource=resource,
+        tenant=str(tenant), payload=payload, replay_safe=replay_safe, max_attempts=max_attempts,
+    ).on_conflict_do_nothing(index_elements=[jobs.c.dedupe_key]).returning(jobs.c.id)).scalar()
+    if inserted is None:
+        return db.execute(sa.select(jobs.c.id).where(jobs.c.dedupe_key == key)).scalar_one()
+    db.execute(insert(outbox).values(job_id=job_id))
+    return job_id
+
+
+def _clock(db):
+    return db.execute(sa.select(sa.func.clock_timestamp())).scalar_one()
+
+
+def _serialize_claims(db):
+    db.execute(sa.text("SELECT pg_advisory_xact_lock(:key)"), {"key": CLAIM_LOCK})
+
+
+def recover_expired(db):
+    """Safe work can retry; uncertain external effects require reconciliation."""
+    _serialize_claims(db)
+    now = _clock(db)
+    expired = db.execute(sa.select(jobs).where(jobs.c.state == "running", jobs.c.lease_until <= now)
+                         .with_for_update(skip_locked=True).limit(100)).mappings().all()
+    for job in expired:
+        can_retry = job["replay_safe"] and job["attempt"] < job["max_attempts"]
+        state = "queued" if can_retry else "failed" if job["replay_safe"] else "uncertain"
+        db.execute(jobs.update().where(jobs.c.id == job["id"]).values(
+            state=state, lease_token=None, lease_until=None, error_type="WorkerLeaseExpired",
+            available_at=now + timedelta(seconds=5), finished_at=None if can_retry else now,
+        ))
+        db.execute(outbox.update().where(outbox.c.job_id == job["id"]).values(next_publish_at=now))
+        if not can_retry:
+            db.execute(outbox.delete().where(outbox.c.job_id == job["id"]))
+            if job["kind"] == "sync":
+                # Keep the existing frontend polling contract terminal too.
+                from core import models
+                sync_id = uuid.UUID(job["payload"]["sync_job_id"])
+                sync_job = db.get(models.SyncJob, sync_id)
+                if sync_job and sync_job.status != models.SyncJobStatus.SUCCESS:
+                    sync_job.status = models.SyncJobStatus.FAILED
+                    sync_job.finished_at = now.replace(tzinfo=None)
+                    sync_job.error = "Воркер остановлен; исчерпаны попытки восстановления"
+                    integration = db.get(models.Integration, sync_job.integration_id)
+                    if integration and integration.sync_status == models.IntegrationSyncStatus.PENDING:
+                        integration.sync_status = models.IntegrationSyncStatus.FAILED
+                        integration.error_message = sync_job.error
+    return len(expired)
+
+
+def claim(db, job_id, *, lease_seconds=None):
+    _serialize_claims(db)
+    now = _clock(db)
+    job = db.execute(sa.select(jobs).where(jobs.c.id == job_id).with_for_update()).mappings().first()
+    if not job or job["state"] != "queued" or job["available_at"] > now:
+        return None
+    # A resource is exclusive (e.g. full sync and goals-only sync of one cabinet).
+    busy = db.execute(sa.select(jobs.c.id).where(jobs.c.resource == job["resource"], jobs.c.state == "running")).first()
+    if busy:
+        return None
+    if job["queue"].startswith("sync."):
+        running_sync = sa.and_(jobs.c.state == "running", jobs.c.queue.like("sync.%"))
+        total = db.execute(sa.select(sa.func.count()).select_from(jobs).where(running_sync)).scalar_one()
+        tenant = db.execute(sa.select(sa.func.count()).select_from(jobs).where(running_sync, jobs.c.tenant == job["tenant"])).scalar_one()
+        if total >= env_int("SYNC_GLOBAL_CONCURRENCY", 4, 1, 32) or tenant >= env_int("SYNC_TENANT_CONCURRENCY", 2, 1, 16):
+            return None
+    token = uuid.uuid4()
+    seconds = lease_seconds or env_int("TASK_LEASE_SECONDS", 120, 30, 600)
+    db.execute(jobs.update().where(jobs.c.id == job_id).values(
+        state="running", lease_token=token, lease_until=now + timedelta(seconds=seconds),
+        heartbeat_at=now, attempt=job["attempt"] + 1, error_type=None,
+    ))
+    return {**dict(job), "lease_token": token, "attempt": job["attempt"] + 1}
+
+
+def heartbeat(db, job_id, token):
+    now = _clock(db)
+    return db.execute(jobs.update().where(
+        jobs.c.id == job_id, jobs.c.lease_token == token, jobs.c.state == "running", jobs.c.lease_until > now,
+    ).values(heartbeat_at=now, lease_until=now + timedelta(seconds=env_int("TASK_LEASE_SECONDS", 120, 30, 600)))).rowcount == 1
+
+
+def prune_completed(db):
+    """Bound retention; never delete queued, running, or uncertain work."""
+    cutoff = _clock(db) - timedelta(days=env_int("TASK_RETENTION_DAYS", 30, 7, 365))
+    old = sa.select(jobs.c.id).where(jobs.c.state.in_(["succeeded", "failed"]), jobs.c.finished_at < cutoff)
+    old = old.order_by(jobs.c.finished_at).limit(500).with_for_update(skip_locked=True)
+    return db.execute(jobs.delete().where(jobs.c.id.in_(old))).rowcount
+
+
+def finish(db, job_id, token, *, error=None):
+    now = _clock(db)
+    # Execution retries are explicit. Broker redelivery alone cannot replay an
+    # external side effect after a completed/failed execution.
+    state = "succeeded" if error is None else sa.case((jobs.c.replay_safe.is_(False), "uncertain"), else_="failed")
+    changed = db.execute(jobs.update().where(
+        jobs.c.id == job_id, jobs.c.lease_token == token, jobs.c.state == "running", jobs.c.lease_until > now,
+    ).values(state=state, finished_at=now, lease_token=None, lease_until=None,
+             error_type=type(error).__name__[:128] if error else None)).rowcount
+    if changed:
+        db.execute(outbox.delete().where(outbox.c.job_id == job_id))
+    return bool(changed)
+
+
+def publish_pending(db, send, *, batch_size=10):
+    """At-least-once publication: crash after send may duplicate a message, not work.
+
+Keep the outbox until terminal state. Re-publish queued work periodically even
+after a successful publish, so losing Redis data cannot lose a committed job.
+"""
+    now = _clock(db)
+    pending = db.execute(sa.select(jobs.c.id, jobs.c.queue).join(outbox, outbox.c.job_id == jobs.c.id).where(
+        jobs.c.state == "queued", jobs.c.available_at <= now, outbox.c.next_publish_at <= now,
+    ).order_by(jobs.c.created_at).with_for_update(of=outbox, skip_locked=True).limit(batch_size)).all()
+    for job_id, queue in pending:
+        send(str(job_id), queue)
+        db.execute(outbox.update().where(outbox.c.job_id == job_id).values(
+            next_publish_at=now + timedelta(seconds=30), publish_count=outbox.c.publish_count + 1,
+        ))
+    return len(pending)

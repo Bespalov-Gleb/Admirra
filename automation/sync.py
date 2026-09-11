@@ -464,6 +464,10 @@ def sync_metrika_goals_background(
     Запускает только синхронизацию целей Метрики в фоне (без отчётов/баланса).
     Вызывается из get_goals при пустом ответе, чтобы подтянуть цели по требованию.
     """
+    from core.runtime import env_bool
+    if env_bool("DURABLE_TASKS", False):
+        from automation.durable_sync import enqueue_goals
+        return enqueue_goals(integration_id, date_from_str, date_to_str)
     import threading
     from core.database import SessionLocal
     from core import security

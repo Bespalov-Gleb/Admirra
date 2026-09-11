@@ -6,6 +6,7 @@ from sqlalchemy.engine import make_url
 import sys
 from core.config import get_config
 from core.runtime import env_int, get_runtime
+from core import job_fence  # Registers commit guards; inert outside a durable job.
 
 # We will use environment variables for the production URL
 SQLALCHEMY_DATABASE_URL = get_config().database.url
@@ -40,7 +41,13 @@ else:
         pool_timeout=env_int("DB_POOL_TIMEOUT", 60 if _legacy_pool else 5, 1, 300),
         pool_recycle=env_int("DB_POOL_RECYCLE", 3600, 30, 86400),
         pool_pre_ping=True,  # Проверка соединения перед использованием
-        connect_args={"connect_timeout": env_int("DB_CONNECT_TIMEOUT", 5, 1, 60)},
+        connect_args={
+            "connect_timeout": env_int("DB_CONNECT_TIMEOUT", 5, 1, 60),
+            "options": _db_url.query.get("options", "") + " -c statement_timeout=%d -c lock_timeout=%d" % (
+                env_int("DB_STATEMENT_TIMEOUT_MS", 0 if _legacy_pool else 60000, 0, 3600000),
+                env_int("DB_LOCK_TIMEOUT_MS", 0 if _legacy_pool else 10000, 0, 60000),
+            ),
+        },
         echo=False,  # Отключаем SQL логирование для производительности
     )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

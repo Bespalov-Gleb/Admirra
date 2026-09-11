@@ -268,6 +268,9 @@ def _run_job_sync(job_id: uuid.UUID) -> None:
                         raise SyncJobTimeout(
                             f"Синхронизация превысила лимит {_JOB_TIMEOUT_SEC} с и была прервана"
                         ) from exc
+                    finally:
+                        from automation.request_queue import shutdown_request_queue
+                        await shutdown_request_queue()
                 asyncio.run(_run())
                 last_error = None
                 break
@@ -414,8 +417,8 @@ def _worker_loop() -> None:
 
 
 def ensure_sync_worker_started() -> None:
-    from core.runtime import get_runtime
-    if not get_runtime().sync_worker:
+    from core.runtime import get_runtime, env_bool
+    if env_bool("DURABLE_TASKS", False) or not get_runtime().sync_worker:
         return
     global _worker_started
     if _worker_started:
@@ -444,6 +447,11 @@ def enqueue_sync_job(
     start_worker: контейнер automation ставит задачи, но воркер держит backend,
                   поэтому automation вызывает с start_worker=False.
     """
+    from core.runtime import env_bool
+    if env_bool("DURABLE_TASKS", False):
+        from automation.durable_sync import enqueue
+        return enqueue(integration_id, days=days, force_full=force_full, trigger=trigger,
+                       date_from=date_from, date_to=date_to)
     db = SessionLocal()
     try:
         existing = db.query(models.SyncJob).filter(

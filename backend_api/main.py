@@ -389,6 +389,10 @@ app = FastAPI(
 @app.on_event("startup")
 async def startup_event():
     """Инициализация при старте приложения"""
+    from core.runtime import env_bool
+    if env_bool("DURABLE_TASKS", False):
+        from automation.work_preflight import check
+        check()
     from automation.request_queue import get_request_queue
     await get_request_queue()  # Инициализируем очередь запросов
     logger.info("✅ Application startup complete - request queue initialized")

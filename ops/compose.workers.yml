@@ -1,0 +1,113 @@
+# PREPARED configuration, not a command to cut over a running production stack.
+# Requires private link, migrated DB, reviewed /etc/admirra files and restore drill.
+name: admirra-workers
+x-worker: &worker
+  image: ${ADMIRRA_IMAGE:?Set a tested immutable image digest}
+  env_file: /etc/admirra/worker.env
+  environment: &runtime
+    APP_PROCESS_ROLE: worker
+    DURABLE_TASKS: "true"
+    DISTRIBUTED_RATE_LIMITS: "true"
+    DB_AUTO_BOOTSTRAP: "false"
+    RUN_SYNC_WORKER: "false"
+    RUN_API_SCHEDULER: "false"
+    DB_POOL_SIZE: "2"
+    DB_MAX_OVERFLOW: "0"
+    DB_POOL_TIMEOUT: "5"
+    DB_STATEMENT_TIMEOUT_MS: "60000"
+    DB_LOCK_TIMEOUT_MS: "10000"
+    EXPECTED_SCHEMA_REVISION: dd4e5f6a7b8c
+    TASK_LEASE_SECONDS: "120"
+    SYNC_GLOBAL_CONCURRENCY: "4"
+    SYNC_TENANT_CONCURRENCY: "2"
+    LOG_TO_STDOUT: "true"
+    UPLOADS_DIR: /data/uploads
+    REJECTED_LEADS_DIR: /data/rejected-leads
+  user: "10001:10001"
+  init: true
+  read_only: true
+  tmpfs: [/tmp:size=256m]
+  volumes:
+    - /srv/admirra/worker-data:/data
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  restart: unless-stopped
+  stop_grace_period: 55m
+  pids_limit: 128
+  mem_limit: 768m
+  cpus: 1
+  logging:
+    driver: local
+    options: {max-size: 10m, max-file: "3"}
+  depends_on:
+    broker: {condition: service_healthy}
+  networks: [work]
+
+services:
+  broker:
+    image: redis:7.4-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+    command: [redis-server, /etc/redis/redis.conf]
+    volumes:
+      - /etc/admirra/redis-broker.conf:/etc/redis/redis.conf:ro
+      - /etc/admirra/redis-users.acl:/etc/redis/users.acl:ro
+      - broker-data:/data
+    # Only encrypted host-to-host address, never 0.0.0.0.
+    ports: ["10.77.0.2:6379:6379"]
+    env_file: /etc/admirra/redis-health.env
+    healthcheck:
+      test: [CMD-SHELL, "redis-cli --user health ping | grep -qx PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
+    networks: [work]
+    logging: {driver: local, options: {max-size: 10m, max-file: "3"}}
+  cache:
+    image: redis:7.4-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+    command: [redis-server, /etc/redis/redis.conf]
+    volumes:
+      - /etc/admirra/redis-cache.conf:/etc/redis/redis.conf:ro
+      - /etc/admirra/redis-users.acl:/etc/redis/users.acl:ro
+    ports: ["10.77.0.2:6380:6379"]
+    tmpfs: [/data:size=64m]
+    restart: unless-stopped
+    mem_limit: 256m
+    cpus: 0.5
+    networks: [work]
+    logging: {driver: local, options: {max-size: 10m, max-file: "3"}}
+  sync-manual:
+    <<: *worker
+    command: [python, -m, automation.work_worker, --concurrency=2, --queues=sync.manual, --hostname=manual@%h]
+    mem_limit: 1536m
+    cpus: 1.5
+  sync-nightly:
+    <<: *worker
+    command: [python, -m, automation.work_worker, --concurrency=2, --queues=sync.nightly, --hostname=nightly@%h]
+    mem_limit: 1536m
+    cpus: 1.5
+  reports:
+    <<: *worker
+    command: [python, -m, automation.work_worker, --concurrency=1, --queues=reports, --hostname=reports@%h]
+  maintenance:
+    <<: *worker
+    command: [python, -m, automation.work_worker, --concurrency=1, --queues=maintenance, --hostname=maintenance@%h]
+  ai-prewarm:
+    <<: *worker
+    command: [python, -m, automation.work_worker, --concurrency=1, --queues=ai.prewarm, --hostname=prewarm@%h]
+  scheduler:
+    <<: *worker
+    command: [python, -m, automation.work_control]
+    environment:
+      <<: *runtime
+      APP_PROCESS_ROLE: scheduler
+      LEAD_ALERT_TIMEZONE: UTC
+    stop_grace_period: 60s
+    mem_limit: 256m
+    cpus: 0.5
+
+volumes:
+  broker-data:
+networks:
+  work:

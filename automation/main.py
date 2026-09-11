@@ -132,4 +132,9 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    from core.runtime import env_bool
+    if env_bool("DURABLE_TASKS", False):
+        from automation.work_control import main as control_main
+        control_main()
+    else:
+        asyncio.run(main())

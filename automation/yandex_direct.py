@@ -1,4 +1,5 @@
 import httpx
+from automation.provider_transport import provider_client
 import json
 import asyncio
 import os
@@ -184,7 +185,7 @@ class YandexDirectAPI:
             },
         }
         try:
-            async with httpx.AsyncClient() as client:
+            async with provider_client("direct") as client:
                 response = await client.post(self.campaigns_url, json=payload, headers=self.headers, timeout=120.0)
             if response.status_code != 200:
                 logger.info("get_campaign_strategies: non-200 (%s), пропускаем", response.status_code)
@@ -241,7 +242,7 @@ class YandexDirectAPI:
             }
         }
         
-        async with httpx.AsyncClient() as client:
+        async with provider_client("direct") as client:
             try:
                 # DEBUG: Log request details
                 logger.info(f"🔵 Sending request to Yandex API:")
@@ -584,7 +585,7 @@ class YandexDirectAPI:
         
         logger.info(f"📊 Reports API payload: {json.dumps(payload, indent=2, ensure_ascii=False)}")
         
-        async with httpx.AsyncClient() as client:
+        async with provider_client("direct") as client:
             response = await client.post(
                 self.report_url,
                 json=payload,
@@ -849,7 +850,7 @@ class YandexDirectAPI:
         else:
             timeout_seconds = 120.0
         
-        async with httpx.AsyncClient() as client:
+        async with provider_client("direct") as client:
             for attempt in range(max_retries):
                 await get_api_limiter('direct').acquire()
                 response = await client.post(
@@ -1066,7 +1067,7 @@ class YandexDirectAPI:
         
         result: Dict[str, List[str]] = {}
         
-        async with httpx.AsyncClient() as client:
+        async with provider_client("direct") as client:
             try:
                 response = await client.post(self.campaigns_url, json=payload, headers=self.headers, timeout=120.0)
                 
@@ -1196,7 +1197,7 @@ class YandexDirectAPI:
         
         domains = set()
         
-        async with httpx.AsyncClient() as client:
+        async with provider_client("direct") as client:
             try:
                 # Request ads for these campaigns
                 payload = {
@@ -1460,7 +1461,7 @@ class YandexDirectAPI:
         }
         for url in [self.campaigns_url_v501, self.campaigns_url]:
             try:
-                async with httpx.AsyncClient() as client:
+                async with provider_client("direct") as client:
                     r = await client.post(url, json=payload, headers=self.headers, timeout=15.0)
                     if r.status_code == 200:
                         d = r.json()
@@ -1493,7 +1494,7 @@ class YandexDirectAPI:
             },
         }
         try:
-            async with httpx.AsyncClient() as client:
+            async with provider_client("direct") as client:
                 r = await client.post(
                     self.creatives_url_v501, json=payload, headers=self.headers, timeout=30.0
                 )
@@ -1550,7 +1551,7 @@ class YandexDirectAPI:
                 "FieldNames": ["Id", "CampaignId", "Name"],
             },
         }
-        async with httpx.AsyncClient() as client:
+        async with provider_client("direct") as client:
             try:
                 ad_group_ids = []
                 for adgroups_url in [self.adgroups_url_v501, self.adgroups_url]:
@@ -1592,7 +1593,7 @@ class YandexDirectAPI:
             },
         }
 
-        async with httpx.AsyncClient() as client:
+        async with provider_client("direct") as client:
             try:
                 data = None
                 for url in [self.adgroups_url_v501, self.adgroups_url]:
@@ -1664,7 +1665,7 @@ class YandexDirectAPI:
             }
         }
 
-        async with httpx.AsyncClient() as client:
+        async with provider_client("direct") as client:
             try:
                 # Для Smart/Единая перфоманс пробуем v501, затем v5.
                 # Мастер кампаний (UNIFIED_CAMPAIGN) может быть доступен только через v5.
@@ -1765,7 +1766,7 @@ class YandexDirectAPI:
             }
         }
 
-        async with httpx.AsyncClient() as client:
+        async with provider_client("direct") as client:
             try:
                 response = await client.post(
                     self.adimages_url, json=payload, headers=self.headers, timeout=30.0
@@ -1839,7 +1840,7 @@ class YandexDirectAPI:
         
         campaign_goals_map = {}
         
-        async with httpx.AsyncClient() as client:
+        async with provider_client("direct") as client:
             try:
                 response = await client.post(self.campaigns_url, json=payload, headers=self.headers, timeout=120.0)
                 
@@ -1951,7 +1952,7 @@ class YandexDirectAPI:
                 "OrganizationFieldNames": ["Name"],
             },
         }
-        async with httpx.AsyncClient() as client:
+        async with provider_client("direct") as client:
             try:
                 response = await client.post(url, json=payload, headers=headers, timeout=30.0)
                 if response.status_code == 200:
@@ -1993,7 +1994,7 @@ class YandexDirectAPI:
             ["Login", "ClientInfo", "ClientId", "Type", "ManagedLogins"],
             ["Login", "ClientInfo", "ClientId", "Type"],
         ]
-        async with httpx.AsyncClient() as client:
+        async with provider_client("direct") as client:
             last_error: Optional[Exception] = None
             for field_names in field_variants:
                 payload = {
@@ -2128,7 +2129,7 @@ class YandexDirectAPI:
             api_headers["Client-Login"] = client_login_header
             logger.info(f"💰 Added Client-Login header to AccountManagement request: '{client_login_header}'")
         
-        async with httpx.AsyncClient() as client:
+        async with provider_client("direct") as client:
             try:
                 response = await client.post(url, json=payload, headers=api_headers, timeout=30.0)
                 logger.info(f"💰 Yandex AccountManagement API response status: {response.status_code}")
@@ -2417,7 +2418,7 @@ class YandexDirectAPI:
         client_login_header = self.headers.get("Client-Login", "NOT SET (main account)")
         logger.info(f"💰 Fallback: Requesting balance via Clients.get for profile: '{client_login_header}'")
         
-        async with httpx.AsyncClient() as client:
+        async with provider_client("direct") as client:
             try:
                 response = await client.post(url, json=payload, headers=self.headers, timeout=30.0)
                 

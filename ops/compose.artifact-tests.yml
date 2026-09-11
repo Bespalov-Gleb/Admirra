@@ -1,0 +1,4 @@
+# Combine with compose.isolated.yml to test the image, not a host source bind.
+services:
+  tests:
+    volumes: !reset []

@@ -19,6 +19,8 @@ def main():
     os.environ["DB_AUTO_BOOTSTRAP"] = "false"
     os.environ["RUN_SYNC_WORKER"] = "false"
     os.environ["RUN_API_SCHEDULER"] = "false"
+    os.environ["DURABLE_TASKS"] = "false"
+    os.environ["CELERY_BROKER_URL"] = "redis://test-redis:6379/0"
     os.environ["UPLOADS_DIR"] = "/tmp/admirra-test-uploads"
     os.environ["LOG_TO_STDOUT"] = "true"
     os.environ["REJECTED_LEADS_DIR"] = "/tmp/admirra-test-rejected-leads"
