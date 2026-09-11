@@ -302,7 +302,13 @@ def init_db_with_retry(max_retries=10, retry_delay=2):
                 logger.error(f"Failed to connect to database after {max_retries} attempts: {e}")
                 raise
 
-init_db_with_retry()
+from core.runtime import get_runtime
+
+runtime = get_runtime()
+if runtime.auto_bootstrap:
+    init_db_with_retry()
+else:
+    logger.info("Automatic schema bootstrap disabled; run migrations before this release")
 
 # Fix for bcrypt 4.0.0+ and passlib compatibility
 import bcrypt
@@ -331,6 +337,7 @@ from backend_api.billing import router as billing_router
 from backend_api.notifications import router as notifications_router
 from backend_api.support import router as support_router
 from backend_api.health_routes import router as health_router
+from backend_api.runtime_health import router as runtime_health_router
 from backend_api.team import router as team_router
 from backend_api.history import router as history_router
 from internal_admin.router import router as internal_admin_router
@@ -389,7 +396,7 @@ async def startup_event():
     # Админ-панель: сидинг дефолтных SEO-страниц (идемпотентно, best-effort).
     try:
         from core.config import get_config
-        if get_config().internal_admin.enabled:
+        if runtime.auto_bootstrap and get_config().internal_admin.enabled:
             from core.database import SessionLocal
             from internal_admin.bootstrap import ensure_default_seo_pages
             _db = SessionLocal()
@@ -405,13 +412,17 @@ async def startup_event():
     # он обрабатывает и ручные задачи, и ночные авто-задачи (их ставит automation).
     try:
         from backend_api.sync_jobs import ensure_sync_worker_started
-        ensure_sync_worker_started()
-        logger.info("✅ Sync job worker started")
+        if runtime.sync_worker:
+            ensure_sync_worker_started()
+            logger.info("✅ Sync job worker started")
     except Exception as e:
         logger.error(f"Failed to start sync job worker: {e}")
 
     # Планировщик для задач телефонии и отчётов
     global lead_scheduler
+    if not runtime.api_scheduler:
+        logger.info("API background scheduler disabled for role=%s", runtime.role)
+        return
     lead_scheduler = AsyncIOScheduler()
     if LEAD_VALIDATOR_AVAILABLE:
         lead_scheduler.add_job(run_daily_alerts, "cron", hour=9, minute=0, id="lead_daily_alerts")
@@ -508,6 +519,7 @@ app.include_router(billing_router, prefix="/api")
 app.include_router(notifications_router, prefix="/api")
 app.include_router(support_router, prefix="/api")
 app.include_router(health_router, prefix="/api")
+app.include_router(runtime_health_router, prefix="/api")
 app.include_router(team_router, prefix="/api")
 app.include_router(history_router, prefix="/api")
 app.include_router(internal_admin_router, prefix="/api")

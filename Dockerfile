@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+FROM python:3.13-slim@sha256:9d2e5553305c7c7b0097999bb17187c69b921ccd6bc9d40e4bb5ebe652c00285
 
 WORKDIR /app
 
@@ -25,8 +25,8 @@ RUN base64 --decode /tmp/russian_trusted_sub_ca.crt.b64 > /usr/local/share/ca-ce
     && update-ca-certificates
 
 # Copy requirements and install python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt requirements.lock ./
+RUN pip install --no-cache-dir -r requirements.txt -c requirements.lock && pip check
 
 # Copy project files
 COPY . .
@@ -35,6 +35,9 @@ COPY . .
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8001
 ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+ARG APP_RELEASE=unknown
+ENV APP_RELEASE=${APP_RELEASE}
+LABEL org.opencontainers.image.revision=${APP_RELEASE}
 
 EXPOSE 8001
 

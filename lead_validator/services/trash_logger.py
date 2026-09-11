@@ -5,6 +5,7 @@
 
 import logging
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -33,7 +34,7 @@ class TrashLogger:
         
     def _init_local_storage(self):
         """Инициализация локального хранилища"""
-        self.log_dir = Path("logs/rejected_leads")
+        self.log_dir = Path(os.getenv("REJECTED_LEADS_DIR", "logs/rejected_leads"))
         self.log_dir.mkdir(parents=True, exist_ok=True)
         
     async def log_rejected(self, lead: RejectedLead) -> bool:

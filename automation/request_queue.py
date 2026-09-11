@@ -31,7 +31,7 @@ class RateLimiter:
         while True:
             wait_time = 0
             with self._lock:
-                now = time.time()
+                now = time.monotonic()
 
                 # Удаляем старые запросы вне временного окна
                 while self.request_times and self.request_times[0] < now - self.time_window:
@@ -78,27 +78,32 @@ class APIRequestQueue:
         self._queue = asyncio.Queue()
         self._workers = []
         self._running = False
+        self._accepting = False
     
     async def _worker(self, api_type: str):
         """Worker для обработки запросов из очереди"""
-        limiter = {
-            'metrica': self.metrica_limiter,
-            'direct': self.direct_limiter,
-            'vk': self.vk_limiter
-        }.get(api_type, self.direct_limiter)
-        
         while self._running:
             try:
                 # Получаем задачу из очереди с таймаутом
                 task = await asyncio.wait_for(self._queue.get(), timeout=1.0)
                 
-                # Применяем rate limiting
-                await limiter.acquire()
-                
                 # Выполняем запрос
                 try:
+                    # Workers share one queue: select the limiter from the JOB,
+                    # never from the worker that happened to dequeue it.
+                    api_type = task['api_type']
+                    limiter = {
+                        'metrica': self.metrica_limiter,
+                        'direct': self.direct_limiter,
+                        'vk': self.vk_limiter,
+                    }[api_type]
+                    if task['future'].done():
+                        continue
+                    await limiter.acquire()
+                    if task['future'].done():
+                        continue
                     result = await task['func'](*task.get('args', []), **task.get('kwargs', {}))
-                    if task.get('future'):
+                    if task.get('future') and not task['future'].done():
                         task['future'].set_result(result)
                 except httpx.HTTPStatusError as e:
                     # httpx.HTTPStatusError имеет response с status_code
@@ -123,10 +128,10 @@ class APIRequestQueue:
                             await self._queue.put(task)
                         else:
                             logger.error(f"Max retries (5) reached for {api_type} API request after 429 errors")
-                            if task.get('future'):
+                            if task.get('future') and not task['future'].done():
                                 task['future'].set_exception(e)
                     else:
-                        if task.get('future'):
+                        if task.get('future') and not task['future'].done():
                             task['future'].set_exception(e)
                         else:
                             logger.error(f"HTTP error in API request queue: {e}")
@@ -160,14 +165,22 @@ class APIRequestQueue:
                             await self._queue.put(task)
                         else:
                             logger.error(f"Max retries (5) reached for {api_type} API request after 429 errors")
-                            if task.get('future'):
+                            if task.get('future') and not task['future'].done():
                                 task['future'].set_exception(e)
                     else:
-                        if task.get('future'):
+                        if task.get('future') and not task['future'].done():
                             task['future'].set_exception(e)
                         else:
                             logger.error(f"Error in API request queue: {e}")
+                except asyncio.CancelledError:
+                    if not task['future'].done():
+                        task['future'].cancel()
+                    raise
                 finally:
+                    # Cancellation inside an exception handler (e.g. 429 backoff)
+                    # bypasses the sibling except CancelledError above.
+                    if asyncio.current_task().cancelling() and not task['future'].done():
+                        task['future'].cancel()
                     self._queue.task_done()
                     
             except asyncio.TimeoutError:
@@ -177,7 +190,12 @@ class APIRequestQueue:
     
     async def start(self, num_workers: int = 3):
         """Запускает воркеры для обработки очереди"""
+        if self._running:
+            return
+        if num_workers < 1:
+            raise ValueError("At least one request worker is required")
         self._running = True
+        self._accepting = True
         api_types = ['metrica', 'direct', 'vk']
         for i in range(num_workers):
             api_type = api_types[i % len(api_types)]
@@ -185,13 +203,24 @@ class APIRequestQueue:
             self._workers.append(worker)
         logger.info(f"API Request Queue started with {num_workers} workers")
     
-    async def stop(self):
-        """Останавливает воркеры"""
-        self._running = False
-        await self._queue.join()
-        for worker in self._workers:
-            worker.cancel()
-        await asyncio.gather(*self._workers, return_exceptions=True)
+    async def stop(self, timeout: float = 10.0):
+        """Drain while consumers still run, then bound shutdown and cancel waiters."""
+        self._accepting = False
+        try:
+            await asyncio.wait_for(self._queue.join(), timeout=timeout)
+        except asyncio.TimeoutError:
+            logger.warning("Request queue drain timed out; cancelling outstanding requests")
+        finally:
+            self._running = False
+            for worker in self._workers:
+                worker.cancel()
+            await asyncio.gather(*self._workers, return_exceptions=True)
+            self._workers.clear()
+            while not self._queue.empty():
+                task = self._queue.get_nowait()
+                if not task['future'].done():
+                    task['future'].cancel()
+                self._queue.task_done()
         logger.info("API Request Queue stopped")
     
     async def enqueue(self, api_type: str, func: Callable, *args, **kwargs) -> Any:
@@ -206,7 +235,11 @@ class APIRequestQueue:
         Returns:
             Результат выполнения функции
         """
-        future = asyncio.Future()
+        if api_type not in {'metrica', 'direct', 'vk'}:
+            raise ValueError("Unsupported API queue type")
+        if not self._accepting:
+            raise RuntimeError("Request queue is not running")
+        future = asyncio.get_running_loop().create_future()
         task = {
             'api_type': api_type,
             'func': func,

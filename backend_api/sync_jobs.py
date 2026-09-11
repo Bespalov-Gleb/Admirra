@@ -414,6 +414,9 @@ def _worker_loop() -> None:
 
 
 def ensure_sync_worker_started() -> None:
+    from core.runtime import get_runtime
+    if not get_runtime().sync_worker:
+        return
     global _worker_started
     if _worker_started:
         return
