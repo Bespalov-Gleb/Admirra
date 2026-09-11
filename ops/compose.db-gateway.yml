@@ -1,0 +1,24 @@
+# Additive private TCP entrypoint; does NOT recreate the production DB container.
+name: admirra-db-gateway
+services:
+  gateway:
+    image: haproxy:3.2-alpine@sha256:6343ce34a132a5dceaa24767d739df2bd519f8f7c1079ae39e4821334e8eb42e
+    user: haproxy
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes: ["./db-gateway.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro"]
+    ports: ["10.77.0.1:5432:5432"]
+    mem_limit: 64m
+    cpus: 0.25
+    pids_limit: 32
+    restart: unless-stopped
+    stop_grace_period: 60s
+    networks:
+      database:
+        ipv4_address: 172.18.0.250
+    logging: {driver: local, options: {max-size: 10m, max-file: "3"}}
+networks:
+  database:
+    external: true
+    name: admirra_default

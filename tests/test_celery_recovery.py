@@ -6,10 +6,12 @@ import sys
 import time
 import uuid
 
+import pytest
 import sqlalchemy as sa
 from redis import Redis
 
 from tests.test_durable_work import pg
+from tests.test_private_services import secured_redis
 from automation import work_ledger as ledger
 from automation.work_tables import jobs
 
@@ -24,12 +26,19 @@ def until(fn, seconds=30):
     raise AssertionError("Isolated worker did not reach expected state")
 
 
-def test_real_child_crash_recovery_and_duplicate_delivery(pg, tmp_path, monkeypatch):
+@pytest.mark.parametrize("restricted", [False, True])
+def test_real_child_crash_recovery_and_duplicate_delivery(pg, tmp_path, monkeypatch, secured_redis, restricted):
     factory, engine = pg
-    redis_url = os.environ["ISOLATED_REDIS_URL"]
-    client = Redis.from_url(redis_url)
+    admin_url = os.environ["ISOLATED_REDIS_URL"]
+    redis_url = admin_url
+    client = Redis.from_url(admin_url)
     marker = uuid.uuid4().hex
     prefix = "test-worker:" + marker + ":"
+    if restricted:
+        restricted_client, _ = secured_redis
+        password = restricted_client("broker_worker").connection_pool.connection_kwargs["password"]
+        redis_url = "redis://broker_worker:" + password + "@test-redis:6379/15"
+        prefix = "admirra:task:"
     monkeypatch.setenv("CELERY_BROKER_URL", redis_url)
     monkeypatch.setenv("TASK_BROKER_PREFIX", prefix)
     from automation.celery_app import make_app
@@ -39,12 +48,14 @@ def test_real_child_crash_recovery_and_duplicate_delivery(pg, tmp_path, monkeypa
     from sqlalchemy.engine import make_url
     url = make_url(os.environ["ISOLATED_POSTGRES_URL"]).update_query_dict({"options": f"-csearch_path={schema}"})
     env = {**os.environ, "APP_PROCESS_ROLE": "worker", "DURABLE_TASKS": "true",
-           "DATABASE_URL": url.render_as_string(hide_password=False), "RATE_LIMIT_REDIS_URL": redis_url}
+           "DATABASE_URL": url.render_as_string(hide_password=False), "RATE_LIMIT_REDIS_URL": admin_url}
     log_path = tmp_path / "worker.log"
     with log_path.open("w") as log:
-        proc = subprocess.Popen([sys.executable, "-m", "automation.work_worker", "--concurrency=1",
-                                 "--queues=maintenance", "--include=ops.celery_fixture", "--without-gossip",
-                                 "--without-mingle", "--hostname=" + marker], env=env, stdout=log, stderr=log)
+        args = [sys.executable, "-m", "automation.work_worker", "--concurrency=1",
+                "--queues=maintenance", "--include=ops.celery_fixture", "--hostname=" + marker]
+        if not restricted:
+            args.extend(["--without-gossip", "--without-mingle"])
+        proc = subprocess.Popen(args, env=env, stdout=log, stderr=log)
     try:
         def started():
             assert proc.poll() is None, log_path.read_text()
@@ -55,7 +66,10 @@ def test_real_child_crash_recovery_and_duplicate_delivery(pg, tmp_path, monkeypa
                                 resource=marker, tenant="test", payload={"value": 7, "marker": marker, "delay": 20},
                                 replay_safe=True)
         app.send_task("admirra.test_execute", args=[str(job)], queue="maintenance")
-        child_pid = int(until(lambda: client.get(f"probe:{marker}")))
+        def child_started():
+            assert proc.poll() is None, log_path.read_text()
+            return client.get(f"probe:{marker}")
+        child_pid = int(until(child_started))
         os.kill(child_pid, signal.SIGKILL)
         # Broker redelivery sees the still-owned job and cannot duplicate it.
         def no_effect():
@@ -76,6 +90,7 @@ def test_real_child_crash_recovery_and_duplicate_delivery(pg, tmp_path, monkeypa
         with factory() as db:
             assert db.execute(sa.text("SELECT id FROM effects")).scalars().all() == [7]
             assert db.scalar(sa.select(jobs.c.attempt)) == 2
+        assert "noperm" not in log_path.read_text().lower()
     except BaseException:
         print(log_path.read_text())  # Synthetic fixture: no production credentials.
         raise

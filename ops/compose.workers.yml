@@ -3,7 +3,9 @@
 name: admirra-workers
 x-worker: &worker
   image: ${ADMIRRA_IMAGE:?Set a tested immutable image digest}
-  env_file: /etc/admirra/worker.env
+  env_file:
+    - /etc/admirra/worker.env
+    - /etc/admirra/redis-worker.env
   environment: &runtime
     APP_PROCESS_ROLE: worker
     DURABLE_TASKS: "true"
@@ -50,7 +52,7 @@ services:
     command: [redis-server, /etc/redis/redis.conf]
     volumes:
       - /etc/admirra/redis-broker.conf:/etc/redis/redis.conf:ro
-      - /etc/admirra/redis-users.acl:/etc/redis/users.acl:ro
+      - /etc/admirra/redis-broker-users.acl:/etc/redis/users.acl:ro
       - broker-data:/data
     # Only encrypted host-to-host address, never 0.0.0.0.
     ports: ["10.77.0.2:6379:6379"]
@@ -70,9 +72,15 @@ services:
     command: [redis-server, /etc/redis/redis.conf]
     volumes:
       - /etc/admirra/redis-cache.conf:/etc/redis/redis.conf:ro
-      - /etc/admirra/redis-users.acl:/etc/redis/users.acl:ro
+      - /etc/admirra/redis-cache-users.acl:/etc/redis/users.acl:ro
     ports: ["10.77.0.2:6380:6379"]
     tmpfs: [/data:size=64m]
+    env_file: /etc/admirra/redis-health.env
+    healthcheck:
+      test: [CMD-SHELL, "redis-cli --user health ping | grep -qx PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
     restart: unless-stopped
     mem_limit: 256m
     cpus: 0.5

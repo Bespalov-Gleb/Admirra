@@ -1,0 +1,13 @@
+[Unit]
+Description=AdMirra private database and Redis ingress guards (node %i)
+Requires=docker.service wg-quick@admirra0.service
+After=docker.service wg-quick@admirra0.service network-online.target
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/admirra-ops/ops/private_firewall.py --node %i
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target docker.service

@@ -1,0 +1,11 @@
+# Can be started before application cutover; contains NO workers or scheduler.
+name: admirra-workers
+services:
+  broker:
+    extends: {file: compose.workers.yml, service: broker}
+  cache:
+    extends: {file: compose.workers.yml, service: cache}
+volumes:
+  broker-data:
+networks:
+  work:
