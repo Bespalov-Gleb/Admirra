@@ -1467,7 +1467,7 @@ const emptyMetric = () => ({
   leads: 0,
   cpc: 0,
   cpa: 0,
-  balance: 0,
+  balance: null,
   trends: null,
 })
 
@@ -2044,15 +2044,18 @@ const projectBalances = (project) => {
       const code = normalizeBalancePlatformCode(integration.platform || integration.type || integration.name || integration.provider || integration.channel)
       const platform = platformConfig[code]
       if (!platform) continue
-      const rawBalance = integration.balance === null || integration.balance === undefined ? 0 : Number(integration.balance)
-      const amount = Number.isFinite(rawBalance) ? rawBalance : 0
+      if (integration.balance == null) continue
+      const amount = Number(integration.balance)
+      if (!Number.isFinite(amount)) continue
       balancesByPlatform.set(code, (balancesByPlatform.get(code) || 0) + amount)
     }
 
     return projectPlatformCards(project).map((platform) => ({
       ...platform,
       name: platform.balanceName,
-      value: formatMoney(withChannelVat(balancesByPlatform.get(platform.code) || 0, platform.code)),
+      value: balancesByPlatform.has(platform.code)
+        ? formatMoney(withChannelVat(balancesByPlatform.get(platform.code), platform.code))
+        : '—',
     }))
   }
 

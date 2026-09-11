@@ -37,6 +37,7 @@ def respond(route):
             expense={'yandex':86434,'vk':84018,'avito':0}[ch]
             leads={'yandex':14,'vk':45,'avito':0}[ch]
             data={**SUMMARY,'expenses':expense,'leads':leads,'clicks':1928,'cost_by_platform':{ch:expense},'balance':128400 if ch=='yandex' else 58000}
+            if query.get('client_id',[''])[0]=='p2':data['balance']=0 if ch=='yandex' else None
     elif 'dynamics' in path:data={'labels':['Пн','Вт','Ср','Чт','Пт','Сб','Вс'],'costs':[1800,3400,4300,4100,7000,9600,8600],'impressions':[2000]*7,'clicks':[150]*7,'conversions':[3,7,5,9,8,11,16],'cpa':[600]*7,'cpc':[12]*7}
     elif 'dashboard/goals' in path:
         vk=query.get('platform',query.get('channel',['']))[0]=='vk'
@@ -94,6 +95,7 @@ with sync_playwright() as p:
                     check(f'zero leads CPL {width}',zero.locator('.mw-project-kpi').first.locator('strong').inner_text()=='—')
                     check(f'zero leads CR {width}','0,00%' in zero.locator('.mw-project-kpi').nth(3).inner_text())
                     check(f'zero leads reason {width}','нет лидов за период' in zero.inner_text())
+                    check(f'unknown balance is not zero {width}','—' in zero.locator('.mw-balances>span').nth(1).inner_text())
                 if name=='dashboard':
                     check(f'trend readable {width}',page.locator('.metric-card .trend').first.evaluate('e=>parseFloat(getComputedStyle(e).fontSize)>=13'))
                     check(f'KPI pair {width}',abs(page.locator('[data-metric="leads"]').bounding_box()['y']-page.locator('[data-metric="cpa"]').bounding_box()['y'])<1)
