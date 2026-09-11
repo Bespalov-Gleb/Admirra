@@ -379,111 +379,14 @@ async def _sync_metrika_goals_for_direct(
         _metrika_goals_write_in_progress.add(sync_key)
 
     try:
-        sync_start_date = datetime.strptime(sync_date_from, "%Y-%m-%d").date()
-        sync_end_date = datetime.strptime(sync_date_to, "%Y-%m-%d").date()
-        db.query(models.MetrikaGoals).filter(
-            models.MetrikaGoals.integration_id == integration.id,
-            models.MetrikaGoals.date >= sync_start_date,
-            models.MetrikaGoals.date <= sync_end_date,
-        ).delete(synchronize_session=False)
-        db.flush()
-
-        for counter_id in all_counter_ids:
-            available_goals = []
-            goal_names_map = {}
-            historical_names = {
-                str(row.goal_id): row.goal_name
-                for row in db.query(models.MetrikaGoals.goal_id, models.MetrikaGoals.goal_name)
-                .filter(
-                    models.MetrikaGoals.integration_id == integration.id,
-                    models.MetrikaGoals.goal_id.in_(selected_goals),
-                    models.MetrikaGoals.goal_id != "all",
-                )
-                .order_by(models.MetrikaGoals.date.desc())
-                .all()
-                if row.goal_name
-            }
-
-            try:
-                goal_info = await metrika_api.get_counter_goals(counter_id)
-                available_goals = [str(g.get("id")) for g in (goal_info or []) if g.get("id")]
-                goal_names_map = {
-                    str(g.get("id")): g.get("name", f"Goal {g.get('id')}")
-                    for g in (goal_info or [])
-                    if g.get("id")
-                }
-            except Exception as goals_info_err:
-                logger.warning(f"Failed to fetch available goals for counter {counter_id}: {goals_info_err}")
-
-            if available_goals:
-                goals_to_sync = [goal_id for goal_id in selected_goals if goal_id in available_goals]
-                missing_goals = [goal_id for goal_id in selected_goals if goal_id not in available_goals]
-                _notify_missing_metrika_goals(db, integration, missing_goals, historical_names)
-            else:
-                goals_to_sync = selected_goals
-                missing_goals = []
-
-            if not goals_to_sync:
-                for day in _date_items(sync_date_from, sync_date_to):
-                    _upsert_metrika_goal(db, integration, day, "all", "Selected Goals", 0, accumulate=True)
-                logger.warning("⚠️ No selected goals available for counter %s", counter_id)
-                continue
-
-            totals_by_date = {day: 0 for day in _date_items(sync_date_from, sync_date_to)}
-            saved_rows = 0
-
-            for goals_batch in _chunks(goals_to_sync, METRIKA_STATS_METRICS_LIMIT):
-                metrics = ",".join(f"ym:s:goal{goal_id}visits" for goal_id in goals_batch)
-                try:
-                    batch_data = await queue.enqueue(
-                        "metrica",
-                        metrika_api.get_goals_stats,
-                        counter_id,
-                        sync_date_from,
-                        sync_date_to,
-                        metrics=metrics,
-                        filters=filters,
-                    )
-                except Exception as batch_err:
-                    logger.warning(
-                        "Failed to sync Metrika goals batch counter=%s goals=%s: %s",
-                        counter_id,
-                        goals_batch,
-                        batch_err,
-                    )
-                    batch_data = []
-
-                rows_by_date = {}
-                for row in batch_data or []:
-                    try:
-                        stat_date = datetime.strptime(row["dimensions"][0]["name"], "%Y-%m-%d").date()
-                        rows_by_date[stat_date] = [int(value or 0) for value in row.get("metrics", [])]
-                    except Exception as parse_err:
-                        logger.warning(f"📊 Failed to parse Metrika goals row: {parse_err}")
-
-                for day in _date_items(sync_date_from, sync_date_to):
-                    values = rows_by_date.get(day, [0] * len(goals_batch))
-                    if len(values) < len(goals_batch):
-                        values = values + [0] * (len(goals_batch) - len(values))
-                    for index, goal_id in enumerate(goals_batch):
-                        visits = int(values[index] if index < len(values) else 0)
-                        goal_name = goal_names_map.get(goal_id) or historical_names.get(goal_id) or f"Goal {goal_id}"
-                        _upsert_metrika_goal(db, integration, day, goal_id, goal_name, visits, accumulate=True)
-                        totals_by_date[day] += visits
-                        saved_rows += 1
-
-            for day, total in totals_by_date.items():
-                _upsert_metrika_goal(db, integration, day, "all", "Selected Goals", total, accumulate=True)
-
-            logger.info(
-                "📊 Saved %s selected goal rows for integration %s counter %s, missing=%s",
-                saved_rows,
-                integration.id,
-                counter_id,
-                missing_goals,
-            )
-
-        _dedupe_metrika_goals_for_integration(db, integration.id, sync_date_from, sync_date_to)
+        from automation.metrika_goal_batch import latest_goal_names, collect_goal_rows, replace_goal_window
+        days = list(_date_items(sync_date_from, sync_date_to))
+        historical_names = latest_goal_names(db, integration.id, selected_goals)
+        rows, missing_goals = await collect_goal_rows(
+            metrika_api, queue, all_counter_ids, selected_goals, days, historical_names,
+            filters=filters, batch_size=METRIKA_STATS_METRICS_LIMIT,
+        )
+        replace_goal_window(db, integration, days, rows, missing_goals, historical_names, _notify_missing_metrika_goals)
         logger.info(f"✅ Completed Metrika goals sync for Direct integration {integration.id}")
     finally:
         with _metrika_goals_write_lock:

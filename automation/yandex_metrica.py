@@ -103,7 +103,11 @@ class YandexMetricaAPI:
             response = await client.get(self.base_url, params=params, headers=self.headers, timeout=30.0)
             if response.status_code == 200:
                 data = response.json()
-                rows_data = data.get('data', [])
+                rows_data = data.get('data')
+                if not isinstance(rows_data, list):
+                    raise ValueError("Invalid Metrika statistics response: missing data list")
+                if int(data.get("total_rows", len(rows_data))) > len(rows_data):
+                    raise ValueError("Incomplete Metrika statistics response; refusing to save a truncated window")
                 if not rows_data:
                     logger.warning(f"📊 Metrika data: 0 rows. Response keys: {list(data.keys())} totals={data.get('totals')}")
                     return []
@@ -121,11 +125,15 @@ class YandexMetricaAPI:
                     if len(dims) >= 1:
                         date_str = dims[0].get('name') if isinstance(dims[0], dict) else str(dims[0])
                     else:
-                        continue
+                        raise ValueError("Invalid Metrika statistics row: missing date")
                     m = row.get('metrics', [])
+                    if len(m) != len(metrics.split(",")):
+                        raise ValueError("Invalid Metrika statistics metric count")
                     if date_str not in by_date:
                         by_date[date_str] = [0] * len(m)
                     for i, v in enumerate(m):
+                        if v is None or isinstance(v, bool) or float(v) < 0:
+                            raise ValueError("Invalid Metrika metric value")
                         if i < len(by_date[date_str]):
                             by_date[date_str][i] += int(v or 0)
 
@@ -159,12 +167,10 @@ class YandexMetricaAPI:
                     d1 = datetime.strptime(date_from, "%Y-%m-%d").date()
                     d2 = datetime.strptime(date_to, "%Y-%m-%d").date()
                 except Exception:
-                    logger.warning(f"Yandex Metrica API error 400: {response.text[:200]}")
-                    return []
+                    response.raise_for_status()
 
                 if d1 >= d2:
-                    logger.warning(f"Yandex Metrica API error 400 on single-day range {date_from}: {response.text[:200]}")
-                    return []
+                    response.raise_for_status()
 
                 mid = d1 + timedelta(days=(d2 - d1).days // 2)
                 left_from = d1.strftime("%Y-%m-%d")
@@ -195,8 +201,8 @@ class YandexMetricaAPI:
                 )
                 return (left or []) + (right or [])
             else:
-                logger.warning(f"Yandex Metrica API error {response.status_code}: {response.text[:200]}")
-                return []
+                # An unsuccessful response must never masquerade as zero visits.
+                response.raise_for_status()
 
     async def get_conversions_by_dimension(
         self,
