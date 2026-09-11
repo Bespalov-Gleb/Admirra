@@ -109,6 +109,26 @@ Skipped — optional differential comparison с предыдущим release, п
 
 Контроль production в 18:12 МСК: HEAD `cdf0a4d`, прежние backend/automation/frontend/admin_frontend/db running, DB healthy, приватный gateway работает; публичная главная отвечает HTTP 200. Перезапусков или SQL migrations на production в этом пакете не было.
 
+### Проверка итогового образа
+
+Код пакета закоммичен: `90cb658`. Артефакт получен через `python3 -m ops.package_backend … --revision 90cb658` из этого коммита, а не из оставшихся пользовательских изменений. 321 разрешённый backend/runtime/test файл.
+
+На сервере 2 собран `admirra-devops:90cb658`, OCI revision `90cb658`, image ID:
+
+```text
+sha256:f07b563386a69e6c397559ff26503d9723c175e1d575250849e63a512522860b
+```
+
+Комбинация `compose.isolated.yml` + `compose.artifact-tests.yml` удаляет source bind; фактический `docker inspect` тестового контейнера подтвердил `Mounts: []`. Полный штатный прогон **из образа**: **320 passed, 1 skipped, 1 deselected**, 47 warnings, 59,35 s. Включает 29 новых сценариев этого пакета. Дополнительно отдельно проверен HTTP rollback/pause: оба флага false → 503 на создание, existing durable view/revoke доступны.
+
+`pip check` — конфликтов нет. Проверены отсутствующие `/app/.env`, `/app/.git`, `/app/uploads`, `/app/admin-panel-vue-main`, `/app/landing`. Проверки запущены non-root, read-only, без production credentials; test network internal, синтетическая БД/Redis отдельно от действующих сервисов.
+
+Новый образ **не установлен** как production backend/automation. Remote ветка повторно сверена: `cdf0a4d`; коммиты текущего пакета локальные, push не выполнялся. Рабочие Redis/gateway сохраняют конфигурацию предыдущего инфраструктурного этапа.
+
+После приёмки остановлен и удалён только Compose-проект `admirra-devops-test` (его синтетические tmpfs PostgreSQL/Redis и internal network). На сервере 2 остались `admirra-workers-broker-1` и `admirra-workers-cache-1`, оба healthy. Их данные/тома не удалялись; новые workers/расписания/API там не запускались.
+
+Финальная read-only проверка 11.09.2026, 23:00 МСК: production HEAD `cdf0a4d`, прежние пять сервисов и приватный gateway running, DB healthy, `https://admirra.ru/` → HTTP 200. SSH ControlMaster сервера 2 после работы закрыт.
+
 ## Что ещё остаётся по T02 / FILE
 
 1. Shared binary storage adapter/private file API на имеющихся узлах либо предоставленное хранилище.
