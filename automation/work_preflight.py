@@ -11,6 +11,11 @@ def check():
             and urlsplit(os.getenv("DATABASE_URL", "")).hostname == "test-db"):
         return  # Schema-isolated failure tests do not install the full app DB.
     expected = os.getenv("EXPECTED_SCHEMA_REVISION")
+    from core.runtime import env_bool
+    if env_bool("DURABLE_TASKS", False) and not env_bool("REPORT_DELIVERY_GUARDS", True):
+        raise RuntimeError("Durable workers require REPORT_DELIVERY_GUARDS")
+    if env_bool("SHARED_READ_CACHE", False) and not os.getenv("READ_CACHE_REDIS_URL"):
+        raise RuntimeError("READ_CACHE_REDIS_URL is required for shared reads")
     if not expected or os.getenv("APP_RELEASE", "unknown") == "unknown":
         raise RuntimeError("A versioned release and EXPECTED_SCHEMA_REVISION are required")
     with engine.begin() as db:

@@ -1615,6 +1615,39 @@ def cancel_report_delivery(
     return _delivery_to_response(db, d)
 
 
+@router.post("/deliveries/{delivery_id}/reconcile", response_model=schemas.ReportDeliveryResponse)
+def reconcile_report_recipient(
+    delivery_id: uuid.UUID,
+    body: schemas.ReportRouteReconcile,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Record the owner's external verification. Does not itself send anything."""
+    from backend_api.reports import route_ledger
+    if not route_ledger.enabled():
+        raise HTTPException(status_code=404, detail="Проверка отправок не включена")
+    d = db.query(models.ReportDelivery).filter(
+        models.ReportDelivery.id == delivery_id,
+        models.ReportDelivery.user_id == current_user.id,
+    ).with_for_update().first()
+    if not d:
+        raise HTTPException(status_code=404, detail="Отчёт не найден")
+    if d.status not in ("failed", "partial"):
+        raise HTTPException(status_code=409, detail="Дождитесь завершения отправки перед сверкой")
+    try:
+        route_ledger.resolve(db, d.id, body.route_key, current_user.id, body.decision, body.reason)
+        d.delivery_results = route_ledger.add_evidence(db, d.id, d.delivery_results)
+        db.commit()
+    except LookupError:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="Попытка отправки не найдена")
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc))
+    db.refresh(d)
+    return _delivery_to_response(db, d)
+
+
 @router.post("/deliveries/{delivery_id}/approve", response_model=schemas.ReportDeliveryResponse)
 async def approve_report_delivery(
     delivery_id: uuid.UUID,
@@ -1675,8 +1708,13 @@ async def approve_report_delivery(
         raise
     except Exception as e:
         logger.exception("Report delivery approve failed: %s", e)
+        db.rollback()
+        db.refresh(d)
         d.status = "failed"
-        d.delivery_results = {"errors": {"system": str(e)}}
+        results = dict(d.delivery_results or {})
+        results["errors"] = {**results.get("errors", {}), "system": "Отправка прервана. Проверьте результат по каждому получателю."}
+        from backend_api.reports import route_ledger
+        d.delivery_results = route_ledger.add_evidence(db, d.id, results) if route_ledger.enabled() else results
         db.commit()
         db.refresh(d)
         return _delivery_to_response(db, d)

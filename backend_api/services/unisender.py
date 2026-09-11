@@ -12,6 +12,7 @@ from typing import Optional
 import httpx
 
 from core.config import get_config
+from core import delivery_outcome
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,7 @@ def _send_sync(
     filename: str = "report.pdf",
     extra_attachments: Optional[list] = None,  # [(filename, bytes)] — «комплект по филиалам»
 ) -> tuple[bool, Optional[str]]:
+    delivery_outcome.rejected()
     cfg = get_config()
     api_key = cfg.unisender.api_key
     if not api_key:
@@ -65,6 +67,7 @@ def _send_sync(
     url = f"{cfg.unisender.api_url.rstrip('/')}/email/send.json"
 
     with httpx.Client(timeout=30.0) as client:
+        delivery_outcome.before_send()
         response = client.post(
             url,
             json={"message": message},
@@ -74,6 +77,7 @@ def _send_sync(
                 "X-API-KEY": api_key,
             },
         )
+        delivery_outcome.response_received(response)
 
     if response.status_code == 200:
         data = response.json()
@@ -106,9 +110,10 @@ async def send_report_email(
     extra_attachments: Optional[list] = None,
 ) -> tuple[bool, Optional[str]]:
     try:
-        return await asyncio.to_thread(
+        return await delivery_outcome.in_thread(
             _send_sync, recipients, subject, html_body, plain_body, pdf_bytes, filename, extra_attachments,
         )
     except Exception as e:
+        delivery_outcome.request_failed(e)
         logger.exception("UniSender send error: %s", e)
         return False, str(e)

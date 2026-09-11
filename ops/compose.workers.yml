@@ -7,6 +7,7 @@ x-worker: &worker
   environment: &runtime
     APP_PROCESS_ROLE: worker
     DURABLE_TASKS: "true"
+    REPORT_DELIVERY_GUARDS: "true"
     DISTRIBUTED_RATE_LIMITS: "true"
     DB_AUTO_BOOTSTRAP: "false"
     RUN_SYNC_WORKER: "false"
@@ -16,7 +17,7 @@ x-worker: &worker
     DB_POOL_TIMEOUT: "5"
     DB_STATEMENT_TIMEOUT_MS: "60000"
     DB_LOCK_TIMEOUT_MS: "10000"
-    EXPECTED_SCHEMA_REVISION: dd4e5f6a7b8c
+    EXPECTED_SCHEMA_REVISION: ff6a7b8c9d0e
     TASK_LEASE_SECONDS: "120"
     SYNC_GLOBAL_CONCURRENCY: "4"
     SYNC_TENANT_CONCURRENCY: "2"
@@ -84,7 +85,7 @@ services:
     cpus: 1.5
   sync-nightly:
     <<: *worker
-    command: [python, -m, automation.work_worker, --concurrency=2, --queues=sync.nightly, --hostname=nightly@%h]
+    command: [python, -m, automation.work_worker, --concurrency=2, "--queues=sync.nightly,sync.backfill", --hostname=nightly@%h]
     mem_limit: 1536m
     cpus: 1.5
   reports:

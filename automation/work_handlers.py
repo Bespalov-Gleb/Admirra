@@ -32,6 +32,9 @@ async def _goals(payload):
 
 
 async def _async_run(kind, payload):
+    if kind == "history.backfill":
+        from automation.backfill_work import execute
+        return await execute(payload)
     if kind == "goals":
         return await _goals(payload)
     if kind == "nightly.enqueue":

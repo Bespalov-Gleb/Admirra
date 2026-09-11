@@ -71,6 +71,12 @@ def _chunks(items: List[str], size: int):
 
 
 async def _get_metrika_counter_goal_ids(api, integration_id: uuid.UUID, counter_id: str) -> set:
+    from core.runtime import env_bool
+    if env_bool("SHARED_READ_CACHE", False):
+        # Shared transport cache includes credential/profile; don't mask it
+        # with stale process-local entries after a token/profile change.
+        counter_goals = await api.get_counter_goals(str(counter_id))
+        return {str(goal.get("id")) for goal in counter_goals if goal.get("id")}
     cache_key = (str(integration_id), str(counter_id))
     cached = _metrika_counter_goals_cache.get(cache_key)
     now = monotonic()

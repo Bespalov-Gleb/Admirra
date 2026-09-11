@@ -551,7 +551,7 @@ def _run_detector_after_sync(db: Session, client_id: uuid.UUID) -> bool:
         return False
 
 
-async def sync_integration(db: Session, integration: models.Integration, date_from: str, date_to: str):
+async def sync_integration(db: Session, integration: models.Integration, date_from: str, date_to: str, *, historical: bool = False):
     """
     Syncs a single integration for a given date range.
     """
@@ -737,11 +737,14 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                             logger.info(f"✅ Metrika goals synced and committed for integration {integration.id} (empty report)")
                         except Exception as goals_err:
                             logger.warning(f"Metrika goals sync failed after empty report: {goals_err}")
+                            if historical:
+                                raise
 
                     # SUCCESS только после полной синхронизации (Direct + Metrika)
-                    integration.sync_status = models.IntegrationSyncStatus.SUCCESS
-                    integration.error_message = None
-                    integration.last_sync_at = datetime.utcnow()
+                    if not historical:
+                        integration.sync_status = models.IntegrationSyncStatus.SUCCESS
+                        integration.error_message = None
+                        integration.last_sync_at = datetime.utcnow()
                     db.commit()
 
                     from backend_api.cache_service import CacheService
@@ -835,6 +838,8 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     logger.info(f"🗑️ Cleared dashboard cache after Metrika goals sync")
                 except Exception as goals_err:
                     logger.error(f"❌ Failed to sync Metrika goals for Direct integration {integration.id}: {goals_err}", exc_info=True)
+                    if historical:
+                        raise
                     # Don't fail the entire sync if goals sync fails
             elif has_selected_goals and not has_selected_counters:
                 logger.warning(f"⚠️ Direct integration {integration.id} has selected goals but no selected_counters. "
@@ -1582,17 +1587,20 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                     logger.warning(
                         f"Metrika goals sync after Avito failed for client {integration.client_id}: {metrika_err}"
                     )
+                    if historical:
+                        raise
 
             from backend_api.cache_service import CacheService
             CacheService.invalidate_client(str(integration.client_id))
 
         # Update status on success
-        integration.sync_status = models.IntegrationSyncStatus.SUCCESS
-        integration.error_message = None
-        integration.last_sync_at = datetime.utcnow()
+        if not historical:
+            integration.sync_status = models.IntegrationSyncStatus.SUCCESS
+            integration.error_message = None
+            integration.last_sync_at = datetime.utcnow()
         update_actual_start_date(db, integration.client_id)
 
-        detector_succeeded = _run_detector_after_sync(db, integration.client_id)
+        detector_succeeded = not historical and _run_detector_after_sync(db, integration.client_id)
 
         # LLM text enriches alerts created by the detector.  If the detector
         # transaction was rolled back there is nothing new to enrich, and
@@ -1612,6 +1620,10 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
 
     except Exception as e:
         logger.error(f"Sync failed for {integration.id}: {e}")
+        if historical:
+            # The durable history job records its own failure. An old window
+            # must not overwrite the current integration's sync status.
+            raise
         integration.sync_status = models.IntegrationSyncStatus.FAILED
         integration.error_message = f"{type(e).__name__}: {str(e)}"
         db.flush()

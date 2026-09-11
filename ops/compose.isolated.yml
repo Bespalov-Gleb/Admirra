@@ -54,6 +54,9 @@ services:
       - tests/test_economics_master.py
       - tests/test_billing_guards.py
       - tests/test_reports_final.py
+      - tests/test_report_route_guards.py
+      - tests/test_shared_read_cache.py
+      - tests/test_backfill_work.py
       - tests/test_leads_delta.py
       - tests/test_ai_comment_prompt_v2.py
       - tests/test_detector_iteration3.py

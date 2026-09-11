@@ -17,9 +17,12 @@
   • горизонт до 12 мес, чанки по 90 дней;
   • cooldown 1 час после прогона — нельзя дёргать бэкафилл слишком часто.
 
-Статус хранится в памяти процесса. Backend поднят одним воркером uvicorn
+Legacy-режим: статус хранится в памяти процесса. Backend поднят одним воркером uvicorn
 (см. Dockerfile), поэтому single-process in-memory достаточно и не требует
 миграций/новых таблиц.
+
+При DURABLE_TASKS=true start/status направляются в automation.backfill_work:
+состояние в PostgreSQL, выполнение в Celery; API-процесс не создаёт потоков.
 """
 
 from __future__ import annotations
@@ -86,6 +89,10 @@ def _cooldown_until(job: Optional[dict]) -> Optional[datetime]:
 
 
 def get_status(client_ids: List) -> dict:
+    from core.runtime import env_bool
+    if env_bool("DURABLE_TASKS", False):
+        from automation.backfill_work import status
+        return status(client_ids)
     key = _key(client_ids)
     with _state_lock:
         job = dict(_jobs.get(key) or {})
@@ -114,6 +121,10 @@ def get_status(client_ids: List) -> dict:
 
 
 def start_backfill(client_ids: List, months: int = BACKFILL_MONTHS) -> dict:
+    from core.runtime import env_bool
+    if env_bool("DURABLE_TASKS", False):
+        from automation.backfill_work import start
+        return start(client_ids, months)
     key = _key(client_ids)
     with _state_lock:
         job = _jobs.get(key)

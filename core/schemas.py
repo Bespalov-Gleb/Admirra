@@ -674,6 +674,12 @@ class ReportDeliveryApprove(BaseModel):
     retry_chat_target_id: Optional[UUID] = None
 
 
+class ReportRouteReconcile(BaseModel):
+    route_key: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
+    decision: Literal["accepted", "retry"]
+    reason: str = Field(min_length=10, max_length=1000)
+
+
 class ReportDeliveryTemplateUpdate(BaseModel):
     """Template is the report data scope: all | yandex | vk | avito."""
     template: Literal["all", "yandex", "vk", "avito"]

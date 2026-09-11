@@ -14,9 +14,14 @@ def snapshot(connection):
     expired = connection.scalar(sa.select(sa.func.count()).select_from(jobs).where(
         jobs.c.state == "running", jobs.c.lease_until < sa.func.now()))
     uncertain = sum(count for _, state, count in counts if state == "uncertain")
+    from backend_api.reports.route_ledger import routes
+    route_attention = connection.scalar(sa.select(sa.func.count()).select_from(routes).where(
+        sa.or_(routes.c.state == "uncertain", sa.and_(routes.c.state == "sending",
+            routes.c.updated_at < sa.func.now() - sa.text("interval '15 minutes'")))))
     return {"queues": [{"queue": queue, "state": state, "count": count} for queue, state, count in counts],
             "oldest_queued_seconds": float(age or 0), "expired_leases": expired, "uncertain_jobs": uncertain,
-            "pending_outbox": connection.scalar(sa.select(sa.func.count()).select_from(outbox))}
+            "pending_outbox": connection.scalar(sa.select(sa.func.count()).select_from(outbox)),
+            "report_recipients_requiring_reconciliation": route_attention}
 
 
 def main():
@@ -25,7 +30,8 @@ def main():
         connection.execute(sa.text("SET LOCAL statement_timeout = '5s'"))
         state = snapshot(connection)
     print(json.dumps(state, ensure_ascii=False))
-    return 2 if state["expired_leases"] or state["uncertain_jobs"] or state["oldest_queued_seconds"] > 3600 else 0
+    return 2 if (state["expired_leases"] or state["uncertain_jobs"] or state["oldest_queued_seconds"] > 3600
+                 or state["report_recipients_requiring_reconciliation"]) else 0
 
 
 if __name__ == "__main__":

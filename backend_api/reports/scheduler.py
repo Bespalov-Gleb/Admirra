@@ -15,6 +15,7 @@ from core.database import SessionLocal
 from core import models
 from backend_api.reports.pdf_service import generate_report_pdf
 from backend_api.reports.export_service import _get_report_data
+from backend_api.reports import route_ledger
 
 logger = logging.getLogger(__name__)
 VAT_RATE = 1.22
@@ -459,7 +460,7 @@ def delivery_status_from_results(results: dict | None, channels=None, target_ids
     if not outcomes:
         return "failed"
     succeeded = sum(1 for value in outcomes if value)
-    if succeeded == len(outcomes):
+    if succeeded == len(outcomes) and not results.get("requires_reconciliation"):
         return "sent"
     if succeeded:
         return "partial"
@@ -824,6 +825,7 @@ async def _generate_automatic_comment_if_needed(db: Session, delivery, user) -> 
         logger.warning("Delivery %s automatic AI comment skipped: %s", delivery.id, exc)
 
 
+@route_ledger.guarded("telegram", lambda kw: kw["chat_id"])
 async def _send_telegram_report_attachment(
     *,
     chat_id: str,
@@ -841,6 +843,9 @@ async def _send_telegram_report_attachment(
         if ok:
             return True, None
         preview_error = get_last_delivery_error() or "Telegram не подтвердил отправку PNG"
+        from core.delivery_outcome import outcome
+        if route_ledger.enabled() and outcome.get() != "rejected":
+            return False, preview_error
         if pdf_snapshot:
             ok = await telegram_notifier.send_document(
                 chat_id=chat_id, document=pdf_snapshot, filename=pdf_filename, caption=caption,
@@ -858,6 +863,7 @@ async def _send_telegram_report_attachment(
     return ok, None if ok else (get_last_delivery_error() or "Telegram не подтвердил отправку PDF")
 
 
+@route_ledger.guarded("max", lambda kw: "chat:" + str(kw["chat_id"]) if kw.get("chat_id") else "user:" + str(kw.get("user_id")))
 async def _send_max_report_attachment(
     *,
     chat_id: str | None,
@@ -882,6 +888,9 @@ async def _send_max_report_attachment(
         if ok:
             return True, None
         preview_error = max_reports_bot.get_last_delivery_error() or "MAX не подтвердил отправку PNG"
+        from core.delivery_outcome import outcome
+        if route_ledger.enabled() and outcome.get() != "rejected":
+            return False, preview_error
         if pdf_snapshot:
             ok = await max_reports_bot.send_document(
                 pdf_snapshot,
@@ -924,7 +933,36 @@ def _recipient_is_permanently_unavailable(error: str | None) -> bool:
     ))
 
 
-async def send_report_delivery(
+async def send_report_delivery(db, delivery, user, **kwargs):
+    reset = route_ledger.context.set((db, delivery))
+    try:
+        if route_ledger.enabled():
+            previous = dict(delivery.delivery_results or {})
+            if previous and not previous.get("route_guard_version"):
+                previous["legacy_untracked_attempts"] = True
+            previous["route_guard_version"] = 1
+            delivery.delivery_results = previous
+            db.commit()
+        results = await _send_report_delivery(db, delivery, user, **kwargs)
+        if route_ledger.enabled():
+            results = route_ledger.add_evidence(db, delivery.id, results)
+        return results
+    finally:
+        route_ledger.context.reset(reset)
+
+
+@route_ledger.guarded("email", lambda kw: kw["email"].strip().lower())
+async def _send_delivery_email(*, email, delivery, message, caption):
+    from backend_api.services.unisender import is_configured as unisender_ok, send_report_email as uni_send
+    kwargs = dict(recipients=[email], subject=message.get("subject") or f"Отчёт за {delivery.start_date} — {delivery.end_date}",
+                  pdf_bytes=delivery.pdf_snapshot, filename=f"report_{delivery.start_date}_{delivery.end_date}.pdf")
+    if unisender_ok():
+        return await uni_send(**kwargs, html_body=message.get("html") or "", plain_body=message.get("text") or caption)
+    from lead_validator.services.email_sender import email_sender
+    return await email_sender.send_report_email(**kwargs, body=message.get("text") or caption)
+
+
+async def _send_report_delivery(
     db: Session,
     delivery,
     user,
@@ -953,8 +991,11 @@ async def send_report_delivery(
         "email_targets": dict(previous.get("email_targets") or {}),
         "errors": dict(previous.get("errors") or {}),
     }
+    if route_ledger.enabled():
+        results["route_guard_version"] = 1
+        results["legacy_untracked_attempts"] = bool((delivery.delivery_results or {}).get("legacy_untracked_attempts"))
     def checkpoint() -> None:
-        delivery.delivery_results = _json_safe(results)
+        delivery.delivery_results = _json_safe(route_ledger.add_evidence(db, delivery.id, results) if route_ledger.enabled() else results)
         db.commit()
     caption = _snapshot_caption(delivery)
     expires = delivery.public_expires_at
@@ -1030,34 +1071,18 @@ async def send_report_delivery(
             for email in recipients:
                 ok, error = False, None
                 try:
-                    from backend_api.services.unisender import is_configured as unisender_ok, send_report_email as uni_send
-                    if unisender_ok():
-                        ok, error = await uni_send(
-                            recipients=[email],
-                            subject=message.get("subject") or f"Отчёт за {delivery.start_date} — {delivery.end_date}",
-                            html_body=message.get("html") or "",
-                            plain_body=message.get("text") or caption,
-                            pdf_bytes=delivery.pdf_snapshot,
-                            filename=f"report_{delivery.start_date}_{delivery.end_date}.pdf",
-                        )
-                    else:
-                        from lead_validator.services.email_sender import email_sender
-                        ok, error = await email_sender.send_report_email(
-                            recipients=[email],
-                            subject=message.get("subject") or f"Отчёт за {delivery.start_date} — {delivery.end_date}",
-                            body=message.get("text") or caption,
-                            pdf_bytes=delivery.pdf_snapshot,
-                            filename=f"report_{delivery.start_date}_{delivery.end_date}.pdf",
-                        )
+                    ok, error = await _send_delivery_email(email=email, delivery=delivery, message=message, caption=caption)
                 except Exception as exc:
                     error = str(exc)
                 error = str(error) if error else (None if ok else "Email-провайдер не подтвердил отправку")
                 results["email_targets"][email] = {"ok": bool(ok), **({"error": error} if error else {})}
                 row = email_rows.get(email)
                 if row:
-                    row.status = "active" if ok else "unavailable"
+                    if ok:
+                        row.status = "active"
                     row.last_error = error
                     row.last_delivery_at = datetime.now(MSK)
+                checkpoint()
             results["email"] = bool(recipients) and all(
                 (results["email_targets"].get(email) or {}).get("ok") is True
                 for email in _email_values(getattr(delivery, "email_recipients", None))
@@ -1138,6 +1163,8 @@ async def send_report_delivery(
 async def send_report_for_schedule(db: Session, rule, user) -> dict:
     """Формирует и отправляет отчёт по одному правилу. Используется планировщиком
     и кнопкой «Отправить сейчас» (проверка настройки)."""
+    if route_ledger.enabled():
+        raise RuntimeError("Legacy report sender disabled: use the frozen ReportDelivery pipeline")
     from backend_api.reports.pdf_service import generate_report_pdf
 
     now = datetime.now(MSK)
@@ -1312,7 +1339,7 @@ async def run_scheduled_report_rules(scheduled_at: datetime | None = None):
             errors = dict(previous.get("errors") or {})
             errors["system"] = "Отправка прервана; результат последних запросов неизвестен. Проверьте получение перед повтором."
             previous["errors"] = errors
-            delivery.delivery_results = previous
+            delivery.delivery_results = route_ledger.add_evidence(db, delivery.id, previous) if route_ledger.enabled() else previous
         if stale_deliveries:
             db.commit()
         weekday_name = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")[now.weekday()]

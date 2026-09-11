@@ -20,6 +20,8 @@ def main():
     os.environ["RUN_SYNC_WORKER"] = "false"
     os.environ["RUN_API_SCHEDULER"] = "false"
     os.environ["DURABLE_TASKS"] = "false"
+    os.environ["REPORT_DELIVERY_GUARDS"] = "false"
+    os.environ["SHARED_READ_CACHE"] = "false"
     os.environ["CELERY_BROKER_URL"] = "redis://test-redis:6379/0"
     os.environ["UPLOADS_DIR"] = "/tmp/admirra-test-uploads"
     os.environ["LOG_TO_STDOUT"] = "true"

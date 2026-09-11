@@ -73,6 +73,20 @@ def claim(db, job_id, *, lease_seconds=None):
     busy = db.execute(sa.select(jobs.c.id).where(jobs.c.resource == job["resource"], jobs.c.state == "running")).first()
     if busy:
         return None
+    if job["kind"] == "history.backfill":
+        # One historical chunk globally; current manual/nightly work gets
+        # priority, and newer chunks never jump over older queued windows.
+        higher_priority = db.scalar(sa.select(sa.func.count()).select_from(jobs).where(
+            jobs.c.queue.in_(["sync.manual", "sync.nightly"]), jobs.c.state == "queued", jobs.c.available_at <= now))
+        history_busy = db.scalar(sa.select(sa.func.count()).select_from(jobs).where(
+            jobs.c.kind == "history.backfill", jobs.c.state == "running"))
+        earlier = db.scalar(sa.select(sa.func.count()).select_from(jobs).where(
+            jobs.c.kind == "history.backfill", jobs.c.resource == job["resource"], jobs.c.state == "queued",
+            jobs.c.payload["date_from"].astext < job["payload"]["date_from"]))
+        last_history = db.scalar(sa.select(sa.func.max(jobs.c.finished_at)).where(jobs.c.kind == "history.backfill"))
+        cooling = last_history and now < last_history + timedelta(seconds=env_int("DYNAMICS_BACKFILL_THROTTLE_SEC", 15, 0, 600))
+        if higher_priority or history_busy or earlier or cooling:
+            return None
     if job["queue"].startswith("sync."):
         running_sync = sa.and_(jobs.c.state == "running", jobs.c.queue.like("sync.%"))
         total = db.execute(sa.select(sa.func.count()).select_from(jobs).where(running_sync)).scalar_one()
@@ -98,7 +112,8 @@ def heartbeat(db, job_id, token):
 def prune_completed(db):
     """Bound retention; never delete queued, running, or uncertain work."""
     cutoff = _clock(db) - timedelta(days=env_int("TASK_RETENTION_DAYS", 30, 7, 365))
-    old = sa.select(jobs.c.id).where(jobs.c.state.in_(["succeeded", "failed"]), jobs.c.finished_at < cutoff)
+    old = sa.select(jobs.c.id).where(jobs.c.state.in_(["succeeded", "failed"]), jobs.c.finished_at < cutoff,
+                                  jobs.c.kind != "history.backfill")
     old = old.order_by(jobs.c.finished_at).limit(500).with_for_update(skip_locked=True)
     return db.execute(jobs.delete().where(jobs.c.id.in_(old))).rowcount
 
@@ -126,7 +141,11 @@ after a successful publish, so losing Redis data cannot lose a committed job.
     now = _clock(db)
     pending = db.execute(sa.select(jobs.c.id, jobs.c.queue).join(outbox, outbox.c.job_id == jobs.c.id).where(
         jobs.c.state == "queued", jobs.c.available_at <= now, outbox.c.next_publish_at <= now,
-    ).order_by(jobs.c.created_at).with_for_update(of=outbox, skip_locked=True).limit(batch_size)).all()
+    ).order_by(sa.case(
+        (jobs.c.queue == "sync.manual", 0), (jobs.c.queue == "reports", 1),
+        (jobs.c.queue == "maintenance", 2), (jobs.c.queue == "sync.nightly", 3),
+        (jobs.c.queue == "ai.prewarm", 4), else_=5), jobs.c.created_at)
+        .with_for_update(of=outbox, skip_locked=True).limit(batch_size)).all()
     for job_id, queue in pending:
         send(str(job_id), queue)
         db.execute(outbox.update().where(outbox.c.job_id == job_id).values(

@@ -4,6 +4,7 @@ from contextvars import ContextVar
 from typing import Optional
 
 import httpx
+from core import delivery_outcome
 from fastapi import HTTPException
 
 from core.config import get_config
@@ -169,6 +170,7 @@ async def send_document(
     запрос после короткой задержки, не загружая и не дублируя файл заново.
     """
     _set_delivery_error(None)
+    delivery_outcome.rejected()  # Uploading a file alone cannot deliver a message.
     if not MAX_REPORTS_BOT_TOKEN:
         _set_delivery_error("MAX: токен бота для отчётов не настроен")
         logger.warning("MAX send_document skipped: token empty")
@@ -232,14 +234,20 @@ async def send_document(
             for attempt, delay in enumerate((0, 1, 2, 4)):
                 if delay:
                     await asyncio.sleep(delay)
+                delivery_outcome.before_send()
                 response = await client.post(
                     f"{MAX_API_BASE}/messages",
                     params=params,
                     json=body,
                     headers={"Authorization": MAX_REPORTS_BOT_TOKEN},
                 )
-                if response.status_code < 400:
-                    return True
+                delivery_outcome.response_received(response)
+                if 200 <= response.status_code < 300:
+                    data = response.json()
+                    if isinstance(data, dict) and isinstance(data.get("message"), dict):
+                        return True
+                    _set_delivery_error("MAX: нет подтверждения созданного сообщения")
+                    return False
                 if _is_attachment_not_ready(response) and attempt < 3:
                     logger.info("MAX attachment is not ready yet; retrying final send in %ss", (1, 2, 4)[attempt])
                     continue
@@ -248,6 +256,7 @@ async def send_document(
                 logger.warning("MAX message with file failed: %s", error)
                 return False
     except Exception as exc:
+        delivery_outcome.request_failed(exc)
         error = _request_error("отправка вложения", exc)
         _set_delivery_error(error)
         logger.warning("MAX send_document failed: %s", error)

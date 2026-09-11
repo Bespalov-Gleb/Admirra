@@ -4,7 +4,7 @@ from celery import Celery, signals
 from kombu import Queue
 from core.runtime import env_bool, get_runtime
 
-QUEUES = ("sync.manual", "sync.nightly", "reports", "maintenance", "ai.prewarm")
+QUEUES = ("sync.manual", "sync.nightly", "sync.backfill", "reports", "maintenance", "ai.prewarm")
 
 
 def make_app():

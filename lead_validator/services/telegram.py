@@ -7,6 +7,7 @@ import logging
 from contextvars import ContextVar
 from datetime import datetime
 import httpx
+from core import delivery_outcome
 from typing import Optional, Any
 from lead_validator.config import settings
 from lead_validator.schemas import LeadInput
@@ -258,6 +259,7 @@ class TelegramNotifier:
         chat_id — ID чата (может отличаться от дефолтного self.chat_id).
         """
         _set_delivery_error(None)
+        delivery_outcome.rejected()
         if not self.token:
             _set_delivery_error("Telegram: токен бота для отчётов не настроен")
             logger.error("Telegram token not configured")
@@ -273,7 +275,9 @@ class TelegramNotifier:
                 data = {"chat_id": chat_id}
                 if caption:
                     data["caption"] = caption
+                delivery_outcome.before_send()
                 response = await client.post(url, data=data, files=files)
+                delivery_outcome.response_received(response)
                 if response.status_code == 200:
                     result = response.json()
                     if result.get("ok"):
@@ -283,6 +287,7 @@ class TelegramNotifier:
                 _set_delivery_error(error)
                 logger.warning("sendDocument failed: %s", error)
         except Exception as exc:
+            delivery_outcome.request_failed(exc)
             error = _telegram_request_error("отправка PDF", exc)
             _set_delivery_error(error)
             logger.warning("send_document failed: %s", error)
@@ -296,6 +301,7 @@ class TelegramNotifier:
     ) -> bool:
         """Отправляет PNG-превью отчёта с текстом и ссылкой на PDF."""
         _set_delivery_error(None)
+        delivery_outcome.rejected()
         if not self.token:
             _set_delivery_error("Telegram: токен бота для отчётов не настроен")
             logger.error("Telegram token not configured")
@@ -307,17 +313,20 @@ class TelegramNotifier:
         try:
             verify = (__import__("os").getenv("TELEGRAM_API_VERIFY") or "true").strip().lower() not in ("false", "0", "no")
             async with httpx.AsyncClient(verify=verify, timeout=60.0) as client:
+                delivery_outcome.before_send()
                 response = await client.post(
                     self._get_url("sendPhoto"),
                     data={"chat_id": chat_id, **({"caption": caption[:1024]} if caption else {})},
                     files={"photo": ("report.png", photo, "image/png")},
                 )
+                delivery_outcome.response_received(response)
                 if response.status_code == 200 and (response.json() or {}).get("ok"):
                     return True
                 error = _telegram_response_error("отправка PNG", response)
                 _set_delivery_error(error)
                 logger.warning("sendPhoto failed: %s", error)
         except Exception as exc:
+            delivery_outcome.request_failed(exc)
             error = _telegram_request_error("отправка PNG", exc)
             _set_delivery_error(error)
             logger.warning("send_photo failed: %s", error)

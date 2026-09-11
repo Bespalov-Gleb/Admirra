@@ -16,6 +16,8 @@ import httpx
 from automation.provider_transport import provider_client
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
+import hashlib
+import math
 import logging
 
 logger = logging.getLogger(__name__)
@@ -36,6 +38,30 @@ class YandexMetricaAPI:
         self.headers = {
             "Authorization": f"OAuth {access_token}"
         }
+
+    async def _cached_read(self, url, params, field, *, timeout=120, ttl=60):
+        from core.shared_read_cache import remember
+        scope = [hashlib.sha256(self.headers["Authorization"].encode()).hexdigest(), self.client_login]
+        async def load():
+            async with provider_client("metrica", timeout=timeout) as client:
+                response = await client.get(url, params=params, headers=self.headers)
+                response.raise_for_status()
+                data = response.json()
+                if not isinstance(data, dict) or not isinstance(data.get(field), list):
+                    raise ValueError("Metrika returned an invalid read response")
+                if field == "data" and int(data.get("total_rows") or 0) > len(data[field]):
+                    raise ValueError("Metrika returned truncated conversion data")
+                if field == "data":
+                    for row in data[field]:
+                        if (not isinstance(row, dict) or not isinstance(row.get("dimensions"), list)
+                                or not all(isinstance(d, dict) for d in row["dimensions"])
+                                or not isinstance(row.get("metrics"), list)
+                                or not all(math.isfinite(float(m or 0)) for m in row["metrics"])):
+                            raise ValueError("Metrika returned invalid conversion rows")
+                elif not all(isinstance(row, dict) for row in data[field]):
+                    raise ValueError("Metrika returned invalid goals")
+                return data
+        return await remember("metrica-read-v1", scope, [url, params], load, ttl=ttl)
 
     async def get_stats(self, counter_id: str, date_from: str, date_to: str) -> List[Dict[str, Any]]:
         """
@@ -245,19 +271,8 @@ class YandexMetricaAPI:
             "limit": 100000,
         }
         results: List[Dict[str, Any]] = []
-        try:
-            async with provider_client("metrica", timeout=120) as client:
-                response = await client.get(self.base_url, params=params, headers=self.headers)
-        except Exception as err:
-            logger.warning("Metrika conversions-by-dimension request failed: %s", err)
-            return []
-        if response.status_code != 200:
-            logger.warning(
-                "Metrika conversions-by-dimension error %s: %s",
-                response.status_code, response.text[:200],
-            )
-            return []
-        for row in response.json().get("data", []):
+        data = await self._cached_read(self.base_url, params, "data")
+        for row in data["data"]:
             dimensions = row.get("dimensions", []) or []
             keys = [d.get("name") for d in dimensions]
             ids = [d.get("id") for d in dimensions]
@@ -311,15 +326,7 @@ class YandexMetricaAPI:
         if self.client_login:
             params["ulogin"] = self.client_login
             
-        async with provider_client("metrica") as client:
-            response = await client.get(url, headers=self.headers, params=params)
-            if response.status_code == 200:
-                data = response.json()
-                return data.get('goals', [])
-            
-            error_msg = f"Failed to fetch goals for counter {counter_id}: {response.status_code} - {response.text}"
-            logger.error(error_msg)
-            raise Exception(error_msg)
+        return (await self._cached_read(url, params, "goals", timeout=30, ttl=30))["goals"]
     
     async def get_activity_by_weekday(
         self,

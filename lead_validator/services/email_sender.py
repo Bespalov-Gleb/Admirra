@@ -89,6 +89,8 @@ class EmailSender:
         filename: str = "report.pdf",
     ) -> bool:
         """Синхронная отправка отчёта с опциональным вложением PDF."""
+        from core import delivery_outcome
+        delivery_outcome.rejected()
         if not self.enabled or not recipients:
             return False
         msg = EmailMessage()
@@ -108,7 +110,12 @@ class EmailSender:
                 server.starttls()
             if self.user and self.password:
                 server.login(self.user, self.password)
-            server.send_message(msg)
+            delivery_outcome.before_send()
+            try:
+                server.send_message(msg)
+            except (smtplib.SMTPRecipientsRefused, smtplib.SMTPSenderRefused, smtplib.SMTPDataError):
+                delivery_outcome.rejected()
+                raise
         return True
 
     async def send_report_email(
@@ -124,7 +131,8 @@ class EmailSender:
         Возвращает (success, error_message).
         """
         try:
-            ok = await asyncio.to_thread(
+            from core import delivery_outcome
+            ok = await delivery_outcome.in_thread(
                 self._send_report_sync,
                 recipients,
                 subject,
@@ -147,4 +155,3 @@ class EmailSender:
 
 
 email_sender = EmailSender()
-
