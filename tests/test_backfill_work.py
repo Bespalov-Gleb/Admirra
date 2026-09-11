@@ -148,15 +148,27 @@ def test_retention_preserves_active_group_progress_and_safe_downgrade(backfills)
 
 
 @pytest.mark.asyncio
-async def test_history_does_not_overwrite_current_sync_status_or_run_detector(direct, monkeypatch):
+@pytest.mark.parametrize("empty", [True, False])
+async def test_history_does_not_overwrite_current_sync_status_or_run_detector(direct, monkeypatch, empty):
     db, integration, api, _ = direct
     integration.sync_status, integration.last_sync_at = "original", "original-date"
+    if not empty:
+        api.get_report.side_effect = [[{"campaign_id": "1", "campaign_name": "fixture"}], [], []]
+        monkeypatch.setattr("backend_api.services.project_settings.update_actual_start_date", lambda *_: None)
     detector = Mock(side_effect=AssertionError("historical chunk must not run detector"))
     monkeypatch.setattr(sync, "_run_detector_after_sync", detector)
     await sync.sync_integration(db, integration, "2026-01-01", "2026-03-31", historical=True)
     assert integration.sync_status == "original"
     assert integration.last_sync_at == "original-date"
     detector.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_history_fails_if_campaign_catalog_is_unavailable(direct):
+    db, integration, api, _ = direct
+    api.get_campaigns.side_effect = ValueError("catalog failed")
+    with pytest.raises(ValueError, match="catalog failed"):
+        await sync.sync_integration(db, integration, "2026-01-01", "2026-03-31", historical=True)
 
 
 @pytest.mark.asyncio

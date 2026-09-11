@@ -627,6 +627,8 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
 
             if isinstance(yandex_campaigns, Exception):
                 logger.warning(f"⚠️ Failed to fetch Yandex campaign statuses for integration {integration.id}: {yandex_campaigns}")
+                if historical:
+                    raise yandex_campaigns
             else:
                 # Домешиваем стратегию в каталог кампаний (если удалось получить).
                 if isinstance(campaign_strategies, dict) and campaign_strategies:
@@ -851,6 +853,11 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
             group_stats_result = _group_stats_prefetched
             keyword_stats_result = _keyword_stats_prefetched
 
+            if historical:
+                for result in (group_stats_result, keyword_stats_result):
+                    if isinstance(result, Exception):
+                        raise result
+
             if isinstance(group_stats_result, Exception):
                 logger.warning(f"Error syncing group stats: {group_stats_result}")
                 group_stats_result = []
@@ -924,6 +931,8 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
                             _update_or_create_stats(db, models.YandexKeywords, filters, data, verbose=False)
                 except Exception as e:
                     logger.warning(f"Error syncing {level} stats: {e}")
+                    if historical:
+                        raise
                     continue
 
             db.commit()
