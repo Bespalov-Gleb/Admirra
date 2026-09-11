@@ -141,7 +141,8 @@ Compose проверен через `config --no-env-resolution --quiet`. Это
 На отдельной internal Docker-сети без опубликованных портов и исходящих обращений:
 PostgreSQL 15.18, Redis 7.4, Python 3.13, non-root/read-only test container.
 
-Контрольный набор: **225 passed, 1 deselected**, 46 предупреждений на момент проверки исходников.
+Контрольный набор: **225 passed, 1 deselected**, 46 предупреждений — и на исходниках, и
+непосредственно в финальном образе без host bind mount (13,01 с для второго прогона).
 Единственный deselected — проверка Vue-файла, не включаемого в backend artifact. Это не утверждение,
 что весь репозиторный test suite проверен. Устаревшие тесты `tests/test_sync.py` исправлены:
 актуальные async API, profile selection, refresh token, пустой отчёт, раздельные sessions,
@@ -153,6 +154,13 @@ calendar catch-up, schema mismatch и orphaned legacy jobs, HTTP hooks, fail-clo
 shared 429 cooldown и миграция/downgrade. Реальный prefork child принудительно завершался
 SIGKILL во время незакоммиченного INSERT; запись откатилась, новая попытка выполнилась,
 тройная повторная доставка оставила ровно один итоговый INSERT.
+
+Сохранённый код: локальный коммит `195e607`. Образ на сервере 2: `admirra-devops:195e607`
+(также staging-tag), image ID `sha256:e2821d3a48d804ce2eb5c2305690f92b4e548af16fbc940cb50e4dfc242746c1`.
+Исходный артефакт: `/opt/admirra-staging/release-195e607/`. Проверено отсутствие `.env`, `.git`,
+uploads и приватных `.key` в образе. Prepared worker-compose прошёл синтаксическую проверку.
+Тестовые PostgreSQL/Redis и internal-сеть после приёмки остановлены/удалены; их данные были
+синтетическими и хранились в tmpfs. Production-трафик на этот образ не направлялся; push не выполнялся.
 
 Повторение проверки готового образа без исходников с хоста:
 
