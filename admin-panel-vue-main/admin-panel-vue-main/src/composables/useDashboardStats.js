@@ -352,6 +352,7 @@ export function useDashboardStats() {
           id: c.id,
           name,
           external_id: extId,
+          platform: c.platform,
           vk_goal_action_id: c.vk_goal_action_id,
           is_active: c.is_active !== false,
           // Реальный статус площадки — для цветных точек в дропдауне

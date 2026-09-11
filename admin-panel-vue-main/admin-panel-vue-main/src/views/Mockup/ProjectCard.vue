@@ -1,8 +1,10 @@
 <template>
-  <div class="relative z-[2] flex min-h-full flex-col overflow-visible px-[1.7361rem] py-[2.0833rem]">
+  <div class="mobile-workspace mobile-projects relative z-[2] flex min-h-full flex-col overflow-visible px-[1.7361rem] py-[2.0833rem]">
+    <MobileSliceBar :period="periodKey" :range="customPeriodRange" v-model:vat="includeVat" v-model:search="search" :syncing="projectsSyncing" :sync-text="projectSyncStatusText" @period="selectPeriod" @range="selectCustomPeriod" @refresh="handleSyncProjects" />
+    <MobileSheet :open="mobileListMenu" title="Список проектов" @close="mobileListMenu = false"><button v-for="option in projectFilterOptions" :key="option.value" class="mw-button mw-full" :class="{ selected: projectFilter === option.value }" @click="selectProjectFilter(option.value); mobileListMenu = false">{{ option.label }}</button><button class="mw-button mw-full" @click="router.push('/project-rows')">Вид списком</button><button class="mw-button mw-full" @click="router.push('/projects/create')">Добавить проект</button><button class="mw-button mw-full" @click="openCreateFolder(); mobileListMenu = false">Создать папку</button></MobileSheet>
 
     <!-- Heading -->
-    <div class="pt-[1.0417rem] pb-[1.0417rem] mb-[0.6944rem]">
+    <div class="projects-heading pt-[1.0417rem] pb-[1.0417rem] mb-[0.6944rem]">
       <h3 class="text-[2.0833rem] font-semibold leading-none text-[#171717] dark:text-white">Проекты</h3>
     </div>
 
@@ -128,8 +130,9 @@
       <template v-for="entry in displayItems" :key="entry.type + (entry.folder?.id || entry.project?.id)">
 
       <!-- ══ Карточка ПАПКИ ══ -->
+      <MobileProjectTile v-if="entry.type === 'folder' && isMobile" :project="{...folderAsEntity(entry.folder), description:`Папка · ${allFolderProjects(entry.folder.id).length} ${branchNoun(allFolderProjects(entry.folder.id).length)}`}" initials="📁" :stats="mobileProjectStats(folderAsEntity(entry.folder))" :traffic="projectTraffic(folderAsEntity(entry.folder))" :channels="mobileChannels(folderAsEntity(entry.folder))" :balances="projectBalances(folderAsEntity(entry.folder))" :folders="[]" :paused="isFolderPaused(entry.folder)" @open="openFolderAnalytics(entry.folder)" @report="openFolderAnalytics(entry.folder)" @settings="openEditFolder(entry.folder)" @toggle="toggleFolder(entry.folder.id)" />
       <div
-        v-if="entry.type === 'folder'"
+        v-else-if="entry.type === 'folder'"
         class="project-card project-card--tile folder-card bg-white rounded-[1.0417rem]"
         :class="{ 'folder-card--paused': isFolderPaused(entry.folder), 'folder-card--expanded': expandedFolders[entry.folder.id] }"
         :style="{ '--folder-color': entry.folder.color || '#2563eb' }"
@@ -280,6 +283,7 @@
         <button type="button" @click="openEditFolder(entry.folder)">Добавить проекты в папку</button>
       </div>
 
+      <MobileProjectTile v-else-if="isMobile" :project="entry.project" :avatar="projectAvatarUrl(entry.project)" :initials="projectInitials(entry.project)" :stats="mobileProjectStats(entry.project)" :traffic="projectTraffic(entry.project)" :channels="mobileChannels(entry.project)" :balances="projectBalances(entry.project)" :badge="detectorBadge(entry.project)" :alerts="detectorPreview(entry.project)" :folders="folders" :paused="isProjectPaused(entry.project)" :syncing="isProjectSyncing(entry.project)" @open="openProject(entry.project)" @report="openProject(entry.project)" @settings="openSettings(entry.project)" @avatar="openAvatarModal(entry.project)" @copy="copyProjectId(entry.project)" @move="moveProjectToFolder(entry.project, $event)" @resume="resumeProject(entry.project)" />
       <!-- ══ Карточка ПРОЕКТА (как раньше; v-for по одному элементу задаёт локальную
            переменную project, чтобы не менять существующую разметку карточки) ══ -->
       <template v-else>
@@ -771,6 +775,11 @@ import ProjectAvatarUploadModal from '../../components/ProjectAvatarUploadModal.
 import ProjectSettingsModal from '../../components/ProjectSettingsModal.vue'
 import { useDetectorCrossProject } from '../../composables/useDetector'
 import { useSyncStatus } from '../../composables/useSyncStatus'
+import MobileSliceBar from '../../components/mobile/MobileSliceBar.vue'
+import MobileSheet from '../../components/mobile/MobileSheet.vue'
+import MobileProjectTile from '../../components/mobile/MobileProjectTile.vue'
+import { useMobileWorkspace } from '../../composables/useMobileWorkspace'
+import { useReportVat } from '../../composables/useReportVat'
 
 const router = useRouter()
 const route = useRoute()
@@ -808,6 +817,8 @@ const {
 } = useSyncStatus()
 
 const projectFilter = ref('active')
+const mobileListMenu = ref(false)
+const mobileScopeId = ref(null)
 // Период по умолчанию — «Эта неделя»; при наличии сохранённого (общего с
 // дашбордом) берём его, чтобы выбор держался при переходах между экранами.
 const _savedPeriod = loadSavedProjectPeriod()
@@ -1025,7 +1036,7 @@ const openSettingsFromQuery = () => {
   router.replace({ query: { ...route.query, settings: undefined } })
 }
 watch(() => route.query.settings, () => openSettingsFromQuery())
-const includeVat = ref(true)
+const includeVat = useReportVat()
 const syncingIntegrations = ref(false)
 const projectsSyncing = computed(() => syncingIntegrations.value || globalSyncingIntegrations.value.length > 0)
 
@@ -1108,6 +1119,9 @@ const isFolderPaused = (folder) => {
 // Корневой список: папки (по sort_order) + проекты вне папок. При поиске — плоские
 // совпадения: проекты из папок показываются с подсветкой «в какой папке».
 const displayItems = computed(() => {
+  if (isMobile.value && mobileScopeId.value) {
+    return filteredProjects.value.filter(p=>p.id===mobileScopeId.value).map(project=>({type:'project',project}))
+  }
   const q = search.value.trim().toLowerCase()
   const items = []
   if (q) {
@@ -1557,6 +1571,42 @@ async function copyProjectId(project) {
 const hasPlatform = (project, platform) => hasProjectPlatform(project, platform)
 const isAvitoOnlyProject = (project) =>
   hasPlatform(project, 'AVITO') && !hasPlatform(project, 'YANDEX') && !hasPlatform(project, 'VK')
+
+const mobileChannels = project => projectChannelSummaries(project).map(channel => ({
+  ...channel, spendText:formatMoney(withChannelVat(channel.expenses, channel.code)),
+  cplText:channel.avgCpl == null ? '—' : formatMoney(withChannelVat(channel.avgCpl, channel.code)),
+}))
+const mobileProjectStats = project => {
+  const channels = projectChannelSummaries(project)
+  const metric = getProjectMetric(project.id)
+  const spend = channels.reduce((sum,c) => sum + withChannelVat(c.expenses,c.code),0)
+  const available = channels.length > 0 && metric.leads_available !== false && metric.leads_configured !== false && !channels.some(c => c.needsGoalSelection)
+  const leads = channels.reduce((sum,c) => sum + c.goalTotal,0)
+  const clicks = Number(metric.clicks || 0)
+  const previousLeads = channels.length && channels.every(c => c.prevGoalTotal != null) ? channels.reduce((sum,c) => sum + c.prevGoalTotal,0) : null
+  const previous = metric.prev || getProjectInsights(project.id).all?.prev
+  const prevSpend = previous ? withCostBreakdownVat(previous.expenses,previous.cost_by_platform) : null
+  const previousClicks = previous?.clicks
+  const percent = (cur,prev) => prev > 0 ? (cur-prev)/prev*100 : null
+  const cpl = available && leads>0 ? spend/leads : null
+  const prevCpl = previousLeads>0 && prevSpend!=null ? prevSpend/previousLeads : null
+  const cr = available && clicks>0 ? leads/clicks*100 : null
+  const prevCr = previousLeads!=null && previousClicks>0 ? previousLeads/previousClicks*100 : null
+  const pct = n => `${n.toFixed(2).replace('.',',')}%`
+  return [
+    {key:'cpa',label:'Сводный CPL',value:cpl==null?'—':formatMoney(cpl),delta:percent(cpl,prevCpl),previous:prevCpl==null?null:formatMoney(prevCpl),reason:available?'нет лидов за период':'цели не настроены'},
+    {key:'leads',label:'Лиды',value:available?formatNumber(leads):'—',delta:available&&previousLeads!=null?leads-previousLeads:null,previous:previousLeads==null?null:formatNumber(previousLeads)},
+    {key:'expenses',label:'Расход',value:formatMoney(spend),delta:percent(spend,prevSpend)},
+    {key:'cr',label:'CR в лид',value:cr==null?'—':pct(cr),delta:percent(cr,prevCr),previous:prevCr==null?null:pct(prevCr)},
+  ].map(s => {
+    if (s.value==='—') return {...s,delta:null}
+    const d=s.delta
+    const rounded=d==null?null:Math.round(d)
+    const neutral=s.key==='expenses'||rounded===0
+    const bad=s.key==='cpa'?d>0:d<0
+    return {...s,reason:null,delta:d==null?null:`${rounded<0?'↓':rounded>0?'↑':'→'} ${formatNumber(Math.abs(rounded))}${s.key==='leads'?' шт':'%'}`,tone:neutral?'':bad?'bad':'good'}
+  })
+}
 
 const projectStats = (project) => {
   const metric = getProjectMetric(project.id)
@@ -2008,11 +2058,12 @@ const projectBalances = (project) => {
 
   const insights = getProjectInsights(project.id)
   return projectPlatformCards(project).map((platform) => {
-    const value = Number(insights[platform.code]?.balance || 0)
+    const rawBalance = insights[platform.code]?.balance
+    const value = rawBalance == null ? null : Number(rawBalance)
     return {
       ...platform,
       name: platform.balanceName,
-      value: formatMoney(withChannelVat(value, platform.code)),
+      value: value == null || !Number.isFinite(value) ? '—' : formatMoney(withChannelVat(value, platform.code)),
     }
   })
 }
@@ -2279,6 +2330,7 @@ onMounted(async () => {
   void loadProjectMetrics()
   void fetchCrossProject()
 })
+useMobileWorkspace(() => ({ mode:'projects', title:projects.value.find(p=>p.id===mobileScopeId.value)?.name || 'Все проекты', selectedScope:!!mobileScopeId.value, selectScope:id=>{mobileScopeId.value=id}, count:mobileScopeId.value?1:projects.value.length, pickedUp:false, alerts:0, optionsLabel:`${projectFilterLabel.value} · Карточки`, openOptions:()=>{mobileListMenu.value=true} }))
 </script>
 
 <style scoped>

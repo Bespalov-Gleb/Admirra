@@ -1,5 +1,8 @@
 <template>
-  <div ref="dashboardRef" class="figma-dashboard" :class="{ 'is-dark': isDarkMode }">
+  <div ref="dashboardRef" class="figma-dashboard mobile-workspace mobile-dashboard" :class="{ 'is-dark': isDarkMode }">
+    <MobileSliceBar dashboard :period="periodKey" :range="customPeriodRange" v-model:vat="includeVat" :filtered="!!filters.campaign_ids.length || filters.channel !== 'all'" :sync-text="syncStatusLabel" @period="selectPeriodPreset" @range="selectCustomPeriod" @filters="mobileFiltersOpen = true" />
+    <MobileDashboardFilters :open="mobileFiltersOpen" :directions="directionStats.items" :direction-label="directionStats.label" :direction-id="selectedDirectionId" :campaigns="allCampaigns" :campaign-ids="filters.campaign_ids" :channel="filters.channel" :channel-options="filterChannels" @close="mobileFiltersOpen = false" @apply="applyMobileFilters" />
+    <MobileDashboardTop :title="mobileProjectTitle" :avatar="mobileProjectAvatar" :sync-text="syncStatusLabel" :alert-count="detectorActiveCount" v-model:view="activeView" :channels="serviceChannelItems" :syncing="dashboardSyncInProgress" :sending="preparingReport || sendingTg || sendingEmail || sendingMax" @pickup="mobileTitlePickedUp = $event" @refresh="handleSyncIntegrations" @connect="goToIntegrations" @send="handleSendSelectedReport" @settings="openProjectSettingsModal" @switch="router.push('/project-card')" @delivery="openProjectReportSettings" @export="handleExportAction" @detector="onDetectorShieldClick" />
     <!-- Сервисная строка: входы рекламы слева, доставка отчётов справа. -->
     <section class="dashboard-service-row" :class="{ 'dashboard-service-row--empty': reportsBlockEmpty }">
       <div class="dashboard-service-sources">
@@ -438,7 +441,7 @@
               title="Лиды не настроены в интеграции VK — отметьте лидовые действия, чтобы считать Лиды и CPL"
               @click="openVkLeadSettings"
             >лиды не настроены → Настроить</button>
-            <strong v-else>{{ metricsMap[key]?.value }}</strong>
+            <strong v-else :style="{ '--mw-number-chars': Math.max(1, String(metricsMap[key]?.value || '').length * .6 + .2) }">{{ metricsMap[key]?.value }}</strong>
           </div>
           <span
             v-if="metricsMap[key]?.trend && !((key === 'leads' || key === 'cpa') && leadsNotConfigured)"
@@ -469,12 +472,13 @@
         </div>
         <!-- Детектор ит.4 §5: подвал — точка отсчёта. Ориентир всегда, вердикт
              только при активном отклонении; факт разрыва — серым/янтарным. -->
+        <div v-if="mobilePlanProgress(key)" class="mw-plan-progress mw-only" :class="{ 'mw-plan-progress--good':key === 'cpa' && mobilePlanProgress(key).withinTarget }" :aria-label="`${key === 'cpa' ? 'CPL относительно цели' : 'Выполнение плана'}: ${Math.round(mobilePlanProgress(key).value)}%`"><i :style="{ width: `${mobilePlanProgress(key).value}%` }" /><span v-if="key !== 'cpa'" :style="{ left:`${mobilePlanProgress(key).elapsed}%` }" /></div>
         <div
           v-if="metricFooters[key]"
           class="metric-foot-detector"
           :class="metricFooters[key].isAlert ? `metric-foot-detector--${metricFooters[key].level}` : ''"
         >
-          <span class="metric-foot-detector__ref">{{ metricFooters[key].reference }}</span>
+          <span class="metric-foot-detector__ref">{{ metricFooters[key].reference }}<small v-if="detectorSummary?.metric_plan?.[key]?.period_start" class="mw-plan-dates mw-only">{{ formatReportDate(detectorSummary.metric_plan[key].period_start) }} — {{ formatReportDate(detectorSummary.metric_plan[key].period_end) }}</small></span>
           <template v-if="metricFooters[key].warmupNote">
             <span class="metric-foot-detector__sep">·</span>
             <span class="metric-foot-detector__note">{{ metricFooters[key].warmupNote }}</span>
@@ -725,7 +729,7 @@
             </span>
           </div>
         </div>
-        <div class="chart-area" @mousemove="handleChartHover" @mouseleave="chartHoverIndex = -1">
+        <div class="chart-area" @pointermove="handleChartHover" @pointerdown="handleChartHover" @pointerleave="event => { if(event.pointerType === 'mouse') chartHoverIndex = -1 }">
           <svg ref="chartSvgRef" :viewBox="`0 0 ${chartViewWidth} ${CHART_VIEWBOX_HEIGHT}`" preserveAspectRatio="xMidYMid meet" role="img" aria-label="График эффективности кампаний">
             <defs>
               <linearGradient
@@ -1120,6 +1124,7 @@
       </article>
     </section>
 
+    <MobileCampaigns v-if="!isAllProjectsSummary" :rows="mobileCampaignRows" :options="campaignSortOptions" :sort="campaignSort" @sort="setCampaignSort" />
     <section v-if="!isAllProjectsSummary" class="panel campaigns-panel" :class="{ 'panel--syncing': dashboardSyncInProgress || allChannelsDataLoading }">
       <div class="panel-title-row">
         <h2>Рекламные кампании</h2>
@@ -1684,6 +1689,14 @@ import ProjectSettingsModal from '@/components/ProjectSettingsModal.vue'
 import ReportApprovalModal from './components/ReportApprovalModal.vue'
 import { useDetector } from '@/composables/useDetector'
 import html2canvas from 'html2canvas'
+import MobileSliceBar from '@/components/mobile/MobileSliceBar.vue'
+import MobileDashboardTop from '@/components/mobile/MobileDashboardTop.vue'
+import MobileDashboardFilters from '@/components/mobile/MobileDashboardFilters.vue'
+import MobileCampaigns from '@/components/mobile/MobileCampaigns.vue'
+import { useMobileWorkspace } from '@/composables/useMobileWorkspace'
+import { useReportVat } from '@/composables/useReportVat'
+import { projectAvatarUrl } from '@/utils/projectAvatar'
+import '@/components/mobile/dashboard.css'
 
 const { isDarkMode } = useTheme()
 const router = useRouter()
@@ -2063,7 +2076,7 @@ const dashboardRef = ref(null)
 const _savedPeriod = loadSavedProjectPeriod()
 const periodKey = ref(
   _savedPeriod?.key
-    || (filters.period === 'custom' ? 'custom' : (filters.period || DEFAULT_PROJECT_PERIOD))
+    || (filters.period === 'custom' ? 'custom' : DEFAULT_PROJECT_PERIOD)
 )
 const customPeriodRange = ref(
   _savedPeriod?.key === 'custom' && _savedPeriod.customRange
@@ -2083,7 +2096,7 @@ const customPeriodRange = ref(
 watch([periodKey, customPeriodRange], () => saveProjectPeriod(periodKey.value, customPeriodRange.value), { deep: true })
 const periodTriggerRef = ref(null)
 const periodPopoverRef = ref(null)
-const includeVat = ref(true)
+const includeVat = useReportVat()
 const activeView = ref('report') // 'report' | 'dynamics'
 const manualSyncActive = ref(false)
 const syncRefreshInProgress = ref(false)
@@ -3318,7 +3331,7 @@ const formatNumber = (value, digits = 0) => new Intl.NumberFormat('ru-RU', {
   maximumFractionDigits: digits
 }).format(Number(value) || 0)
 
-const formatMoney = (value) => `${formatNumber(value, 2)} ₽`
+const formatMoney = (value) => `${formatNumber(value, Math.abs(Number(value)) >= 1000 ? 0 : 2)}\u00a0₽`
 
 const formatBalanceMoney = (value, currency = 'RUB') => {
   if (value === null || value === undefined || value === '') return '—'
@@ -3363,7 +3376,7 @@ const channelBalances = computed(() => {
 
   return Array.from(balancesByPlatform.values()).map((item) => ({
     ...item,
-    value: formatBalanceMoney(withVat(item.balance, { platform: item.id }), item.currency)
+    value: item.balance == null ? '—' : formatBalanceMoney(withVat(item.balance, { platform: item.id }), item.currency)
   }))
 })
 
@@ -4562,7 +4575,7 @@ const chartDateAxisLabels = computed(() => {
   if (!labels.length || !points.length) return []
   // На широком графике («Все каналы») показываем больше дат — точки разрежены,
   // поэтому подписи можно располагать свободнее. Ориентир ~1 подпись на 120px.
-  const maxLabels = Math.max(6, Math.min(labels.length, Math.floor(chartViewWidth.value / 120)))
+  const maxLabels = Math.max(3, Math.min(labels.length, Math.floor(chartViewWidth.value / 75)))
   const step = Math.max(1, Math.ceil(labels.length / maxLabels))
   return labels
     .map((text, index) => ({
@@ -4578,7 +4591,7 @@ const chartDateAxisLabels = computed(() => {
 // (там график на всю ширину). В одноканальном режиме держим прежние 880.
 let chartResizeObserver = null
 const measureChartWidth = () => {
-  if (!isAllChannelsMode.value) {
+  if (!isAllChannelsMode.value && window.innerWidth > 672) {
     if (chartViewWidth.value !== CHART_DEFAULT_WIDTH) chartViewWidth.value = CHART_DEFAULT_WIDTH
     return
   }
@@ -6463,6 +6476,24 @@ onMounted(() => {
   refreshProjectReportSettings()
   refreshPendingReportDeliveries()
 })
+const mobileFiltersOpen = ref(false)
+const mobileTitlePickedUp = ref(false)
+const mobileProject = computed(() => clients.value.find(c => c.id === filters.client_id))
+const mobileProjectTitle = computed(() => mobileProject.value?.name || folderMode.value?.name || 'Сводка по проектам')
+const mobileProjectAvatar = computed(() => mobileProject.value ? projectAvatarUrl(mobileProject.value) : '')
+useMobileWorkspace(() => ({mode:'dashboard',title:mobileProjectTitle.value,avatar:mobileProjectAvatar.value,count:0,pickedUp:mobileTitlePickedUp.value,alerts:detectorActiveCount.value}))
+const mobileCampaignRows = computed(() => sortedCampaignSourceRows.value.map((c,i)=>formatCampaignTreeRow(c,i)))
+function applyMobileFilters(selection) {
+  filters.channel = selection.channel
+  filters.campaign_ids = selection.campaignIds
+  selectedDirectionId.value = selection.directionId
+  handlePeriodChange()
+}
+function mobilePlanProgress(key) {
+  const p = detectorSummary.value?.metric_plan?.[key]
+  if (!p || !(p.target > 0) || p.actual == null) return null
+  return { value:Math.min(100,Math.max(0,p.actual/p.target*100)), elapsed:Math.min(100,Math.max(0,(p.elapsed_fraction||0)*100)), withinTarget:p.actual <= p.target }
+}
 </script>
 
 <style scoped>

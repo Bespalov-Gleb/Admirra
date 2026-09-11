@@ -1,13 +1,15 @@
 <template>
-  <header class="h-[5.2778rem] flex items-stretch bg-white dark:bg-[#1C1F2E] border-b border-black/5 dark:border-white/[0.07] flex-shrink-0 dark:shadow-[0_1px_0_rgba(255,255,255,0.04)]">
+  <header class="app-header h-[5.2778rem] flex items-stretch bg-white dark:bg-[#1C1F2E] border-b border-black/5 dark:border-white/[0.07] flex-shrink-0 dark:shadow-[0_1px_0_rgba(255,255,255,0.04)]" :class="{ 'mw-app-header': mobileWorkspace.mode, 'mw-app-header--picked': mobileWorkspace.pickedUp }">
     <div class="flex-1 flex items-center px-[0.5556rem] py-[0.3472rem] gap-1.5 min-w-0 2xl:px-[1.7361rem] 2xl:gap-4">
 
+      <button v-if="mobileWorkspace.mode === 'dashboard'" class="mw-back" @click="router.push('/project-card')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 6-6 6 6 6" /></svg><template v-if="mobileWorkspace.pickedUp"><img v-if="mobileWorkspace.avatar" :src="mobileWorkspace.avatar" alt="" /><span v-else class="mw-back-mark">{{ mobileWorkspace.title.slice(0,2) }}</span></template><span>{{ mobileWorkspace.pickedUp ? mobileWorkspace.title : 'Все проекты' }}</span><small v-if="mobileWorkspace.pickedUp && mobileWorkspace.alerts">⚠ {{ mobileWorkspace.alerts }}</small></button>
       <!-- Left: Project selector -->
-      <div class="relative flex-shrink-0" ref="projectMenuRef">
+      <div class="header-project-selector relative flex-shrink-0" ref="projectMenuRef">
         <button
           @click="toggleProjectMenu"
           class="flex min-h-[3.1944rem] items-center gap-2 rounded-[0.8333rem] bg-[#f5f7f9] px-[0.6944rem] py-[0.6944rem] text-left transition-all duration-500 hover:bg-[#ecf3fe] dark:bg-white/10 dark:hover:bg-white/15 2xl:gap-5 2xl:px-[1.0417rem]"
         >
+          <span v-if="mobileWorkspace.mode === 'projects'" class="mw-scope-label" :class="{ 'mw-scope-label--selected':mobileWorkspace.selectedScope }"><b>{{ mobileWorkspace.title }}</b><small>{{ mobileWorkspace.count }} {{ pluralProject(mobileWorkspace.count) }}</small></span>
           <div
             :class="[
               'flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden bg-[#e8eef9] text-[0.7639rem] font-bold text-[#2563eb] 2xl:h-9 2xl:w-9',
@@ -249,10 +251,10 @@
       </div>
 
       <!-- Spacer -->
-      <div class="min-w-1 flex-1" />
+      <div class="header-spacer min-w-1 flex-1" />
 
       <!-- Right actions -->
-      <div class="flex flex-shrink-0 items-center gap-1.5 2xl:gap-2">
+      <div class="header-right-actions flex flex-shrink-0 items-center gap-1.5 2xl:gap-2">
 
         <!-- Add project: сплит-кнопка (ТЗ «Правки UI» п.2) — клик = проект, шеврон = меню Проект/Папку -->
         <div class="relative hidden min-[1360px]:inline-flex" data-add-split>
@@ -294,6 +296,7 @@
         <div class="relative">
           <button
             data-notifications-button
+            aria-label="Уведомления"
             @click="toggleNotifications"
             class="relative flex min-h-[3.1944rem] min-w-[3.1944rem] items-center justify-center rounded-[0.8333rem] bg-[#f5f7f9] transition-colors duration-500 hover:bg-[#ecf3fe] dark:bg-white/10 dark:hover:bg-white/15"
           >
@@ -353,6 +356,7 @@
         <div class="relative">
           <button
             data-profile-button
+            aria-label="Профиль"
             @click="toggleProfileMenu"
             class="flex min-h-[3.1944rem] items-center gap-2 rounded-[0.8333rem] bg-[#f5f7f9] px-[0.6944rem] py-[0.6944rem] text-left transition-all duration-500 hover:bg-[#ecf3fe] dark:bg-white/10 dark:hover:bg-white/15 2xl:gap-5 2xl:px-[1.0417rem]"
           >
@@ -411,6 +415,7 @@
         <!-- Burger (tablet/mobile only) -->
         <button
           @click="toggleMobileMenu"
+          aria-label="Меню"
           :class="[
             'flex h-[3.1944rem] w-[3.1944rem] flex-shrink-0 items-center justify-center rounded-[0.8333rem] bg-[#f5f7f9] transition-colors duration-500 hover:bg-[#ecf3fe] dark:bg-white/10 dark:hover:bg-white/15 min-[1024px]:hidden',
             isMobileMenuOpen ? 'is-active' : '',
@@ -444,6 +449,7 @@ import { useSidebar } from '../composables/useSidebar'
 import { useAuth } from '../composables/useAuth'
 import { useProjects } from '../composables/useProjects'
 import { projectAvatarUrl, projectInitials } from '../utils/projectAvatar'
+import { mobileWorkspace } from '../composables/useMobileWorkspace'
 
 const router = useRouter()
 const route = useRoute()
@@ -558,6 +564,11 @@ const handleFolderSelect = (folder) => {
 }
 
 const handleProjectSelect = (id, options = {}) => {
+  if (mobileWorkspace.mode === 'projects' && window.matchMedia('(max-width:42em)').matches) {
+    mobileWorkspace.selectScope?.(id)
+    isProjectMenuOpen.value = false
+    return
+  }
   setCurrentProject(id)
   isProjectMenuOpen.value = false
   const inContext = CONTEXT_SECTION_PATHS.some((p) => route.path.startsWith(p))

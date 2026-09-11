@@ -1408,7 +1408,14 @@ def metric_plan_context(db: Session, client_id: uuid.UUID, today: date | None = 
     result: dict[str, dict] = {}
 
     # --- Расход: ориентир «План N ₽» + прогноз «не хватит ~X» / «остаток ~X» ---
-    exp_ctx: dict = {"reference": f"План {_money(total_budget)}"}
+    exp_ctx: dict = {
+        "reference": f"План {_money(total_budget)}",
+        "actual": spend,
+        "target": total_budget,
+        "elapsed_fraction": min(1.0, max(0.0, (ref - period_start).days + 1) / total_days),
+        "period_start": period_start.isoformat(),
+        "period_end": period_end.isoformat(),
+    }
     forecast_spend = spend / elapsed * total_days
     gap_spend = forecast_spend - total_budget
     if not plan_warming_up and gap_spend > total_budget * 0.02:
@@ -1453,7 +1460,14 @@ def metric_plan_context(db: Session, client_id: uuid.UUID, today: date | None = 
 
     # --- Заявки: ориентир «План N» + прогноз «не доберём ~X» / «с запасом +X» ---
     if planned_leads:
-        lead_ctx: dict = {"reference": f"План {planned_leads}"}
+        lead_ctx: dict = {
+            "reference": f"План {planned_leads}",
+            "actual": leads,
+            "target": planned_leads,
+            "elapsed_fraction": exp_ctx["elapsed_fraction"],
+            "period_start": period_start.isoformat(),
+            "period_end": period_end.isoformat(),
+        }
         forecast_leads = leads / elapsed * total_days
         gap_leads = planned_leads - forecast_leads
         if not plan_warming_up and gap_leads > max(1.0, planned_leads * 0.02):
@@ -1468,6 +1482,12 @@ def metric_plan_context(db: Session, client_id: uuid.UUID, today: date | None = 
     if target_cpl and target_cpl > 0:
         cpl_ctx: dict = {"reference": f"Цель {_money(target_cpl)}"}
         cpl_fact = spend / leads if leads > 0 else None
+        cpl_ctx.update({
+            "actual": cpl_fact,
+            "target": target_cpl,
+            "period_start": period_start.isoformat(),
+            "period_end": period_end.isoformat(),
+        })
         if not plan_warming_up and cpl_fact is not None:
             if cpl_fact > target_cpl * 1.01:
                 cpl_ctx["verdict"] = "дорожает"

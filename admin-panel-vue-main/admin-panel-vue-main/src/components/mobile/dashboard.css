@@ -1,0 +1,745 @@
+@media (max-width: 42em) {
+  .mobile-dashboard.figma-dashboard .metric-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .mobile-dashboard.figma-dashboard .metric-head {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    min-width: 0;
+  }
+  .mobile-dashboard.figma-dashboard :is(.metric-icon, .card-delete-btn) {
+    display: none;
+  }
+  .mobile-dashboard.figma-dashboard .metric-text {
+    width: 100%;
+    min-width: 0;
+  }
+  .mobile-dashboard.figma-dashboard {
+    --m: var(--mw-unit);
+    display: flex !important;
+    flex-direction: column;
+    gap: calc(0.75 * var(--m));
+    padding: 0 0 calc(1.5 * var(--m)) !important;
+    overflow: visible !important;
+    width: 100%;
+    max-width: 100%;
+  }
+  .mobile-dashboard.figma-dashboard > .mw-slice {
+    order: -10;
+    margin-bottom: calc(-0.75 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard > .mw-dashboard-top {
+    order: -9;
+  }
+  .mobile-dashboard.figma-dashboard > .heading-section {
+    display: none;
+  }
+  .mobile-dashboard.figma-dashboard > .dashboard-service-row {
+    display: contents;
+  }
+  .mobile-dashboard.figma-dashboard .dashboard-service-sources {
+    display: none;
+  }
+  .mobile-dashboard.figma-dashboard
+    :is(.dashboard-delivery-status, .dashboard-delivery-empty) {
+    order: 99;
+    margin: 0 calc(0.75 * var(--m));
+    padding: var(--m);
+    border-radius: calc(0.875 * var(--m));
+    background: #eff4fe;
+    font-size: calc(0.875 * var(--m));
+    white-space: normal;
+    max-width: calc(100% - 1.5 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard
+    > :is(
+      .kpi-grid,
+      .chart-goals-grid,
+      .directions-panel,
+      .bottom-grid,
+      .folder-branches-panel,
+      .mw-mobile-campaigns,
+      .campaign-filter-banner,
+      .dashboard-pending-row,
+      .sync-banner,
+      .plan-onboarding-banner,
+      .dynamics-view
+    ) {
+    margin: 0 calc(0.75 * var(--m));
+    width: auto;
+    min-width: 0;
+  }
+  .mw-dashboard-top {
+    padding: calc(0.875 * var(--m)) calc(0.75 * var(--m)) 0;
+  }
+  .mw-project-heading {
+    display: flex;
+    align-items: center;
+    gap: calc(0.6875 * var(--m));
+    min-width: 0;
+  }
+  .mw-project-heading > img,
+  .mw-project-mark {
+    width: calc(2.5 * var(--m));
+    height: calc(2.5 * var(--m));
+    flex: none;
+    border-radius: calc(0.6875 * var(--m));
+    background: white;
+    object-fit: contain;
+  }
+  .mw-project-mark {
+    display: grid;
+    place-items: center;
+    background: #eff4fe;
+    color: #2563eb;
+    font-size: var(--m);
+    font-weight: 700;
+  }
+  .mw-project-heading > button:not(.mw-icon) {
+    flex: 1;
+    min-width: 0;
+    min-height: calc(2.75 * var(--m));
+    text-align: left;
+  }
+  .mw-project-heading strong {
+    display: block;
+    font-size: calc(1.25 * var(--m));
+    line-height: 1.25;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .mw-project-heading strong svg {
+    display: inline;
+    width: var(--m);
+    height: var(--m);
+  }
+  .mw-project-heading small {
+    display: block;
+    font-size: calc(0.8125 * var(--m));
+    color: #98a1b3;
+  }
+  .mw-heading-alert {
+    position: relative;
+    color: #92610a;
+    background: #fef6e7;
+  }
+  .mw-heading-alert b {
+    position: absolute;
+    right: 0;
+    top: 0;
+    font-size: calc(0.6875 * var(--m));
+    background: #f59e0b;
+    color: white;
+    border: 2px solid white;
+    padding: 0 calc(0.25 * var(--m));
+    border-radius: 20px;
+  }
+  .mw-title-sentinel {
+    height: 1px;
+  }
+  .mw-view-row {
+    display: flex;
+    gap: calc(0.5 * var(--m));
+    margin-top: calc(0.75 * var(--m));
+  }
+  .mw-view-row > div {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    border-radius: calc(0.6875 * var(--m));
+    background: #e9edf4;
+    padding: calc(0.25 * var(--m));
+  }
+  .mw-view-row > div > button {
+    flex: 1;
+    min-width: 0;
+    font-size: calc(0.875 * var(--m));
+    min-height: calc(2.5 * var(--m));
+    border-radius: calc(0.5 * var(--m));
+    color: #5b6579;
+  }
+  .mw-view-row > div > .selected {
+    background: white;
+    color: #1b2333;
+    box-shadow: 0 1px 3px #1b23330d;
+  }
+  .mw-view-row > .mw-button {
+    color: #2563eb;
+    font-size: calc(0.875 * var(--m));
+  }
+  .mw-dash-balances {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: calc(0.5 * var(--m));
+    min-height: calc(2.75 * var(--m));
+    margin: calc(0.625 * var(--m)) 0;
+    padding: calc(0.75 * var(--m));
+    border: 1px solid #e9edf4;
+    border-radius: calc(0.875 * var(--m));
+    background: white;
+  }
+  .mw-dash-balances > b {
+    font-size: calc(0.8125 * var(--m));
+    font-weight: 400;
+    color: #98a1b3;
+  }
+  .mw-dash-balances > span {
+    display: flex;
+    align-items: center;
+    gap: calc(0.375 * var(--m));
+    font-size: calc(0.8125 * var(--m));
+    font-weight: 600;
+    white-space: nowrap;
+    padding: calc(0.375 * var(--m));
+    background: #f7f9fc;
+    border: 1px solid #e9edf4;
+    border-radius: calc(0.625 * var(--m));
+  }
+  .mw-dash-balances img {
+    width: calc(1.375 * var(--m));
+    height: calc(1.375 * var(--m));
+    object-fit: contain;
+  }
+  .mw-filter-actions {
+    position: sticky;
+    bottom: 0;
+    background: white;
+    padding-top: var(--m);
+  }
+  .mobile-dashboard.figma-dashboard .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: calc(0.5625 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard .metric-card {
+    min-height: 0;
+    min-width: 0;
+    padding: calc(0.875 * var(--m));
+    border: 1px solid #e9edf4;
+    border-radius: calc(0.875 * var(--m));
+    background: white;
+    box-shadow: none;
+    gap: calc(0.5 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard .metric-card .metric-head {
+    gap: calc(0.3125 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard .metric-card h3 {
+    color: #5b6579;
+    font-size: calc(0.8125 * var(--m));
+    font-weight: 400;
+    line-height: 1.3;
+  }
+  .mobile-dashboard.figma-dashboard .metric-card .metric-hint {
+    font-size: inherit;
+    color: #98a1b3;
+  }
+  .mobile-dashboard.figma-dashboard .metric-card .metric-hint svg {
+    display: none;
+  }
+  .mobile-dashboard.figma-dashboard .metric-card .metric-text strong {
+    font-size: calc(1.375 * var(--m));
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    line-height: 1.15;
+    white-space: nowrap;
+  }
+  .mobile-dashboard.figma-dashboard
+    .metric-card[data-metric="expenses"]
+    .metric-text
+    strong {
+    font-size: calc(1.6875 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard
+    .metric-card:is(
+      [data-metric="impressions"],
+      [data-metric="clicks"],
+      [data-metric="cpc"]
+    ) {
+    padding: calc(0.75 * var(--m)) calc(0.625 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard
+    .metric-card:is(
+      [data-metric="impressions"],
+      [data-metric="clicks"],
+      [data-metric="cpc"]
+    )
+    .metric-text
+    strong {
+    font-size: calc(1.1875 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard .metric-card .trend {
+    font-size: calc(0.8125 * var(--m)) !important;
+    height: auto;
+    min-height: calc(1.375 * var(--m));
+    line-height: 1.2;
+    padding: 0;
+    background: transparent;
+  }
+  .mobile-dashboard.figma-dashboard [data-metric="expenses"] .metric-head {
+    position: relative;
+  }
+  .mobile-dashboard.figma-dashboard
+    [data-metric="expenses"]
+    .metric-head
+    > .trend {
+    position: absolute;
+    right: 0;
+    top: 0;
+    padding: calc(0.125 * var(--m)) calc(0.375 * var(--m));
+    background: #f7f9fc;
+    border-radius: calc(0.4375 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard
+    .metric-card:is(
+      [data-metric="expenses"],
+      [data-metric="impressions"],
+      [data-metric="clicks"]
+    )
+    .trend {
+    color: #98a1b3;
+  }
+  .mobile-dashboard.figma-dashboard .metric-card .trend-icon {
+    width: var(--m);
+    height: var(--m);
+  }
+  .mobile-dashboard.figma-dashboard .metric-foot-detector {
+    font-size: calc(0.8125 * var(--m));
+    display: flex;
+    flex-wrap: wrap;
+    gap: calc(0.25 * var(--m));
+    padding: 0;
+    border: 0;
+    background: transparent;
+    margin: 0;
+    line-height: 1.4;
+    color: #98a1b3;
+  }
+  .mw-plan-dates {
+    font-size: calc(0.8125 * var(--m));
+    font-weight: 400;
+    color: #98a1b3;
+  }
+  .mobile-dashboard.figma-dashboard .metric-channel-breakdown {
+    display: none;
+  }
+  .mw-plan-progress {
+    width: 100%;
+    height: calc(0.375 * var(--m));
+    border-radius: 20px;
+    position: relative;
+    background: #e9edf4;
+    margin-top: calc(0.25 * var(--m));
+  }
+  .mw-plan-progress > i {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #2563eb, #29bfd2);
+  }
+  .mw-plan-progress--good > i {
+    background: #18a05e;
+  }
+  .mw-plan-progress > span {
+    position: absolute;
+    top: calc(-0.1875 * var(--m));
+    height: calc(0.75 * var(--m));
+    width: 2px;
+    background: #98a1b3;
+    transform: translateX(-50%);
+  }
+  .mobile-dashboard.figma-dashboard .panel {
+    padding: var(--m);
+    border: 1px solid #e9edf4;
+    border-radius: calc(0.875 * var(--m));
+    box-shadow: none;
+    background: white;
+  }
+  .mobile-dashboard.figma-dashboard .panel h2 {
+    font-size: var(--m);
+    font-weight: 700;
+    line-height: 1.25;
+  }
+  .mobile-dashboard.figma-dashboard .directions-kicker {
+    color: #98a1b3;
+    font-size: calc(0.8125 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard .directions-manage-btn {
+    min-height: calc(2.75 * var(--m));
+    font-size: calc(0.8125 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard .directions-grid {
+    display: block;
+  }
+  .mobile-dashboard.figma-dashboard .direction-card {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: calc(0.25 * var(--m)) calc(0.5 * var(--m));
+    width: 100%;
+    min-height: 0;
+    padding: calc(0.75 * var(--m)) 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    border-bottom: 1px solid #f1f4f9;
+  }
+  .mobile-dashboard.figma-dashboard .direction-card:last-child {
+    border: 0;
+    padding-bottom: 0;
+  }
+  .mobile-dashboard.figma-dashboard .direction-card__top > strong {
+    font-size: calc(0.875 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard .direction-card__top > span {
+    font-size: calc(0.8125 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard .direction-card__top {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    align-items: baseline;
+    gap: calc(0.25 * var(--m));
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .mobile-dashboard.figma-dashboard .direction-card__money {
+    text-align: left;
+    font-size: calc(0.8125 * var(--m));
+    margin: 0;
+  }
+  .mobile-dashboard.figma-dashboard .direction-share {
+    flex-basis: 100%;
+    height: calc(0.3125 * var(--m));
+    margin: calc(0.4375 * var(--m)) 0 0;
+  }
+  .mobile-dashboard.figma-dashboard .direction-card__bottom {
+    flex-basis: 100%;
+  }
+  .mobile-dashboard.figma-dashboard .direction-card__bottom {
+    font-size: calc(0.8125 * var(--m));
+    color: #98a1b3;
+  }
+  .mobile-dashboard.figma-dashboard .direction-card__bottom strong {
+    color: #5b6579;
+  }
+  .mobile-dashboard.figma-dashboard .chart-goals-grid {
+    display: flex;
+    flex-direction: column;
+    gap: calc(0.75 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard
+    :is(.chart-panel__header, .panel-title-row) {
+    margin-bottom: calc(0.75 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard
+    :is(
+      .chart-panel__eyebrow,
+      .chart-panel__header p,
+      .chart-panel__header > div > span,
+      .chart-control-label,
+      .chart-series-context
+    ) {
+    display: none;
+  }
+  .mobile-dashboard.figma-dashboard .chart-toolbar {
+    padding: 0;
+    background: transparent;
+    border: 0;
+    display: block;
+  }
+  .mobile-dashboard.figma-dashboard .chart-metric-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: calc(0.375 * var(--m));
+    overflow: visible;
+  }
+  .mobile-dashboard.figma-dashboard .chart-chip {
+    min-height: calc(2.75 * var(--m));
+    padding: calc(0.375 * var(--m)) calc(0.625 * var(--m));
+    font-size: calc(0.8125 * var(--m));
+    border-radius: calc(0.5 * var(--m));
+    flex: 0 0 auto;
+  }
+  .mobile-dashboard.figma-dashboard .chart-chip__icon {
+    display: none;
+  }
+  .mobile-dashboard.figma-dashboard .chart-chip__check {
+    display: none;
+  }
+  .mobile-dashboard.figma-dashboard .chart-area {
+    overflow: visible;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    margin: calc(0.75 * var(--m)) 0 0;
+  }
+  .mobile-dashboard.figma-dashboard .chart-area > svg {
+    width: 100%;
+    height: auto;
+    min-width: 0;
+    display: block;
+    overflow: visible;
+  }
+  .mobile-dashboard.figma-dashboard .chart-area text {
+    font-size: calc(0.8125 * var(--m)) !important;
+  }
+  .mobile-dashboard.figma-dashboard .goals-channel-block {
+    border: 0 !important;
+    box-shadow: none;
+    padding: 0 !important;
+    border-radius: 0;
+    background: transparent;
+  }
+  .mobile-dashboard.figma-dashboard .goals-channel-title small {
+    font-size: calc(0.8125 * var(--m));
+    color: #5b6579;
+  }
+  .mobile-dashboard.figma-dashboard .goals-channel-expense {
+    font-size: calc(0.8125 * var(--m));
+    white-space: nowrap;
+  }
+  .mobile-dashboard.figma-dashboard .goals-channel-icon {
+    width: calc(1.875 * var(--m));
+    height: calc(1.875 * var(--m));
+    padding: calc(0.25 * var(--m));
+    background: white;
+    border-radius: calc(0.5 * var(--m));
+    object-fit: contain;
+  }
+  .mobile-dashboard.figma-dashboard .goals-bar-meta {
+    flex-wrap: wrap;
+    gap: calc(0.375 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard :is(.goals-bar-spend, .goals-bar-unit) {
+    font-size: calc(0.8125 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard .goals-summary-row {
+    font-size: calc(0.875 * var(--m));
+    padding: calc(0.75 * var(--m));
+    display: flex;
+    gap: calc(0.5 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard .goals-summary-row strong {
+    font-size: calc(1.0625 * var(--m));
+    white-space: nowrap;
+  }
+  .mobile-dashboard.figma-dashboard .goals-channel-header {
+    min-height: calc(2.75 * var(--m));
+    padding: calc(0.5 * var(--m));
+    background: #fef6e7;
+    border-radius: calc(0.625 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard :is(.goals-channel-name, .goals-bar-name) {
+    font-size: calc(0.875 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard .goals-bar-count {
+    font-size: calc(0.875 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard .goals-bar-trend {
+    font-size: calc(0.8125 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard .goals-bar-row {
+    border-radius: calc(0.625 * var(--m));
+    padding: calc(0.625 * var(--m));
+    min-height: calc(3.75 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard .bottom-grid {
+    display: block;
+  }
+  .mobile-dashboard.figma-dashboard .ai-comment {
+    padding: var(--m);
+  }
+  .mobile-dashboard.figma-dashboard .ai-comment__lead {
+    font-size: calc(0.9375 * var(--m));
+    font-weight: 700;
+  }
+  .mobile-dashboard.figma-dashboard
+    :is(.ai-comment__body, .ai-comment__body p, .ai-comment__recommendation) {
+    font-size: calc(0.875 * var(--m));
+    line-height: 1.55;
+  }
+  .mobile-dashboard.figma-dashboard .ai-comment__meta {
+    font-size: calc(0.75 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard
+    :is(.ai-comment__actions-row, .ai-comment__foot, .ai-comment__feedback) {
+    flex-wrap: wrap;
+    gap: calc(0.5 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard
+    :is(
+      .ai-comment__calc,
+      .ai-comment__ctx-link,
+      .ai-comment__vote,
+      .ai-comment__copy,
+      .ai-comment__toggle
+    ) {
+    min-height: calc(2.75 * var(--m));
+    font-size: calc(0.8125 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard .campaigns-panel {
+    display: none;
+  }
+  .mw-mobile-campaigns {
+    background: white;
+    border: 1px solid #e9edf4;
+    border-radius: calc(0.875 * var(--m));
+    padding: var(--m);
+  }
+  .mw-mobile-campaigns > header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: calc(0.5 * var(--m));
+  }
+  .mw-mobile-campaigns h2 {
+    font-size: var(--m);
+    font-weight: 700;
+  }
+  .mw-mobile-campaigns > header > div {
+    display: flex;
+    border: 1px solid #e9edf4;
+    border-radius: calc(0.625 * var(--m));
+    align-items: center;
+  }
+  .mw-mobile-campaigns select {
+    font-size: calc(0.8125 * var(--m));
+    min-height: calc(2.75 * var(--m));
+    padding: calc(0.5 * var(--m));
+    background: transparent;
+    border: 0;
+    max-width: calc(9 * var(--m));
+  }
+  .mw-mobile-campaigns > article {
+    min-height: calc(4.875 * var(--m));
+    padding: calc(0.6875 * var(--m)) calc(0.8125 * var(--m));
+    margin-top: calc(0.5 * var(--m));
+    border-radius: calc(0.75 * var(--m));
+    background: #f7f9fc;
+  }
+  .mw-mobile-campaigns h3 {
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    font-size: calc(0.875 * var(--m));
+    font-weight: 600;
+  }
+  .mw-mobile-campaigns article > div {
+    display: flex;
+    align-items: baseline;
+    gap: calc(0.625 * var(--m));
+    margin-top: calc(0.25 * var(--m));
+  }
+  .mw-mobile-campaigns article strong {
+    font-size: calc(1.0625 * var(--m));
+    white-space: nowrap;
+  }
+  .mw-mobile-campaigns article p,
+  .mw-mobile-campaigns article > div > span {
+    font-size: calc(0.8125 * var(--m));
+    color: #98a1b3;
+  }
+  .mw-mobile-campaigns .flagged {
+    box-shadow: inset 3px 0 0 var(--mw-alert-color);
+    background: color-mix(in srgb, var(--mw-alert-color) 7%, white);
+  }
+  .mw-mobile-campaigns .flagged h3 > span {
+    color: var(--mw-alert-color);
+  }
+  .mobile-dashboard.figma-dashboard .direction-table-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: calc(0.5 * var(--m));
+    padding: calc(0.75 * var(--m)) 0;
+    font-size: calc(0.8125 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard .direction-table-name {
+    flex-basis: 100%;
+    font-size: calc(0.9375 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard
+    .metric-card:is(
+      [data-metric="impressions"],
+      [data-metric="clicks"],
+      [data-metric="cpc"]
+    )
+    .metric-foot-detector {
+    display: none;
+  }
+  .mobile-dashboard.figma-dashboard .chart-channel-legend {
+    flex-wrap: wrap;
+    gap: calc(0.375 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard
+    :is(.chart-channel-toggle, .chart-total-toggle) {
+    font-size: calc(0.8125 * var(--m));
+    min-height: calc(2.75 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard .ai-comment__copy,
+  .mobile-dashboard.figma-dashboard .ai-comment__toggle,
+  .mobile-dashboard.figma-dashboard .ai-comment__vote {
+    min-width: calc(2.75 * var(--m));
+  }
+  .mw-mobile-campaigns .bad {
+    color: #e5484d !important;
+  }
+  .mw-mobile-campaigns .good {
+    color: #18a05e !important;
+  }
+  .mobile-dashboard.figma-dashboard .metric-text {
+    container-type: inline-size;
+    --mw-value-size: calc(1.375 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard [data-metric="expenses"] .metric-text {
+    --mw-value-size: calc(1.6875 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard
+    :is(
+      [data-metric="impressions"],
+      [data-metric="clicks"],
+      [data-metric="cpc"]
+    )
+    .metric-text {
+    --mw-value-size: calc(1.1875 * var(--m));
+  }
+  .mobile-dashboard.figma-dashboard .metric-text > strong {
+    font-size: clamp(
+      calc(0.8125 * var(--m)),
+      calc(100cqi / var(--mw-number-chars)),
+      var(--mw-value-size)
+    ) !important;
+  }
+  .mobile-dashboard.figma-dashboard .kpi-grid > [data-metric="expenses"] {
+    grid-column: span 6;
+    order: 1;
+  }
+  .mobile-dashboard.figma-dashboard .kpi-grid > [data-metric="leads"] {
+    grid-column: span 3;
+    order: 2;
+  }
+  .mobile-dashboard.figma-dashboard .kpi-grid > [data-metric="cpa"] {
+    grid-column: span 3;
+    order: 3;
+  }
+  .mobile-dashboard.figma-dashboard .kpi-grid > [data-metric="impressions"] {
+    grid-column: span 2;
+    order: 4;
+  }
+  .mobile-dashboard.figma-dashboard .kpi-grid > [data-metric="clicks"] {
+    grid-column: span 2;
+    order: 5;
+  }
+  .mobile-dashboard.figma-dashboard .kpi-grid > [data-metric="cpc"] {
+    grid-column: span 2;
+    order: 6;
+  }
+}

@@ -7,6 +7,7 @@
   />
 
   <aside
+    :data-mobile-workspace="mobileWorkspace.mode || null"
     :class="[
       'fixed left-0 top-0 h-screen flex flex-col z-50 transition-all duration-300',
       'bg-white dark:bg-[#1C1F2E]',
@@ -47,6 +48,7 @@
     <!-- Main navigation -->
     <div class="flex-1 overflow-y-auto scrollbar-hide py-[1.0417rem]">
       <nav class="px-[0.7639rem] space-y-[0.1389rem]">
+        <button v-if="mobileWorkspace.mode === 'projects'" class="mw-sidebar-options" @click="closeMobileMenu(); mobileWorkspace.openOptions?.()">Список проектов <small>{{ mobileWorkspace.optionsLabel }}</small></button>
         <div v-for="item in menuItems" :key="item.name" class="relative">
 
           <!-- Section label -->
@@ -248,6 +250,7 @@ import {
   DocumentTextIcon,
 } from '@heroicons/vue/24/outline'
 import { useSidebar } from '../composables/useSidebar'
+import { mobileWorkspace } from '../composables/useMobileWorkspace'
 import { useAuth } from '../composables/useAuth'
 import { useTheme } from '../composables/useTheme'
 import { useReportsQueue } from '../composables/useReportsQueue'
