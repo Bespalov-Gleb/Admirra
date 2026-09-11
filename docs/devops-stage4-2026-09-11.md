@@ -69,6 +69,38 @@ TEST_IMAGE=admirra-devops:c4d0412 docker compose -f ops/compose.isolated.yml run
   tests --disable-warnings -s tests/test_summary_queries.py
 ```
 
+### Проверка собранного артефакта
+
+Код сохранён локально в `40753f1`; push и production-деплой не выполнялись.
+Чистый исходный архив собран через `ops/package_backend.py --revision 40753f1`,
+305 runtime/test-файлов, без рабочего frontend/лендинга, `.env`, git и uploads.
+
+На сервере 2:
+
+- каталог `/opt/admirra-staging/release-40753f1/`;
+- образ `admirra-devops:40753f1`, OCI revision `40753f1`;
+- image ID из `docker image inspect`:
+  `sha256:b1396872f612f4b9352693e2fa59db14ff601b9bb48901163d80eeaa771c2f05`;
+- полный прогон через `compose.artifact-tests.yml`, без host source bind:
+  **282 passed, 1 skipped, 1 deselected**, 46 warnings, 19,49 с;
+- целевая проверка образа с единственным read-only baseline-файлом:
+  **12 passed**, 16 warnings, 7,61 с; подтверждены 128 полных совпадений и EXPLAIN;
+- `pip check` успешен; `/app/.env`, `/app/.git`, `/app/uploads` отсутствуют.
+
+Число SELECT на синтетическом смешанном проекте, текущий и прошлый периоды,
+без фильтра кампаний (не число запросов всей страницы):
+
+| Вариант сводки | До | После |
+| --- | ---: | ---: |
+| Все каналы | 20 | 12 |
+| Яндекс | 16 | 6 |
+| VK | 13 | 5 |
+| Авито | 16 | 6 |
+
+После приёмки временные контейнеры PostgreSQL/Redis и тестовая сеть остановлены.
+Последняя read-only проверка production: HEAD `cdf0a4d`, frontend/backend/
+automation/db/admin_frontend работают, `wg-quick@admirra0` active.
+
 ## Важная находка по корректности — отдельная задача
 
 Старая реализация `aggregate_summary(platform='avito')` повторно использует
