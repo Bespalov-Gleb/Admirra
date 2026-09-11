@@ -16,6 +16,7 @@ from backend_api.access_control import get_accessible_client_ids, get_team_conte
 from backend_api.services.history import log_history_event
 from backend_api.services.subscription import SubscriptionService
 from backend_api.stats_service import StatsService
+from backend_api.summary_scope import SummaryScope
 from core import models, schemas, security
 from core.database import get_db
 
@@ -81,6 +82,7 @@ def _summary_with_combined_leads_cpl(
     d_end,
     *,
     include_trends: bool = True,
+    integration_scope: Optional[SummaryScope] = None,
 ) -> dict:
     """Собирает лиды и CPL по той же формуле, что и KPI дашборда.
 
@@ -88,8 +90,10 @@ def _summary_with_combined_leads_cpl(
     смешанного набора Яндекс/VK/Авито: у каналов разные источники лидов и
     лидовый расход. Поэтому общий итог складывается из трёх канальных итогов.
     """
+    integration_scope = integration_scope or SummaryScope.load(db, client_ids)
     summary = StatsService.aggregate_summary(
-        db, client_ids, d_start, d_end, include_trends=include_trends
+        db, client_ids, d_start, d_end, include_trends=include_trends,
+        integration_scope=integration_scope,
     )
     total_leads = 0
     lead_cost = 0.0
@@ -101,6 +105,7 @@ def _summary_with_combined_leads_cpl(
             d_end,
             platform,
             include_trends=False,
+            integration_scope=integration_scope,
         )
         total_leads += int(channel_summary.get("leads") or 0)
         lead_cost += float((channel_summary.get("lead_cost_by_platform") or {}).get(platform) or 0)
@@ -420,6 +425,7 @@ def folder_breakdown(
         c for c in db.query(models.Client).filter(models.Client.folder_id == folder.id).all()
         if c.id in accessible
     ]
+    integration_scope = SummaryScope.load(db, [c.id for c in members])
     items = []
     for c in members:
         # summary уже содержит balance филиала (Integration.balance активных
@@ -429,9 +435,13 @@ def folder_breakdown(
             "name": c.name,
             "status": c.status.value.lower() if hasattr(c.status, "value") else str(c.status).lower(),
             "avatar_url": c.avatar_url,
-            "summary": _summary_with_combined_leads_cpl(db, [c.id], d_start, d_end),
+            "summary": _summary_with_combined_leads_cpl(
+                db, [c.id], d_start, d_end, integration_scope=integration_scope,
+            ),
         })
-    total = _summary_with_combined_leads_cpl(db, [c.id for c in members], d_start, d_end) if members else None
+    total = _summary_with_combined_leads_cpl(
+        db, [c.id for c in members], d_start, d_end, integration_scope=integration_scope,
+    ) if members else None
     return {
         "folder": _folder_to_schema(folder, _folder_counts(db, [folder.id])).model_dump(mode="json"),
         "total": total,
@@ -456,6 +466,7 @@ def top_projects(
     d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else d_end - timedelta(days=6)
     members = _accessible_clients(db, current_user)
+    integration_scope = SummaryScope.load(db, [c.id for c in members])
 
     items = []
     for client in members:
@@ -465,6 +476,7 @@ def top_projects(
             d_start,
             d_end,
             include_trends=False,
+            integration_scope=integration_scope,
         )
         items.append({
             "client_id": str(client.id),

@@ -8,6 +8,7 @@ import os
 from typing import List, Optional
 
 from automation.vk_goal_action_mapping import get_vk_goal_action_name_ru
+from backend_api.summary_scope import SummaryScope
 
 
 def resolve_previous_period(date_from_obj, date_to_obj, preset: Optional[str] = None):
@@ -38,6 +39,8 @@ class StatsService:
     def get_vk_lead_action_scope(
         db: Session,
         client_ids: List[uuid.UUID],
+        *,
+        integration_scope: Optional[SummaryScope] = None,
     ) -> dict[uuid.UUID, set[str]]:
         """
         Возвращает CPL-настройку отдельно для каждой VK-интеграции.
@@ -52,7 +55,10 @@ class StatsService:
         integrations = db.query(models.Integration).filter(
             models.Integration.client_id.in_(client_ids),
             models.Integration.platform == models.IntegrationPlatform.VK_ADS,
-        ).all()
+        ).all() if integration_scope is None else [
+            row for row in integration_scope.rows_for(client_ids)
+            if row.platform == models.IntegrationPlatform.VK_ADS
+        ]
         result: dict[uuid.UUID, set[str]] = {}
         for integration in integrations:
             # VK selection intentionally has its own field. selected_goals is
@@ -79,8 +85,11 @@ class StatsService:
         query,
         db: Session,
         client_ids: List[uuid.UUID],
+        *,
+        scope: Optional[dict] = None,
     ):
-        scope = StatsService.get_vk_lead_action_scope(db, client_ids)
+        if scope is None:
+            scope = StatsService.get_vk_lead_action_scope(db, client_ids)
         clauses = []
         for integration_id, codes in scope.items():
             # У этой интеграции нет выбранных лидовых действий: она не должна
@@ -100,6 +109,8 @@ class StatsService:
         db: Session,
         client_ids: List[uuid.UUID],
         platform: str = "all",
+        *,
+        integration_scope: Optional[SummaryScope] = None,
     ) -> List[uuid.UUID]:
         platform_key = (platform or "all").lower()
         if platform_key == "avito":
@@ -112,6 +123,8 @@ class StatsService:
         else:
             return []
 
+        if integration_scope is not None:
+            return [row.id for row in integration_scope.rows_for(client_ids) if row.platform in platforms]
         return [
             row[0]
             for row in db.query(models.Integration.id)
@@ -128,6 +141,8 @@ class StatsService:
         db: Session,
         client_ids: List[uuid.UUID],
         platform: str = "all",
+        *,
+        integration_scope: Optional[SummaryScope] = None,
     ) -> List[str]:
         platform_key = (platform or "all").lower()
         if platform_key == "avito":
@@ -141,11 +156,16 @@ class StatsService:
                 models.IntegrationPlatform.AVITO_ADS,
             ]
 
+        def integrations_for(platforms):
+            if integration_scope is not None:
+                return [row for row in integration_scope.rows_for(client_ids) if row.platform in platforms]
+            return db.query(models.Integration).filter(
+                models.Integration.client_id.in_(client_ids),
+                models.Integration.platform.in_(platforms),
+            ).all()
+
         goal_ids: List[str] = []
-        for integration in db.query(models.Integration).filter(
-            models.Integration.client_id.in_(client_ids),
-            models.Integration.platform.in_(platforms),
-        ).all():
+        for integration in integrations_for(platforms):
             if integration.selected_goals:
                 try:
                     parsed = json.loads(integration.selected_goals) if isinstance(integration.selected_goals, str) else integration.selected_goals
@@ -163,10 +183,7 @@ class StatsService:
         if not goal_ids and platform_key == "yandex":
             # Backward compatibility: older Yandex setups may store selected
             # goals on the companion Metrika integration.
-            for integration in db.query(models.Integration).filter(
-                models.Integration.client_id.in_(client_ids),
-                models.Integration.platform == models.IntegrationPlatform.YANDEX_METRIKA,
-            ).all():
+            for integration in integrations_for([models.IntegrationPlatform.YANDEX_METRIKA]):
                 if integration.selected_goals:
                     try:
                         parsed = json.loads(integration.selected_goals) if isinstance(integration.selected_goals, str) else integration.selected_goals
@@ -283,6 +300,8 @@ class StatsService:
         campaign_lead_overrides: Optional[dict] = None,
         previous_campaign_lead_overrides: Optional[dict] = None,
         period_preset: Optional[str] = None,
+        *,
+        integration_scope: Optional[SummaryScope] = None,
     ):
         if not client_ids:
             return {
@@ -306,36 +325,27 @@ class StatsService:
                 "trends": None
             }
 
-        selected_platforms = [
-            row[0]
-            for row in db.query(models.Integration.platform)
-            .filter(models.Integration.client_id.in_(client_ids))
-            .distinct()
-            .all()
-        ]
+        integration_scope = integration_scope or SummaryScope.load(db, client_ids)
+        integrations = integration_scope.rows_for(client_ids)
+        selected_platforms = {row.platform for row in integrations}
+        vk_lead_scope = StatsService.get_vk_lead_action_scope(
+            db, client_ids, integration_scope=integration_scope,
+        )
         has_yandex_platform = any(
             p in [models.IntegrationPlatform.YANDEX_DIRECT, models.IntegrationPlatform.YANDEX_METRIKA]
             for p in selected_platforms
         )
         has_vk_platform = models.IntegrationPlatform.VK_ADS in selected_platforms
         selected_campaign_platforms = []
+        selected_campaign_integration_ids = []
         if campaign_ids:
-            selected_campaign_integration_ids = [
-                row[0]
-                for row in db.query(models.Campaign.integration_id)
-                .filter(models.Campaign.id.in_(campaign_ids))
-                .distinct()
-                .all()
-                if row[0]
-            ]
-            if selected_campaign_integration_ids:
-                selected_campaign_platforms = [
-                    row[0]
-                    for row in db.query(models.Integration.platform)
-                    .filter(models.Integration.id.in_(selected_campaign_integration_ids))
-                    .distinct()
-                    .all()
-                ]
+            selected_campaign_rows = db.query(
+                models.Campaign.integration_id, models.Integration.platform,
+            ).join(models.Integration, models.Integration.id == models.Campaign.integration_id).filter(
+                models.Campaign.id.in_(campaign_ids),
+            ).distinct().all()
+            selected_campaign_integration_ids = [row.integration_id for row in selected_campaign_rows]
+            selected_campaign_platforms = [row.platform for row in selected_campaign_rows]
         metrika_goal_platform = platform
         if platform == "all" and selected_campaign_platforms:
             if all(p == models.IntegrationPlatform.AVITO_ADS for p in selected_campaign_platforms):
@@ -343,7 +353,12 @@ class StatsService:
             elif all(p == models.IntegrationPlatform.YANDEX_DIRECT for p in selected_campaign_platforms):
                 metrika_goal_platform = "yandex"
         selected_goal_ids_for_summary = set(
-            StatsService.get_selected_metrika_goal_ids(db, client_ids, metrika_goal_platform)
+            StatsService.get_selected_metrika_goal_ids(
+                db, client_ids, metrika_goal_platform, integration_scope=integration_scope,
+            )
+        )
+        goal_scope_ids = StatsService.get_metrika_goal_integration_ids(
+            db, client_ids, metrika_goal_platform, integration_scope=integration_scope,
         )
 
         def get_data(start, end):
@@ -405,10 +420,7 @@ class StatsService:
                 a_q = a_q.filter(models.Campaign.id.in_(campaign_ids))
 
                 # Get integration_ids for selected campaigns
-                campaign_integrations = db.query(models.Campaign.integration_id).filter(
-                    models.Campaign.id.in_(campaign_ids)
-                ).distinct().all()
-                integration_ids = [ci[0] for ci in campaign_integrations if ci[0]]
+                integration_ids = selected_campaign_integration_ids
                 
                 if integration_ids:
                     y_q = y_q.filter(models.Campaign.integration_id.in_(integration_ids))
@@ -420,10 +432,7 @@ class StatsService:
                 # выбранном периоде. Остановленные/архивные кампании не должны
                 # исчезать из исторической статистики.
                 if len(client_ids) == 1:
-                    client_int = db.query(models.Integration.id).filter(
-                        models.Integration.client_id.in_(client_ids)
-                    ).distinct().all()
-                    integration_ids = [ci[0] for ci in client_int if ci[0]]
+                    integration_ids = [row.id for row in integrations]
 
             if vk_goal_action_ids:
                 v_q = v_q.filter(models.Campaign.vk_goal_action_id.in_(vk_goal_action_ids))
@@ -437,6 +446,7 @@ class StatsService:
                     v_lead_q,
                     db,
                     client_ids,
+                    scope=vk_lead_scope,
                 )
             
             # Print the actual query for one of them to see the SQL
@@ -462,11 +472,6 @@ class StatsService:
             if campaign_ids and integration_ids:
                 m_q = m_q.filter(models.MetrikaGoals.integration_id.in_(integration_ids))
             else:
-                goal_scope_ids = StatsService.get_metrika_goal_integration_ids(
-                    db,
-                    client_ids,
-                    metrika_goal_platform,
-                )
                 if goal_scope_ids:
                     m_q = m_q.filter(models.MetrikaGoals.integration_id.in_(goal_scope_ids))
                 elif metrika_goal_platform in ("avito", "yandex"):
@@ -520,10 +525,7 @@ class StatsService:
             # CRITICAL: Log the date range and integration filter for debugging
             import logging
             debug_logger = logging.getLogger(__name__)
-            debug_logger.info(f"🔍 StatsService.get_data - Date range: {start} to {end}")
-            debug_logger.info(f"🔍 Integration IDs: {integration_ids}")
-            debug_logger.info(f"🔍 Client IDs: {client_ids}")
-            debug_logger.info(f"🔍 Campaign IDs: {campaign_ids}")
+            debug_logger.debug("Summary period=%s..%s clients=%s campaigns=%s", start, end, client_ids, campaign_ids)
             
             # CRITICAL: Check what data actually exists in DB for this date range
             if os.getenv("ENABLE_STATS_DEBUG_SAMPLE", "false").lower() == "true" and platform in ["all", "yandex"]:
@@ -724,7 +726,7 @@ class StatsService:
         def _compute_leads_configured() -> bool:
             vk_configured = any(
                 bool(codes)
-                for codes in StatsService.get_vk_lead_action_scope(db, client_ids).values()
+                for codes in vk_lead_scope.values()
             )
             # Разбивка каналов приходит отдельными platform=... запросами:
             # выбранные лиды VK не должны маскировать ненастроенные цели Яндекса.
@@ -743,13 +745,13 @@ class StatsService:
             and d_start
             and d_end
         ):
-            metrika_rows_count = db.query(func.count(models.MetrikaGoals.id)).filter(
+            metrika_rows = db.query(models.MetrikaGoals.id).filter(
                 models.MetrikaGoals.client_id.in_(client_ids),
                 models.MetrikaGoals.goal_id.in_(selected_goal_ids_for_summary),
                 models.MetrikaGoals.date >= d_start,
                 models.MetrikaGoals.date <= d_end,
-            ).scalar() or 0
-            goals_syncing = metrika_rows_count == 0
+            )
+            goals_syncing = not db.query(metrika_rows.exists()).scalar()
         
         # Previous period data for trends. Сводка ТОП-проектов использует только
         # текущий период: не делаем тяжёлые запросы за прошлый период, когда их
@@ -838,7 +840,20 @@ class StatsService:
                 ])
             )
         
-        active_integration_ids = [ci[0] for ci in active_campaigns_query.distinct().all() if ci[0]]
+        balance_platforms = {
+            "yandex": {models.IntegrationPlatform.YANDEX_DIRECT},
+            "vk": {models.IntegrationPlatform.VK_ADS},
+            "avito": {models.IntegrationPlatform.AVITO_ADS},
+            "all": {models.IntegrationPlatform.YANDEX_DIRECT, models.IntegrationPlatform.VK_ADS,
+                    models.IntegrationPlatform.AVITO_ADS},
+        }.get(platform)
+        if campaign_ids:
+            active_integration_ids = {ci[0] for ci in active_campaigns_query.distinct().all() if ci[0]}
+        else:
+            active_integration_ids = {
+                row.id for row in integrations if row.has_active_campaign
+                and (balance_platforms is None or row.platform in balance_platforms)
+            }
         
         # CRITICAL: Фильтруем балансы только по интеграциям с активными кампаниями
         # Это гарантирует, что баланс берется только из интеграции выбранного профиля
@@ -884,23 +899,15 @@ class StatsService:
         
         # CRITICAL: Запрашиваем балансы ТОЛЬКО из интеграций с активными кампаниями
         # Исключаем балансы равные None И 0.0
-        balance_query = db.query(
-            models.Integration.balance,
-            models.Integration.currency,
-            models.Integration.platform,
-        ).filter(
-            models.Integration.id.in_(active_integration_ids),
-            models.Integration.balance.isnot(None),
-            models.Integration.balance != 0.0  # CRITICAL: Исключаем балансы равные 0.0
-        )
-        
-        all_balances = balance_query.all()
+        all_balances = [
+            row for row in integrations if row.id in active_integration_ids
+            and row.balance is not None and row.balance != 0.0
+        ]
         
         # CRITICAL: Логируем найденные балансы для отладки
         import logging
         debug_logger = logging.getLogger(__name__)
-        debug_logger.info(f"💰 Balance query: client_ids={client_ids}, campaign_ids={campaign_ids}, active_integration_ids={active_integration_ids}")
-        debug_logger.info(f"💰 Found {len(all_balances)} integration(s) with non-zero balance")
+        debug_logger.debug("Summary non-zero balances=%s", len(all_balances))
         
         # Дополнительная проверка: если балансы найдены, но они все 0.0 - считаем их как отсутствующие
         if all_balances:
@@ -911,7 +918,7 @@ class StatsService:
                 all_balances = []
             else:
                 for b in non_zero_balances:
-                    debug_logger.info(f"💰   Balance: {b.balance} {b.currency}")
+                    debug_logger.debug("Balance: %s %s", b.balance, b.currency)
         
         used_balances = []
         if all_balances:

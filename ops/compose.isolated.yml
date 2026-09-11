@@ -56,6 +56,7 @@ services:
       - tests/test_reports_final.py
       - tests/test_report_route_guards.py
       - tests/test_shared_read_cache.py
+      - tests/test_summary_queries.py
       - tests/test_backfill_work.py
       - tests/test_leads_delta.py
       - tests/test_ai_comment_prompt_v2.py
