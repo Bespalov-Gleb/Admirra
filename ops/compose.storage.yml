@@ -1,0 +1,35 @@
+# PREPARED ONLY. Enroll private CA/client certificates and credentials first;
+# verify backup/restore, filesystem capacity, firewall and cross-host staging.
+name: admirra-artifacts
+services:
+  storage:
+    image: ${ADMIRRA_IMAGE:?Set the tested immutable backend image}
+    command: [python, -m, ops.artifact_server]
+    user: "10001:10001"
+    init: true
+    read_only: true
+    environment:
+      ARTIFACT_ROOT: /data/objects
+      ARTIFACT_PRINCIPALS_FILE: /run/credentials/principals.json
+      ARTIFACT_CA_FILE: /run/credentials/client-ca.crt
+      ARTIFACT_CERT_FILE: /run/credentials/server.crt
+      ARTIFACT_KEY_FILE: /run/credentials/server.key
+    volumes:
+      - /srv/admirra/artifacts:/data/objects
+      - /etc/admirra/artifact-server:/run/credentials:ro
+    ports: ["10.77.0.1:9443:9443"]
+    tmpfs: [/tmp:size=64m]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    stop_grace_period: 75s
+    pids_limit: 64
+    mem_limit: 512m
+    cpus: 0.75
+    logging:
+      driver: local
+      options: {max-size: 10m, max-file: "3"}
+    networks: [storage]
+networks:
+  storage:
+    internal: true
