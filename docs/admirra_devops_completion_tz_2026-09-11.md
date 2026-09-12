@@ -12,6 +12,8 @@
 
 **6C — DB lifecycle/references/capabilities** подготовлен поверх 6B: [отчёт 6C](devops-stage6c-2026-09-11.md). Миграция additive, текущие report blobs/старые URL сохранены; HTTP wiring и copy/verify миграция — отдельный следующий пакет.
 
+**6D — HTTP файлов/copy-verify**: [отчёт 6D](devops-stage6d-2026-09-12.md). Совместимые старые delivery URL, проверенный download без SQL connection во время IO, отзыв file links, bounded read-only/copy инструмент. Production выключен; исходные blobs сохранены для отката. T02 остаётся в работе.
+
 ## 0. Как пользоваться ТЗ
 
 1. Начать с §1–4: не разворачивать подготовленный Compose вслепую и не повторять уже включённые инфраструктурные изменения.

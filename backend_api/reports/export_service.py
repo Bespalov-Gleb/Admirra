@@ -260,9 +260,35 @@ def save_report_for_link(
     start_date: str,
     end_date: str,
     ttl_seconds: int = 86400,
+    *,
+    db_factory=None,
+    user_id=None,
+    scope_ids=None,
+    request_key=None,
 ) -> str:
     """Сохраняет файл во временное хранилище, возвращает токен."""
     import time
+    from core.runtime import env_bool
+    if env_bool("DURABLE_REPORT_FILES", False):
+        if db_factory is None or user_id is None or not scope_ids or format_type not in {"pdf", "png", "docx"}:
+            raise ValueError("Durable file links require exact creator/scope and format")
+        if isinstance(ttl_seconds, bool) or not isinstance(ttl_seconds, int) or not 1 <= ttl_seconds <= 86400:
+            raise ValueError("Invalid file link TTL")
+        from io import BytesIO
+        from backend_api.artifact_workflow import persist
+        from backend_api.artifact_ledger import create_link
+        from core.artifact_client import from_environment
+        storage = from_environment()
+        try:
+            row = persist(db_factory, storage, user_id, scope_ids, "report_" + format_type,
+                          BytesIO(file_bytes), request_key or str(uuid.uuid4()))
+            with db_factory.begin() as db:
+                link = create_link(db, row["id"], user_id, ttl_seconds=ttl_seconds)
+            return link["token"]
+        finally:
+            storage.close()
+    if not env_bool("LEGACY_REPORT_LINK_READS", True):
+        raise ValueError("File link creation is paused")
     token = str(uuid.uuid4())
     ext = {"pdf": ".pdf", "png": ".png", "docx": ".docx"}.get(format_type, ".pdf")
     fd, path = tempfile.mkstemp(suffix=ext, prefix="report_")

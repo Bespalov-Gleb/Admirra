@@ -28,7 +28,9 @@ Claim → commit → storage logical delete/tombstone → отдельный met
 
 `tests/test_artifact_ledger.py` использует настоящий изолированный PostgreSQL и файловый adapter. Первый прогон: 9 passed, 1 warning, 11,86 s. Добавлены ещё две проверки: отзыв текущих прав для file capability и запрет late attachment после GC claim; итоговый результат записывается при общей приёмке.
 
-Итоговый source-bind regression: **357 passed, 1 skipped, 1 deselected**, 47 warnings, 76,93 s. Включает все 11 новых ledger-тестов и 26 storage-тестов пакета 6B. Skipped — прежнее optional differential сравнение; deselected — прежняя проверка Vue-файла вне backend package. Следующая проверка — из committed image без source bind.
+Итоговый source-bind regression: **357 passed, 1 skipped, 1 deselected**, 47 warnings, 76,93 s. Включает все 11 новых ledger-тестов и 26 storage-тестов пакета 6B. Skipped — прежнее optional differential сравнение; deselected — прежняя проверка Vue-файла вне backend package.
+
+Проверка committed image `admirra-devops:d9229ac` без source bind: **357 passed, 1 skipped, 1 deselected**, 47 warnings, 73,61 s. OCI revision `d9229ac`, image ID `sha256:7c9998df7a9a38c9970c63861ff465d202555b79f3d0cf908deca0828829fc87` (повторно проверен 12.09). Production app остаётся на `cdf0a4d`.
 
 Проверяются: отсутствие checked-out SQL connections во время IO, неизвестный результат upload → безопасный retry, idempotency mismatch, concurrent reservation/quota, lease renewal/fencing, crash cleanup, pinning ссылками/отчётами, checksum descriptor, отзыв прав между upload и finalize, guard downgrade.
 

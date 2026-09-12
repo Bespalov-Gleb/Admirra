@@ -553,8 +553,22 @@ def get_report_view(token: str, db: Session = Depends(get_db)):
 
 
 @router.get("/file/{token}")
-def get_report_file(token: str):
+def get_report_file(token: str, db: Session = Depends(get_db)):
     """Скачивание отчёта по временной ссылке (без авторизации — токен является секретом)."""
+    if token.startswith("f1_"):
+        from backend_api import artifact_ledger
+        from backend_api.artifact_response import ArtifactResponse
+        try:
+            row = artifact_ledger.resolve_link(db, token)
+            info = artifact_ledger.descriptor(row)
+            media_type = artifact_ledger.MIME[row["kind"]]
+            filename = "report." + row["kind"].removeprefix("report_")
+            db.rollback()
+            return ArtifactResponse(info, media_type, filename)
+        except public_links.LinkUnavailable:
+            raise HTTPException(404, "Ссылка недействительна или истекла", headers=public_links.PRIVATE_HEADERS) from None
+        except SQLAlchemyError:
+            raise HTTPException(503, "Хранилище отчётов временно недоступно", headers=public_links.PRIVATE_HEADERS) from None
     data, media_type, filename = get_report_file_by_token(token) if env_bool("LEGACY_REPORT_LINK_READS", True) else (None, None, None)
     if data is None:
         raise HTTPException(status_code=404, detail="Ссылка недействительна или истекла", headers=public_links.PRIVATE_HEADERS)
@@ -1392,21 +1406,63 @@ async def create_report_delivery(
     return _delivery_to_response(db, d)
 
 
+@router.get("/file-links")
+def list_report_file_links(response: Response, limit: int = Query(50, ge=1, le=100), before: Optional[uuid.UUID] = None,
+                           current_user: models.User = Depends(security.get_current_user), db: Session = Depends(get_db)):
+    from backend_api import artifact_ledger
+    response.headers.update(public_links.PRIVATE_HEADERS)
+    try:
+        return {"items": artifact_ledger.list_links(db, current_user.id, limit, before)}
+    except public_links.LinkUnavailable:
+        raise HTTPException(404, "Ссылка не найдена", headers=public_links.PRIVATE_HEADERS) from None
+    except SQLAlchemyError:
+        raise HTTPException(503, "Хранилище отчётов временно недоступно", headers=public_links.PRIVATE_HEADERS) from None
+
+
+@router.delete("/file-links/{link_id}", status_code=204)
+def revoke_report_file_link(link_id: uuid.UUID, current_user: models.User = Depends(security.get_current_user),
+                            db: Session = Depends(get_db)):
+    from backend_api import artifact_ledger
+    try:
+        artifact_ledger.revoke_link(db, link_id, current_user.id)
+        db.commit()
+    except public_links.LinkUnavailable:
+        db.rollback()
+        raise HTTPException(404, "Ссылка не найдена", headers=public_links.PRIVATE_HEADERS) from None
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(503, "Хранилище отчётов временно недоступно", headers=public_links.PRIVATE_HEADERS) from None
+    return Response(status_code=204, headers=public_links.PRIVATE_HEADERS)
+
+
+def _migrated_delivery_response(db, delivery, format):
+    from backend_api.reports.artifacts import download_if_migrated
+    try:
+        return download_if_migrated(db, delivery, format)
+    except public_links.LinkUnavailable:
+        raise HTTPException(404, "Снимок недоступен", headers=public_links.PRIVATE_HEADERS) from None
+    except SQLAlchemyError:
+        raise HTTPException(503, "Хранилище отчётов временно недоступно", headers=public_links.PRIVATE_HEADERS) from None
+
+
 @router.get("/deliveries/public/{token}/pdf")
 def get_public_delivery_pdf(token: str, db: Session = Depends(get_db)):
     """Стабильная секретная ссылка на зафиксированный PDF (30 дней)."""
     d = db.query(models.ReportDelivery).filter(models.ReportDelivery.public_token == token).first()
     if not d or not d.pdf_snapshot or not d.public_expires_at:
-        raise HTTPException(status_code=404, detail="Ссылка недействительна")
+        raise HTTPException(status_code=404, detail="Ссылка недействительна", headers=public_links.PRIVATE_HEADERS)
     expires = d.public_expires_at
     if expires.tzinfo is None:
         expires = expires.replace(tzinfo=timezone.utc)
     if expires < datetime.now(timezone.utc):
-        raise HTTPException(status_code=404, detail="Ссылка истекла")
+        raise HTTPException(status_code=404, detail="Ссылка истекла", headers=public_links.PRIVATE_HEADERS)
+    migrated = _migrated_delivery_response(db, d, "pdf")
+    if migrated is not None:
+        return migrated
     return Response(
         content=d.pdf_snapshot,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="report_{d.start_date}_{d.end_date}.pdf"'},
+        headers={**public_links.PRIVATE_HEADERS, "Content-Disposition": f'inline; filename="report_{d.start_date}_{d.end_date}.pdf"'},
     )
 
 
@@ -1438,10 +1494,13 @@ def get_delivery_snapshot_png(
     ).first()
     if not d or not d.png_snapshot:
         raise HTTPException(status_code=404, detail="Снимок PNG не найден")
+    migrated = _migrated_delivery_response(db, d, "png")
+    if migrated is not None:
+        return migrated
     return Response(
         content=d.png_snapshot,
         media_type="image/png",
-        headers={"Content-Disposition": f'inline; filename="report_{d.start_date}_{d.end_date}.png"'},
+        headers={**public_links.PRIVATE_HEADERS, "Content-Disposition": f'inline; filename="report_{d.start_date}_{d.end_date}.png"'},
     )
 
 
@@ -1457,10 +1516,13 @@ def get_delivery_snapshot_pdf(
     ).first()
     if not d or not d.pdf_snapshot:
         raise HTTPException(status_code=404, detail="Снимок PDF не найден")
+    migrated = _migrated_delivery_response(db, d, "pdf")
+    if migrated is not None:
+        return migrated
     return Response(
         content=d.pdf_snapshot,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="report_{d.start_date}_{d.end_date}.pdf"'},
+        headers={**public_links.PRIVATE_HEADERS, "Content-Disposition": f'inline; filename="report_{d.start_date}_{d.end_date}.pdf"'},
     )
 
 

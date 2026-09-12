@@ -3,7 +3,7 @@ import logging
 import re
 
 _PUBLIC_PATH = re.compile(r"(/(?:api/)?reports/(?:view/|file/|deliveries/public/))[^\s/?#\"']+")
-_VERSIONED_TOKEN = re.compile(r"r1_[A-Za-z0-9_-]{43}")
+_VERSIONED_TOKEN = re.compile(r"(?:r1|f1)_[A-Za-z0-9_-]{43}")
 
 
 def redact(value):

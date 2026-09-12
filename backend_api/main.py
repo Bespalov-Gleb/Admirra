@@ -395,6 +395,11 @@ async def startup_event():
     if env_bool("DURABLE_REPORT_LINKS", False):
         from backend_api.reports.public_links import check_schema
         check_schema(engine)
+    if env_bool("DURABLE_REPORT_FILES", False) or env_bool("SHARED_REPORT_ARTIFACTS", False):
+        from backend_api.artifact_ledger import check_schema as check_artifact_schema
+        from core.artifact_client import from_environment as artifact_client
+        check_artifact_schema(engine)
+        artifact_client().close()  # validate TLS/credential config, no remote writes
     if env_bool("DURABLE_TASKS", False):
         from automation.work_preflight import check
         check()

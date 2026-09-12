@@ -23,6 +23,8 @@ def main():
     os.environ["REPORT_DELIVERY_GUARDS"] = "false"
     os.environ["SHARED_READ_CACHE"] = "false"
     os.environ["DURABLE_REPORT_LINKS"] = "false"
+    os.environ["DURABLE_REPORT_FILES"] = "false"
+    os.environ["SHARED_REPORT_ARTIFACTS"] = "false"
     os.environ["LEGACY_REPORT_LINK_READS"] = "true"
     os.environ["CELERY_BROKER_URL"] = "redis://test-redis:6379/0"
     os.environ["UPLOADS_DIR"] = "/tmp/admirra-test-uploads"

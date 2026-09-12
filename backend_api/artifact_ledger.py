@@ -189,6 +189,22 @@ def revoke_link(db, id, creator_id):
         raise LinkUnavailable()
 
 
+def list_links(db, creator_id, limit=50, before=None):
+    if not 1 <= limit <= 100:
+        raise ValueError("Invalid page size")
+    # Management IDs and dates only: no bearer/hash/artifact/scope disclosure.
+    query = sa.select(file_links.c.id.label("link_id"), file_links.c.created_at,
+        file_links.c.expires_at, file_links.c.revoked_at).where(file_links.c.creator_id == creator_id)
+    if before is not None:
+        cursor = db.execute(sa.select(file_links.c.created_at, file_links.c.id).where(
+            file_links.c.id == before, file_links.c.creator_id == creator_id)).first()
+        if cursor is None:
+            raise LinkUnavailable()
+        query = query.where(sa.tuple_(file_links.c.created_at, file_links.c.id) < sa.tuple_(*cursor))
+    return [dict(row) for row in db.execute(query.order_by(file_links.c.created_at.desc(),
+        file_links.c.id.desc()).limit(limit)).mappings()]
+
+
 def claim_cleanup(db, limit=50):
     if not 1 <= limit <= 100:
         raise ValueError("Invalid cleanup batch size")

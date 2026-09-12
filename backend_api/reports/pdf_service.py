@@ -140,6 +140,7 @@ def generate_report_pdf(
     logger.info("pdf_service: rendering PDF, ai_comment length=%d", len(ai_comment))
 
     data = {
+        "_scope_client_ids": [str(id) for id in effective_client_ids],
         "summary": summary,
         "top_campaigns": top_campaigns,
         "client_name": client_name or "",
