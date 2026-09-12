@@ -1,34 +1,12 @@
 """Explicit allowlist. No arbitrary import/function name from broker payloads."""
 import asyncio
 from datetime import datetime
-import uuid
 
 
 async def _goals(payload):
     from core.database import SessionLocal
-    from core import models, security
-    from automation.sync import (_sync_metrika_goals_for_direct, _selected_yandex_direct_profile,
-                                 _metrika_utm_source_filter, _avito_utm_source)
-    with SessionLocal() as db:
-        integration = db.query(models.Integration).filter(models.Integration.id == uuid.UUID(payload["integration_id"])).first()
-        if integration is None:
-            return
-        from backend_api.services.project_settings import is_project_paused
-        if is_project_paused(integration.client):
-            return
-        filters = None
-        if integration.platform == models.IntegrationPlatform.AVITO_ADS:
-            from automation.avito_integration_helpers import avito_metrika_access_token, avito_metrika_profile_login
-            token, profile = avito_metrika_access_token(integration), avito_metrika_profile_login(integration)
-            filters = _metrika_utm_source_filter(_avito_utm_source(integration))
-        elif integration.platform == models.IntegrationPlatform.YANDEX_DIRECT:
-            token, profile = security.decrypt_token(integration.access_token), _selected_yandex_direct_profile(integration)
-        else:
-            return
-        if not token:
-            raise ValueError("Metrika credentials are unavailable")
-        await _sync_metrika_goals_for_direct(db, integration, payload["date_from"], payload["date_to"], token, profile, filters=filters)
-        db.commit()
+    from automation.metrika_goal_work import execute
+    return await execute(SessionLocal, payload)
 
 
 async def _async_run(kind, payload):

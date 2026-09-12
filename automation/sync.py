@@ -339,37 +339,10 @@ async def _sync_metrika_goals_for_direct(
     has_existing_data = db.query(models.MetrikaGoals.id).filter(
         models.MetrikaGoals.integration_id == integration.id
     ).first() is not None
-    sync_date_from = date_from
-    sync_date_to = date_to
-    if not has_existing_data or integration.sync_status == models.IntegrationSyncStatus.NEVER:
-        end_date_obj = datetime.strptime(date_to, "%Y-%m-%d").date()
-        sync_date_from = (end_date_obj - timedelta(days=89)).strftime("%Y-%m-%d")
-        sync_date_to = end_date_obj.strftime("%Y-%m-%d")
-        logger.info(
-            "🔄 First goals sync for Direct integration %s: %s..%s",
-            integration.id,
-            sync_date_from,
-            sync_date_to,
-        )
-
-    # Цели Метрики дозачисляются ЗАДНИМ ЧИСЛОМ (окно атрибуции): клик был раньше, а
-    # достижение цели засчитывается позже. При узком инкрементальном окне (3-7 дней)
-    # прошлые дни не перекачиваются и сохранённые цели отстают от реальных. Поэтому
-    # ТОЛЬКО для целей всегда берём окно с запасом назад (METRIKA_GOALS_LOOKBACK_DAYS,
-    # по умолчанию 30). Функция ниже удаляет период и перекачивает заново — идемпотентно,
-    # не двоит. Запрос целей лёгкий, поэтому скорость общего синка не страдает.
-    try:
-        _goals_lookback = int(os.getenv("METRIKA_GOALS_LOOKBACK_DAYS", "30"))
-        _end_obj = datetime.strptime(sync_date_to, "%Y-%m-%d").date()
-        _floor = (_end_obj - timedelta(days=_goals_lookback)).strftime("%Y-%m-%d")
-        if _floor < sync_date_from:
-            sync_date_from = _floor
-            logger.info(
-                "🔄 Metrika goals lookback widened to %s..%s (%sd) for integration %s",
-                sync_date_from, sync_date_to, _goals_lookback, integration.id,
-            )
-    except Exception as _gl_err:
-        logger.info("Metrika goals lookback skip for %s: %s", integration.id, _gl_err)
+    # Shared with the durable goals-only worker: preserve attribution lookback.
+    from automation.metrika_goal_window import goal_window
+    days = goal_window(date_from, date_to,
+        first_sync=not has_existing_data or integration.sync_status == models.IntegrationSyncStatus.NEVER)
 
     sync_key = str(integration.id)
     with _metrika_goals_write_lock:
@@ -380,7 +353,6 @@ async def _sync_metrika_goals_for_direct(
 
     try:
         from automation.metrika_goal_batch import latest_goal_names, collect_goal_rows, replace_goal_window
-        days = list(_date_items(sync_date_from, sync_date_to))
         historical_names = latest_goal_names(db, integration.id, selected_goals)
         rows, missing_goals = await collect_goal_rows(
             metrika_api, queue, all_counter_ids, selected_goals, days, historical_names,

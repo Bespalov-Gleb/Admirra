@@ -30,6 +30,8 @@
 
 `test_celery_recovery.py` теперь запускает первый реальный Redis → Celery вызов именно через новый publisher, затем проверяет падение дочернего worker, восстановление и дубликаты. Старые durable/backfill tests обновлены под границы транзакций; приоритет ручной синхронизации сохранён.
 
-Первый targeted прогон до добавления двух process-death cases: **37 passed**, 16 warnings, 5,13 s. Финальный полный source-bind regression: **420 passed, 1 skipped, 1 deselected**, 47 warnings, 79,98 s. Проверка чистого committed image — следующий отдельный шаг.
+Первый targeted прогон до добавления двух process-death cases: **37 passed**, 16 warnings, 5,13 s. Финальный полный source-bind regression: **420 passed, 1 skipped, 1 deselected**, 47 warnings, 79,98 s.
+
+Committed image `admirra-devops:c6686de`: **420 passed, 1 skipped, 1 deselected**, 47 warnings, 79,24 s, без source-bind. ID `sha256:da5b6d384f45dcf4e77e0de8f1911ca7189fba3a52386a2a9d3deb08ea7dfb0b`, release label `c6686de`. Первоначальный image-прогон с 27 ошибками не принят: тестовый PostgreSQL остановился из-за заполнения WAL tmpfs, подробности и test-only исправление в [следующем пакете](devops-goals-transactions-2026-09-12.md).
 
 Следующий участок: короткие транзакции при сборе целей Метрики с повторной проверкой настроек перед записью. T03/T07/T08 целиком не закрыты.
