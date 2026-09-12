@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "status": "prepared-not-load-accepted",
+  "host": "server-2",
+  "observed_date": "2026-09-12",
+  "memory_mib": 7940,
+  "os_reserve_mib": 1536,
+  "cpus": 4,
+  "worker_db_role_limit": 20,
+  "worker_db_reserve": 4,
+  "services": ["broker", "cache", "sync-manual", "sync-nightly", "reports", "maintenance", "ai-prewarm", "scheduler"],
+  "api2_candidate": {
+    "memory_mib": 1024,
+    "cpus": 1.5,
+    "processes": 1,
+    "db_pool_size": 5,
+    "db_max_overflow": 5,
+    "api_db_role_limit": 30,
+    "api1_reserved_connections": 10,
+    "api_db_reserve": 5
+  }
+}

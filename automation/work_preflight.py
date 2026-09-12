@@ -5,6 +5,19 @@ from urllib.parse import urlsplit
 import sqlalchemy as sa
 
 
+def prepare_worker_parent():
+    """Preflight may open SQL connections; parent must not retain them at fork.
+
+    Child processes create their own pool in worker_process_init. Heartbeats
+    share each child's two-connection budget, not a separate unlimited pool.
+    """
+    check()
+    from core.database import engine
+    if engine.pool.checkedout():
+        raise RuntimeError("Cannot fork a worker with checked-out SQL connections")
+    engine.dispose()
+
+
 def check():
     from core.database import engine
     if (os.getenv("WW_TEST") == "1" and os.getenv("WW_TEST_ID")

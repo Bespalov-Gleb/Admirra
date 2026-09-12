@@ -1,0 +1,49 @@
+# DB-02 / ресурсы — родительские пулы Celery и проверка capacity
+
+Часть T03 / §4.3, DB-01–02. Подготовлено локально; production workers/API не запускались. Это не акт завершения всего DB/двухсерверного этапа.
+
+## Подтверждённый риск и исправление
+
+`automation.work_worker` выполнял SQL preflight до prefork, оставляя idle connection в родительском pool. `worker_process_init` уже правильно создавал дочерний pool через `dispose(close=False)`, но это не освобождало соединение **родителя**. Пять parent-процессов могли дополнительно держать 5 idle connections поверх 14 child + 2 scheduler — выше лимита 20 у `admirra_worker`.
+
+Теперь `prepare_worker_parent()` выполняет preflight, требует отсутствия checked-out SQL connections и закрывает parent pool **до** fork. Если незавершённая SQL session осталась, запуск отклоняется. Child reset сохранён, child не закрывает сокет родителя. Runtime engine остаётся пригодным для новых соединений.
+
+Проверки используют настоящий PostgreSQL: preflight → ноль idle/checked-out connections; запрет fork с активным соединением; настоящий `fork` → разные `pg_backend_pid`, при этом parent connection остаётся работоспособным. Существующие tests SIGKILL/recovery настоящего Celery worker продолжают проходить. Рекомендуемый entrypoint — только `python -m automation.work_worker`, не обходной raw Celery CLI.
+
+Основание: [SQLAlchemy pooling и multiprocessing](https://docs.sqlalchemy.org/en/20/core/pooling.html#using-connection-pools-with-multiprocessing-or-os-fork).
+
+## Manifest и арифметический gate
+
+`ops/worker_capacity.json` фиксирует наблюдённую память сервера 2 и budgets. `ops/check_worker_capacity.py` читает **реальный prepared Compose**, считает replicas × prefork children × pool cap; parent учтён как процесс, но больше не держит SQL pool. Heartbeat использует второй слот child pool, не отдельный безлимитный engine. Пулы меньше 2 для worker отклоняются.
+
+```sh
+python3 -m ops.check_worker_capacity
+python3 -m ops.check_worker_capacity --with-api2
+```
+
+Только чтение структуры: Compose `config --no-env-resolution --no-interpolate --format json`, env interpolation file `/dev/null`. Пароли/полные env/разрешённая конфигурация не печатаются; выводится только арифметический отчёт. Неизвестные service, отсутствие caps, autoscale/другой pool, неподтверждённые units приводят к отказу. [Docker Compose config](https://docs.docker.com/reference/cli/docker/compose/config/).
+
+Фактический результат на сервере 2:
+
+| Вариант | Container memory caps | Остаток ОС | SQL worker | Результат |
+| --- | ---: | ---: | ---: | --- |
+| Исходный prepared workers, новый pool lifecycle | 6400 MiB | 1540 MiB | 16 + 4 reserve = 20 | Арифметика проходит, нагрузка **не принята** |
+| Те же workers + кандидат API-2 1024 MiB / 1 process | 7424 MiB | 516 MiB | 16; API-2 отдельно 10 | Отказ: нарушен минимум 1536 MiB для ОС |
+
+Даже первый вариант почти не имеет запаса сверх минимального резерва. CPU caps суммарно 7,5 на 4 CPU (с API-2 — 9); они могут конкурировать, это не зарезервированные ядра. tmpfs входит в container memory, пики рендера/RSS/PSS и AOF rewrite требуют нагрузки. `capacity_pass=true` **никогда** не означает `load_accepted=true` или разрешение production cutover.
+
+Не урезали память jobs вслепую и не повысили DB role limits, чтобы «прошёл тест». Для двух API нужно измерить пики и пересобрать бюджет/расположение ролей, либо увеличить ресурс; проявить нужные лимиты в проверенном Compose. Manifest кандидата API-2 — план ресурсов, не готовый ingress/deploy config и не проверка всего сервера 1.
+
+## Read-only снимок инфраструктуры 12.09
+
+Оба узла: 4 CPU, `MemTotal` около 7940 MiB. На сервере 1 PostgreSQL: max_connections=200, shared_buffers=1GB, work_mem=8MB, max_parallel_workers=8; во время проверки 11 idle и 1 active connection, 5 внутренних backend states. Это мгновенный снимок, не peak/RPS.
+
+Сервер 1: disk `/` около **80%**, доступно 7401 MiB; сервер 2 около 64%, доступно 6296 MiB. Нужны отдельные disk/backup/retention gates, автоматическое удаление образов/backup не запускалось. Legacy service memory не ограничена индивидуально (показывается общий host limit); перед cutover нужно заменить это на проверенный manifest сервера 1.
+
+## Evidence и продолжение
+
+Первый targeted pool/capacity/Celery recovery: **13 passed**, 1 warning, 15,62 s. Затем добавлены 11 unit cases для реальных строковых memory units Compose; полный regression фиксируется после прогона. Actual Compose gate успешно прочитал units и выдал указанные totals; вариант API-2 завершился exit 1 по правильной причине.
+
+Финальный source-bind regression: **406 passed, 1 skipped, 1 deselected**, 47 warnings, 77,52 s. Committed image acceptance — отдельная следующая запись.
+
+Следующие части T03: вынести broker publish из открытой SQL-транзакции scheduler, затем длинные внешние ожидания sync/report/AI/billing; manifest сервера 1; измеримые SQL/maintenance и полный resource/load acceptance. Общий production cutover и offsite restore по-прежнему gated.
