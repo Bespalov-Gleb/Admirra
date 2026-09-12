@@ -65,7 +65,8 @@ def test_real_child_crash_recovery_and_duplicate_delivery(pg, tmp_path, monkeypa
             job = ledger.submit(db, kind="test.probe", queue="maintenance", key=marker,
                                 resource=marker, tenant="test", payload={"value": 7, "marker": marker, "delay": 20},
                                 replay_safe=True)
-        app.send_task("admirra.test_execute", args=[str(job)], queue="maintenance")
+        ledger.publish_pending(factory, lambda job_id, queue: app.send_task(
+            "admirra.test_execute", args=[job_id], queue=queue, retry=False))
         def child_started():
             assert proc.poll() is None, log_path.read_text()
             return client.get(f"probe:{marker}")

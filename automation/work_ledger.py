@@ -132,23 +132,52 @@ def finish(db, job_id, token, *, error=None):
     return bool(changed)
 
 
-def publish_pending(db, send, *, batch_size=10):
-    """At-least-once publication: crash after send may duplicate a message, not work.
+def reserve_publications(db, *, batch_size=10):
+    """Short transaction: reserve attempts, never call Redis in here.
 
-Keep the outbox until terminal state. Re-publish queued work periodically even
-after a successful publish, so losing Redis data cannot lose a committed job.
-"""
+    Outbox deadline is the publication lease; publish_count is its monotonic
+    generation/attempt count, not a business execution or success counter.
+    """
+    if isinstance(batch_size, bool) or not isinstance(batch_size, int) or not 1 <= batch_size <= 10:
+        raise ValueError("Publication batch must contain 1..10 jobs")
     now = _clock(db)
     pending = db.execute(sa.select(jobs.c.id, jobs.c.queue).join(outbox, outbox.c.job_id == jobs.c.id).where(
         jobs.c.state == "queued", jobs.c.available_at <= now, outbox.c.next_publish_at <= now,
     ).order_by(sa.case(
         (jobs.c.queue == "sync.manual", 0), (jobs.c.queue == "reports", 1),
         (jobs.c.queue == "maintenance", 2), (jobs.c.queue == "sync.nightly", 3),
-        (jobs.c.queue == "ai.prewarm", 4), else_=5), jobs.c.created_at)
+        (jobs.c.queue == "ai.prewarm", 4), else_=5), jobs.c.created_at, jobs.c.id)
         .with_for_update(of=outbox, skip_locked=True).limit(batch_size)).all()
+    reserved = []
     for job_id, queue in pending:
-        send(str(job_id), queue)
-        db.execute(outbox.update().where(outbox.c.job_id == job_id).values(
-            next_publish_at=now + timedelta(seconds=30), publish_count=outbox.c.publish_count + 1,
-        ))
+        row = db.execute(outbox.update().where(outbox.c.job_id == job_id).values(
+            next_publish_at=now + timedelta(seconds=120), publish_count=outbox.c.publish_count + 1,
+        ).returning(outbox.c.publish_count, outbox.c.next_publish_at)).one()
+        reserved.append({"job_id": job_id, "queue": queue, "generation": row.publish_count,
+                         "deadline": row.next_publish_at})
+    return reserved
+
+
+def confirm_publication(db, publication):
+    """A late publisher cannot postpone a successor/recovered job's attempt."""
+    now = _clock(db)
+    return db.execute(outbox.update().where(outbox.c.job_id == publication["job_id"],
+        outbox.c.publish_count == publication["generation"], outbox.c.next_publish_at == publication["deadline"],
+        outbox.c.next_publish_at > now).values(next_publish_at=now + timedelta(seconds=30))).rowcount == 1
+
+
+def publish_pending(factory, send, *, batch_size=10):
+    """Reserve/commit -> transport outside SQL -> fenced short confirmation.
+
+    Outbox survives every send, including unknown results. Crash before or after
+    send retries after the 120s reservation; successful queued work is replayed
+    every 30s until claimed/terminal, so losing Redis cannot lose committed jobs.
+    Execution deduplication remains the job ledger's responsibility.
+    """
+    with factory.begin() as db:
+        pending = reserve_publications(db, batch_size=batch_size)
+    for publication in pending:
+        send(str(publication["job_id"]), publication["queue"])
+        with factory.begin() as db:
+            confirm_publication(db, publication)
     return len(pending)

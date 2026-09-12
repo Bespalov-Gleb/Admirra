@@ -44,6 +44,6 @@ python3 -m ops.check_worker_capacity --with-api2
 
 Первый targeted pool/capacity/Celery recovery: **13 passed**, 1 warning, 15,62 s. Затем добавлены 11 unit cases для реальных строковых memory units Compose; полный regression фиксируется после прогона. Actual Compose gate успешно прочитал units и выдал указанные totals; вариант API-2 завершился exit 1 по правильной причине.
 
-Финальный source-bind regression: **406 passed, 1 skipped, 1 deselected**, 47 warnings, 77,52 s. Committed image acceptance — отдельная следующая запись.
+Финальный source-bind regression: **406 passed, 1 skipped, 1 deselected**, 47 warnings, 77,52 s. Чистый committed image `admirra-devops:9bfa49a` без source-bind: **406 passed, 1 skipped, 1 deselected**, 47 warnings, 78,26 s. Image ID `sha256:1c1cb690297f16e451c9b3e33551ac6c271f699b9cea7e3336f0083769c05779`, release label `9bfa49a`. Это regression выбранного backend-набора, не load acceptance.
 
 Следующие части T03: вынести broker publish из открытой SQL-транзакции scheduler, затем длинные внешние ожидания sync/report/AI/billing; manifest сервера 1; измеримые SQL/maintenance и полный resource/load acceptance. Общий production cutover и offsite restore по-прежнему gated.

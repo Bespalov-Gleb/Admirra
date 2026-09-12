@@ -78,9 +78,8 @@ def main():
                 from automation.backfill_work import reconcile
                 reconcile(db, min_age_seconds=15)
                 prune_completed(db)
-            with SessionLocal.begin() as db:
-                published = publish_pending(db, lambda job_id, queue: app.send_task(
-                    "admirra.execute", args=[job_id], queue=queue, retry=False), batch_size=10)
+            published = publish_pending(SessionLocal, lambda job_id, queue: app.send_task(
+                "admirra.execute", args=[job_id], queue=queue, retry=False), batch_size=10)
             if published:
                 log.info("Published %d durable jobs", published)
         except Exception as exc:

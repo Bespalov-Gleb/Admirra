@@ -104,9 +104,10 @@ def test_manual_queue_has_priority_and_backfill_global_cap(backfills):
         historic = db.execute(sa.select(jobs.c.id).where(jobs.c.kind == "history.backfill")
             .order_by(jobs.c.payload["date_from"].astext)).scalars().all()
         assert work.claim(db, historic[0]) is None
-        published = []
-        work.publish_pending(db, lambda id, queue: published.append((id, queue)), batch_size=1)
-        assert published == [(str(manual), "sync.manual")]
+    published = []
+    work.publish_pending(factory, lambda id, queue: published.append((id, queue)), batch_size=1)
+    assert published == [(str(manual), "sync.manual")]
+    with factory.begin() as db:
         running = work.claim(db, manual)
         h = work.claim(db, historic[0])
         assert h is not None  # leaves capacity for current work

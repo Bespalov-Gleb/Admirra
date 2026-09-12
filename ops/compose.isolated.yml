@@ -40,6 +40,7 @@ services:
       - tests/test_worker_pool_lifecycle.py
       - tests/test_worker_capacity.py
       - tests/test_durable_work.py
+      - tests/test_outbox_publication.py
       - tests/test_celery_recovery.py
       - tests/test_provider_transport.py
       - tests/test_private_link.py

@@ -100,16 +100,21 @@ def test_publisher_crash_after_send_then_redis_loss(pg):
     factory, _ = pg
     job = submit(factory)
     sent = []
-    with factory() as db:
-        ledger.publish_pending(db, lambda *args: sent.append(args))
-        db.rollback()  # broker accepted but publisher died before COMMIT
+    def accepted_then_lost(*args):
+        sent.append(args)
+        raise RuntimeError("Synthetic lost broker response")
+    with pytest.raises(RuntimeError):
+        ledger.publish_pending(factory, accepted_then_lost)
+    assert ledger.publish_pending(factory, lambda *args: sent.append(args)) == 0
+    # Committed reservation expires after a publisher crash; outbox survives.
     with factory.begin() as db:
-        assert ledger.publish_pending(db, lambda *args: sent.append(args)) == 1
+        db.execute(outbox.update().values(next_publish_at=sa.func.now()))
+    assert ledger.publish_pending(factory, lambda *args: sent.append(args)) == 1
     assert sent == [(str(job), "sync.manual")] * 2
     # Even if Redis loses both messages, the committed job will be republished.
     with factory.begin() as db:
         db.execute(outbox.update().values(next_publish_at=sa.func.now()))
-        assert ledger.publish_pending(db, lambda *args: sent.append(args)) == 1
+    assert ledger.publish_pending(factory, lambda *args: sent.append(args)) == 1
     execution = claim(factory, job)
     assert claim(factory, job) is None
     with factory.begin() as db:
