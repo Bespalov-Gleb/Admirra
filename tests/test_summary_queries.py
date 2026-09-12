@@ -106,11 +106,8 @@ def test_platform_totals_and_previous_period(summary_db, platform, leads, cost):
     assert result["expenses"] == cost
     assert result["prev"]["leads"] == leads * 2
     assert result["trends"]["leads"] == -50
-    # Preserve existing formula in this performance-only change. Avito currently
-    # double-counts the denominator in aggregate_summary; tracked in stage4 docs
-    # for a separate correctness patch (combined folder CPL is calculated anew).
-    cpa_leads = leads * 2 if platform == "avito" else leads
-    assert result["cpa"] == round((3000 if platform == "vk" else cost) / cpa_leads, 2)
+    # DATA-02: Avito's selected Metrika conversions are counted exactly once.
+    assert result["cpa"] == round((3000 if platform == "vk" else cost) / leads, 2)
     assert result["goals_syncing"] is False
     assert len(queries) <= 6
     assert sum("FROM integrations" in q and "FROM campaigns" in q for q in queries) == 1
@@ -261,6 +258,16 @@ def test_optional_full_response_comparison_with_previous_release(summary_db):
                         old = before.aggregate_summary(*args, **kwargs)
                     with statements(engine) as new_sql:
                         new = StatsService.aggregate_summary(*args, **kwargs)
+                    old = {**old, "calculation_version": StatsService.CALCULATION_VERSION}
+                    if platform == "avito":
+                        # The prior performance baseline intentionally preserved
+                        # the known denominator bug. Only CPA may change now.
+                        old = dict(old)
+                        old["cpa"] = new["cpa"]
+                        if old.get("trends"):
+                            old["trends"] = {**old["trends"], "cpa": new["trends"]["cpa"]}
+                        lead_cost = float((new.get("lead_cost_by_platform") or {}).get("avito") or 0)
+                        assert new["cpa"] == (round(lead_cost / new["leads"], 2) if new["leads"] else 0)
                     assert new == old, (clients, platform, trends, campaigns, old, new)
                     totals[0] += len(old_sql)
                     totals[1] += len(new_sql)

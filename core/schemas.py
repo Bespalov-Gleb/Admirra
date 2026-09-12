@@ -419,6 +419,7 @@ class StatsTrend(BaseModel):
     cr: float = 0
 
 class StatsSummary(BaseModel):
+    calculation_version: Optional[str] = None
     expenses: float
     impressions: int
     clicks: int

@@ -638,7 +638,7 @@ def _build_comment_context(db: Session, effective_client_ids: list, d_start, d_e
         snapshots = client_row.last_dashboard_snapshot if isinstance(client_row.last_dashboard_snapshot, dict) else {}
         previous = snapshots.get("previous") if isinstance(snapshots.get("previous"), dict) else None
         current = snapshots.get("current") if isinstance(snapshots.get("current"), dict) else None
-        if previous and current:
+        if previous and current and StatsService.dashboard_snapshots_comparable(previous, current, platform):
             def _snapshot_metric(key: str, *, money: bool = False) -> dict:
                 before = float(previous.get(key) or 0)
                 after = float(current.get(key) or 0)

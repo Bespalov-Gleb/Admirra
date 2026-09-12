@@ -1363,6 +1363,7 @@ async def get_summary(
                     previous_view = previous_view.replace(tzinfo=timezone.utc)
                 stored = client.last_dashboard_snapshot if isinstance(client.last_dashboard_snapshot, dict) else {}
                 current = {
+                    "calculation_version": result.get("calculation_version"),
                     "captured_at": now.isoformat(),
                     "period_from": d_start.isoformat(),
                     "period_to": d_end.isoformat(),

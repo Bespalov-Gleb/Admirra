@@ -35,6 +35,18 @@ def resolve_previous_period(date_from_obj, date_to_obj, preset: Optional[str] = 
 
 
 class StatsService:
+    CALCULATION_VERSION = "summary-2-avito-cpl"
+
+    @staticmethod
+    def dashboard_snapshots_comparable(previous, current, platform):
+        # Do not describe a corrected denominator as advertising deterioration
+        # since the last visit. Unaffected channels retain their current logic.
+        if platform != "avito":
+            return True
+        return all(snapshot.get("platform") == "avito"
+                   and snapshot.get("calculation_version") == StatsService.CALCULATION_VERSION
+                   for snapshot in (previous, current))
+
     @staticmethod
     def get_vk_lead_action_scope(
         db: Session,
@@ -305,6 +317,7 @@ class StatsService:
     ):
         if not client_ids:
             return {
+                "calculation_version": StatsService.CALCULATION_VERSION,
                 "expenses": 0,
                 "impressions": 0,
                 "clicks": 0,
@@ -652,7 +665,9 @@ class StatsService:
             
             # CPA для Yandex: всегда из Метрики (selected_goals); по выбранным
             # кампаниям используем ту же пропорциональную оценку, что и для лидов.
-            yandex_convs_for_cpa = yandex_metrika_convs
+            # With platform=avito, m_q contains Avito's selected goals. They are
+            # not a second Yandex contribution to the weighted denominator.
+            yandex_convs_for_cpa = yandex_metrika_convs if platform in ("all", "yandex") else 0
             # Для Yandex: CPC из Директа, CPA — из целевых лидов.
             yandex_clicks = int((y_s.total_clicks if y_s else 0) or 0)
             yandex_avg_cpc = yandex_cost / yandex_clicks if yandex_clicks > 0 else 0.0
@@ -867,6 +882,7 @@ class StatsService:
             balance_currency = None
             # Пропускаем дальнейшую обработку балансов
             return {
+                "calculation_version": StatsService.CALCULATION_VERSION,
                 "expenses": round(curr["costs"], 2),
                 "impressions": int(curr["imps"]),
                 "clicks": int(curr["clks"]),
@@ -969,6 +985,7 @@ class StatsService:
                     balance_by_platform[key] += float(b.balance)
 
         return {
+            "calculation_version": StatsService.CALCULATION_VERSION,
             "expenses": round(curr["costs"], 2),
             "impressions": int(curr["imps"]),
             "clicks": int(curr["clks"]),
