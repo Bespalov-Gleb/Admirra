@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Body
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, contains_eager, selectinload
 from sqlalchemy import and_, func
 from core.database import get_db, SessionLocal
 from core import models, schemas, security
@@ -577,6 +577,9 @@ def get_integrations(
         return []
     q = db.query(models.Integration).join(models.Client).filter(
         models.Integration.client_id.in_(accessible_client_ids)
+    ).options(
+        contains_eager(models.Integration.client),
+        selectinload(models.Integration.campaigns),
     )
     if client_id:
         try:

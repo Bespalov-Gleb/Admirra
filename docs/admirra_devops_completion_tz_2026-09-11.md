@@ -22,6 +22,8 @@
 
 ## 0. Как пользоваться ТЗ
 
+**DB-03 / T05 — N+1 интеграций 13.09**: [изменение, query budgets и ограничения](devops-integration-list-2026-09-13.md). Пакетная загрузка проекта/кампаний с сохранением response/ACL; на 20 интеграциях data path 41 → 2 SELECT. Это не завершение общего batch API дашборда и не измерение production latency.
+
 **DB-03 / интервальный sampler 13.09**: [реализация, тесты и спокойный production sample](devops-db03-sampling-2026-09-13.md). Две read-only выборки без SQL-текста, защита от reset/restart/eviction; короткое окно не заменяет нагрузочную приёмку. Индексы/серверные настройки production не менялись.
 
 **DB-03 / inventory 13.09**: [read-only аудит и актуальный baseline](devops-db03-audit-2026-09-13.md). БД ~779 MiB, pg_stat_statements уже установлен, выделены вопросы по VK/keywords/groups для парных замеров и планов. Индексы/production PostgreSQL настройки не менялись; это не завершение оптимизации.
