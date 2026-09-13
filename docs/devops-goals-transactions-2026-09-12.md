@@ -36,7 +36,7 @@
 - отдельный Avito token/login и escaping UTM, отказ без его grant;
 - paused project без HTTP, запрет запуска без fence, секреты не попадают в repr.
 
-Полный source-bind regression: **441 passed, 1 skipped, 1 deselected**, 47 warnings, 95,88 s. Прогон использует обновлённый test-only WAL budget; после проверки рабочий сайт отдельно ответил HTTPS 200 и остался на `cdf0a4d`, контейнеры production не перезапускались. Committed image acceptance — отдельная последующая запись.
+Полный source-bind regression: **441 passed, 1 skipped, 1 deselected**, 47 warnings, 95,88 s. Чистый committed image `admirra-devops:28bebd0`, без source-bind: **441 passed, 1 skipped, 1 deselected**, 47 warnings, 97,56 s; ID `sha256:41d13c8523df0f66424e369609f3d1a8e132765ca5168105f604e21caed1b1b8`, release label `28bebd0`. Прогоны используют обновлённый test-only WAL budget; после проверки рабочий сайт отдельно ответил HTTPS 200 и остался на `cdf0a4d`, контейнеры production не перезапускались.
 
 ## Ограничение изолированного стенда
 

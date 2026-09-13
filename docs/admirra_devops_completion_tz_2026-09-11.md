@@ -20,6 +20,8 @@
 
 ## 0. Как пользоваться ТЗ
 
+**DB-03 / inventory 13.09**: [read-only аудит и актуальный baseline](devops-db03-audit-2026-09-13.md). БД ~779 MiB, pg_stat_statements уже установлен, выделены вопросы по VK/keywords/groups для парных замеров и планов. Индексы/production PostgreSQL настройки не менялись; это не завершение оптимизации.
+
 **Goals-only / T03/T07**: [короткие транзакции и guard настроек](devops-goals-transactions-2026-09-12.md). Внешние запросы Метрики без SQL connection, атомарная запись только при неизменных настройках и живом job lease. Полный legacy sync остаётся отдельной задачей.
 
 Продолжение **DB-02 / outbox**: [публикация Redis без SQL-транзакции](devops-outbox-2026-09-12.md). Короткое резервирование → внешний transport → fenced confirmation; PostgreSQL остаётся источником истины. Реализация локальная, не production cutover.
