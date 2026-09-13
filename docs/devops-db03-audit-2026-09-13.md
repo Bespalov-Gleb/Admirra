@@ -19,7 +19,7 @@ python -m ops.db_read_audit
 Инструмент передан в stdin отдельного Python-процесса в существующем backend-контейнере. Файлы/env на сервере не менялись; никаких миграций, ANALYZE, VACUUM, CREATE INDEX или restart. Сырой JSON без бизнес-строк сохранён локально в `/private/tmp/admirra-db-audit-2026-09-13.json` (временный диагностический файл, не deploy artifact).
 
 - PostgreSQL 15.18, старт 13.08.2026 00:23 UTC. БД **816 758 119 bytes (~779 MiB)**.
-- `pg_stat_statements` установлен. Для следующего bounded sampling не нужно устанавливать расширение/перезапускать БД; фактический доступ к его счётчикам ещё проверить.
+- `pg_stat_statements` установлен. Отдельный запрос `COUNT(*)` в read-only транзакции с timeout 3 s к `public.pg_stat_statements` успешно вернул 3214 записей для текущей БД. Тексты/параметры запросов не извлекались. Для следующего bounded sampling не нужно устанавливать расширение/перезапускать БД; сбор свежих дельт и привязка к коду остаются следующим шагом.
 - 11 соединений, все idle; blocked=0, idle-in-transaction=0, активных кроме диагностического=0. Права просмотра activity полные. Это мгновенный снимок.
 - На выбранных таблицах не найдено invalid/not-ready индексов, ответ не усечён.
 - `stats_reset=NULL`: не вычислять скорость за месяц из этих totals; нужны парные замеры с проверкой reset/restart.
@@ -38,6 +38,8 @@ Per-table `storage_options=NULL` у выбранных таблиц: индив�
 
 ## Проверки и границы
 
-Targeted PostgreSQL: **4 passed**, 0,61 s. Проверены read-only/локальные timeouts, закрытие pool, отсутствие synthetic PII в отчёте, SQL-инъекция через schema (bound parameter), принудительный запрет случайного DDL и отсутствие credentials в CLI-ошибке.
+Targeted PostgreSQL: **4 passed**, 0,61 s; повтор после добавления детализации heap/index/storage_options — **4 passed**, 0,65 s. Проверены read-only/локальные timeouts, закрытие pool, отсутствие synthetic PII в отчёте, SQL-инъекция через schema (bound parameter), принудительный запрет случайного DDL и отсутствие credentials в CLI-ошибке.
 
 Source-bind полный regression: **445 passed, 1 skipped, 1 deselected**, 47 warnings, 98,82 s. После него добавлена детализация heap/index/storage_options (отдельный targeted повтор); окончательная проверка committed image фиксируется отдельно. Это диагностическая реализация, не ускорение production и не разрешение cutover. Настройки PostgreSQL и права runtime не повышались.
+
+Окончательный committed image `admirra-devops:3429be3`, без source-bind: **445 passed, 1 skipped, 1 deselected**, 47 warnings, 95,35 s. Image ID `sha256:d004c2ba41a7450e045d028f12b100123a0e3373f03790ae9161593a59a7dd89`, release label `3429be3`. `pip check` прошёл; в образе отсутствуют `.env`, `.git`, uploads, landing и frontend. На production 13.09 повторно подтверждены `cdf0a4d` и HTTPS 200.
