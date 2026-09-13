@@ -21,7 +21,7 @@ services:
       POSTGRES_PASSWORD: isolated-test-only
     # Synthetic schema-heavy tests must not inherit a 1GB WAL budget inside
     # a 512MB tmpfs. These are test-only settings, never production tuning.
-    command: ["postgres", "-c", "max_connections=30", "-c", "shared_buffers=128MB", "-c", "max_wal_size=128MB", "-c", "min_wal_size=32MB", "-c", "checkpoint_timeout=30s", "-c", "checkpoint_completion_target=0.5"]
+    command: ["postgres", "-c", "max_connections=30", "-c", "shared_buffers=128MB", "-c", "max_wal_size=128MB", "-c", "min_wal_size=32MB", "-c", "checkpoint_timeout=30s", "-c", "checkpoint_completion_target=0.5", "-c", "shared_preload_libraries=pg_stat_statements"]
     tmpfs:
       - /var/lib/postgresql/data:size=512m
     shm_size: 128mb
@@ -42,6 +42,7 @@ services:
       - tests/test_worker_pool_lifecycle.py
       - tests/test_worker_capacity.py
       - tests/test_db_read_audit.py
+      - tests/test_db_statement_sample.py
       - tests/test_durable_work.py
       - tests/test_outbox_publication.py
       - tests/test_celery_recovery.py
