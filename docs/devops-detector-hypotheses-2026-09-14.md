@@ -28,10 +28,13 @@
 - Изменение state/ownership во время HTTP, lease expiry и rollback; отсутствие перезаписи fallback, очистка HTTP-ресурсов.
 - Границы ошибок sync/detector/enrichment/lease, неизменный legacy вызов без нового аргумента.
 
-Общий source-bind regression: **517 passed, 1 skipped, 1 deselected**, 47 warnings, 149,47 s. После него локально изменено только форматирование сигнатуры и docstring `sync_integration`; финальная версия проверяется в чистом образе. Image-only evidence записывается после завершения проверки артефакта.
+Общий source-bind regression: **517 passed, 1 skipped, 1 deselected**, 47 warnings, 149,47 s. После него локально изменено только форматирование сигнатуры и docstring `sync_integration`.
+
+Финальная версия коммита **`145a377`** проверена в чистом образе без source bind: **517 passed, 1 skipped, 1 deselected**, 47 warnings, 149,91 s. Image ID `sha256:496cc7080e76155544e04175f5f6ef614050672443e2576130c95958923c6656`, release label `145a377`. `pip check` успешен; `.env`, `.git`, uploads, landing и frontend отсутствуют. Логи на втором узле: `/opt/admirra-staging/145a377-build.log`, `/opt/admirra-staging/145a377-image-tests.log`. Production-приложение, миграции и реальные AI-вызовы не запускались; push не выполнен. Это регрессионная проверка выбранного набора, не нагрузочная приёмка.
 
 ## Что остаётся и как откатить
 
+- Карта ближайшего продолжения (проверена по коду): `sync_jobs._run_job_sync` / `durable_sync.execute` — manual/nightly вход; `backfill_work.execute` — исторический вход. В `sync_integration`: Direct делает catalog/balance/report gather после ORM-чтения; VK обновляет catalog до HTTP `get_goal_actions_from_statistics`, а refresh fallback делает `flush()` до повторного HTTP; отдельная Метрика удаляет/flush окно до загрузки целей; Avito получает bundle и затем вызывает Метрику с той же Session. Для каждой ветки нужны отдельные snapshot/settings guards и регрессионные fixtures, а не общий `commit()` перед await. Исторический вход должен сохранить `historical=True` и не менять свежий sync status/детектор.
 - Это устранение одной длинной SQL-транзакции в новом durable sync, а не перевод всего `sync_integration` на snapshot/collect/apply. Полные рекламные HTTP-стадии, refresh credentials, частичные результаты/coverage и отдельный report pipeline ещё требуют реализации.
 - Остальные legacy вызовы `sync_integration` без durable fence сохраняют прежний путь. Нельзя включать одновременно legacy и durable исполнителей одного ресурса.
 - Не добавлен durable paid-request ledger/reservation/usage/settlement. После process crash между платным ответом и SQL commit либо при двух интеграциях одного проекта повторная генерация по-прежнему возможна; cache/CAS не означает exactly-once оплаты. Это остаётся T10 и не считается закрытым отключением SDK retry.
