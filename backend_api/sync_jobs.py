@@ -173,6 +173,27 @@ def _release_slot(job_id: uuid.UUID, integration_id: uuid.UUID, client_id: uuid.
     _slot_freed.set()  # Wake scheduler immediately so it picks the next job without delay
 
 
+async def _sync_attempt(db, integration, date_from, date_to):
+    from core.job_fence import current_fence, LeaseLost
+    if current_fence.get() is None:
+        return await sync_integration(db, integration, date_from, date_to)
+    client_id = integration.client_id
+    enrich = await sync_integration(db, integration, date_from, date_to, defer_hypotheses=True)
+    if enrich:
+        # Only after successful data collection and deterministic detection.
+        # Commit releases this caller's connection before any external LLM IO.
+        db.commit()
+        try:
+            from automation.detector_hypothesis_work import execute
+            await execute(SessionLocal, client_id)
+        except LeaseLost:
+            raise
+        except Exception as exc:
+            # Deterministic results remain valid; optional enrichment must not
+            # trigger a retry of the entire successful advertising sync.
+            logger.warning("Detached hypotheses failed (%s)", type(exc).__name__)
+
+
 def _run_job_sync(job_id: uuid.UUID) -> None:
     db = SessionLocal()
     try:
@@ -261,7 +282,7 @@ def _run_job_sync(job_id: uuid.UUID) -> None:
                     # слот воркера до stale-таймаута в 2 часа.
                     try:
                         await asyncio.wait_for(
-                            sync_integration(db, integration, date_from, date_to),
+                            _sync_attempt(db, integration, date_from, date_to),
                             timeout=_JOB_TIMEOUT_SEC,
                         )
                     except asyncio.TimeoutError as exc:

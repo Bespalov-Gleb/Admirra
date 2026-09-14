@@ -523,9 +523,16 @@ def _run_detector_after_sync(db: Session, client_id: uuid.UUID) -> bool:
         return False
 
 
-async def sync_integration(db: Session, integration: models.Integration, date_from: str, date_to: str, *, historical: bool = False):
+async def sync_integration(
+    db: Session, integration: models.Integration, date_from: str, date_to: str,
+    *, historical: bool = False, defer_hypotheses: bool = False,
+):
     """
     Syncs a single integration for a given date range.
+
+    With defer_hypotheses, return whether deterministic detection succeeded;
+    the caller must commit completed data before detached optional LLM work.
+    Legacy callers keep the existing enrichment and None return contract.
     """
     logger.info(f"Syncing {integration.platform} for client {integration.client_id}")
     if (
@@ -1586,7 +1593,7 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
         # LLM text enriches alerts created by the detector.  If the detector
         # transaction was rolled back there is nothing new to enrich, and
         # skipping this step keeps the failure fully isolated.
-        if detector_succeeded:
+        if detector_succeeded and not defer_hypotheses:
             try:
                 from backend_api.services.detector_llm import refresh_hypothesis_texts_for_client
                 await refresh_hypothesis_texts_for_client(db, integration.client_id)
@@ -1598,6 +1605,9 @@ async def sync_integration(db: Session, integration: models.Integration, date_fr
         from backend_api.cache_service import CacheService
         CacheService.invalidate_client(str(integration.client_id))
         logger.info(f"🗑️ Cleared dashboard cache after syncing integration {integration.id}")
+
+        if defer_hypotheses:
+            return detector_succeeded
 
     except Exception as e:
         logger.error(f"Sync failed for {integration.id}: {e}")

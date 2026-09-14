@@ -22,6 +22,8 @@
 
 ## 0. Как пользоваться ТЗ
 
+**T03/T07 — detached detector hypotheses 14.09**: [этап, проверки и ограничения](devops-detector-hypotheses-2026-09-14.md). В durable sync завершённые данные/детектор фиксируются перед LLM; read/HTTP/guarded write разделены, stale response и потерянный lease не перезаписывают алерт. Полная синхронизация каналов и durable AI billing ledger остаются отдельными открытыми частями.
+
 **DB-03 / T05 — N+1 интеграций 13.09**: [изменение, query budgets и ограничения](devops-integration-list-2026-09-13.md). Пакетная загрузка проекта/кампаний с сохранением response/ACL; на 20 интеграциях data path 41 → 2 SELECT. Это не завершение общего batch API дашборда и не измерение production latency.
 
 **DB-03 / интервальный sampler 13.09**: [реализация, тесты и спокойный production sample](devops-db03-sampling-2026-09-13.md). Две read-only выборки без SQL-текста, защита от reset/restart/eviction; короткое окно не заменяет нагрузочную приёмку. Индексы/серверные настройки production не менялись.

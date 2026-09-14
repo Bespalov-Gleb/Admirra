@@ -61,6 +61,7 @@ services:
       - tests/test_sync_job_retry.py
       - tests/test_sync.py
       - tests/test_sync_detector_isolation.py
+      - tests/test_detector_hypothesis_work.py
       - tests/test_metrika_goal_batch.py
       - tests/test_metrika_goal_work.py
       - tests/test_metrika_api_failure.py
