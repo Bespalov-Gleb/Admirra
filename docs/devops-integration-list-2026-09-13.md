@@ -24,7 +24,11 @@
 
 Дополнительно проверены: чужой владелец/кампании недоступны; client_id не расширяет доступ; результат folder resolver пересекается с ACL; отсутствие прав не читает интеграции; секрет не попадает в ответ.
 
-Targeted suite `tests/test_integration_list_queries.py`: **8 passed**, 16 warnings, 9,60 s. Полный source-bind regression: **484 passed, 1 skipped, 1 deselected**, 47 warnings, 104,13 s. Image-only evidence дополняется после завершения проверки артефакта.
+Targeted suite `tests/test_integration_list_queries.py`: **8 passed**, 16 warnings, 9,60 s. Полный source-bind regression: **484 passed, 1 skipped, 1 deselected**, 47 warnings, 104,13 s.
+
+Чистый образ коммита **`d965d77`**, image-only: **484 passed, 1 skipped, 1 deselected**, 47 warnings, 108,10 s. Docker image ID: `sha256:3cb807f8bb0fe95c709e3d44abe8e2cdd5c0cdfd8f7fc6e2f85fd8ceabf80554`; release label `d965d77`. Source volumes отключены через `ops/compose.artifact-tests.yml`. `pip check` успешен; `.env`, `.git`, uploads, landing и frontend отсутствуют в образе. Логи на тестовом узле: `/opt/admirra-staging/d965d77-build.log`, `/opt/admirra-staging/d965d77-image-tests.log`.
+
+Рабочее приложение повторно проверено отдельно 13.09.2026: commit `cdf0a4d`, публичная главная HTTPS 200 в 16:19 UTC. Push, application deploy, production migrations и перезапуск production PostgreSQL не выполнялись. Изолированный стенд использовал синтетические данные и internal Docker network без host ports/исходящего трафика.
 
 ## Границы результата и следующий шаг
 
