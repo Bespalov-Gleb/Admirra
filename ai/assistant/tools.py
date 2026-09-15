@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from core import models
 
-from . import projects, wordstat_client
+from . import projects, wordstat_client, vk_reporting
 from .token_provider import (
     AvitoAccess, AvitoAccessError, VkAccess, VkAccessError,
     YandexAccess, YandexAccessError,
@@ -351,22 +351,44 @@ async def _exec_vk_get_campaigns(ctx: ToolContext, args: dict) -> str:
     vk = ctx.vk()
     if not vk:
         return _dump(_needs(ctx, "VK Ads"))
+    offset, limit = vk_reporting.page_options(args)
     api = await vk.api()
     campaigns = await api.get_campaigns()
-    return _dump({"campaigns": [_vk_campaign_slim(c) for c in _clip(campaigns)]})
+    counts = {}
+    for c in campaigns:
+        status = c.get('status') or 'unknown'
+        counts[status] = counts.get(status, 0) + 1
+    campaigns = sorted(campaigns, key=lambda c: (c.get('status') != 'active', str(c.get('id'))))
+    result = vk_reporting.page([_vk_campaign_slim(c) for c in campaigns], offset, limit)
+    result['campaigns'] = result.pop('rows')
+    return _dump({**result, 'status_counts': counts,
+                  'note': 'Статусы относятся к текущему моменту, а не к запрошенному периоду. '
+                          'Исторический расход проверяйте через vk_get_statistics, включая удалённые кампании.'})
 
 
 async def _exec_vk_get_statistics(ctx: ToolContext, args: dict) -> str:
     vk = ctx.vk()
     if not vk:
         return _dump(_needs(ctx, "VK Ads"))
+    vk_reporting.validate_period(args)
+    offset, limit = vk_reporting.page_options(args)
+    group_by = args.get('group_by', 'campaign')
+    if group_by not in ('campaign', 'date'):
+        raise ValueError('group_by должен быть campaign или date')
     api = await vk.api()
     campaigns = await api.get_campaigns()
-    ids = {str(c.get("id")) for c in args.get("campaign_ids") or []} if args.get("campaign_ids") else None
-    if ids:
-        campaigns = [c for c in campaigns if str(c.get("id")) in ids]
-    rows = await api.get_statistics(args["date_from"], args["date_to"], campaigns=campaigns or None)
-    return _dump({"period": [args["date_from"], args["date_to"]], "rows": _clip(rows), "row_count": len(rows)})
+    campaigns = vk_reporting.select_campaigns(campaigns, args.get('campaign_ids'))
+    rows = await api.get_statistics(args['date_from'], args['date_to'], campaigns=campaigns) if campaigns else []
+    totals, grouped = vk_reporting.aggregate(rows, group_by)
+    return _dump({'period': [args['date_from'], args['date_to']], 'group_by': group_by,
+                  'totals': totals, 'totals_scope': 'all_rows_for_selected_campaigns_and_period',
+                  'source_row_count': len(rows), 'campaign_count': len(campaigns),
+                  'data_status': 'available' if rows else 'no_rows',
+                  **vk_reporting.page(grouped, offset, limit),
+                  'note': 'Итоги totals рассчитаны по ВСЕМ полученным строкам до пагинации. '
+                          'rows — страница разбивки, не полный итог. Расход в единицах ответа VK без дополнительного пересчёта НДС; '
+                          'conversions — результаты VK, не все они обязательно являются заявками. '
+                          'no_rows означает отсутствие строк, а не доказанное отсутствие активности.'})
 
 
 async def _exec_vk_get_balance(ctx: ToolContext, args: dict) -> str:
@@ -551,15 +573,20 @@ _REGISTRY: dict[str, tuple[dict, _Executor]] = {
     "vk_get_campaigns": (
         {"name": "vk_get_campaigns",
          "description": "Кампании (AdPlans) VK Рекламы текущего проекта: id, имя, статус, цель, бюджет. Отсюда берут id для статистики.",
-         "parameters": {"type": "object", "properties": {}}},
+         "parameters": {"type": "object", "properties": {
+             "offset": {"type": "integer", "minimum": 0},
+             "limit": {"type": "integer", "minimum": 1, "maximum": 200}}}},
         _exec_vk_get_campaigns,
     ),
     "vk_get_statistics": (
         {"name": "vk_get_statistics",
-         "description": "Статистика VK Рекламы за период по кампаниям (показы, клики, расход, конверсии). Можно ограничить campaign_ids.",
+         "description": "Полные итоги VK за период в totals (не зависят от пагинации), rows — разбивка по кампаниям или дням. Для общего итога используйте totals. При has_more следующая страница через next_offset.",
          "parameters": {"type": "object", "properties": {
              "date_from": {"type": "string", "description": "YYYY-MM-DD"},
              "date_to": {"type": "string", "description": "YYYY-MM-DD"},
+             "group_by": {"type": "string", "enum": ["campaign", "date"]},
+             "offset": {"type": "integer", "minimum": 0},
+             "limit": {"type": "integer", "minimum": 1, "maximum": 200},
              "campaign_ids": {"type": "array", "items": {"type": "string"}, "description": "ID кампаний VK (опционально; по умолчанию все)."}},
              "required": ["date_from", "date_to"]}},
         _exec_vk_get_statistics,
