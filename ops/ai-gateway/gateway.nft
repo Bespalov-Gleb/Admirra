@@ -7,6 +7,9 @@ table inet admirra_ai_gateway {
         ct state invalid drop
         ct state established,related accept
         iifname "lo" accept
+        # Provider addresses are leased: preserve DHCP renewal and cold boot.
+        iifname "eth0" udp sport 67 udp dport 68 accept
+        iifname "eth0" ip6 saddr fe80::/10 udp sport 547 udp dport 546 accept
         ip protocol icmp accept
         meta l4proto ipv6-icmp accept
         tcp dport 22 accept

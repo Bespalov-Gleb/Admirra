@@ -41,6 +41,8 @@ class GatewayConfigTests(unittest.TestCase):
         self.assertNotIn('flush ruleset', conf)
         self.assertIn('destroy table inet admirra_ai_gateway', conf)
         self.assertIn('policy drop;', conf)
+        self.assertIn('udp sport 67 udp dport 68 accept', conf)
+        self.assertIn('udp sport 547 udp dport 546 accept', conf)
 
     def test_rollback_refuses_intervening_change(self):
         with tempfile.TemporaryDirectory() as directory:
