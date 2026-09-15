@@ -1,0 +1,10 @@
+[Unit]
+Description=Check AdMirra AI gateway every five minutes
+
+[Timer]
+OnBootSec=90s
+OnUnitActiveSec=5min
+RandomizedDelaySec=20s
+
+[Install]
+WantedBy=timers.target

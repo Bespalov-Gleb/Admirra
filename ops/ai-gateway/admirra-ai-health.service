@@ -1,0 +1,13 @@
+[Unit]
+Description=AdMirra AI gateway non-billable health probe
+After=network-online.target nginx.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/admirra-ai-gateway/check_health.py
+TimeoutStartSec=30
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+MemoryMax=96M
