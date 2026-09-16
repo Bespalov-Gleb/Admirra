@@ -56,3 +56,18 @@ python3 /root/admirra-assistant-files-deploy.py --rollback /root/admirra-assista
 ```
 
 Откат подготовлен, но намеренно не выполнялся на работающем релизе.
+
+### Обновление лимита до 25 МиБ
+
+Выложен feature commit `cb434c3` поверх предыдущих образов:
+
+- backend `sha256:6bd6367835a6dd9cdab99e01cf3756c69d1c92034845517b2f355076ef8bcc63`
+- frontend `sha256:564e5373a9adbaf5ab6fd9941aae5f3070d874c5476238822dd343c8f1f0f1d1`
+- rollback snapshot `/root/admirra-assistant-files-backups/20260916T063459Z`
+- скрипт релиза `/root/admirra-files-release-cb434c3/ops/assistant-files/deploy.py`
+
+Внешний host Nginx имел общий лимит 20m. В `/etc/nginx/sites-available/admirra.ru` добавлен regex location `~ ^/api/assistant/conversations/` с лимитом 25m и прежними proxy headers/timeouts. Остальные маршруты и домены не изменены. Используется regex, а не slash-terminated prefix location: последний вызывает нежелательный 301 на POST `/conversations` без слеша. Это обнаружено и исправлено при публичном smoke test до завершения задачи.
+
+Первоначальный backup host Nginx (до изменения лимита): `/root/admirra-ru-before-files25-20260916T063507Z.conf`. При полном откате лимита сначала восстановить эту копию с `nginx -t` и reload; затем откатить образы через новый deploy.py и snapshot выше. Snapshot образов не управляет `/etc/nginx`.
+
+18 тестов пройдены, включая реальный ограниченный parser subprocess с файлом ровно 25 МиБ. После деплоя через публичный HTTPS на `admirra.ru` принят и распознан синтетический PDF ровно 25 МиБ; 25 МиБ + 1 байт отклонён HTTP 413. Тестовый диалог удалён. LLM не вызывался в этой граничной проверке. Лимиты текста, страниц, распакованного DOCX, CPU и памяти не увеличивались.

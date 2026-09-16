@@ -5,12 +5,12 @@ import subprocess
 
 path = Path('/etc/nginx/sites-available/admirra.ru')
 original = path.read_text()
-marker = '    location ^~ /api/assistant/conversations/ {'
+marker = '    location ~ ^/api/assistant/conversations/ {'
 if marker in original:
     raise SystemExit('Assistant location already exists; review manually')
 needle = '    location /api/ {'
 assert original.count(needle) == 1
-block = '''    location ^~ /api/assistant/conversations/ {
+block = '''    location ~ ^/api/assistant/conversations/ {
         client_max_body_size 25m;
         proxy_pass http://127.0.0.1:8001;
         proxy_http_version 1.1;
@@ -27,7 +27,9 @@ backup = Path('/root') / ('admirra-ru-before-files25-' + datetime.now(timezone.u
 backup.write_text(original)
 backup.chmod(0o600)
 try:
-    path.write_text(original.replace(needle, block + needle))
+    old_marker = '    location ^~ /api/assistant/conversations/ {'
+    updated = original.replace(old_marker, marker) if old_marker in original else original.replace(needle, block + needle)
+    path.write_text(updated)
     subprocess.run(['nginx', '-t'], check=True)
     subprocess.run(['systemctl', 'reload', 'nginx'], check=True)
 except BaseException:
