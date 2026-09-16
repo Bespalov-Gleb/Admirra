@@ -1,0 +1,5 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG FEATURE_REVISION
+LABEL ru.admirra.billing.revision=${FEATURE_REVISION}
+COPY backend_api/billing.py /app/backend_api/billing.py

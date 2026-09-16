@@ -3,7 +3,18 @@ import { payWithCloudPayments } from '@/composables/useBillingCloudPayments'
 
 // Докупка слотов проекта (§8.6): пропорция за остаток периода через виджет
 // CloudPayments. Возвращает результат оплаты ({ status: 'success' | 'cancelled' }).
+let purchaseInProgress = false
 export async function purchaseSlots(count = 1) {
+  if (purchaseInProgress) throw new Error('Покупка места уже выполняется. Дождитесь подтверждения.')
+  purchaseInProgress = true
+  try {
+    return await runPurchase(count)
+  } finally {
+    purchaseInProgress = false
+  }
+}
+
+async function runPurchase(count) {
   const { data } = await api.post('billing/slots/purchase', { count })
   const result = await payWithCloudPayments({
     public_id: data.public_id,
@@ -30,6 +41,7 @@ export async function purchaseSlots(count = 1) {
       try {
         const { data: subscription } = await api.get('billing/subscription')
         if (Number(subscription?.purchased_slots || 0) >= expected) {
+          window.dispatchEvent(new Event('billing:updated'))
           return { ...result, confirmed: true }
         }
       } catch { /* повторим */ }
@@ -37,5 +49,5 @@ export async function purchaseSlots(count = 1) {
     }
     throw new Error('Оплата прошла, но подтверждение ещё обрабатывается. Проект можно добавить через несколько секунд.')
   }
-  return result
+  throw new Error('Ожидаем подтверждение покупки. Обновите страницу перед повторной оплатой.')
 }

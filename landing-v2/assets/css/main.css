@@ -1086,7 +1086,7 @@ button {
   position: relative;
   width: 100%;
   max-width: 1652.4px;
-  height: 1402.2px;
+  height: 1550.2px;
   margin-inline: auto;
   overflow: hidden;
   border-radius: 27px;
@@ -1140,7 +1140,9 @@ button {
 .price-card {
   position: relative;
   width: 324px;
-  height: 612px;
+  min-height: 760px;
+  height: auto;
+  padding: 193.5px 27px 145px;
   overflow: hidden;
   border-radius: 27px;
   background: #fff;
@@ -1223,11 +1225,9 @@ button {
 .price-card--base .price-card__per { color: #edf3ff; }
 
 .price-card__benefits {
-  position: absolute;
-  top: 193.5px;
-  left: 27px;
+  position: relative;
   z-index: 1;
-  width: 270px;
+  width: 100%;
 }
 
 .price-card__benefits li {
@@ -1256,9 +1256,7 @@ button {
   transform: translateY(-50%);
 }
 
-.price-card__benefits li:nth-child(1) { min-height: 44.1px; }
-.price-card__benefits li:nth-child(2) { min-height: 68.4px; }
-.price-card__benefits li:nth-child(5) { border-bottom: 0; }
+.price-card__benefits li:last-child { border-bottom: 0; }
 
 .price-card--base .price-card__benefits li {
   border-color: rgb(255 255 255 / 19%);
@@ -1342,7 +1340,7 @@ button {
 
 .price-wl {
   position: absolute;
-  top: 957.6px;
+  top: 1105.6px;
   left: 304.2px;
   width: 1044px;
   height: 379.8px;
@@ -2851,7 +2849,7 @@ button {
   .pricing__head { text-align: left; }
   .pricing__cards { grid-template-columns: 1fr; margin-top: 34.2px; }
   .price-card { width: 100%; max-width: none; justify-self: stretch; }
-  .price-card__benefits { width: calc(100% - 54px); }
+  .price-card__benefits { width: 100%; }
   .price-card__cta { right: 21.6px; left: 21.6px; width: auto; }
   .price-card__base-fox-wrap { right: -63px; left: auto; }
   .price-wl { grid-template-columns: 1fr; min-height: 0; padding: 50.4px 21.6px 25.2px; border-radius: 21.6px; }

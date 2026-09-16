@@ -1,7 +1,7 @@
 <template>
   <div v-if="visible" class="ovf-banner" :class="{ 'ovf-banner--hard': state.hard_blocked }">
-    <span class="ovf-banner__text">{{ text }}</span>
-    <button class="ovf-banner__cta" type="button" @click="goToPlans">Разобраться</button>
+    <div class="ovf-banner__text"><strong>{{ state.hard_blocked ? 'Нужны дополнительные места' : 'Вы используете временный запас проектов' }}</strong><span>{{ text }}</span></div>
+    <button class="ovf-banner__cta" type="button" @click="goToPlans">Места и тарифы →</button>
     <button
       v-if="!state.hard_blocked && !state.permanent"
       class="ovf-banner__close"
@@ -13,7 +13,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/api/axios'
 import { getAccessToken } from '@/utils/authToken'
@@ -54,6 +54,9 @@ const load = async () => {
 }
 
 watch(inApp, (v) => { if (v) load() }, { immediate: true })
+watch(() => route.path, () => { if (inApp.value) load() })
+onMounted(() => window.addEventListener('billing:updated', load))
+onUnmounted(() => window.removeEventListener('billing:updated', load))
 
 const visible = computed(() => (
   inApp.value
@@ -90,6 +93,11 @@ const goToPlans = () => router.push({ path: '/settings', query: { tab: 'tariff',
   top: 0;
   z-index: 900;
   display: flex;
+  flex-wrap: wrap;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   align-items: center;
   gap: 1.2rem;
   padding: 0.9rem 1.6rem;
@@ -106,10 +114,14 @@ const goToPlans = () => router.push({ path: '/settings', query: { tab: 'tariff',
   color: #8a1f18;
 }
 
-.ovf-banner__text { flex: 1; }
+.ovf-banner__text { flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; }
+.ovf-banner__text strong { display: block; margin-bottom: 4px; font-size: 14px; }
+.ovf-banner__text span { display: block; font-size: 13px; line-height: 1.5; }
 
 .ovf-banner__cta {
   flex: 0 0 auto;
+  max-width: 100%;
+  min-height: 40px;
   padding: 0.5rem 1.1rem;
   border: none;
   border-radius: 0.8rem;
@@ -118,6 +130,13 @@ const goToPlans = () => router.push({ path: '/settings', query: { tab: 'tariff',
   font-size: 1.1rem;
   font-weight: 600;
   cursor: pointer;
+}
+
+@media (max-width: 600px) {
+  .ovf-banner { position: relative; padding: 16px 44px 16px 16px; gap: 12px; }
+  .ovf-banner__text { flex-basis: 100%; }
+  .ovf-banner__cta { font-size: 13px; }
+  .ovf-banner__close { position: absolute; top: 12px; right: 10px; width: 28px; height: 28px; }
 }
 
 .ovf-banner__close {

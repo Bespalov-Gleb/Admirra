@@ -563,10 +563,15 @@ const pendingChangeText = computed(() => {
 const subscriptionEndDate = computed(() => formatDate(subscription.value?.subscription_expires_at))
 
 const nextPaymentLine = computed(() => {
+  if (!subscription.value?.autorenew) return 'Автопродление отключено'
+  if (subscription.value?.pending_plan_code || subscription.value?.pending_billing_period) {
+    return pendingChangeText.value || 'Запланировано изменение подписки'
+  }
   const isYear = subscription.value?.billing_period === 'year'
-  const price = isYear
-    ? formatRub(yearlyPriceOfPlan(currentPlan.value))
-    : formatRub(currentPlan.value?.price_rub)
+  const slots = Number(subscription.value?.pending_purchased_slots ?? subscription.value?.purchased_slots ?? 0)
+  const base = isYear ? yearlyPriceOfPlan(currentPlan.value) : Number(currentPlan.value?.price_rub || 0)
+  const unit = Number(isYear ? currentPlan.value?.extra_project_price_year : currentPlan.value?.extra_project_price_month) || 0
+  const price = formatRub(base + slots * unit)
   return subscriptionEndDate.value ? `${price} ${subscriptionEndDate.value}` : price
 })
 
@@ -702,11 +707,14 @@ const planFeatures = (code, plan) => {
   const users = Number(plan?.max_users ?? plan?.max_staff ?? 1)
   const ai = Number(plan?.max_ai_requests_per_period || 0)
   return [
-    projects === 1 ? '1 Проект' : `До ${projects} Проектов`,
-    'Все каналы: Яндекс.Директ, VK, Авито',   // §3: гейтинг каналов отменён
-    users === 1 ? '1 пользователь' : `До ${users} пользователей`,
-    `${ai} запросов AI`,
-    'Экспорт отчетов,\nотправка по расписанию',
+    `${projects} ${pluralRu(projects, 'проект', 'проекта', 'проектов')}`,
+    `${plan.max_cabinets} кабинетов`,
+    `${users} ${pluralRu(users, 'пользователь', 'пользователя', 'пользователей')}`,
+    `${ai} запросов к ассистенту`,
+    'AI-комментарии и детектор — без ограничений',
+    'Все каналы: Директ, VK, Авито',
+    'Экспорт и отправка по расписанию',
+    `Доп. проект — ${formatRub(plan.extra_project_price_month)}/мес`,
   ]
 }
 
@@ -765,9 +773,8 @@ const planButtonSubtitle = (plan) => {
   const rel = planRelation(plan)
   const date = formatDate(subscription.value?.subscription_expires_at)
   if (rel === 'current') {
-    const isYear = subscription.value?.billing_period === 'year'
-    const price = formatRub(isYear ? yearlyPriceOfPlan(plan) : Number(plan?.price_rub || 0))
-    return date ? `Продлится ${date} · спишется ${price}` : `Спишется ${price}`
+    if (!subscription.value?.autorenew) return date ? `Доступ до ${date} · автопродление отключено` : 'Автопродление отключено'
+    return `Следующее продление: ${nextPaymentLine.value}`
   }
   if (rel === 'upgrade') return 'Спишется полная стоимость; новый период начнётся сегодня'
   if (rel === 'downgrade') return `Сменится ${date || 'в конце периода'}, со следующего периода`

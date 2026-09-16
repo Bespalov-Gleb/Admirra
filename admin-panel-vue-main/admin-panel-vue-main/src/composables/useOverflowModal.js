@@ -21,6 +21,7 @@ function close(result = false) {
 
 // Показать модалку и дождаться решения пользователя (см. коды в close()).
 function requestOverflowConfirm(detail) {
+  close(false)
   return new Promise((resolve) => {
     state.detail = detail || {}
     state.mode = 'confirm'
@@ -32,6 +33,7 @@ function requestOverflowConfirm(detail) {
 // Показать модалку без «добавить пока так» (запас исчерпан / блок) — только
 // предложение перейти на старший тариф.
 function openOverflowInfo(detail) {
+  close(false)
   return new Promise((resolve) => {
     state.detail = detail || {}
     state.mode = 'info'

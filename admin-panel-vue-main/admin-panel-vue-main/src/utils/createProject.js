@@ -1,6 +1,7 @@
 import api from '@/api/axios'
 import { useOverflowModal } from '@/composables/useOverflowModal'
 import { purchaseSlots } from '@/utils/purchaseSlots'
+import { requiredProjectSlots } from '@/utils/projectSlots'
 
 const { requestOverflowConfirm, openOverflowInfo } = useOverflowModal()
 
@@ -14,25 +15,18 @@ export async function createProjectWithOverflow(payload) {
     const status = e?.response?.status
     const detail = e?.response?.data?.detail
     if (status === 409 && detail && typeof detail === 'object' && detail.reason) {
-      if (detail.reason === 'confirmation_required') {
-        const choice = await requestOverflowConfirm(detail)
-        if (choice === 'buy') {
-          // Докупка слота: после успешной оплаты лимит вырос — создаём обычным путём.
-          const pay = await purchaseSlots(1)
-          if (pay?.status !== 'success') return null
-          return await api.post('clients/', payload)
-        }
-        if (choice === 'confirm') {
-          // Добавить в счёт запаса — повтор с флагом согласия.
-          return await api.post('clients/', payload, { params: { confirm_overflow: true } })
-        }
-        // Отказ от временного запаса — отдельное продуктовое событие. Ошибка
-        // аналитики не должна мешать пользователю закрыть модалку.
-        api.post('billing/overflow/decline').catch(() => {})
-        return null
+      const canConfirm = detail.reason === 'confirmation_required'
+      const choice = await (canConfirm ? requestOverflowConfirm(detail) : openOverflowInfo(detail))
+      if (choice === 'buy') {
+        // Докупка слотов: после подтверждения сервером создаём обычным путём.
+        const pay = await purchaseSlots(requiredProjectSlots(detail))
+        if (pay?.status !== 'success') return null
+        return await api.post('clients/', payload)
       }
-      // Запас исчерпан или блок второго продления — только апгрейд.
-      await openOverflowInfo(detail)
+      if (canConfirm && choice === 'confirm') {
+        return await api.post('clients/', payload, { params: { confirm_overflow: true } })
+      }
+      if (canConfirm) api.post('billing/overflow/decline').catch(() => {})
       return null
     }
     throw e

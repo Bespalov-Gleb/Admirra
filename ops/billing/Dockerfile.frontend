@@ -1,0 +1,8 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG FEATURE_REVISION
+LABEL ru.admirra.billing.revision=${FEATURE_REVISION}
+COPY dist/assets/ /usr/share/nginx/html/assets/
+COPY dist/index.html /usr/share/nginx/html/index.html
+COPY dist/landing-new/index.html /usr/share/nginx/html/landing-new/index.html
+COPY dist/landing-new/assets/css/main.css /usr/share/nginx/html/landing-new/assets/css/main.css

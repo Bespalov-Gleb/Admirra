@@ -529,7 +529,7 @@ def get_plans(
             state = "request"
         else:
             state = "upgrade" if PLAN_RANK.get(spec.code, 0) > current_rank else "downgrade"
-        if spec.code == current_plan.code and getattr(sub, "price_book_snapshot", None):
+        if not is_trial and spec.code == current_plan.code and getattr(sub, "price_book_snapshot", None):
             spec = pricing.plan_from_snapshot(sub.price_book_snapshot, spec)
         result.append(_spec_to_schema(spec, card_state=state, price_fixed=(state == "current" and current_plan.price_fixed)))
     # ensure_default_subscription/get_user_plan лениво создают подписку и
@@ -790,14 +790,16 @@ async def subscribe(
     sub = SubscriptionService.ensure_default_subscription(db, account_user)
     sub = SubscriptionService.get_user_subscription(db, account_user.id, for_update=True) or sub
     cur_plan = SubscriptionService.get_user_plan(db, account_user)
+    is_trial = sub.status == models.SubscriptionStatus.TRIAL
+    keep_fixed_price = requested_spec.code == cur_plan.code and not is_trial
     plan = (
         cur_plan
-        if requested_spec.code == cur_plan.code
+        if keep_fixed_price
         else SubscriptionService.get_plan_from_config(requested_spec.code, spec=requested_spec)
     )
     current_rank = PLAN_RANK.get(cur_plan.code, 0)
     requested_rank = PLAN_RANK.get(plan.code, 0)
-    is_downgrade = requested_rank < current_rank
+    is_downgrade = not is_trial and requested_rank < current_rank
     used = SubscriptionService.count_project_slots(db, account_user.id)
 
     # Понижение не оплачивается сегодня: новый тариф и новая сумма рекуррента
@@ -902,7 +904,7 @@ async def subscribe(
         "price_book_version": pricing.current_price_book_version(),
         "price_book_snapshot": (
             dict(sub.price_book_snapshot)
-            if requested_spec.code == cur_plan.code and isinstance(getattr(sub, "price_book_snapshot", None), dict)
+            if keep_fixed_price and isinstance(getattr(sub, "price_book_snapshot", None), dict)
             else pricing.plan_snapshot(requested_spec)
         ),
     }
@@ -1046,6 +1048,28 @@ def _slot_unit_price(plan, billing_period: str = "month") -> int:
     return _slot_period_unit(plan, billing_period)
 
 
+def _slot_subscription_block(sub) -> Optional[Dict[str, str]]:
+    end = getattr(sub, "current_period_end", None)
+    from datetime import timezone as _tz
+    if end is not None and end.tzinfo is None:
+        end = end.replace(tzinfo=_tz.utc)
+    if end is None or end <= SubscriptionService._now():
+        return {
+            "reason": "active_subscription_required",
+            "message": "Оплаченный период закончился. Сначала продлите подписку.",
+        }
+    if (
+        getattr(sub, "pending_plan_code", None)
+        or getattr(sub, "pending_billing_period", None)
+        or getattr(sub, "pending_purchased_project_slots", None) is not None
+    ):
+        return {
+            "reason": "pending_subscription_change",
+            "message": "Уже запланировано изменение подписки. Сначала отмените его в разделе тарифов или дождитесь следующего периода.",
+        }
+    return None
+
+
 def _slot_remaining_days(plan, sub):
     from datetime import timezone as _tz
     now = SubscriptionService._now()
@@ -1055,7 +1079,7 @@ def _slot_remaining_days(plan, sub):
     if end is not None:
         if end.tzinfo is None:
             end = end.replace(tzinfo=_tz.utc)
-        remaining = max(0, (end - now).days)
+        remaining = min(period_days, max(0, (end - now).days))
     else:
         remaining = period_days
     return remaining, period_days
@@ -1091,7 +1115,8 @@ def slots_quote(
         and (getattr(sub, "cloudpayments_subscription_id", None) or "").strip()
         and not bool(getattr(sub, "cancel_at_period_end", False))
     )
-    can_buy = active_recurring and unit > 0 and parity > 0 and count <= parity
+    block = _slot_subscription_block(sub)
+    can_buy = active_recurring and block is None and unit > 0 and parity > 0 and count <= parity
     reason = None
     message = None
     if not active_recurring:
@@ -1100,6 +1125,11 @@ def slots_quote(
             "Дополнительные места подключаются только к активной подписке "
             "с автопродлением. Сначала оплатите или возобновите тариф."
         )
+    elif block:
+        reason, message = block["reason"], block["message"]
+    elif reserved and unit > 0 and count <= max(0, int(plan.max_extra_project_slots) - slots_now) and not can_buy:
+        reason = "pending_payment"
+        message = "Есть незавершённая покупка мест. Дождитесь подтверждения оплаты; после отмены заказа резерв освободится в течение 15 минут."
     elif not can_buy:
         reason = "parity"
         message = "Докупка достигла паритета — выгоднее перейти на старший тариф."
@@ -1146,6 +1176,9 @@ def slots_purchase(
                 "с автопродлением. Сначала оплатите или возобновите тариф."
             ),
         })
+    block = _slot_subscription_block(sub)
+    if block:
+        raise HTTPException(status_code=409, detail=block)
     count = max(1, int(body.count or 1))
     billing_period = _normalize_billing_period(getattr(sub, "billing_period", None))
     unit = _slot_unit_price(plan, billing_period)
@@ -1153,6 +1186,11 @@ def slots_purchase(
     reserved = _reserved_slot_count(db, sub.id)
     parity = max(0, int(plan.max_extra_project_slots) - slots_now - reserved)
     if unit <= 0 or parity <= 0 or count > parity:
+        if reserved and unit > 0 and count <= max(0, int(plan.max_extra_project_slots) - slots_now):
+            raise HTTPException(status_code=409, detail={
+                "reason": "pending_payment",
+                "message": "Есть незавершённая покупка мест. Дождитесь подтверждения оплаты; после отмены заказа резерв освободится в течение 15 минут.",
+            })
         # Достигнут паритет со старшим тарифом — докупка невыгодна (§8.1).
         raise HTTPException(status_code=409, detail={
             "reason": "parity",
