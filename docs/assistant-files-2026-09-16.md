@@ -35,4 +35,24 @@
 
 ## Статус production
 
-Заполнить после фактической активации и smoke test. До этого раздела деплой не считается подтверждённым.
+Активирован 16.09.2026, feature commit `7e310db` (запушен). Checkout сервера по-прежнему `cdf0a4d`; релиз — два точечных immutable overlay image:
+
+- backend `sha256:e1d61ba09fd8dbfa24ba625ca128e1a4a3a095c19314232e2a6ac940cc3b930d`
+- frontend `sha256:e13859c0210ff4805e2815ab615c233fb636e2cacbca41c4b740fbad26ba2a8b`
+- rollback snapshot `/root/admirra-assistant-files-backups/20260916T062641Z`
+- deployment script `/root/admirra-assistant-files-deploy.py`
+- release bundle `/root/admirra-files-release-7e310db`
+
+Автоматическая сверка подтвердила сохранение точного env каждого сервиса. Automation и admin_frontend не перезапускались, ID образов остались прежними. SHA256 трёх backend-файлов в контейнере совпал с локальным коммитом. Главная и `/ai` отвечают 200, публичный HTML ссылается на новый bundle `index-ukVQUkNU.js`.
+
+`ops/assistant-files/smoke.py` выполнен внутри живого backend на существующем тестовом аккаунте владельца: создан отдельный синтетический диалог, загружен TXT, один реальный запрос к LLM вернул контрольное слово и 34 заявки из вложения, получен сохранённый message_id, скачаны MD и корректный DOCX, диалог повторно открыт с метаданными вложения. В finally тестовый диалог и вложение удалены. Пароли не менялись; короткоживущий тестовый JWT существовал только в памяти процесса и не выводился.
+
+Для сборки overlay Docker требуется сначала пометить существующий image ID локальным тегом (`docker tag sha256:... admirra-backend:files-base-20260916`), затем передать этот тег как `BASE_IMAGE`. Голый `sha256:...` в FROM Docker трактует как имя репозитория, а не локальный image ID.
+
+Команда отката текущей выкладки:
+
+```sh
+python3 /root/admirra-assistant-files-deploy.py --rollback /root/admirra-assistant-files-backups/20260916T062641Z
+```
+
+Откат подготовлен, но намеренно не выполнялся на работающем релизе.
