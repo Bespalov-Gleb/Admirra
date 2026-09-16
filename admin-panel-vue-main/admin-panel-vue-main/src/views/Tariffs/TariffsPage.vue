@@ -2061,6 +2061,7 @@ function onContactWl() {
 @media (max-width: 480px) {
   .slot-row__actions { flex: 1 1 100%; }
   .slot-btn { flex: 1 1 8rem; }
+  .slot-btn svg { display: none; }
   .subscription-footer-actions button,
   .slot-btn { padding-inline: 0.8333rem; }
 }
