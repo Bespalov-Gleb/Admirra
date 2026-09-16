@@ -64,17 +64,26 @@
           <em>Все каналы доступны</em>
         </div>
 
-        <!-- Докупленные слоты проектов (§8.5): состав и управление -->
-        <div v-if="showSlotRow" class="slot-row">
-          <span class="slot-row__text">
-            Докупленные слоты: <strong>{{ purchasedSlots }}</strong>
-            <template v-if="slotPrice"> × {{ slotPrice }} ₽ = {{ slotsMonthly }} ₽/мес</template>
-          </span>
+        <div v-if="showSlotRow" class="slot-row" role="group" aria-labelledby="project-slots-title">
+          <div class="slot-row__content">
+            <div class="slot-row__heading">
+              <h6 id="project-slots-title">Докупленные слоты</h6>
+              <span class="slot-row__count" aria-label="Количество слотов">{{ purchasedSlots }}</span>
+            </div>
+            <p v-if="slotPrice" class="slot-row__price">
+              <template v-if="purchasedSlots > 0">
+                {{ purchasedSlots }} × {{ formatRub(slotPrice) }}<span class="slot-row__equals">=</span><strong>{{ formatRub(slotsMonthly) }} / мес.</strong>
+              </template>
+              <template v-else>{{ formatRub(slotPrice) }} / мес. за дополнительный слот</template>
+            </p>
+            <p class="slot-row__hint">Стоимость доплаты покажем перед оплатой. Уменьшение — со следующего периода.</p>
+          </div>
           <div class="slot-row__actions">
-            <button type="button" class="slot-btn slot-btn--add" :disabled="buyingSlot" @click="buyMoreSlots">
-              {{ buyingSlot ? 'Оплата…' : 'Добавить' }}
+            <button type="button" class="slot-btn slot-btn--add" :disabled="buyingSlot" :aria-busy="buyingSlot" @click="buyMoreSlots">
+              <svg v-if="!buyingSlot" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg>
+              {{ buyingSlot ? 'Подготовка…' : 'Добавить слот' }}
             </button>
-            <button v-if="purchasedSlots > 0" type="button" class="slot-btn" @click="reduceSlots">
+            <button v-if="purchasedSlots > 0" type="button" class="slot-btn" :disabled="buyingSlot" @click="reduceSlots">
               Уменьшить
             </button>
           </div>
@@ -2000,34 +2009,67 @@ function onContactWl() {
 /* Строка докупленных слотов в блоке «Подписка» (§8.5). */
 .slot-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 1.2rem;
-  margin-top: 1.2rem;
-  padding: 1rem 1.4rem;
+  gap: 18px 24px;
+  min-width: 0;
+  margin: 20px 1.875rem;
+  padding: 20px;
   border: 1px solid rgba(148, 172, 205, 0.3);
   border-radius: 1rem;
   background: #f6f9ff;
   color: #0c2950;
-  font-size: 1.15rem;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
-.slot-row__actions { display: flex; gap: 0.6rem; }
+.slot-row__content { flex: 1 1 320px; min-width: 0; overflow-wrap: anywhere; }
+.slot-row__heading { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.slot-row__heading h6 { margin: 0; color: inherit; font-size: 15px; font-weight: 600; line-height: 1.4; }
+.slot-row__count { padding: 2px 10px; border-radius: 8px; background: #e4edff; color: #2454b8; font-weight: 700; }
+.slot-row__price { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 8px 0 0; font-variant-numeric: tabular-nums; }
+.slot-row__price strong { font-weight: 600; }
+.slot-row__equals { color: #64748b; }
+.slot-row__hint { margin: 6px 0 0; max-width: 52ch; color: #64748b; font-size: 13px; line-height: 1.5; }
+.slot-row__actions { display: flex; flex: 0 1 auto; flex-wrap: wrap; gap: 8px; max-width: 100%; }
 
 .slot-btn {
-  padding: 0.5rem 1.1rem;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 10px 16px;
   border: 1px solid #cbd6ea;
   border-radius: 0.7rem;
   background: #fff;
   color: #334155;
-  font-size: 1.05rem;
+  font-size: 14px;
+  line-height: 1.4;
   font-weight: 600;
   cursor: pointer;
 }
 
 .slot-btn--add { background: #2563eb; border-color: #2563eb; color: #fff; }
+.slot-btn:not(:disabled):hover { background: #edf2fa; border-color: #a6b9d5; }
+.slot-btn--add:not(:disabled):hover { background: #1d4ed8; border-color: #1d4ed8; }
+.slot-btn:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
+.slot-btn svg { flex-shrink: 0; }
 .slot-btn:disabled { opacity: 0.6; cursor: default; }
 
+:global(.dark .slot-row) { background: #1b2639; border-color: #36445a; color: #e2e8f0; }
+:global(.dark .slot-row__count) { background: #263d63; color: #bad2ff; }
+:global(.dark .slot-row__hint), :global(.dark .slot-row__equals) { color: #acbbce; }
+:global(.dark .slot-btn:not(.slot-btn--add)) { background: #263247; border-color: #4c5c73; color: #e2e8f0; }
+:global(.dark .slot-btn:not(.slot-btn--add):not(:disabled):hover) { background: #34435c; }
+
+@media (max-width: 480px) {
+  .slot-row { margin-inline: 14px; padding: 16px; gap: 16px; }
+  .slot-row__actions { flex: 1 1 100%; }
+  .slot-btn { flex: 1 1 135px; }
+}
 
 .plan-title {
   position: relative;
