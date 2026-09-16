@@ -1,0 +1,6 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG FEATURE_REVISION
+LABEL ru.admirra.assistant-files.revision=${FEATURE_REVISION}
+COPY dist/assets/ /usr/share/nginx/html/assets/
+COPY dist/index.html /usr/share/nginx/html/index.html

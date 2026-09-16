@@ -5,19 +5,22 @@ from __future__ import annotations
 
 import asyncio
 import json
+from datetime import datetime, timedelta, timezone
+from typing import Literal
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import Response, StreamingResponse
+from pydantic import BaseModel, Field
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from core import models, security
 from core.database import get_db
 from backend_api.access_control import get_accessible_client_ids
 
-from . import agent, llm, wordstat_client
+from . import agent, files, llm, wordstat_client
 from .models_catalog import DEFAULT_MODEL_ID, catalog_public, get_model, normalize_effort
 
 router = APIRouter(prefix="/assistant", tags=["AI Assistant"])
@@ -30,7 +33,8 @@ class ConversationCreate(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    message: str
+    message: str = Field(max_length=20000)
+    attachment_ids: list[UUID] = Field(default_factory=list, max_length=files.MAX_FILES)
     conversation_id: Optional[str] = None
     client_id: Optional[str] = None
     model: Optional[str] = None
@@ -135,11 +139,97 @@ def get_conversation(
     # Для отображения — реплики пользователя и финальные ответы ассистента.
     messages = [
         {"id": str(m.id), "role": m.role, "content": m.content,
-         "created_at": m.created_at.isoformat() if m.created_at else None}
+         "created_at": m.created_at.isoformat() if m.created_at else None,
+         "attachments": (m.tool_calls or {}).get("attachments", []) if m.role == "user" and isinstance(m.tool_calls, dict) else []}
         for m in conv.messages
-        if m.role in ("user", "assistant") and (m.content or "").strip()
+        if m.role in ("user", "assistant") and (m.content or "").strip() and not (m.role == "assistant" and m.tool_calls)
     ]
-    return {**_conv_public(conv), "messages": messages}
+    used = {a["id"] for m in messages for a in m["attachments"]}
+    pending = [files.attachment_public(m) for m in conv.messages if m.role == "attachment" and str(m.id) not in used]
+    return {**_conv_public(conv), "messages": messages, "pending_attachments": pending}
+
+
+@router.post("/conversations/{conversation_id}/attachments", status_code=201)
+async def upload_attachment(
+    conversation_id: str, request: Request, filename: str,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(security.get_current_user),
+):
+    conv = _conv_or_404(db, current_user, conversation_id)
+    cid, uid = conv.id, current_user.id
+    try:
+        filename = files.safe_name(filename)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
+    db.rollback()  # Do not hold a SQL connection during upload or parsing.
+    data = bytearray()
+    try:
+        async with asyncio.timeout(30):
+            async for chunk in request.stream():
+                data.extend(chunk)
+                if len(data) > files.MAX_BYTES:
+                    raise HTTPException(413, "Максимальный размер файла — 8 МБ.")
+        text = await files.extract_isolated(bytes(data), filename)
+    except TimeoutError:
+        raise HTTPException(408, "Загрузка файла заняла слишком много времени.") from None
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
+    # Serialize quotas across workers, then recheck ownership/deletion after parsing.
+    db.query(models.User).filter(models.User.id == uid).with_for_update().one()
+    conv = _conv_or_404(db, current_user, conversation_id)
+    query = db.query(models.AiMessage).filter(models.AiMessage.conversation_id == cid, models.AiMessage.role == "attachment")
+    total_chars = query.with_entities(func.coalesce(func.sum(func.length(models.AiMessage.content)), 0)).scalar()
+    user_files = db.query(models.AiMessage).join(models.AiConversation).filter(
+        models.AiConversation.user_id == uid, models.AiMessage.role == "attachment")
+    recent = user_files.filter(models.AiMessage.created_at >= datetime.now(timezone.utc) - timedelta(days=1)).count()
+    if query.count() >= 20 or total_chars + len(text) > files.MAX_CONVERSATION_CHARS:
+        db.rollback()
+        raise HTTPException(409, "Лимит документов диалога: 20 файлов или 120 000 символов. Создайте новый диалог.")
+    if recent >= 100 or user_files.count() >= 1000:
+        db.rollback()
+        raise HTTPException(429, "Достигнут лимит файлов: 100 за сутки или 1000 сохранённых. Удалите ненужные диалоги.")
+    row = models.AiMessage(conversation_id=cid, role="attachment", content=text,
+                           tool_calls={"filename": filename, "size": len(data)})
+    if not conv.title:
+        conv.title = filename[:160]
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return files.attachment_public(row)
+
+
+@router.delete("/conversations/{conversation_id}/attachments/{attachment_id}", status_code=204)
+def delete_attachment(conversation_id: str, attachment_id: UUID,
+                      db: Session = Depends(get_db), current_user: models.User = Depends(security.get_current_user)):
+    conv = _conv_or_404(db, current_user, conversation_id)
+    row = db.query(models.AiMessage).filter_by(id=attachment_id, conversation_id=conv.id, role="attachment").first()
+    if not row:
+        raise HTTPException(404, "Файл не найден")
+    for message in conv.messages:
+        if message.role == "user" and isinstance(message.tool_calls, dict):
+            if any(a.get("id") == str(attachment_id) for a in message.tool_calls.get("attachments", [])):
+                raise HTTPException(409, "Файл уже использован. Для удаления данных удалите диалог.")
+    db.delete(row)
+    db.commit()
+
+
+@router.get("/conversations/{conversation_id}/messages/{message_id}/download")
+def download_answer(conversation_id: str, message_id: UUID, format: Literal["md", "docx"],
+                    db: Session = Depends(get_db), current_user: models.User = Depends(security.get_current_user)):
+    conv = _conv_or_404(db, current_user, conversation_id)
+    message = db.query(models.AiMessage).filter_by(id=message_id, conversation_id=conv.id, role="assistant").first()
+    if not message or not message.content or message.tool_calls:
+        raise HTTPException(404, "Готовый ответ не найден")
+    text = message.content
+    db.rollback()
+    if len(text) > 200_000:
+        raise HTTPException(413, "Ответ слишком большой для экспорта.")
+    content = files.export_docx(text) if format == "docx" else text.encode("utf-8")
+    mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document" if format == "docx" else "text/markdown; charset=utf-8"
+    return Response(content, media_type=mime, headers={
+        "Content-Disposition": f'attachment; filename="admirra-answer-{message_id}.{format}"',
+        "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
+    })
 
 
 @router.delete("/conversations/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -171,6 +261,18 @@ async def chat(
     client_id = req.client_id or (str(conv.client_id) if conv and conv.client_id else None)
     _assert_client_access(db, current_user, client_id)
 
+    attachments = []
+    if req.attachment_ids:
+        if not conv:
+            raise HTTPException(400, "Сначала загрузите файлы в диалог.")
+        ids = set(req.attachment_ids)
+        attachments = db.query(models.AiMessage).filter(
+            models.AiMessage.conversation_id == conv.id,
+            models.AiMessage.role == "attachment", models.AiMessage.id.in_(ids),
+        ).all()
+        if len(attachments) != len(ids):
+            raise HTTPException(404, "Файл не найден в этом диалоге.")
+
     if conv is None:
         conv = models.AiConversation(
             user_id=current_user.id,
@@ -197,7 +299,7 @@ async def chat(
 
         async def _producer():
             try:
-                async for ev in agent.run(db, conv, text, model, effort, current_user):
+                async for ev in agent.run(db, conv, text, model, effort, current_user, attachments=attachments):
                     await queue.put(ev)
             except Exception as exc:  # noqa: BLE001
                 await queue.put({"type": "error", "error": f"Сбой стрима: {exc}"})

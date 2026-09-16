@@ -1,0 +1,5 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG FEATURE_REVISION
+LABEL ru.admirra.assistant-files.revision=${FEATURE_REVISION}
+COPY ai/assistant/files.py ai/assistant/router.py ai/assistant/agent.py /app/ai/assistant/

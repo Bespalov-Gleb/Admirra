@@ -1,5 +1,6 @@
 <template>
   <section ref="pageRef" class="assistant-page" :class="{ 'assistant-page--dark': isDarkMode }">
+    <input ref="fileInput" hidden type="file" multiple accept=".pdf,.docx,.txt,.md" @change="uploadFiles" />
     <aside class="assistant-rail" :class="{ 'assistant-rail--open': railOpen }" aria-label="История ассистента">
       <div v-if="!railOpen" class="assistant-rail__compact">
         <button class="rail-icon-button" type="button" title="Открыть историю" aria-label="Открыть историю" @click="railOpen = true">
@@ -32,18 +33,17 @@
         </label>
 
         <div class="rail-history">
-          <button
+          <div
             v-for="conv in filteredConversations"
             :key="conv.id"
-            type="button"
-            class="rail-history__item"
-            :class="{ 'is-active': conv.id === activeConversationId }"
-            :title="conv.title"
-            @click="selectConversation(conv.id)"
+            class="rail-history-row"
           >
+            <button type="button" class="rail-history__item" :class="{ 'is-active': conv.id === activeConversationId }" :title="conv.title" @click="selectConversation(conv.id)">
             <span class="rail-history__title">{{ conv.title || 'Без названия' }}</span>
             <span class="rail-history__date">{{ formatChatDate(conv.updated_at) }}</span>
-          </button>
+            </button>
+            <button class="rail-delete" type="button" :disabled="sending || uploading" aria-label="Удалить диалог и документы" title="Удалить диалог и документы" @click="deleteConversation(conv.id)">×</button>
+          </div>
 
           <div v-if="!conversations.length" class="rail-history__empty">Здесь появятся ваши вопросы.</div>
           <div v-else-if="!filteredConversations.length" class="rail-history__empty">Ничего не найдено.</div>
@@ -59,6 +59,7 @@
           <p v-if="!configured" class="assistant-welcome__note">Ассистент скоро будет доступен — подключается модель.</p>
 
           <div class="assistant-composer">
+            <AttachmentList :files="pendingFiles" :busy="uploading" :error="fileError" @remove="removeFile" />
             <textarea
               ref="textarea"
               v-model="prompt"
@@ -69,6 +70,9 @@
               @keydown.enter.exact.prevent="sendPrompt"
             ></textarea>
             <div class="assistant-composer__actions">
+              <button class="composer-attach" type="button" :disabled="sending || uploading || pendingFiles.length >= 3" title="PDF, DOCX, TXT, MD · до 8 МБ · до 3 файлов" @click="fileInput?.click()">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 12 6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l8-8M7 13l7-7" /></svg><span>Файл</span>
+              </button>
               <div v-if="selectedModel.reasoning" class="assistant-model" :class="{ 'assistant-model--open': effortMenuOpen }" v-click-outside="() => (effortMenuOpen = false)">
                 <button type="button" class="assistant-model__btn" :aria-expanded="effortMenuOpen" aria-haspopup="listbox" @click="effortMenuOpen = !effortMenuOpen">
                   <span>Уровень размышлений · <b>{{ effortLabel }}</b></span>
@@ -168,16 +172,21 @@
                       <svg v-else viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4 4 10-11"/></svg>
                       <span>{{ copiedMessageId === message.id ? 'Скопировано' : 'Копировать' }}</span>
                     </button>
+                    <button v-for="format in (message.savedId ? ['docx', 'md'] : [])" :key="format" class="assistant-copy-btn" type="button" :disabled="!!downloading" @click="downloadAnswer(message, format)">
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4" /></svg>
+                      {{ downloading === `${message.savedId}-${format}` ? 'Готовим…' : format.toUpperCase() }}
+                    </button>
                   </div>
                 </div>
               </template>
-              <div v-else class="assistant-message__bubble"><p>{{ message.content }}</p></div>
+              <div v-else class="assistant-message__bubble"><p>{{ message.content }}</p><div v-if="message.attachments?.length" class="message-files"><span v-for="file in message.attachments" :key="file.id">↳ {{ file.name }}</span></div></div>
             </article>
           </TransitionGroup>
         </div>
 
         <div class="assistant-thread__composer">
           <div class="assistant-composer">
+            <AttachmentList :files="pendingFiles" :busy="uploading" :error="fileError" @remove="removeFile" />
             <textarea
               ref="threadTextarea"
               v-model="prompt"
@@ -188,6 +197,9 @@
               @keydown.enter.exact.prevent="sendPrompt"
             ></textarea>
             <div class="assistant-composer__actions">
+              <button class="composer-attach" type="button" :disabled="sending || uploading || pendingFiles.length >= 3" title="PDF, DOCX, TXT, MD · до 8 МБ · до 3 файлов" @click="fileInput?.click()">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 12 6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l8-8M7 13l7-7" /></svg><span>Файл</span>
+              </button>
               <div v-if="selectedModel.reasoning" class="assistant-model" :class="{ 'assistant-model--open': effortMenuOpen }" v-click-outside="() => (effortMenuOpen = false)">
                 <button type="button" class="assistant-model__btn" :aria-expanded="effortMenuOpen" aria-haspopup="listbox" @click="effortMenuOpen = !effortMenuOpen">
                   <span>Уровень размышлений · <b>{{ effortLabel }}</b></span>
@@ -209,6 +221,7 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import MarkdownIt from 'markdown-it'
+import AttachmentList from './AttachmentList.vue'
 import { useTheme } from '../../composables/useTheme'
 import api from '../../api/axios'
 import { getAccessToken } from '../../utils/authToken'
@@ -224,6 +237,11 @@ const threadTextarea = ref(null)
 const threadInner = ref(null)
 const historySearchInput = ref(null)
 const sending = ref(false)
+const fileInput = ref(null)
+const pendingFiles = ref([])
+const uploading = ref(false)
+const fileError = ref('')
+const downloading = ref('')
 const toolActivity = ref('')
 const wordstatConfigured = ref(false)
 let abortController = null
@@ -414,6 +432,9 @@ const loadConversations = async () => {
 }
 
 const newChat = async () => {
+  if (sending.value || uploading.value) return
+  pendingFiles.value = []
+  fileError.value = ''
   activeConversationId.value = null
   activeMessages.value = []
   prompt.value = ''
@@ -423,14 +444,79 @@ const newChat = async () => {
 }
 
 const selectConversation = async (id) => {
+  if (sending.value || uploading.value) return
+  pendingFiles.value = []
+  fileError.value = ''
   railOpen.value = false
   try {
     const { data } = await api.get(`assistant/conversations/${id}`)
     activeConversationId.value = data.id
-    activeMessages.value = (data.messages || []).map((m) => ({ id: m.id || nextMessageId('saved'), role: m.role, content: m.content || '' }))
+    pendingFiles.value = data.pending_attachments || []
+    activeMessages.value = (data.messages || []).map((m) => ({ id: m.id || nextMessageId('saved'), savedId: m.id, role: m.role, content: m.content || '', attachments: m.attachments || [] }))
     threadPinnedToBottom.value = true
     await scrollThread(true)
   } catch { /* ignore */ }
+}
+
+const uploadFiles = async (event) => {
+  const selected = Array.from(event.target.files || [])
+  event.target.value = ''
+  if (!selected.length || uploading.value || sending.value) return
+  fileError.value = ''
+  if (selected.length + pendingFiles.value.length > 3) { fileError.value = 'Не более 3 файлов за сообщение.'; return }
+  if (selected.some((f) => !/\.(pdf|docx|txt|md)$/i.test(f.name) || !f.size || f.size > 8 * 1024 * 1024)) {
+    fileError.value = 'Выберите PDF, DOCX, TXT или MD размером до 8 МБ (не пустой).'; return
+  }
+  uploading.value = true
+  try {
+    if (!activeConversationId.value) {
+      const { data } = await api.post('assistant/conversations', {})
+      activeConversationId.value = data.id
+    }
+    for (const file of selected) {
+      const { data } = await api.post(`assistant/conversations/${activeConversationId.value}/attachments`, file, {
+        params: { filename: file.name }, headers: { 'Content-Type': 'application/octet-stream' }, timeout: 60000,
+      })
+      pendingFiles.value.push(data)
+    }
+  } catch (error) {
+    fileError.value = typeof error.response?.data?.detail === 'string' ? error.response.data.detail : 'Не удалось загрузить файл. Повторите попытку.'
+  } finally { uploading.value = false; loadConversations() }
+}
+
+const deleteConversation = async (id) => {
+  if (sending.value || uploading.value || !window.confirm('Удалить диалог и содержимое прикреплённых документов?')) return
+  try {
+    await api.delete(`assistant/conversations/${id}`)
+    if (activeConversationId.value === id) await newChat()
+    await loadConversations()
+  } catch { fileError.value = 'Не удалось удалить диалог.' }
+}
+
+const removeFile = async (file) => {
+  if (uploading.value || sending.value) return
+  uploading.value = true
+  try {
+    await api.delete(`assistant/conversations/${activeConversationId.value}/attachments/${file.id}`)
+    pendingFiles.value = pendingFiles.value.filter((f) => f.id !== file.id)
+    fileError.value = ''
+  } catch { fileError.value = 'Не удалось убрать файл. Повторите попытку.' }
+  finally { uploading.value = false }
+}
+
+const downloadAnswer = async (message, format) => {
+  if (downloading.value) return
+  downloading.value = `${message.savedId}-${format}`
+  fileError.value = ''
+  try {
+    const { data } = await api.get(`assistant/conversations/${activeConversationId.value}/messages/${message.savedId}/download`, { params: { format }, responseType: 'blob' })
+    const url = URL.createObjectURL(data)
+    const link = document.createElement('a')
+    link.href = url; link.download = `admirra-answer.${format}`
+    document.body.appendChild(link); link.click(); link.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 10000)
+  } catch { fileError.value = 'Не удалось скачать ответ. Повторите попытку.' }
+  finally { downloading.value = '' }
 }
 
 const autoGrow = () => {
@@ -503,7 +589,8 @@ const handleEvent = (ev, assistantMsg) => {
       if (ev.status === 'start') toolActivity.value = toolLabel(ev.name)
       break
     case 'done':
-      if (!assistantMsg.content && ev.content) assistantMsg.content = ev.content
+      if (ev.content) assistantMsg.content = ev.content
+      assistantMsg.savedId = ev.message_id || null
       toolActivity.value = ''
       break
     case 'error':
@@ -537,13 +624,15 @@ const consumeSSE = async (stream, assistantMsg) => {
 }
 
 const sendPrompt = async () => {
-  const question = prompt.value.trim()
-  if (!question || sending.value) return
+  const question = prompt.value.trim() || (pendingFiles.value.length ? 'Проанализируй прикреплённые документы.' : '')
+  if (!question || sending.value || uploading.value) return
+  const attachments = [...pendingFiles.value]
+  fileError.value = ''
   sending.value = true
   toolActivity.value = ''
   threadPinnedToBottom.value = true
 
-  activeMessages.value.push({ id: nextMessageId('user'), role: 'user', content: question })
+  activeMessages.value.push({ id: nextMessageId('user'), role: 'user', content: question, attachments })
   // Берём реактивный прокси из массива — иначе мутации при стриме не обновят UI.
   activeMessages.value.push({ id: nextMessageId('assistant'), role: 'assistant', content: '', reasoning: '', pending: true })
   const assistantMsg = activeMessages.value[activeMessages.value.length - 1]
@@ -553,6 +642,7 @@ const sendPrompt = async () => {
   const token = getAccessToken()
   const body = {
     message: question,
+    attachment_ids: attachments.map((file) => file.id),
     conversation_id: activeConversationId.value || undefined,
     model: selectedModelId.value || undefined,
     effort: selectedModel.value.reasoning ? selectedEffort.value : undefined,
@@ -568,6 +658,7 @@ const sendPrompt = async () => {
       body: JSON.stringify(body),
     })
     if (!resp.ok || !resp.body) throw new Error(`HTTP ${resp.status}`)
+    pendingFiles.value = []
     await consumeSSE(resp.body, assistantMsg)
   } catch (e) {
     if (e?.name === 'AbortError') {
@@ -795,6 +886,16 @@ onUnmounted(() => {
 .assistant-composer textarea { box-sizing: border-box; display: block; width: 100%; min-width: 0; min-height: 5.62rem; max-height: 8.82rem; padding: 0; border: 0; border-radius: 0; outline: 0; resize: none; overflow-x: hidden; overflow-y: auto; appearance: none; background: transparent; box-shadow: none; color: var(--assistant-text); font: 400 1.21rem/1.5 Inter, sans-serif; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
 .assistant-composer textarea::placeholder { color: var(--assistant-muted); }
 .assistant-composer__actions { display: flex; align-items: center; gap: .52rem; margin-top: .84rem; }
+.composer-attach { display: inline-flex; align-items: center; gap: .4rem; flex-shrink: 0; margin-right: auto; padding: .65rem .75rem; border: 1px solid var(--assistant-line); border-radius: .7rem; background: var(--assistant-soft); color: var(--assistant-sub); cursor: pointer; font-size: .9rem; }
+.composer-attach svg { width: 1.15rem; height: 1.15rem; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+.composer-attach:disabled { opacity: .5; cursor: default; }
+.message-files { display: flex; flex-direction: column; gap: .3rem; margin-top: .6rem; font-size: .8rem; opacity: .85; overflow-wrap: anywhere; }
+.rail-history-row { display: flex; align-items: center; min-width: 0; }
+.rail-history-row .rail-history__item { flex: 1; min-width: 0; }
+.rail-delete { flex: 0 0 2rem; height: 2rem; background: transparent; border: 0; color: var(--assistant-muted); cursor: pointer; font-size: 1.2rem; border-radius: .5rem; }
+.rail-delete:hover { background: var(--assistant-soft); color: #c83c36; }
+.assistant-message__actions { flex-wrap: wrap; }
+@media (max-width: 600px) { .assistant-composer__actions { flex-wrap: wrap; } .composer-attach span { display: none; } }
 .composer-icon { display: grid; width: 2.35rem; height: 2.35rem; place-items: center; border-radius: .65rem; background: transparent; color: var(--assistant-muted); }.composer-icon:hover { background: var(--assistant-soft); color: var(--assistant-sub); }
 .composer-icon svg { width: 1.18rem; height: 1.18rem; }
 .assistant-composer__hint { margin-left: .12rem; margin-right: auto; color: var(--assistant-muted); font-size: .72rem; white-space: nowrap; }
