@@ -59,6 +59,16 @@ class ExtractionTests(unittest.TestCase):
 
 
 class IsolatedParserTests(unittest.IsolatedAsyncioTestCase):
+    async def test_25mb_pdf_boundary(self):
+        import pymupdf
+        with pymupdf.open() as doc:
+            doc.new_page().insert_text((72, 72), 'Boundary 34')
+            data = doc.tobytes()
+        data += b'\n' * (files.MAX_BYTES - len(data))
+        self.assertIn('34', await files.extract_isolated(data, 'boundary.pdf'))
+        with self.assertRaisesRegex(ValueError, '25'):
+            await files.extract_isolated(data + b'\n', 'boundary.pdf')
+
     async def test_real_child_and_rejection(self):
         self.assertEqual(await files.extract_isolated(b'hello', 'a.txt'), 'hello')
         with self.assertRaises(ValueError):

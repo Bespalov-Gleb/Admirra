@@ -13,7 +13,7 @@ import unicodedata
 import zipfile
 from xml.etree import ElementTree as ET
 
-MAX_BYTES = 8 * 1024 * 1024
+MAX_BYTES = 25 * 1024 * 1024
 MAX_CHARS = 40_000
 MAX_CONVERSATION_CHARS = 120_000
 MAX_FILES = 3
@@ -32,7 +32,7 @@ def safe_name(name: str) -> str:
 def extract(data: bytes, name: str) -> str:
     ext = Path(safe_name(name)).suffix.lower()
     if not data or len(data) > MAX_BYTES:
-        raise ValueError("Файл пустой или превышает 8 МБ.")
+        raise ValueError("Файл пустой или превышает 25 МБ.")
     chunks = []
     if ext == ".pdf":
         import pymupdf
@@ -84,7 +84,7 @@ async def extract_isolated(data: bytes, name: str) -> str:
     """Separate process, hard CPU/memory/time limits; no app environment or credentials."""
     name = safe_name(name)
     if not data or len(data) > MAX_BYTES:
-        raise ValueError("Файл пустой или превышает 8 МБ.")
+        raise ValueError("Файл пустой или превышает 25 МБ.")
     try:
         await asyncio.wait_for(_slots.acquire(), timeout=0.2)
     except asyncio.TimeoutError:

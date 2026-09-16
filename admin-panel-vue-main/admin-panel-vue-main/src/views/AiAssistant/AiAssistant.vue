@@ -70,7 +70,7 @@
               @keydown.enter.exact.prevent="sendPrompt"
             ></textarea>
             <div class="assistant-composer__actions">
-              <button class="composer-attach" type="button" :disabled="sending || uploading || pendingFiles.length >= 3" title="PDF, DOCX, TXT, MD · до 8 МБ · до 3 файлов" @click="fileInput?.click()">
+              <button class="composer-attach" type="button" :disabled="sending || uploading || pendingFiles.length >= 3" title="PDF, DOCX, TXT, MD · до 25 МБ · до 3 файлов" @click="fileInput?.click()">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 12 6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l8-8M7 13l7-7" /></svg><span>Файл</span>
               </button>
               <div v-if="selectedModel.reasoning" class="assistant-model" :class="{ 'assistant-model--open': effortMenuOpen }" v-click-outside="() => (effortMenuOpen = false)">
@@ -197,7 +197,7 @@
               @keydown.enter.exact.prevent="sendPrompt"
             ></textarea>
             <div class="assistant-composer__actions">
-              <button class="composer-attach" type="button" :disabled="sending || uploading || pendingFiles.length >= 3" title="PDF, DOCX, TXT, MD · до 8 МБ · до 3 файлов" @click="fileInput?.click()">
+              <button class="composer-attach" type="button" :disabled="sending || uploading || pendingFiles.length >= 3" title="PDF, DOCX, TXT, MD · до 25 МБ · до 3 файлов" @click="fileInput?.click()">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 12 6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l8-8M7 13l7-7" /></svg><span>Файл</span>
               </button>
               <div v-if="selectedModel.reasoning" class="assistant-model" :class="{ 'assistant-model--open': effortMenuOpen }" v-click-outside="() => (effortMenuOpen = false)">
@@ -464,8 +464,8 @@ const uploadFiles = async (event) => {
   if (!selected.length || uploading.value || sending.value) return
   fileError.value = ''
   if (selected.length + pendingFiles.value.length > 3) { fileError.value = 'Не более 3 файлов за сообщение.'; return }
-  if (selected.some((f) => !/\.(pdf|docx|txt|md)$/i.test(f.name) || !f.size || f.size > 8 * 1024 * 1024)) {
-    fileError.value = 'Выберите PDF, DOCX, TXT или MD размером до 8 МБ (не пустой).'; return
+  if (selected.some((f) => !/\.(pdf|docx|txt|md)$/i.test(f.name) || !f.size || f.size > 25 * 1024 * 1024)) {
+    fileError.value = 'Выберите PDF, DOCX, TXT или MD размером до 25 МБ (не пустой).'; return
   }
   uploading.value = true
   try {
@@ -475,7 +475,7 @@ const uploadFiles = async (event) => {
     }
     for (const file of selected) {
       const { data } = await api.post(`assistant/conversations/${activeConversationId.value}/attachments`, file, {
-        params: { filename: file.name }, headers: { 'Content-Type': 'application/octet-stream' }, timeout: 60000,
+        params: { filename: file.name }, headers: { 'Content-Type': 'application/octet-stream' }, timeout: 120000,
       })
       pendingFiles.value.push(data)
     }

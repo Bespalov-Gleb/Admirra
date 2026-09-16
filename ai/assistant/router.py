@@ -164,11 +164,11 @@ async def upload_attachment(
     db.rollback()  # Do not hold a SQL connection during upload or parsing.
     data = bytearray()
     try:
-        async with asyncio.timeout(30):
+        async with asyncio.timeout(90):
             async for chunk in request.stream():
                 data.extend(chunk)
                 if len(data) > files.MAX_BYTES:
-                    raise HTTPException(413, "Максимальный размер файла — 8 МБ.")
+                    raise HTTPException(413, "Максимальный размер файла — 25 МБ.")
         text = await files.extract_isolated(bytes(data), filename)
     except TimeoutError:
         raise HTTPException(408, "Загрузка файла заняла слишком много времени.") from None

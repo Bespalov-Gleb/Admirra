@@ -17,8 +17,8 @@ ROOT = Path('/root/Admirra')
 BACKUPS = Path('/root/admirra-assistant-files-backups')
 SERVICES = ('backend', 'frontend')
 EXPECTED = {
-    'backend': 'sha256:778c896e65f79be3fb33748c1c819d22dc7fd3ffb677505bf2fe987b43bbb2c8',
-    'frontend': 'sha256:b5f76a05f74f55b37b5c5314591b249e2188cc229a2c729b969987bcdee1a60b',
+    'backend': 'sha256:e1d61ba09fd8dbfa24ba625ca128e1a4a3a095c19314232e2a6ac940cc3b930d',
+    'frontend': 'sha256:e13859c0210ff4805e2815ab615c233fb636e2cacbca41c4b740fbad26ba2a8b',
 }
 
 
