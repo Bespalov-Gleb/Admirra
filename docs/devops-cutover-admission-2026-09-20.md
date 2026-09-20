@@ -27,7 +27,7 @@
 
 ## Проверка
 
-- 7 unit tests: exact/idempotent patch, ambiguous-layout refusal, open/closed route inventory, resolved-site backup — pass;
+- 9 pytest cases: exact/idempotent patch, ambiguous-layout refusal, open/closed route inventory, resolved-site/state backup и versioned UTC state — pass;
 - реальный `nginx -t` на временном prefix — pass;
 - временный Nginx на loopback проверен восемью HTTP-кейсами:
   - GET ассистента не блокируется;
@@ -36,7 +36,7 @@
 
 Тестовый Nginx остановлен и временные файлы удалены; production-конфигурация при тесте не менялась.
 
-Production install выполнен из release `/root/admirra-cutover-admission-b82f78d`. До изменения сохранена root-only копия `/root/admirra-cutover-admission-backups/20260920T172006Z`; `nginx -t` и reload успешны. Оба site-файла подключают server snippet, активный map совпадает с reviewed `open`.
+Production install выполнен из release `/root/admirra-cutover-admission-b82f78d`. До изменения сохранена root-only копия `/root/admirra-cutover-admission-backups/20260920T172006Z`; `nginx -t` и reload успешны. Оба site-файла подключают server snippet, активный map совпадает с reviewed `open`. Последнее подтверждённое переключение атомарно записано в `/var/lib/admirra-cutover-admission/state.json`: versioned формат, режим `open`, UTC timestamp, без runtime-секретов.
 
 После установки: `admirra.ru/` — 200, `/api/auth/me` — ожидаемый 401 без сессии, POST assistant/report — ожидаемый auth 401, а не gate 503. Оба API-2 monitor timer активны, public health не изменился. `admirra.online` не использовался как acceptance URL: внешний DNS/доступность этого legacy alias рассматривается отдельно и не смешивается с gate.
 

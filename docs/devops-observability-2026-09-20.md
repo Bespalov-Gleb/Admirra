@@ -1,6 +1,6 @@
 # Production observability — host, PostgreSQL и Redis
 
-Дата включения: 20.09.2026. Статус: центральный Prometheus собирает host-, API-2-canary-, PostgreSQL- и Redis-метрики с обоих production-узлов; правила алертов вычисляются. Alertmanager/config/deploy/synthetic smoke [подготовлены и изолированно проверены](devops-alertmanager-prepared-2026-09-20.md), но production-доставка человеку не включена до выбора владельцем канала и получателя.
+Дата включения: 20.09.2026. Статус: центральный Prometheus собирает host-, API-2-canary-, PostgreSQL- и Redis-метрики с обоих production-узлов; правила алертов вычисляются. Независимый [public heartbeat](devops-external-heartbeat-2026-09-20.md) работает на третьем сервере. Alertmanager/config/deploy/synthetic smoke [подготовлены и изолированно проверены](devops-alertmanager-prepared-2026-09-20.md), но production-доставка человеку не включена до выбора владельцем канала и получателя.
 
 ## Развёрнутая схема
 
@@ -108,5 +108,5 @@ sh remove-redis-exporters.sh
 
 1. Выбрать отдельный технический канал и ответственного; подключить Alertmanager/receiver и подтвердить тестом alert → человек → resolved.
 2. Добавить application metrics API/DB pool/SSE, durable jobs/sync/reports/AI/billing после включения соответствующих runtime-компонентов.
-3. Подключить внешний uptime heartbeat вне обоих серверов: локальный Prometheus не сообщит о полном падении server 1/ingress.
+3. Связать уже работающий внешний heartbeat с выбранным получателем и проверить `critical → recovery` человеком.
 4. Уточнить retention после замера фактического TSDB growth; текущие 7 дней/1 ГБ — ограниченная стартовая политика.

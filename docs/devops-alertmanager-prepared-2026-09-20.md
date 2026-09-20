@@ -1,6 +1,6 @@
 # Alertmanager — подготовленный production receiver
 
-Дата: 20.09.2026. Статус: конфигурация, deploy/rollback и synthetic firing/resolved smoke подготовлены и проверены изолированно; production не изменён, уведомления человеку не включены до получения адреса канала.
+Дата: 20.09.2026. Статус: конфигурация, deploy/rollback и synthetic firing/resolved smoke подготовлены и проверены изолированно; production Alertmanager не включён, уведомления человеку не подключены до получения адреса канала. Независимый public heartbeat на третьем сервере уже [включён отдельно](devops-external-heartbeat-2026-09-20.md).
 
 ## Реализация
 

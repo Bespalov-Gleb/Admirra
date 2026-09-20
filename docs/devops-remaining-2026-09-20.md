@@ -13,10 +13,11 @@
 - Launch capacity profile вместе с API-2: 6144 MiB caps, 1796 MiB OS headroom, worker DB 14 + reserve 4 из 20, API-2 pool 5. `ai.prewarm` явно выключен до отдельного решения. Arithmetic/boot приняты; одновременный worker-set + real-snapshot API read-load дал 40/40 HTTP 200, p95 692 ms. Worker/provider peak ещё не принят.
 - Production application остаётся на `cdf0a4d` / schema `cc3d4e5f6a7b`; candidate migrations/workers не включались.
 - Cutover admission gate установлен перед текущим ingress в `open`; `closed` подготовлен, но до согласованного окна не включался. После установки public 200/auth 401 штатны, monitoring timers active, pending/firing alerts — 0.
+- Независимый public heartbeat работает на AI gateway каждые две минуты: root 200/auth guard 401, state `ok`. Он пока observe-only и станет полноценной тревогой после подключения выбранного получателя.
 
 ## P0 — блокирует миграцию production
 
-1. **Alert → человек.** Alertmanager с секретом через file, pinned image, deploy/rollback, Prometheus routing/rules и synthetic firing/resolved smoke [подготовлен и проверен](devops-alertmanager-prepared-2026-09-20.md). Владелец выбирает отдельный технический webhook и ответственного; после защищённой установки URL остаются production deploy, подтверждение человеком firing/resolved и внешний heartbeat вне обоих app servers.
+1. **Alert → человек.** Alertmanager с секретом через file, pinned image, deploy/rollback, Prometheus routing/rules и synthetic firing/resolved smoke [подготовлен и проверен](devops-alertmanager-prepared-2026-09-20.md). Внешний heartbeat вне обоих app servers уже [работает](devops-external-heartbeat-2026-09-20.md). Владелец выбирает отдельный технический webhook и ответственного; после защищённой установки URL остаются production deploy и фактическое подтверждение человеком `firing → resolved` и heartbeat `critical → recovery`.
 2. **Worker/provider peak acceptance.** Read API + idle worker mixed-smoke уже пройден. На восстановленной копии либо утверждённом test tenant остаётся выполнить bounded manual/night/report/AI/billing load; измерить RSS/PSS, CPU, Redis/AOF, DB pool/locks, provider quotas и latency.
 3. **Окно cutover.** Нужны дата/оператор и запрет окна 03:00/05:00 МСК. Fail-closed [cutover preflight](devops-cutover-preflight-2026-09-20.md) уже проверяет окно, точные artifacts/schema, recovery/alert evidence, отсутствие активных side effects и approvals; незаполненный шаблон блокируется. Перед окном evidence собирается заново.
 
