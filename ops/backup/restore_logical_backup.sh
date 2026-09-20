@@ -50,11 +50,20 @@ container=admirra-restore-$suffix
 volume=admirra-restore-$suffix
 image=postgres:15.18-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f
 started_at=$(date +%s)
+application_container=
+runtime_directory=
 
 cleanup() {
+  if [ -n "$application_container" ]; then
+    docker stop --time 10 "$application_container" >/dev/null 2>&1 || true
+    docker container rm "$application_container" >/dev/null 2>&1 || true
+  fi
   docker stop --time 10 "$container" >/dev/null 2>&1 || true
   docker container rm "$container" >/dev/null 2>&1 || true
   docker volume rm "$volume" >/dev/null 2>&1 || true
+  if [ -n "$runtime_directory" ] && [ -d "$runtime_directory" ]; then
+    python3 -c 'import shutil,sys; shutil.rmtree(sys.argv[1])' "$runtime_directory"
+  fi
 }
 trap cleanup EXIT HUP INT TERM
 if docker container inspect "$container" >/dev/null 2>&1 || docker volume inspect "$volume" >/dev/null 2>&1; then
@@ -133,5 +142,78 @@ if [ -n "$migration_image" ]; then
   test "$migrated_tables" = 9
 fi
 
+application_smoke=skipped
+if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
+  if [ -z "$migration_image" ] || [ ! -s "$runtime_file" ]; then
+    echo "application smoke requires migration image and runtime object" >&2
+    exit 2
+  fi
+  runtime_directory=$(mktemp -d /dev/shm/admirra-runtime-restore.XXXXXX)
+  chmod 0700 "$runtime_directory"
+  age --decrypt --identity "$identity" "$runtime_file" \
+  | tar --extract --file=- --directory="$runtime_directory" --no-same-owner --no-same-permissions
+  test -s "$runtime_directory/root/Admirra/.env"
+  test -d "$runtime_directory/root/Admirra/uploads"
+  test -d "$runtime_directory/root/Admirra/secrets"
+
+  application_container=admirra-app-restore-$suffix
+  if docker container inspect "$application_container" >/dev/null 2>&1; then
+    echo "application restore drill container already exists" >&2
+    exit 1
+  fi
+  docker run -d \
+    --name "$application_container" \
+    --network "container:$container" \
+    --read-only \
+    --tmpfs /tmp:size=128m \
+    --user 10001:10001 \
+    --memory 1g \
+    --cpus 1 \
+    --pids-limit 256 \
+    --cap-drop ALL \
+    --security-opt no-new-privileges:true \
+    --env-file "$runtime_directory/root/Admirra/.env" \
+    -e DATABASE_URL=postgresql://postgres:isolated-restore-only@127.0.0.1:5432/restore \
+    -e APP_PROCESS_ROLE=api \
+    -e DB_AUTO_BOOTSTRAP=false \
+    -e RUN_SYNC_WORKER=false \
+    -e RUN_API_SCHEDULER=false \
+    -e DURABLE_TASKS=false \
+    -e REDIS_ENABLED=false \
+    -e SHARED_READ_CACHE=false \
+    -e SMTP_ENABLED=false \
+    -e LOG_TO_STDOUT=true \
+    -e OPENAI_API_KEY= \
+    -e WORDSTAT_API_KEY= \
+    -v "$runtime_directory/root/Admirra/uploads:/app/uploads:ro" \
+    -v "$runtime_directory/root/Admirra/secrets:/app/secrets:ro" \
+    "$migration_image" >/dev/null
+
+  ready=0
+  for attempt in $(seq 1 60); do
+    if docker exec "$application_container" python -c \
+      'import json,urllib.request; data=json.load(urllib.request.urlopen("http://127.0.0.1:8001/api/health/ready", timeout=2)); assert data["status"] == "ready" and data["database"] == "ok"' \
+      >/dev/null 2>&1; then
+      ready=1
+      break
+    fi
+    sleep 1
+  done
+  if [ "$ready" -ne 1 ]; then
+    echo "restored application did not become ready" >&2
+    docker logs --tail 30 "$application_container" >&2 || true
+    exit 1
+  fi
+  docker exec "$application_container" python -c \
+    'import urllib.error,urllib.request
+try:
+    urllib.request.urlopen("http://127.0.0.1:8001/api/auth/me", timeout=2)
+except urllib.error.HTTPError as error:
+    assert error.code in (401, 403)
+else:
+    raise AssertionError("protected route was not protected")'
+  application_smoke=passed
+fi
+
 duration=$(( $(date +%s) - started_at ))
-echo "restore drill passed: backup=$backup_id schema=$restored_revision duration_seconds=$duration network=none migration=$([ -n "$migration_image" ] && echo applied || echo skipped)"
+echo "restore drill passed: backup=$backup_id schema=$restored_revision duration_seconds=$duration network=none migration=$([ -n "$migration_image" ] && echo applied || echo skipped) application=$application_smoke"
