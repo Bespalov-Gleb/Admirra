@@ -95,11 +95,16 @@ class GoogleSheetsService:
         }
 
     def export_raw_data(self, spreadsheet_id: str, client_id: str, db: Session) -> int:
+        self._require_service()
+        rows = self.raw_rows(client_id, db)
+        self._write_to_sheet(spreadsheet_id, "Raw Data", rows)
+        return max(len(rows) - 1, 0)
+
+    @staticmethod
+    def raw_rows(client_id: str, db: Session) -> list:
         """
         Export full Yandex and VK daily stats history to Raw Data.
         """
-        self._require_service()
-
         yandex_data = (
             db.query(models.YandexStats)
             .filter_by(client_id=client_id)
@@ -154,8 +159,7 @@ class GoogleSheetsService:
                 _to_int(item.conversions),
             ])
 
-        self._write_to_sheet(spreadsheet_id, "Raw Data", rows)
-        return max(len(rows) - 1, 0)
+        return rows
 
     def export_reports(self, spreadsheet_id: str, client_id: str, db: Session) -> dict:
         """
@@ -168,6 +172,12 @@ class GoogleSheetsService:
 
     def export_weekly_reports(self, spreadsheet_id: str, client_id: str, db: Session) -> int:
         self._require_service()
+        rows = self.weekly_rows(client_id, db)
+        self._write_to_sheet(spreadsheet_id, "Weekly Reports", rows)
+        return max(len(rows) - 1, 0)
+
+    @staticmethod
+    def weekly_rows(client_id: str, db: Session) -> list:
         weekly = (
             db.query(models.WeeklyReport)
             .filter_by(client_id=client_id)
@@ -186,11 +196,16 @@ class GoogleSheetsService:
                 _to_float(r.avg_cpa),
             ])
 
-        self._write_to_sheet(spreadsheet_id, "Weekly Reports", rows)
-        return max(len(rows) - 1, 0)
+        return rows
 
     def export_monthly_reports(self, spreadsheet_id: str, client_id: str, db: Session) -> int:
         self._require_service()
+        rows = self.monthly_rows(client_id, db)
+        self._write_to_sheet(spreadsheet_id, "Monthly Report", rows)
+        return max(len(rows) - 1, 0)
+
+    @staticmethod
+    def monthly_rows(client_id: str, db: Session) -> list:
         monthly = (
             db.query(models.MonthlyReport)
             .filter_by(client_id=client_id)
@@ -209,8 +224,7 @@ class GoogleSheetsService:
                 _to_float(r.avg_cpa),
             ])
 
-        self._write_to_sheet(spreadsheet_id, "Monthly Report", rows)
-        return max(len(rows) - 1, 0)
+        return rows
 
     def export_metrika_goals(
         self,
@@ -223,7 +237,12 @@ class GoogleSheetsService:
         Export Metrika goals data. Optionally filter by integration_id.
         """
         self._require_service()
+        rows = self.goal_rows(client_id, db, integration_id=integration_id)
+        self._write_to_sheet(spreadsheet_id, "Goals", rows)
+        return max(len(rows) - 1, 0)
 
+    @staticmethod
+    def goal_rows(client_id: str, db: Session, integration_id: str = None) -> list:
         query = db.query(models.MetrikaGoals).filter_by(client_id=client_id)
         if integration_id:
             query = query.filter_by(integration_id=integration_id)
@@ -239,8 +258,25 @@ class GoogleSheetsService:
                 str(g.integration_id) if g.integration_id else "",
             ])
 
-        self._write_to_sheet(spreadsheet_id, "Goals", rows)
-        return max(len(rows) - 1, 0)
+        return rows
+
+    @classmethod
+    def prepare_snapshot(cls, client_id: str, db: Session) -> dict:
+        """SQL only: plain values survive closing the read session, no Google SDK."""
+        return {"Raw Data": cls.raw_rows(client_id, db), "Weekly Reports": cls.weekly_rows(client_id, db),
+                "Monthly Report": cls.monthly_rows(client_id, db), "Goals": cls.goal_rows(client_id, db)}
+
+    def write_snapshot(self, spreadsheet_id: str, snapshot: dict) -> dict:
+        """External IO only; caller must have closed its SQL transaction."""
+        self._require_service()
+        spreadsheet_id = extract_spreadsheet_id(spreadsheet_id)
+        counts = {}
+        for name, key in (("Raw Data", "raw_rows"), ("Weekly Reports", "weekly_rows"),
+                          ("Monthly Report", "monthly_rows"), ("Goals", "goals_rows")):
+            rows = snapshot[name]
+            self._write_to_sheet(spreadsheet_id, name, rows)
+            counts[key] = max(len(rows) - 1, 0)
+        return counts
 
     def _a1(self, sheet_name: str, cell: str = "A1") -> str:
         escaped = sheet_name.replace("'", "''")

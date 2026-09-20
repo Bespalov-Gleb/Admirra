@@ -28,7 +28,7 @@ def report_expired(scheduled, now):
 
 
 def plan_page(factory, kind, payload):
-    if kind not in {"nightly.enqueue", "reports.rules"}:
+    if kind not in {"nightly.enqueue", "reports.rules", "reports.export"}:
         raise ValueError("Unsupported calendar planner")
     scheduled = scheduled_time(payload)
     stamp = scheduled.isoformat()
@@ -49,6 +49,10 @@ def plan_page(factory, kind, payload):
                 models.Client.status == models.ClientStatus.ACTIVE,
                 models.Integration.connection_status == "active")
             child_kind, queue = "nightly.integration", "maintenance"
+        elif kind == "reports.export":
+            identity, owner = models.Client.id, models.Client.owner_id
+            query = sa.select(identity, owner).where(models.Client.status == models.ClientStatus.ACTIVE)
+            child_kind, queue = "reports.project", "reports"
         else:
             identity = models.ReportSchedule.id
             owner = models.ReportSchedule.user_id
@@ -71,7 +75,7 @@ def plan_page(factory, kind, payload):
             query = query.where(identity > cursor)
         rows = db.execute(query.order_by(identity).limit(PAGE_SIZE + 1)).all()
         for target_id, target_owner in rows[:PAGE_SIZE]:
-            field = "integration_id" if kind == "nightly.enqueue" else "rule_id"
+            field = {"nightly.enqueue": "integration_id", "reports.export": "client_id", "reports.rules": "rule_id"}[kind]
             submit(db, kind=child_kind, queue=queue,
                 key=f"{child_kind}:{target_id}:{stamp}", resource=f"{child_kind}:{target_id}",
                 tenant=target_owner, payload={field: str(target_id), "owner_id": str(target_owner), "scheduled_at": stamp},
@@ -101,3 +105,36 @@ async def run_report(payload):
         return {"skipped": "expired_occurrence"}
     return await run_scheduled_report_rules(scheduled_at=scheduled,
         rule_id=uuid.UUID(payload["rule_id"]), owner_id=uuid.UUID(payload["owner_id"]))
+
+
+def export_project(factory, payload, *, service_factory=None):
+    """Per-project DB work -> detached values -> external Sheets IO.
+
+    Child is non-replayable: timeout after a sheet was written is not evidence
+    that no write happened. It must not invoke the former global export pass.
+    """
+    from automation.reports import generate_weekly_report, generate_monthly_report
+    from automation.google_sheets import GoogleSheetsService
+    target = scheduled_time(payload).date()
+    client_id, owner_id = uuid.UUID(payload["client_id"]), uuid.UUID(payload["owner_id"])
+    with factory() as db:
+        client = db.get(models.Client, client_id)
+        if client is None or client.owner_id != owner_id or client.status != models.ClientStatus.ACTIVE:
+            return {"skipped": "scope_changed"}
+        # Legacy report helpers commit their own pure-SQL aggregates.
+        generate_weekly_report(db, client_id, target)
+        generate_monthly_report(db, client_id, target.year, target.month)
+        spreadsheet_id = client.spreadsheet_id
+        snapshot = GoogleSheetsService.prepare_snapshot(client_id, db) if spreadsheet_id else None
+    if snapshot is None:
+        return {"reports": "generated", "sheets": "not_configured"}
+    # Constructor may perform credential/discovery IO: it too is outside SQL.
+    service = (service_factory or GoogleSheetsService)()
+    if not service.configured:
+        raise RuntimeError("Project requires Sheets export but credentials are not configured")
+    with factory() as db:
+        client = db.get(models.Client, client_id)
+        if (client is None or client.owner_id != owner_id or client.status != models.ClientStatus.ACTIVE
+                or client.spreadsheet_id != spreadsheet_id):
+            return {"skipped": "scope_changed"}
+    return {"reports": "generated", "sheets": service.write_snapshot(spreadsheet_id, snapshot)}

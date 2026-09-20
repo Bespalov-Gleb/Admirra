@@ -38,7 +38,7 @@ def run(kind, payload):
     if kind == "sync.alias":
         # Durable receipt only: the referenced SyncJob owns execution/status.
         return {"joined_sync_job_id": payload["sync_job_id"]}
-    if kind in {"nightly.enqueue", "reports.rules"}:
+    if kind in {"nightly.enqueue", "reports.rules", "reports.export"}:
         from core.database import SessionLocal
         from automation.calendar_work import plan_page
         return plan_page(SessionLocal, kind, payload)
@@ -48,9 +48,10 @@ def run(kind, payload):
     if kind == "sync":
         from automation.durable_sync import execute
         return execute(payload)
-    if kind == "reports.export":
-        from automation.sync import run_post_sync_reports
-        return run_post_sync_reports(datetime.fromisoformat(payload["scheduled_at"]).date())
+    if kind == "reports.project":
+        from core.database import SessionLocal
+        from automation.calendar_work import export_project
+        return export_project(SessionLocal, payload)
     if kind == "vk.maintenance":
         from backend_api.integrations import maintain_vk_client_links
         return maintain_vk_client_links()
