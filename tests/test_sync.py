@@ -136,6 +136,28 @@ async def test_goals_use_refreshed_direct_token(direct, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_avito_cannot_claim_success_when_linked_metrika_fails(direct, monkeypatch):
+    from datetime import datetime
+    db, integration, _, _ = direct
+    integration.platform = models.IntegrationPlatform.AVITO_ADS
+    integration.client.owner_id = None
+    integration.utm_source = "avito-ads"
+    previous = datetime(2026, 8, 1)
+    integration.last_sync_at = previous
+    api = SimpleNamespace(get_balance=AsyncMock(return_value=None), get_campaigns=AsyncMock(return_value=[]),
+                          get_statistics_bundle=AsyncMock(return_value={"campaigns": [], "groups": [], "creatives": []}))
+    monkeypatch.setattr("automation.avito_integration_helpers.build_avito_api_from_integration", lambda _: api)
+    monkeypatch.setattr("automation.avito_integration_helpers.avito_metrika_access_token", lambda _: "test-only")
+    monkeypatch.setattr("automation.avito_integration_helpers.avito_metrika_profile_login", lambda _: None)
+    monkeypatch.setattr(sync, "_bulk_upsert_stats_by_key", Mock())
+    monkeypatch.setattr(sync, "_sync_metrika_goals_for_direct", AsyncMock(side_effect=TimeoutError("unknown goals")))
+    with pytest.raises(sync.RequiredSyncSourceFailed):
+        await sync.sync_integration(db, integration, "2026-09-01", "2026-09-10")
+    assert integration.sync_status == models.IntegrationSyncStatus.FAILED
+    assert integration.last_sync_at == previous
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("fail_first", [False, True])
 async def test_parallel_sync_uses_isolated_sessions_and_continues(direct, monkeypatch, fail_first):
     _, integration, _, _ = direct
