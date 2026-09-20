@@ -2195,6 +2195,7 @@ async def get_sync_job(
     if not job:
         raise HTTPException(status_code=404, detail="Sync job not found")
     _integration_for_project_access(db, current_user, job.integration_id)
+    from automation.sync_request import public_request
     return {
         "id": str(job.id),
         "integration_id": str(job.integration_id),
@@ -2207,6 +2208,7 @@ async def get_sync_job(
         "finished_at": job.finished_at,
         "created_at": job.created_at,
         "updated_at": job.updated_at,
+        "request": public_request(job),
     }
 
 
@@ -2222,6 +2224,7 @@ async def get_integration_sync_status(
     ).order_by(models.SyncJob.created_at.desc()).first()
     if not job:
         return {"integration_id": str(integration_id), "job": None}
+    from automation.sync_request import public_request
     return {
         "integration_id": str(integration_id),
         "job": {
@@ -2231,6 +2234,7 @@ async def get_integration_sync_status(
             "progress": job.progress,
             "error": job.error,
             "updated_at": job.updated_at,
+            "request": public_request(job),
         },
     }
 

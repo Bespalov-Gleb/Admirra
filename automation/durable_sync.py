@@ -5,21 +5,30 @@ from sqlalchemy import select
 
 from core import models
 from core.database import SessionLocal
-from automation.work_ledger import submit
+from automation.work_ledger import submit, _serialize_claims
+from automation.work_tables import jobs
+from automation.sync_request import request_params, read_params, covers, merged
+
+
+def _record_occurrence(db, occurrence, integration_id, job_id, owner_id):
+    if occurrence:
+        # A night tick which joins manual work must still remember that binding
+        # after the manual job finishes; replaying the planner cannot resync it.
+        submit(db, kind="sync.alias", queue="maintenance", key=f"night:{integration_id}:{occurrence}",
+               resource=f"sync-alias:{integration_id}", tenant=owner_id,
+               payload={"sync_job_id": str(job_id)}, replay_safe=True)
 
 
 def enqueue(integration_id, *, days, force_full, trigger, date_from=None, date_to=None, occurrence=None, expected_owner_id=None):
     with SessionLocal() as db:
-        client = None
-        if expected_owner_id is not None:
-            # Keep the same Client -> Integration lock order as guarded sync.
-            client_id = db.scalar(select(models.Integration.client_id).where(models.Integration.id == integration_id))
-            client = db.query(models.Client).filter(models.Client.id == client_id).with_for_update().first()
-            if client is None:
-                return None
+        # Queue coalescing and worker claim must never race. No provider IO or
+        # long-running work occurs while this short control-plane lock is held.
+        _serialize_claims(db)
+        client_id = db.scalar(select(models.Integration.client_id).where(models.Integration.id == integration_id))
+        client = db.query(models.Client).filter(models.Client.id == client_id).with_for_update().first()
         # Serializes enqueue even when requests hit different API instances.
         integration = db.query(models.Integration).filter(models.Integration.id == integration_id).with_for_update().first()
-        if integration is None:
+        if integration is None or client is None or integration.client_id != client.id:
             if expected_owner_id is not None:
                 return None
             raise ValueError("Integration not found")
@@ -30,20 +39,40 @@ def enqueue(integration_id, *, days, force_full, trigger, date_from=None, date_t
                     or integration.connection_status != "active"):
                 return None
         if occurrence:
-            from automation.work_tables import jobs
             previous = db.execute(select(jobs.c.payload).where(
                 jobs.c.dedupe_key == f"night:{integration_id}:{occurrence}")).scalar()
             if previous:
                 return uuid.UUID(previous["sync_job_id"])
-        existing = db.query(models.SyncJob).filter(
+        params = request_params(integration, client, days=days, force_full=force_full, trigger=trigger,
+                                date_from=date_from, date_to=date_to)
+        active = db.query(models.SyncJob).filter(
             models.SyncJob.integration_id == integration_id,
             models.SyncJob.status.in_([models.SyncJobStatus.QUEUED, models.SyncJobStatus.RUNNING]),
-        ).order_by(models.SyncJob.created_at).first()
-        if existing:
-            return existing.id
-        params = {"days": days, "force_full": force_full, "trigger": trigger}
-        if date_from and date_to:
-            params.update(date_from=date_from, date_to=date_to)
+        ).order_by(models.SyncJob.created_at, models.SyncJob.id).all()
+        for existing in active:
+            if covers(read_params(existing), params):
+                if trigger != "auto" and existing.status == models.SyncJobStatus.QUEUED:
+                    promoted = db.execute(jobs.update().where(jobs.c.kind == "sync", jobs.c.state == "queued",
+                        jobs.c.tenant == str(client.owner_id),
+                        jobs.c.payload["sync_job_id"].astext == str(existing.id)).values(queue="sync.manual")).rowcount
+                    if promoted:
+                        existing.params = json.dumps({**read_params(existing), "trigger": trigger})
+                _record_occurrence(db, occurrence, integration_id, existing.id, client.owner_id)
+                db.commit()
+                return existing.id
+        for pending in reversed(active):
+            transport = db.execute(select(jobs.c.id, jobs.c.state, jobs.c.tenant).where(jobs.c.kind == "sync",
+                jobs.c.payload["sync_job_id"].astext == str(pending.id))).first()
+            if (pending.status == models.SyncJobStatus.QUEUED and transport and transport.state == "queued"
+                    and transport.tenant == str(client.owner_id)):
+                pending.params = json.dumps(merged(read_params(pending), params))
+                if trigger != "auto":
+                    db.execute(jobs.update().where(jobs.c.id == transport.id).values(queue="sync.manual"))
+                _record_occurrence(db, occurrence, integration_id, pending.id, client.owner_id)
+                db.commit()
+                return pending.id
+        if active:
+            params["after_sync_job_id"] = str(active[-1].id)
         job_id = uuid.uuid4()
         job = models.SyncJob(id=job_id, integration_id=integration_id, status=models.SyncJobStatus.QUEUED,
                              stage="queued", progress=0, params=json.dumps(params))
@@ -53,8 +82,9 @@ def enqueue(integration_id, *, days, force_full, trigger, date_from=None, date_t
         db.flush()
         submit(db, kind="sync", queue="sync.nightly" if trigger == "auto" else "sync.manual",
                key=f"night:{integration_id}:{occurrence}" if occurrence else f"sync:{job_id}",
-               resource=f"integration:{integration_id}", tenant=integration.client.owner_id,
-               payload={"sync_job_id": str(job_id)}, replay_safe=True)
+               resource=f"integration:{integration_id}", tenant=client.owner_id,
+               payload={"sync_job_id": str(job_id), "owner_id": str(client.owner_id),
+                        "client_id": str(client.id), "after_sync_job_id": params.get("after_sync_job_id")}, replay_safe=True)
         db.commit()
         return job_id
 
@@ -63,8 +93,22 @@ def execute(payload):
     from backend_api.sync_jobs import _run_job_sync
     job_id = uuid.UUID(payload["sync_job_id"])
     with SessionLocal() as db:
-        if db.execute(select(models.SyncJob.status).where(models.SyncJob.id == job_id)).scalar() == models.SyncJobStatus.SUCCESS:
+        business_job = db.get(models.SyncJob, job_id)
+        if business_job and business_job.status == models.SyncJobStatus.SUCCESS:
             return
+        integration = db.get(models.Integration, business_job.integration_id) if business_job else None
+        client = db.get(models.Client, integration.client_id) if integration else None
+        if (not client or client.status != models.ClientStatus.ACTIVE or integration.connection_status != "active"
+                or (payload.get("owner_id") and str(client.owner_id) != payload["owner_id"])
+                or (payload.get("client_id") and str(client.id) != payload["client_id"])):
+            if business_job:
+                business_job.status = models.SyncJobStatus.FAILED
+                business_job.stage = "skipped"
+                business_job.error = "Источник удалён, отключён или изменил владельца"
+                from datetime import datetime, timezone
+                business_job.finished_at = datetime.now(timezone.utc)
+                db.commit()
+            raise ValueError("Queued sync scope is no longer authorized")
     _run_job_sync(job_id)
     with SessionLocal() as db:
         status = db.execute(select(models.SyncJob.status).where(models.SyncJob.id == job_id)).scalar()

@@ -35,6 +35,9 @@ async def _async_run(kind, payload):
 
 
 def run(kind, payload):
+    if kind == "sync.alias":
+        # Durable receipt only: the referenced SyncJob owns execution/status.
+        return {"joined_sync_job_id": payload["sync_job_id"]}
     if kind in {"nightly.enqueue", "reports.rules"}:
         from core.database import SessionLocal
         from automation.calendar_work import plan_page

@@ -73,6 +73,15 @@ def claim(db, job_id, *, lease_seconds=None):
     busy = db.execute(sa.select(jobs.c.id).where(jobs.c.resource == job["resource"], jobs.c.state == "running")).first()
     if busy:
         return None
+    if job["kind"] == "sync" and job["payload"].get("after_sync_job_id"):
+        from core import models
+        previous_id = uuid.UUID(job["payload"]["after_sync_job_id"])
+        previous = db.get(models.SyncJob, previous_id)
+        # Never invert dependent windows even if messages arrive out of order.
+        # Missing predecessor can follow an explicit retention/delete; a
+        # still-active predecessor must finish first (success OR failure).
+        if previous and previous.status in (models.SyncJobStatus.QUEUED, models.SyncJobStatus.RUNNING):
+            return None
     if job["kind"] == "history.backfill":
         # One historical chunk globally; current manual/nightly work gets
         # priority, and newer chunks never jump over older queued windows.

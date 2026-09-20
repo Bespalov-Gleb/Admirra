@@ -325,6 +325,7 @@ def _run_job_sync(job_id: uuid.UUID) -> None:
         # sync_integration already runs the detector once inside an isolated
         # SAVEPOINT.  Re-running it here used to duplicate all detector queries
         # and, on a flush error, poison the final job transaction.
+        _keep_pending_followup(db, job, integration)
         db.commit()
     except Exception as e:
         logger.exception("Sync job failed: %s", e)
@@ -343,11 +344,22 @@ def _run_job_sync(job_id: uuid.UUID) -> None:
                 if integration and integration.sync_status == models.IntegrationSyncStatus.PENDING:
                     integration.sync_status = models.IntegrationSyncStatus.FAILED
                     integration.error_message = str(e)[:1000]
+                _keep_pending_followup(db, job, integration)
                 db.commit()
         except Exception:
             db.rollback()
     finally:
         db.close()
+
+
+def _keep_pending_followup(db, job, integration):
+    """Completion of an older window must not hide an already accepted follow-up."""
+    if integration is not None and db.query(models.SyncJob.id).filter(
+        models.SyncJob.integration_id == job.integration_id, models.SyncJob.id != job.id,
+        models.SyncJob.status.in_([models.SyncJobStatus.QUEUED, models.SyncJobStatus.RUNNING]),
+    ).first():
+        integration.sync_status = models.IntegrationSyncStatus.PENDING
+        integration.error_message = None
 
 
 def _run_job_tracked(job_id: uuid.UUID, integration_id: uuid.UUID, client_id: uuid.UUID) -> None:
