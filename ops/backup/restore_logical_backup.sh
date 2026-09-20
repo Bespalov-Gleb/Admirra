@@ -195,7 +195,7 @@ if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
   ready=0
   for attempt in $(seq 1 60); do
     if docker exec "$application_container" python -c \
-      'import json,urllib.request; data=json.load(urllib.request.urlopen("http://127.0.0.1:8001/api/health/ready", timeout=2)); assert data["status"] == "ready" and data["database"] == "ok"' \
+      'import json,urllib.request; data=json.load(urllib.request.urlopen("http://127.0.0.1:8001/api/health/ready", timeout=2)); assert data["status"] == "ok" and data["role"] == "api"' \
       >/dev/null 2>&1; then
       ready=1
       break
