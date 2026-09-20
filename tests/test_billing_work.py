@@ -204,3 +204,31 @@ async def test_warning_smtp_has_no_sql_connection_and_cannot_mark_new_period(bil
     with factory() as db:
         sub = db.get(models.Subscription, uuid.UUID(int=1))
         assert sub.overflow_warning_period_end == (None if change_period else end)
+
+
+@pytest.mark.asyncio
+async def test_warning_confirmation_rejects_expired_execution_lease(billing_scope, monkeypatch):
+    from automation import work_ledger
+    from core.job_fence import fenced_job, LeaseLost
+    factory, _ = billing_scope
+    payload, _ = populate(billing_scope)
+    work.plan_page(factory, payload)
+    with factory.begin() as db:
+        job_id = db.scalar(sa.select(jobs.c.id).where(jobs.c.kind == "billing.warning"))
+        execution = work_ledger.claim(db, job_id)
+    sender = mock_warning(monkeypatch)
+    def send(*_):
+        # Simulate a lost lease while the external system accepts the message.
+        with factory.kw["bind"].begin() as conn:
+            conn.execute(jobs.update().where(jobs.c.id == job_id).values(
+                lease_until=sa.func.clock_timestamp() - sa.text("interval '1 second'")))
+        return True
+    sender.side_effect = send
+    request = child(billing_scope, "billing.warning")
+    with fenced_job(job_id, execution["lease_token"]):
+        with pytest.raises(LeaseLost):
+            await work.execute("billing.warning", request)
+    with factory.begin() as db:
+        assert db.get(models.Subscription, uuid.UUID(int=1)).overflow_warning_period_end is None
+        assert work_ledger.recover_expired(db) == 1
+        assert db.scalar(sa.select(jobs.c.state).where(jobs.c.id == job_id)) == "uncertain"
