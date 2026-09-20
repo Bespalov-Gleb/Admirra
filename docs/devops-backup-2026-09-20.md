@@ -16,7 +16,7 @@
 
 ## Первая recovery point
 
-Backup ID: `20260920T151415Z-e003a617`.
+Первый DB-only backup ID: `20260920T151415Z-e003a617`. После расширения состава принят полный backup ID `20260920T153240Z-574e4117`.
 
 - исходный размер production DB: 842 407 271 bytes (803 MiB);
 - encrypted database object: 47 088 184 bytes;
@@ -24,6 +24,8 @@ Backup ID: `20260920T151415Z-e003a617`.
 - encrypted manifest: 498 bytes;
 - schema cutoff: `cc3d4e5f6a7b`;
 - сервис завершился успешно, заметного DB resource spike после завершения нет.
+
+Полный набор дополнительно содержит encrypted runtime object 614 744 bytes: действующий `.env`, application `secrets`, `uploads`, Compose/nginx project config, `/etc/admirra`, nginx/TLS и WireGuard-конфигурацию. Tar создаётся относительными путями и шифруется до передачи/записи. Restore-проверка валидирует checksum, отсутствие absolute/`..` members и обязательные файлы, но не извлекает их поверх хоста.
 
 В manifest зашифрованы object receipts с размером и SHA-256. Restore до расшифровки сверяет оба encrypted objects; `age` дополнительно аутентифицирует ciphertext.
 
@@ -45,6 +47,7 @@ Backup ID: `20260920T151415Z-e003a617`.
 
 1. Restore `20260920T151415Z-e003a617` до исходного `cc3d4e5f6a7b`, базовая schema/data consistency — pass, 21 s.
 2. Новый restore той же recovery point и миграционный job из чистого candidate image `admirra-devops:14c99d0`: пять миграций `cc3d4e5f6a7b → bc8d9e0f1a2b`, все девять ожидаемых таблиц существуют — pass, 21 s суммарно.
+3. Restore полного набора `20260920T153240Z-574e4117`: DB/schema consistency и encrypted runtime archive inventory — pass, 20 s.
 
 Production DB и работающие API/automation при этом не изменялись. Это доказывает совместимость миграций с текущим снимком, но не является production migration approval.
 
@@ -81,8 +84,9 @@ systemctl disable --now admirra-backup-prune.timer
 
 1. Repository остаётся на втором рабочем сервере того же контура. Нужны внешний S3/object storage в другом fault/administrative domain, versioning/immutability и отдельные writer/restore/delete credentials.
 2. Логический daily dump не даёт PITR/RPO 15 min. После выбора external storage нужны pgBackRest/WAL-G либо проверенная base backup + continuous WAL схема и alert на archive backlog.
-3. Не резервируются shared artifacts/uploads, runtime secrets/encryption keys, release manifests и необходимый Redis AOF. Ключ восстановления age сам нуждается в независимом защищённом escrow: сейчас потеря server 2 делает эти dumps нечитаемыми.
-4. Проверено восстановление DB и миграций, но не полный clean application restore с outbound payments/messages/AI disabled и сверкой файлов/токенов.
-5. RTO 21 s относится только к DB restore/migration в уже готовом локальном окружении; end-to-end RTO ≤60 min пока не доказан.
+3. Текущие uploads/runtime secrets теперь входят в encrypted set, но не выполнены их extraction в чистый host, запуск восстановленного приложения и сверка DB/file/token consistency. Будущий shared object storage потребует собственного versioned backup. Redis broker AOF пока не входит в recovery set.
+4. Private age identity нуждается в независимом защищённом escrow: сейчас потеря server 2 делает эти dumps нечитаемыми. Release/image manifests также ещё не собраны в один disaster-recovery bundle.
+5. Проверено восстановление DB, runtime inventory и миграций, но не полный clean application restore с outbound payments/messages/AI disabled.
+6. RTO 20–21 s относится только к DB/runtime validation в уже готовом локальном окружении; end-to-end RTO ≤60 min пока не доказан.
 
 До закрытия этих пунктов G3 считается частично выполненным, а не полным production disaster recovery.
