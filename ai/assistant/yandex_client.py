@@ -9,7 +9,7 @@ import asyncio
 import logging
 from typing import Any, Optional
 
-import httpx
+from automation.provider_transport import provider_client
 
 from .token_provider import YandexAccess
 
@@ -50,7 +50,7 @@ class AiYandexClient:
         payload = {"method": method, "params": params}
         for attempt in range(2):
             token = self.access.access_token()
-            async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
+            async with provider_client("direct", timeout=DEFAULT_TIMEOUT) as client:
                 resp = await client.post(url, json=payload, headers=self._direct_headers(token))
             body = resp.text
             if _is_unauthorized(resp.status_code, body) and attempt == 0:
@@ -78,7 +78,7 @@ class AiYandexClient:
                 "skipColumnHeader": "false",
                 "skipReportSummary": "true",
             }
-            async with httpx.AsyncClient(timeout=REPORT_TIMEOUT) as client:
+            async with provider_client("direct", timeout=REPORT_TIMEOUT) as client:
                 resp = None
                 for _ in range(10):
                     resp = await client.post(url, json={"params": report_def}, headers=headers)
@@ -104,7 +104,7 @@ class AiYandexClient:
         for attempt in range(2):
             token = self.access.access_token()
             headers = {"Authorization": f"OAuth {token}", "Content-Type": "application/json"}
-            async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
+            async with provider_client("metrica", timeout=DEFAULT_TIMEOUT) as client:
                 resp = await client.get(url, params=params, headers=headers)
             if _is_unauthorized(resp.status_code, resp.text) and attempt == 0:
                 await self.access.refresh()
