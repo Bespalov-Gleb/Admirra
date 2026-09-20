@@ -22,7 +22,7 @@
 
 ## Порядок после P0
 
-1. Закрыть admission новых background jobs, остановить legacy scheduler/consumer и повторно подтвердить отсутствие legacy `QUEUED/RUNNING` jobs.
+1. Перевести подготовленный [ingress admission gate](devops-cutover-admission-2026-09-20.md) в `closed`, остановить legacy scheduler/consumer и повторно подтвердить отсутствие legacy `QUEUED/RUNNING` jobs. Gate точечно оставляет billing/lead webhooks и обычные reads доступными.
 2. Применить пять additive migrations отдельным job; проверить schema head и девять новых таблиц.
 3. Поднять candidate API-1 без embedded scheduler/sync, затем минимальный launch worker set и единственный scheduler. Выполнить approved test job end-to-end.
 4. Открыть admission, наблюдать single-API worker rollout. При correctness/side-effect uncertainty остановить claims, не повторять действие автоматически.
