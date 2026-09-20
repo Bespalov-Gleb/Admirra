@@ -1,0 +1,64 @@
+{
+  "format": "admirra-cutover-evidence-v1",
+  "observed_at": "2026-09-20T15:30:00Z",
+  "window": {
+    "starts_at": "2026-09-20T15:00:00Z",
+    "ends_at": "2026-09-20T17:00:00Z",
+    "forbidden_hours_msk": [3, 5],
+    "operator": "REQUIRED"
+  },
+  "release": {
+    "production_commit": "cdf0a4d3c9dee66722219d7e7e2924d5475c0044",
+    "candidate_commit": "acf6ed8d76ea13436152e8ccc9659346169c7040",
+    "candidate_image": "sha256:ad9559725e724789281765526f85839b8b9adf604c114ad25850812b0c544d0a",
+    "rollback_image": "REQUIRED_IMMUTABLE_DIGEST",
+    "expected_schema": "bc8d9e0f1a2b",
+    "tracked_tree_clean": true,
+    "tests_passed": true,
+    "restore_passed": true,
+    "config_validated": true
+  },
+  "recovery": {
+    "backup_id": "REQUIRED_EXTERNAL_BACKUP_ID",
+    "created_at": "REQUIRED_FRESH_TIMESTAMP",
+    "restore_drill_at": "REQUIRED_RECENT_TIMESTAMP",
+    "external_to_runtime_hosts": false,
+    "versioned_or_immutable": false,
+    "manifest_verified": true,
+    "key_escrow_confirmed": false,
+    "pitr_chain_healthy": false,
+    "temporary_launch_exception": {
+      "owner_accepted": false,
+      "owner": "REQUIRED_IF_EXTERNAL_RECOVERY_IS_DEFERRED",
+      "expires_at": "REQUIRED_MAXIMUM_30_DAYS",
+      "server2_backup_verified": true,
+      "offline_key_copy_confirmed": false
+    }
+  },
+  "alerts": {
+    "receiver_tested_at": "REQUIRED_RECENT_TIMESTAMP",
+    "firing_delivered": false,
+    "resolved_delivered": false,
+    "external_heartbeat_healthy": false
+  },
+  "runtime": {
+    "active_deployments": 0,
+    "active_legacy_sync": 0,
+    "active_reports": 0,
+    "active_ai_operations": 0,
+    "uncertain_background_jobs": 0,
+    "expired_leases": 0,
+    "firing_alerts": 0,
+    "production_ready": true,
+    "api2_ready": true,
+    "capacity_pass": true,
+    "worker_boot_passed": true,
+    "read_load_passed": true,
+    "provider_peak_accepted": false
+  },
+  "approval": {
+    "owner_approved": false,
+    "test_scope": "REQUIRED",
+    "rollback_operator": "REQUIRED"
+  }
+}

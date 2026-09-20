@@ -18,7 +18,7 @@
 1. **Внешняя recovery point.** Нужен storage вне обоих runtime-серверов с versioning/immutability и раздельными writer/restore/delete credentials. После доступа: continuous WAL/PITR, escrow age/recovery keys, повторный restore именно из внешнего repository. Текущий межсерверный daily backup даёт RPO около суток и не переживает потерю обоих узлов.
 2. **Alert → человек.** Владелец выбирает отдельный технический email/Telegram/webhook и ответственного. После этого включаются Alertmanager receiver, test firing/resolved и внешний heartbeat вне обоих app servers.
 3. **Worker/provider peak acceptance.** Read API + idle worker mixed-smoke уже пройден. На восстановленной копии либо утверждённом test tenant остаётся выполнить bounded manual/night/report/AI/billing load; измерить RSS/PSS, CPU, Redis/AOF, DB pool/locks, provider quotas и latency.
-4. **Окно cutover.** Нужны дата/оператор и запрет окна 03:00/05:00 МСК. Перед окном — свежая external recovery point, проверенный rollback artifact и отсутствие активных side effects.
+4. **Окно cutover.** Нужны дата/оператор и запрет окна 03:00/05:00 МСК. Fail-closed [cutover preflight](devops-cutover-preflight-2026-09-20.md) уже проверяет окно, точные artifacts/schema, recovery/alert evidence, отсутствие активных side effects и approvals; незаполненный шаблон блокируется. Перед окном evidence собирается заново.
 
 ## Порядок после P0
 
