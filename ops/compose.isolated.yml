@@ -86,6 +86,7 @@ services:
       - tests/test_mobile_plan_progress.py
       - tests/test_team_router.py
       - tests/test_vk_client_link.py
+      - tests/test_vk_maintenance.py
       - tests/test_yandex_integration_oauth.py
       - tests/test_metrika_goal_batch.py
       - tests/test_metrika_goal_work.py

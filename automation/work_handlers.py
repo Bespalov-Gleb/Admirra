@@ -56,8 +56,9 @@ def run(kind, payload):
         from automation.calendar_work import export_project
         return export_project(SessionLocal, payload)
     if kind == "vk.maintenance":
-        from backend_api.integrations import maintain_vk_client_links
-        return maintain_vk_client_links()
+        from core.database import SessionLocal
+        from automation.vk_maintenance import run_page
+        return run_page(SessionLocal, payload)
     # Request queues belong to the loop and must be closed before asyncio.run
     # closes it; otherwise each task leaves loop/worker references behind.
     async def wrapped():
