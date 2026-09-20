@@ -10,14 +10,14 @@
 - Ежедневный encrypted PostgreSQL + runtime backup уходит на restricted repository server 2. Retention и stale alert включены.
 - Полный backup восстановлен; migrations `cc3d4e5f6a7b → bc8d9e0f1a2b`, release-manifest checksum, worker preflight, четыре launch workers и API smoke прошли в `network=none`. Временные ресурсы полностью удалены.
 - Immutable candidate `acf6ed8`, image `sha256:ad9559725e724789281765526f85839b8b9adf604c114ad25850812b0c544d0a`: 603 passed, 1 skipped, 1 deselected; artifact hygiene и `pip check` успешны.
-- Launch capacity profile вместе с API-2: 6144 MiB caps, 1796 MiB OS headroom, worker DB 14 + reserve 4 из 20, API-2 pool 5. `ai.prewarm` явно выключен до отдельного решения. Это arithmetic + boot acceptance, не peak-load acceptance.
+- Launch capacity profile вместе с API-2: 6144 MiB caps, 1796 MiB OS headroom, worker DB 14 + reserve 4 из 20, API-2 pool 5. `ai.prewarm` явно выключен до отдельного решения. Arithmetic/boot приняты; одновременный worker-set + real-snapshot API read-load дал 40/40 HTTP 200, p95 692 ms. Worker/provider peak ещё не принят.
 - Production application остаётся на `cdf0a4d` / schema `cc3d4e5f6a7b`; candidate migrations/workers не включались.
 
 ## P0 — блокирует миграцию production
 
 1. **Внешняя recovery point.** Нужен storage вне обоих runtime-серверов с versioning/immutability и раздельными writer/restore/delete credentials. После доступа: continuous WAL/PITR, escrow age/recovery keys, повторный restore именно из внешнего repository. Текущий межсерверный daily backup даёт RPO около суток и не переживает потерю обоих узлов.
 2. **Alert → человек.** Владелец выбирает отдельный технический email/Telegram/webhook и ответственного. После этого включаются Alertmanager receiver, test firing/resolved и внешний heartbeat вне обоих app servers.
-3. **Mixed/peak acceptance.** На восстановленной копии либо утверждённом test tenant выполнить bounded manual/night/report/AI/billing load; измерить RSS/PSS, CPU, Redis/AOF, DB pool/locks, provider quotas и latency. Boot-smoke не заменяет этот тест.
+3. **Worker/provider peak acceptance.** Read API + idle worker mixed-smoke уже пройден. На восстановленной копии либо утверждённом test tenant остаётся выполнить bounded manual/night/report/AI/billing load; измерить RSS/PSS, CPU, Redis/AOF, DB pool/locks, provider quotas и latency.
 4. **Окно cutover.** Нужны дата/оператор и запрет окна 03:00/05:00 МСК. Перед окном — свежая external recovery point, проверенный rollback artifact и отсутствие активных side effects.
 
 ## Порядок после P0

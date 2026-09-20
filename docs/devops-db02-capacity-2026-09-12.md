@@ -51,6 +51,8 @@ Capacity gate теперь сверяет не только названия с�
 
 Дополнительно весь launch consumer set одновременно поднят на восстановленной production-БД после migrations: manual 2, nightly/backfill 2, reports 1, maintenance 1; каждый worker прошёл preflight/ready и ответил на Celery inspect ping через одноразовый Redis. Среда была `network=none`, scheduler/jobs не запускались, полный restore + workers + API smoke занял 41 s и полностью очистился. Это **boot acceptance**, не mixed/peak load acceptance. Production workers не включались.
 
+При том же одновременно работающем consumer set кандидат API с pool `5/0` выдержал bounded authenticated read-load по реальному snapshot: 40/40 HTTP 200, concurrency 4, p50 129,36 ms, p95 692,12 ms, max 807,58 ms. [Отдельный протокол](devops-read-load-2026-09-20.md). Открытым остаётся mixed/peak именно с выполняющимися provider/report/AI/billing jobs и длительный soak.
+
 ## Read-only снимок инфраструктуры 12.09
 
 Оба узла: 4 CPU, `MemTotal` около 7940 MiB. На сервере 1 PostgreSQL: max_connections=200, shared_buffers=1GB, work_mem=8MB, max_parallel_workers=8; во время проверки 11 idle и 1 active connection, 5 внутренних backend states. Это мгновенный снимок, не peak/RPS.
