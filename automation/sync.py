@@ -42,6 +42,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+class RequiredSyncSourceFailed(RuntimeError):
+    """Ads may be saved, but configured leads must not be reported as fresh."""
+
+
 def _clean_yandex_profile_login(value: Optional[str]) -> Optional[str]:
     profile = str(value or "").strip()
     if not profile:
@@ -688,7 +692,8 @@ async def sync_integration(
                             integration.refresh_token = security.encrypt_token(new_token_data["refresh_token"])
                         db.flush()
                         # Retry with new token (use same client_login to maintain profile filtering)
-                        api = YandexDirectAPI(new_token_data["access_token"], client_login=selected_profile)
+                        access_token = new_token_data["access_token"]
+                        api = YandexDirectAPI(access_token, client_login=selected_profile)
                         stats = await api.get_report(date_from, date_to)
                     else:
                         raise stats
@@ -717,9 +722,10 @@ async def sync_integration(
                             CacheService.invalidate_client(str(integration.client_id))
                             logger.info(f"✅ Metrika goals synced and committed for integration {integration.id} (empty report)")
                         except Exception as goals_err:
-                            logger.warning(f"Metrika goals sync failed after empty report: {goals_err}")
+                            logger.warning("Required Metrika goals failed after empty report: %s", type(goals_err).__name__)
                             if historical:
                                 raise
+                            raise RequiredSyncSourceFailed("Не удалось обновить выбранные цели Метрики; синхронизация не завершена") from None
 
                     # SUCCESS только после полной синхронизации (Direct + Metrika)
                     if not historical:
@@ -746,7 +752,8 @@ async def sync_integration(
                             integration.refresh_token = security.encrypt_token(new_token_data["refresh_token"])
                         db.flush()
                         # Retry with new token (use same client_login to maintain profile filtering)
-                        api = YandexDirectAPI(new_token_data["access_token"], client_login=selected_profile)
+                        access_token = new_token_data["access_token"]
+                        api = YandexDirectAPI(access_token, client_login=selected_profile)
                         stats = await api.get_report(date_from, date_to)
                     else:
                         raise e
@@ -818,10 +825,10 @@ async def sync_integration(
                     logger.info(f"✅ Successfully synced and committed Metrika goals for Direct integration {integration.id}")
                     logger.info(f"🗑️ Cleared dashboard cache after Metrika goals sync")
                 except Exception as goals_err:
-                    logger.error(f"❌ Failed to sync Metrika goals for Direct integration {integration.id}: {goals_err}", exc_info=True)
+                    logger.error("Required Metrika goals failed for integration %s: %s", integration.id, type(goals_err).__name__)
                     if historical:
                         raise
-                    # Don't fail the entire sync if goals sync fails
+                    raise RequiredSyncSourceFailed("Не удалось обновить выбранные цели Метрики; синхронизация не завершена") from None
             elif has_selected_goals and not has_selected_counters:
                 logger.warning(f"⚠️ Direct integration {integration.id} has selected goals but no selected_counters. "
                               f"Goals sync skipped. Please select Metrika counters in integration settings.")
@@ -1572,11 +1579,11 @@ async def sync_integration(
                         filters=_metrika_utm_source_filter(_avito_utm_source(integration)),
                     )
                 except Exception as metrika_err:
-                    logger.warning(
-                        f"Metrika goals sync after Avito failed for client {integration.client_id}: {metrika_err}"
-                    )
+                    logger.warning("Required Metrika goals after Avito failed for client %s: %s",
+                                   integration.client_id, type(metrika_err).__name__)
                     if historical:
                         raise
+                    raise RequiredSyncSourceFailed("Не удалось обновить выбранные цели Метрики; синхронизация не завершена") from None
 
             from backend_api.cache_service import CacheService
             CacheService.invalidate_client(str(integration.client_id))

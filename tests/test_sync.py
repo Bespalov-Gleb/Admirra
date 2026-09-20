@@ -91,6 +91,51 @@ async def test_missing_token_does_not_call_provider(direct):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("empty", [True, False])
+async def test_required_goals_failure_cannot_advance_success_watermark(direct, monkeypatch, empty):
+    from datetime import datetime
+    db, integration, api, _ = direct
+    integration.selected_goals, integration.selected_counters = '["1"]', '["123"]'
+    integration.refresh_token = "encrypted-refresh"
+    integration.client.owner_id = None
+    previous = datetime(2026, 8, 1)
+    integration.last_sync_at = previous
+    if not empty:
+        api.get_report.side_effect = [[{"campaign_id": "42"}], [], []]
+    goals = AsyncMock(side_effect=RuntimeError("401 Unauthorized sensitive-provider-body"))
+    refresh = AsyncMock()
+    detector = Mock()
+    monkeypatch.setattr(sync, "_sync_metrika_goals_for_direct", goals)
+    monkeypatch.setattr(sync, "_bulk_upsert_stats_by_key", Mock())
+    monkeypatch.setattr(sync, "_run_detector_after_sync", detector)
+    monkeypatch.setattr("backend_api.services.IntegrationService.refresh_yandex_token", refresh)
+    with pytest.raises(sync.RequiredSyncSourceFailed):
+        await sync.sync_integration(db, integration, "2026-09-01", "2026-09-10")
+    assert integration.sync_status == models.IntegrationSyncStatus.FAILED
+    assert integration.last_sync_at == previous
+    assert "sensitive-provider-body" not in integration.error_message
+    goals.assert_awaited_once()
+    refresh.assert_not_awaited()  # A Metrika failure is not a Direct token retry.
+    detector.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_goals_use_refreshed_direct_token(direct, monkeypatch):
+    db, integration, api, _ = direct
+    integration.selected_goals, integration.selected_counters = '["1"]', '["123"]'
+    integration.refresh_token = "encrypted-refresh"
+    api.get_report.side_effect = [RuntimeError("401 Unauthorized"), [], [], []]
+    monkeypatch.setattr("backend_api.services.IntegrationService.refresh_yandex_token",
+                        AsyncMock(return_value={"access_token": "new"}))
+    monkeypatch.setattr(sync, "_yandex_app_credentials", lambda _: ("id", "secret"))
+    goals = AsyncMock()
+    monkeypatch.setattr(sync, "_sync_metrika_goals_for_direct", goals)
+    await sync.sync_integration(db, integration, "2026-09-01", "2026-09-10")
+    assert goals.await_args.args[4] == "new"
+    assert integration.sync_status == models.IntegrationSyncStatus.SUCCESS
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("fail_first", [False, True])
 async def test_parallel_sync_uses_isolated_sessions_and_continues(direct, monkeypatch, fail_first):
     _, integration, _, _ = direct
