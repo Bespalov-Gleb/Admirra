@@ -39,7 +39,7 @@ docker compose \
 docker compose \
   --project-name admirra-alerting \
   -f "$release_dir/compose.alertmanager.yml" \
-  up -d
+  up -d --no-deps --force-recreate alertmanager
 
 attempt=1
 while [ "$attempt" -le 30 ]; do

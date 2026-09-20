@@ -102,7 +102,8 @@ def main():
                 assert request('POST', '/api/v1/models') == 403
                 assert request('POST', '/api/v1/chat/completions', {'X-Test-Fail': 'yes'}) == 503
                 assert Handler.failures == 1, 'Gateway retried failed paid request'
-                assert request('POST', '/telegram/bot123:synthetic-token/sendMessage') == 200
+                telegram_status = request('POST', '/telegram/bot123:synthetic-token/sendMessage')
+                assert telegram_status == 200, (telegram_status, (tmp / 'access.log').read_text())
                 assert Handler.telegram_requests == 1
                 assert request('GET', '/telegram/bot123:synthetic-token/sendMessage') == 403
                 assert request('POST', '/telegram/bot123:synthetic-token/getUpdates') == 404
