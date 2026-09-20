@@ -2,6 +2,8 @@
 
 Дата включения: 20.09.2026. Статус: приватная API-реплика включена; ограниченный read-canary получает 10% запросов четырёх маршрутов на `admirra.ru`. Это не полный двухсерверный cutover и не запуск Celery-workers.
 
+**Мониторинг 20.09.2026:** на обоих узлах включён минутный read-only health guard, проверены negative-сценарии и Docker recovery сервера 2. Подробности, метрики и ограничения: [health guard и recovery](devops-api2-monitor-2026-09-20.md).
+
 ## Фактическая схема
 
 - API-1 остаётся в рабочем контейнере сервера 1 с образом `sha256:047c8019bbbeec83c0c8cd11b39c03b31af2931d8e2f0b415196199f8768afe0`.
@@ -69,8 +71,8 @@ ssh root@91.221.68.94 'cd /opt/admirra-api2/release-20260920 && docker compose -
 
 ## Что ещё обязательно до расширения
 
-1. Наблюдать canary error/timing и ресурсы минимум рабочий цикл; подключить central alert на unhealthy/fallback/disk.
-2. Отдельно проверить reboot/Docker/WireGuard recovery в согласованное окно.
+1. Наблюдать canary error/timing и ресурсы минимум рабочий цикл; health guard уже включён, но central collector и доставка alert человеку остаются открыты.
+2. Docker recovery проверен; отдельно проверить OS reboot/WireGuard recovery в согласованное окно.
 3. Не добавлять dashboard stats, manual sync и другие маршруты без route-by-route проверки внешних вызовов, process-local state и cross-replica fixtures.
 4. До общего round-robin закрыть shared files/tokens, AI run/SSE drain, durable jobs, cache revision и billing/side-effect guards по основному DevOps-ТЗ.
 5. Celery workers пока не запускать: прежний полный workers manifest вместе с API-2 не проходил резерв памяти ОС.

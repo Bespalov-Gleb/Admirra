@@ -1,0 +1,15 @@
+[Unit]
+Description=AdMirra API-2 canary monitor (%i)
+After=network-online.target docker.service nginx.service wg-quick@admirra0.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/admirra-api2-canary/check_canary.py %i --metrics-file /var/lib/admirra-api2-monitor/%i.prom
+TimeoutStartSec=25
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/admirra-api2-monitor
+ReadWritePaths=-/var/log/nginx
+ReadWritePaths=-/run/nginx.pid

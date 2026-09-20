@@ -1,0 +1,12 @@
+[Unit]
+Description=Run AdMirra API-2 canary monitor (%i) every minute
+
+[Timer]
+OnBootSec=90s
+OnUnitActiveSec=1min
+AccuracySec=10s
+RandomizedDelaySec=5s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
