@@ -172,7 +172,6 @@ if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
     --pids-limit 256 \
     --cap-drop ALL \
     --security-opt no-new-privileges:true \
-    --env-file "$runtime_directory/root/Admirra/.env" \
     -e DATABASE_URL=postgresql://postgres:isolated-restore-only@127.0.0.1:5432/restore \
     -e APP_PROCESS_ROLE=api \
     -e DB_AUTO_BOOTSTRAP=false \
@@ -185,6 +184,7 @@ if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
     -e LOG_TO_STDOUT=true \
     -e OPENAI_API_KEY= \
     -e WORDSTAT_API_KEY= \
+    -v "$runtime_directory/root/Admirra/.env:/app/.env:ro" \
     -v "$runtime_directory/root/Admirra/uploads:/app/uploads:ro" \
     -v "$runtime_directory/root/Admirra/secrets:/app/secrets:ro" \
     "$migration_image" >/dev/null
