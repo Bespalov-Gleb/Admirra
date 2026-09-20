@@ -26,6 +26,8 @@ Systemd unit работает с `ProtectSystem=strict`, `ProtectHome=yes`, `Pri
 - Выполнена контролируемая полная OS reboot сервера 2. Boot ID сменился; `wg-quick@admirra0`, Docker, API-2 monitor и backup-prune timer восстановились автоматически. WireGuard стал active в `16:06:29 UTC`, Docker — в `16:06:31 UTC`; API-2, broker/cache Redis и exporters вернулись в healthy, приватный readiness — 200.
 - Непрерывный публичный probe охватил reboot/recovery: 243 запроса к `/api/auth/me`, все вернули ожидаемый 401, `5xx/000 = 0`, max response time 2,154 s. Два обращения сначала получили upstream 504 от API-2 и в том же запросе завершились 401 через API-1 — failover реально сработал.
 - Во время согласованной аварийной проверки Prometheus ожидаемо поднял `AdMirraCanaryMonitorFailed` и `AdMirraCanaryFallback`; final 5xx остались 0. После reboot все шесть scrape targets `up`, health guard server 2 — `ok`, backup repository сохранил complete sets. Публичные порты API-2/node/Redis exporters `8001/9100/9121/9122` остались закрыты.
+- Отдельный WireGuard fault выявил stale keepalive: при прежнем `proxy_read_timeout=120s` один из 100 клиентов сам прервал запрос через 5 s (Nginx 499), прежде чем произошёл retry. Для четырёх малых read-canary routes connect/read/send ограничены 1/2/2 s, общий retry window — 4 s; исходный snippet сохранён как rollback, `nginx -t` и reload прошли.
+- Повторный WireGuard fault после исправления: 120/120 запросов вернули ожидаемый 401, `5xx/000 = 0`, max 2,106 s; два запроса реально завершили upstream 504 от API-2 успешным retry на API-1. Туннель, readiness и local health guard вернулись в `ok`.
 - На сервере 1 удалён только неиспользуемый Docker build-cache старше суток: освобождено 14,28 ГБ, использование `/` уменьшилось с 79% до 43%. Images, containers, volumes и rollback-релизы не удалялись.
 
 ## Эксплуатация
@@ -53,5 +55,4 @@ sh /root/admirra-api2-monitor-20260920/uninstall-monitor.sh api2
 ## Открытые ограничения
 
 1. Канал технических alert и ответственный получатель владельцем не выбраны, поэтому подтверждённой цепочки «alert → человек → recovery» ещё нет.
-2. Отдельный принудительный WireGuard fault/recovery без reboot ещё не выполнялся; автоматическое восстановление WireGuard после полной OS reboot подтверждено.
-3. Наблюдение canary должно пройти минимум полный рабочий цикл до увеличения доли или набора маршрутов.
+2. Наблюдение canary должно пройти минимум полный рабочий цикл до увеличения доли или набора маршрутов.
