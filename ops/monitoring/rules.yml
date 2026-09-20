@@ -182,13 +182,22 @@ groups:
           runbook: "docs/devops-backup-2026-09-20.md"
 
       - alert: AdMirraAlertmanagerUnavailable
-        expr: prometheus_notifications_alertmanagers_discovered < 1
+        expr: prometheus_notifications_alertmanagers_discovered < 1 or up{job="alertmanager"} == 0
         for: 1m
         labels:
           severity: critical
         annotations:
           summary: "Prometheus cannot discover the local Alertmanager"
           runbook: "docs/devops-observability-2026-09-20.md"
+
+      - alert: AdMirraTelegramDeliveryFailed
+        expr: increase(alertmanager_notifications_failed_total{integration="telegram"}[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Alertmanager could not deliver a Telegram notification; inspect token/network/permissions"
+          runbook: "docs/devops-telegram-alerts-2026-09-20.md"
 
       - alert: AdMirraAlertDeliveryFailed
         expr: increase(prometheus_notifications_errors_total[5m]) > 0

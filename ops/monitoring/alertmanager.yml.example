@@ -10,11 +10,34 @@ route:
   group_wait: 30s
   group_interval: 5m
   repeat_interval: 4h
+  routes:
+    - receiver: admirra-operator
+      matchers:
+        - alertname="AdMirraDeliveryTest"
+      group_wait: 5s
+      group_interval: 10s
+
+inhibit_rules:
+  - source_matchers: [severity="critical"]
+    target_matchers: [severity="warning"]
+    equal: [alertname, node]
+  - source_matchers: [alertname="AdMirraRootDiskFreeCritical"]
+    target_matchers: [alertname="AdMirraRootDiskFreeLow"]
+    equal: [node]
 
 receivers:
   - name: admirra-operator
-    webhook_configs:
-      - url_file: /etc/alertmanager/secrets/receiver-url
+    telegram_configs:
+      - bot_token_file: /etc/alertmanager/secrets/telegram-token
+        # Replace with the ID of the operator's technical group.
+        chat_id: 0
         send_resolved: true
-        max_alerts: 20
-        timeout: 10s
+        http_config:
+          follow_redirects: false
+        parse_mode: ''
+        message: |-
+          {{ if eq .Status "firing" }}🔴 ПРОБЛЕМА{{ else }}✅ ВОССТАНОВЛЕНО{{ end }} · AdMirra
+          {{ range .Alerts }}
+          {{ .Labels.alertname }} · {{ .Labels.severity }}{{ if .Labels.node }} · {{ .Labels.node }}{{ end }}
+          {{ .Annotations.summary }}
+          {{ end }}

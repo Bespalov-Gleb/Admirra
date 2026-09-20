@@ -9,7 +9,7 @@ fi
 release_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 image=quay.io/prometheus/alertmanager@sha256:e9733bafb1bdef9b00e25a21f8f99dc26a22224bf16641ad754d1649f4c3357a
 config=/etc/admirra/monitoring/alertmanager.yml
-receiver=/etc/admirra/monitoring/alertmanager-receiver-url
+receiver=/etc/admirra/monitoring/telegram-token
 
 for file in "$config" "$receiver"; do
   if [ ! -f "$file" ] || [ -L "$file" ] || [ ! -s "$file" ]; then
@@ -28,7 +28,7 @@ docker run --rm \
   --user 65534:65534 \
   --entrypoint /bin/amtool \
   -v "$config:/etc/alertmanager/alertmanager.yml:ro" \
-  -v "$receiver:/etc/alertmanager/secrets/receiver-url:ro" \
+  -v "$receiver:/etc/alertmanager/secrets/telegram-token:ro" \
   "$image" \
   check-config /etc/alertmanager/alertmanager.yml
 

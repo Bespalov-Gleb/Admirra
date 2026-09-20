@@ -20,6 +20,13 @@ install -o root -g root -m 0644 \
   "$source_dir/systemd/admirra-public-heartbeat.timer" \
   "$unit_dir/admirra-public-heartbeat.timer"
 
+if [ -f /etc/admirra/monitoring/heartbeat-telegram.json ]; then
+  install -d -o root -g root -m 0755 "$unit_dir/admirra-public-heartbeat.service.d"
+  install -o root -g root -m 0644 \
+    "$source_dir/systemd/admirra-public-heartbeat-telegram.conf" \
+    "$unit_dir/admirra-public-heartbeat.service.d/telegram.conf"
+fi
+
 systemd-analyze verify \
   "$unit_dir/admirra-public-heartbeat.service" \
   "$unit_dir/admirra-public-heartbeat.timer"

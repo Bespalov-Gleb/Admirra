@@ -16,7 +16,7 @@ services:
       - --log.format=json
     volumes:
       - /etc/admirra/monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
-      - /etc/admirra/monitoring/alertmanager-receiver-url:/etc/alertmanager/secrets/receiver-url:ro
+      - /etc/admirra/monitoring/telegram-token:/etc/alertmanager/secrets/telegram-token:ro
       - alertmanager-data:/alertmanager
     read_only: true
     tmpfs:
