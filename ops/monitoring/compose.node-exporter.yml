@@ -1,0 +1,32 @@
+services:
+  node-exporter:
+    image: quay.io/prometheus/node-exporter@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0
+    container_name: admirra-node-exporter
+    restart: unless-stopped
+    network_mode: host
+    pid: host
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/rootfs
+      - --collector.textfile.directory=/var/lib/node_exporter/textfile_collector
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/containers/storage/.+)($$|/)
+      - --web.listen-address=${NODE_EXPORTER_LISTEN_ADDRESS:?set NODE_EXPORTER_LISTEN_ADDRESS}
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro,rslave
+      - /var/lib/admirra-api2-monitor:/var/lib/node_exporter/textfile_collector:ro
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 128m
+    cpus: 0.25
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"

@@ -254,6 +254,7 @@ def atomic_write(path: Path, value: str) -> None:
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary, path)
+        os.chmod(path, 0o644)
     finally:
         try:
             os.unlink(temporary)

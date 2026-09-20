@@ -1,0 +1,92 @@
+groups:
+  - name: admirra-production
+    rules:
+      - alert: AdMirraNodeExporterDown
+        expr: up{job="nodes"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "AdMirra node metrics are unavailable"
+          runbook: "docs/devops-observability-2026-09-20.md"
+
+      - alert: AdMirraCanaryMonitorFailed
+        expr: admirra_api2_monitor_ok == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API-2 canary health guard is failing"
+          runbook: "docs/devops-api2-monitor-2026-09-20.md"
+
+      - alert: AdMirraCanaryMonitorStale
+        expr: time() - admirra_api2_monitor_last_check_timestamp_seconds > 180
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API-2 canary health guard stopped updating"
+          runbook: "docs/devops-api2-monitor-2026-09-20.md"
+
+      - alert: AdMirraRootDiskFreeLow
+        expr: node_filesystem_avail_bytes{job="nodes",mountpoint="/"} / node_filesystem_size_bytes{job="nodes",mountpoint="/"} < 0.20
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AdMirra root filesystem has less than 20% free"
+          runbook: "docs/devops-observability-2026-09-20.md"
+
+      - alert: AdMirraRootDiskFreeCritical
+        expr: node_filesystem_avail_bytes{job="nodes",mountpoint="/"} / node_filesystem_size_bytes{job="nodes",mountpoint="/"} < 0.10
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "AdMirra root filesystem has less than 10% free"
+          runbook: "docs/devops-observability-2026-09-20.md"
+
+      - alert: AdMirraMemoryAvailableLow
+        expr: node_memory_MemAvailable_bytes{job="nodes"} / node_memory_MemTotal_bytes{job="nodes"} < 0.15
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AdMirra node has less than 15% available memory"
+          runbook: "docs/devops-observability-2026-09-20.md"
+
+      - alert: AdMirraCanaryFinal5xx
+        expr: admirra_api2_monitor_value{role="ingress",name="canary_final_5xx_window"} > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API-2 canary produced final 5xx responses"
+          runbook: "docs/devops-api2-canary-2026-09-20.md"
+
+      - alert: AdMirraCanaryFallback
+        expr: admirra_api2_monitor_value{role="ingress",name="canary_fallbacks_window"} > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API-2 canary required fallback to API-1"
+          runbook: "docs/devops-api2-canary-2026-09-20.md"
+
+      - alert: AdMirraWireGuardHandshakeStale
+        expr: admirra_api2_monitor_value{name="wireguard_handshake_age_seconds"} < 0 or admirra_api2_monitor_value{name="wireguard_handshake_age_seconds"} > 600
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "AdMirra private WireGuard link is stale"
+          runbook: "docs/devops-observability-2026-09-20.md"
+
+      - alert: AdMirraApi2ContainerRestarted
+        expr: admirra_api2_monitor_value{role="api2",name="api2_container_restarts"} > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API-2 container restart counter is non-zero"
+          runbook: "docs/devops-api2-monitor-2026-09-20.md"

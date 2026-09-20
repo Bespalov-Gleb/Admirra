@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ops.api2_canary.check_canary import Result, recent_canary_rows, render_metrics
+from ops.api2_canary.check_canary import Result, atomic_write, recent_canary_rows, render_metrics
 
 
 class Api2CanaryMonitorTest(unittest.TestCase):
@@ -48,6 +48,13 @@ class Api2CanaryMonitorTest(unittest.TestCase):
         self.assertIn('admirra_api2_monitor_check_ok{role="api2",check="api2_ready"} 1', metrics)
         self.assertIn('admirra_api2_monitor_value{role="api2",name="disk_free_percent"} 42.5', metrics)
         self.assertNotIn("sensitive diagnostic", metrics)
+
+    def test_atomic_write_makes_metrics_world_readable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "monitor.prom"
+            atomic_write(path, "metric 1\n")
+
+            self.assertEqual(path.stat().st_mode & 0o777, 0o644)
 
 
 if __name__ == "__main__":

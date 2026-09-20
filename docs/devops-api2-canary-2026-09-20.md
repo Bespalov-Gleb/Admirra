@@ -71,7 +71,7 @@ ssh root@91.221.68.94 'cd /opt/admirra-api2/release-20260920 && docker compose -
 
 ## Что ещё обязательно до расширения
 
-1. Наблюдать canary error/timing и ресурсы минимум рабочий цикл; health guard уже включён, но central collector и доставка alert человеку остаются открыты.
+1. Наблюдать canary error/timing и ресурсы минимум рабочий цикл; health guard и central Prometheus уже включены, но доставка alert человеку остаётся открыта.
 2. Docker recovery проверен; отдельно проверить OS reboot/WireGuard recovery в согласованное окно.
 3. Не добавлять dashboard stats, manual sync и другие маршруты без route-by-route проверки внешних вызовов, process-local state и cross-replica fixtures.
 4. До общего round-robin закрыть shared files/tokens, AI run/SSE drain, durable jobs, cache revision и billing/side-effect guards по основному DevOps-ТЗ.
