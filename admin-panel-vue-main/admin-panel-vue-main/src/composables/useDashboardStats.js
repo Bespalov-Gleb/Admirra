@@ -1,4 +1,5 @@
-import { ref, reactive, watch, onMounted, computed } from 'vue'
+import { ref, reactive, watch, onMounted, onUnmounted, computed } from 'vue'
+import { createLatestRequest } from '../utils/latestRequest'
 import api from '../api/axios'
 import { getAccessToken } from '@/utils/authToken'
 import { getProjectPeriodRange } from '@/utils/projectPeriods'
@@ -16,7 +17,7 @@ const PLACEMENTS_MOCK = [
 
 const DASHBOARD_CHANNELS = ['yandex', 'vk', 'avito']
 
-export function useDashboardStats() {
+export function useDashboardStats({ overviewProjects = false } = {}) {
   const summary = ref({
     expenses: 0,
     impressions: 0,
@@ -51,6 +52,7 @@ export function useDashboardStats() {
   const loading = ref(true)
   const loadingClients = ref(false)
   const loadingCampaigns = ref(false)
+  const loadingCampaignStats = ref(false)
   const loadingVkGoalActions = ref(false)
   const error = ref(null)
   const vkGoalActions = ref([])
@@ -201,114 +203,76 @@ export function useDashboardStats() {
     }
   }
 
-  const fetchStats = async () => {
-    // Проверяем наличие токена перед запросом
-    const token = getAccessToken()
-    if (!token) {
-      console.log('[DashboardStats] No auth token, skipping stats fetch')
-      loading.value = false
-      return
-    }
+  const statsRequests = createLatestRequest()
+  onUnmounted(() => statsRequests.cancel())
 
-    loading.value = true
-    error.value = null
-    if (filters.channel === 'all') {
+  const fetchStats = () => {
+    if (!getAccessToken() || !filters.start_date || !filters.end_date) {
+      statsRequests.cancel()
+      loading.value = false
+      return Promise.resolve()
+    }
+    // Snapshot mutable filters: all requests and commits belong to this period.
+    const params = {
+      start_date: filters.start_date,
+      end_date: filters.end_date,
+      period_preset: filters.period,
+      platform: filters.channel,
+      client_id: filters.folder_id ? undefined : (filters.client_id || undefined),
+      folder_id: filters.folder_id || undefined,
+      campaign_ids: filters.campaign_ids.length ? [...filters.campaign_ids] : undefined,
+      goal_action_ids: filters.channel === 'vk' && shouldFilterVkGoals()
+        ? [...filters.vk_goal_action_ids] : undefined,
+    }
+    return statsRequests.run(JSON.stringify(params), async ({ signal, isCurrent }) => {
+      loading.value = true
+      error.value = null
       channelSummaries.value = {}
       channelDynamics.value = {}
-    }
-
-    try {
-      const params = {
-        start_date: filters.start_date,
-        end_date: filters.end_date,
-        platform: filters.channel,
-        // Папка и проект взаимоисключающие: в режиме папки client_id не шлём
-        client_id: filters.folder_id ? undefined : (filters.client_id || undefined),
-        folder_id: filters.folder_id || undefined,
-        // CRITICAL: Only send campaign_ids if there are any selected
-        // Empty array should not be sent (backend treats it as "no filter")
-        campaign_ids: filters.campaign_ids.length > 0 ? filters.campaign_ids : undefined,
-        goal_action_ids: (filters.channel === 'vk' && shouldFilterVkGoals())
-          ? filters.vk_goal_action_ids
-          : undefined
-      }
-
-      const channelBreakdownPromise = filters.channel === 'all'
-        ? Promise.allSettled(DASHBOARD_CHANNELS.map(async (channel) => {
-            const channelParams = { ...params, platform: channel, goal_action_ids: undefined }
-            const [channelSummary, channelSeries] = await Promise.all([
-              api.get('dashboard/summary', { params: channelParams }),
-              api.get('dashboard/dynamics', { params: channelParams }),
-            ])
-            return [channel, channelSummary.data, channelSeries.data]
-          })).then((results) => results
-            .filter((result) => result.status === 'fulfilled')
-            .map((result) => result.value))
-        : Promise.resolve([])
-
-      const [summaryRes, dynamicsRes, topClientsRes, campaignsRes, deviceStatsRes, placementsRes, channelBreakdownRes] = await Promise.allSettled([
-        api.get('dashboard/summary', { params }),
-        api.get('dashboard/dynamics', { params }),
-        api.get('dashboard/top-clients', { params: filters.folder_id ? { folder_id: filters.folder_id } : {} }),
-        api.get('dashboard/campaigns', { params }),
-        api.get('dashboard/devices', { params }),
-        api.get('dashboard/placements', { params }),
-        channelBreakdownPromise,
-      ])
-
-      if (summaryRes.status === 'fulfilled') {
-        const summaryData = summaryRes.value.data
-        console.log('[DashboardStats] Summary data received:', summaryData)
-        console.log('[DashboardStats] Balance:', summaryData.balance, 'Currency:', summaryData.currency)
-        summary.value = {
-          ...summaryData,
-          balance: summaryData.balance ?? 0,
-          currency: summaryData.currency ?? 'RUB'
-        }
-      } else {
-        console.error('[DashboardStats] Failed to fetch summary:', summaryRes.reason)
-      }
-
-      if (dynamicsRes.status === 'fulfilled') dynamics.value = dynamicsRes.value.data
-      if (filters.channel === 'all' && channelBreakdownRes.status === 'fulfilled') {
-        channelSummaries.value = Object.fromEntries(
-          channelBreakdownRes.value.map(([channel, channelSummary]) => [channel, channelSummary])
-        )
-        channelDynamics.value = Object.fromEntries(
-          channelBreakdownRes.value.map(([channel, , channelSeries]) => [channel, channelSeries])
-        )
-      } else if (filters.channel !== 'all') {
-        channelSummaries.value = {}
-        channelDynamics.value = {}
-      }
-      if (topClientsRes.status === 'fulfilled') topClients.value = topClientsRes.value.data
-      if (campaignsRes.status === 'fulfilled') campaigns.value = campaignsRes.value.data
-
-      const devData = deviceStatsRes.status === 'fulfilled' ? deviceStatsRes.value.data : null
-      deviceStats.value = Array.isArray(devData) && devData.length ? devData : [...DEVICE_STATS_MOCK]
-
-      const plData = placementsRes.status === 'fulfilled' ? placementsRes.value.data : null
-      placements.value = Array.isArray(plData) && plData.length ? plData : [...PLACEMENTS_MOCK]
-
-      if (summaryRes.status === 'rejected' && dynamicsRes.status === 'rejected') {
-        // Проверяем, не 401 ли это (неавторизованный пользователь)
-        const isUnauthorized = summaryRes.reason?.response?.status === 401 || 
-                              dynamicsRes.reason?.response?.status === 401
-        if (!isUnauthorized) {
-          error.value = 'Failed to load statistics'
+      campaigns.value = []
+      dynamics.value = { labels: [], costs: [], clicks: [], impressions: [], leads: [], cpc: [], cpa: [] }
+      loadingCampaignStats.value = Boolean(params.client_id || params.folder_id)
+      const read = (path, requestParams, commit, failed = () => {}) =>
+        api.get(path, { params: requestParams, signal }).then(({ data }) => {
+          if (isCurrent()) commit(data)
+        }).catch(err => {
+          if (isCurrent()) failed(err)
+        })
+      const summaryTasks = [
+        read('dashboard/summary', params, data => {
+          summary.value = { ...data, balance: data.balance ?? 0, currency: data.currency ?? 'RUB' }
+        }, () => { error.value = 'Не удалось загрузить показатели. Повторите запрос.' }),
+      ]
+      const details = [
+        read('dashboard/dynamics', params, data => { dynamics.value = data }),
+      ]
+      if (!overviewProjects) details.push(read('dashboard/top-clients', params.folder_id ? { folder_id: params.folder_id } : {}, data => { topClients.value = data }))
+      if (params.platform === 'all') {
+        for (const channel of DASHBOARD_CHANNELS) {
+          const channelParams = { ...params, platform: channel, goal_action_ids: undefined }
+          summaryTasks.push(read('dashboard/summary', channelParams, data => {
+            channelSummaries.value = { ...channelSummaries.value, [channel]: data }
+          }))
+          details.push(read('dashboard/dynamics', channelParams, data => {
+            channelDynamics.value = { ...channelDynamics.value, [channel]: data }
+          }))
         }
       }
-    } catch (err) {
-      // Игнорируем 401 ошибки (неавторизованный пользователь)
-      if (err.response?.status === 401) {
-        console.log('[DashboardStats] Unauthorized, skipping stats fetch')
-        return
+      // Overall summary has no campaign table. Project/folder tables load
+      // independently and cannot hold back the KPI commits.
+      if (!overviewProjects || params.client_id || params.folder_id) {
+        details.push(read('dashboard/campaigns', params, data => { campaigns.value = data }).finally(() => {
+          if (isCurrent()) loadingCampaignStats.value = false
+        }))
       }
-      console.error('[DashboardStats] Unexpected error:', err)
-      error.value = 'An unexpected error occurred'
-    } finally {
-      loading.value = false
-    }
+      // These unsupported endpoints returned 404 on every filter change.
+      deviceStats.value = [...DEVICE_STATS_MOCK]
+      placements.value = [...PLACEMENTS_MOCK]
+      const kpisReady = Promise.allSettled(summaryTasks).finally(() => {
+        if (isCurrent()) loading.value = false
+      })
+      await Promise.allSettled([kpisReady, ...details])
+    })
   }
 
   const fetchCampaignPool = async () => {
@@ -514,8 +478,9 @@ export function useDashboardStats() {
     clients,
     deviceStats,
     placements,
-    loading: computed(() => loading.value || loadingClients.value),
+    loading: computed(() => loading.value),
     loadingCampaigns,
+    loadingCampaignStats,
     loadingVkGoalActions,
     vkGoalActions,
     error,

@@ -487,8 +487,15 @@ const horizonDates = () => {
   const iso = (d) => d.toISOString().slice(0, 10)
   return { start: iso(start), end: iso(end) }
 }
+let seriesRequestId = 0
+let seriesController = null
+onUnmounted(() => { seriesRequestId += 1; seriesController?.abort() })
 const fetchSeries = async () => {
-  if (!props.clientId && !props.folderId) { periods.value = []; goals.value = []; return }
+  const requestId = ++seriesRequestId
+  seriesController?.abort()
+  seriesController = new AbortController()
+  const signal = seriesController.signal
+  if (!props.clientId && !props.folderId) { periods.value = []; goals.value = []; loading.value = false; return }
   loading.value = true
   try {
     const { start, end } = horizonDates()
@@ -502,7 +509,8 @@ const fetchSeries = async () => {
     if (props.clientId) params.client_id = props.clientId
     else if (props.folderId) params.folder_id = props.folderId
     if (props.campaignIds && props.campaignIds.length) params.campaign_ids = props.campaignIds
-    const { data } = await api.get('dashboard/dynamics-series', { params })
+    const { data } = await api.get('dashboard/dynamics-series', { params, signal })
+    if (requestId !== seriesRequestId) return
     periods.value = Array.isArray(data?.periods) ? data.periods : []
     goals.value = Array.isArray(data?.goals) ? data.goals : []
     meta.value = {
@@ -516,9 +524,9 @@ const fetchSeries = async () => {
       await fetchSeries()
     }
   } catch (e) {
-    periods.value = []; goals.value = []
+    if (requestId === seriesRequestId) { periods.value = []; goals.value = [] }
   } finally {
-    loading.value = false
+    if (requestId === seriesRequestId) loading.value = false
   }
 }
 const setGranularity = (g) => { userTouchedGranularity.value = true; granularity.value = g; fetchSeries() }

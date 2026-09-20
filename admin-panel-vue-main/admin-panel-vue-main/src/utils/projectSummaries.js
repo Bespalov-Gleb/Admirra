@@ -1,5 +1,5 @@
 // Request-local batches only: never retain statistics across dates or accounts.
-export async function loadProjectSummaries(api, projectIds, params, isCurrent = () => true) {
+export async function loadProjectSummaries(api, projectIds, params, isCurrent = () => true, signal) {
   const ids = [...new Set(projectIds)]
   const result = {}
   for (let offset = 0; offset < ids.length; offset += 64) {
@@ -7,6 +7,7 @@ export async function loadProjectSummaries(api, projectIds, params, isCurrent = 
     const page = ids.slice(offset, offset + 64)
     const { data } = await api.get('dashboard/project-summaries', {
       params: { ...params, client_ids: page },
+      signal,
     })
     if (!isCurrent()) return null
     for (const id of page) {

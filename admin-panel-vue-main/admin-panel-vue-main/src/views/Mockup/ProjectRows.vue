@@ -1143,13 +1143,18 @@ const requestDeleteProject = (project) => {
 }
 
 let projectMetricsRequestId = 0
+let projectMetricsController = null
+onUnmounted(() => { projectMetricsRequestId += 1; projectMetricsController?.abort() })
 const loadProjectMetrics = async () => {
+  projectMetricsController?.abort()
+  projectMetricsController = new AbortController()
+  const signal = projectMetricsController.signal
   const requestId = ++projectMetricsRequestId
   const { startDate, endDate } = getProjectPeriodRange(periodKey.value, customPeriodRange.value)
   try {
     const summaries = await loadProjectSummaries(api, projects.value.map(project => project.id), {
-      start_date: startDate, end_date: endDate,
-    }, () => requestId === projectMetricsRequestId)
+      start_date: startDate, end_date: endDate, period_preset: periodKey.value,
+    }, () => requestId === projectMetricsRequestId, signal)
     if (requestId !== projectMetricsRequestId || summaries === null) return
     metricsByProjectId.value = Object.fromEntries(Object.entries(summaries).map(([id, channels]) => [id, channels.all]))
     return
@@ -1162,6 +1167,7 @@ const loadProjectMetrics = async () => {
     projects.value.map(async (project) => {
       try {
         const { data } = await api.get('dashboard/summary', {
+          signal,
           params: {
             client_id: project.id,
             platform: 'all',

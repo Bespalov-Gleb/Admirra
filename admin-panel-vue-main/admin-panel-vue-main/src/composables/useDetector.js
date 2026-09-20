@@ -1,4 +1,4 @@
-import { ref, readonly } from 'vue'
+import { ref, readonly, getCurrentScope, onScopeDispose } from 'vue'
 import api from '@/api/axios'
 
 // Demo mode is kept only for local visual checks. Production must read real detector API data.
@@ -141,20 +141,27 @@ export function useDetector() {
     return restored
   }
 
+  let summaryRequestId = 0
+  let summaryController = null
+  if (getCurrentScope()) onScopeDispose(() => { summaryRequestId += 1; summaryController?.abort() })
   async function fetchSummary(clientId) {
-    if (!clientId) return
+    const requestId = ++summaryRequestId
+    summaryController?.abort()
+    summaryController = new AbortController()
+    const signal = summaryController.signal
+    if (!clientId) { summary.value = null; loading.value = false; return }
     if (DEMO_MODE) {
       summary.value = JSON.parse(JSON.stringify(DEMO_SUMMARY))
       return
     }
     loading.value = true
     try {
-      const { data } = await api.get(`detector/${clientId}/summary`)
-      summary.value = data
+      const { data } = await api.get(`detector/${clientId}/summary`, { signal })
+      if (requestId === summaryRequestId) summary.value = data
     } catch {
-      summary.value = null
+      if (requestId === summaryRequestId) summary.value = null
     } finally {
-      loading.value = false
+      if (requestId === summaryRequestId) loading.value = false
     }
   }
 

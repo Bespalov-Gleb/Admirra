@@ -218,7 +218,8 @@
             <div class="project-goals-title">
               <span class="project-goals-title__label">Целевые действия по каналам · вся сеть</span>
             </div>
-            <div v-if="projectChannelSummaries(folderAsEntity(entry.folder)).length" class="project-channel-list">
+            <div v-if="goalLoadMessage(folderAsEntity(entry.folder))" class="project-goal-empty" role="status">{{ goalLoadMessage(folderAsEntity(entry.folder)) }}</div>
+            <div v-else-if="projectChannelSummaries(folderAsEntity(entry.folder)).length" class="project-channel-list">
               <div v-for="channel in projectChannelSummaries(folderAsEntity(entry.folder))" :key="channel.code" class="project-channel-card">
                 <div class="project-channel-row">
                   <span class="project-channel-icon" :class="`project-channel-icon--${channel.code}`">
@@ -448,8 +449,9 @@
               </button>
             </div>
 
+            <div v-if="goalLoadMessage(project)" class="project-goal-empty" role="status">{{ goalLoadMessage(project) }}</div>
             <div
-              v-if="projectChannelSummaries(project).length"
+              v-else-if="projectChannelSummaries(project).length"
               class="project-channel-list"
               :class="{ 'project-channel-list--expanded': isProjectGoalsExpanded(project.id) }"
             >
@@ -1484,6 +1486,11 @@ const emptyProjectInsights = () => ({
   },
 })
 const getProjectInsights = (projectId) => projectInsightsById.value[projectId] || emptyProjectInsights()
+const goalLoadMessage = (project) => {
+  const entries = project.__isFolder ? allFolderProjects(project.id) : [project]
+  if (entries.some(item => getProjectInsights(item.id).goalsError)) return 'Не удалось загрузить цели. Обновите данные.'
+  return entries.some(item => !getProjectInsights(item.id).goalsLoaded) ? 'Загружаем цели…' : ''
+}
 
 const VAT_RATE = 1.22
 const formatNumber = (num) => new Intl.NumberFormat('ru-RU').format(Number(num || 0))
@@ -2094,28 +2101,37 @@ const goalTrendClass = (value) => {
   return 'project-goal-trend'
 }
 
+let projectMetricsController = null
+onUnmounted(() => { projectMetricsRequestId += 1; projectMetricsController?.abort() })
 const loadProjectMetrics = async () => {
+  projectMetricsController?.abort()
+  projectMetricsController = new AbortController()
+  const signal = projectMetricsController.signal
   const requestId = ++projectMetricsRequestId
+  const preset = periodKey.value
+  projectInsightsById.value = {}
   const { startDate, endDate } = getProjectPeriodRange(periodKey.value, customPeriodRange.value)
   let summaries = {}
   try {
     summaries = await loadProjectSummaries(api, projects.value.map(project => project.id), {
-      start_date: startDate, end_date: endDate, period_preset: periodKey.value,
-    }, () => requestId === projectMetricsRequestId)
+      start_date: startDate, end_date: endDate, period_preset: preset,
+    }, () => requestId === projectMetricsRequestId, signal)
     if (requestId !== projectMetricsRequestId || summaries === null) return
     metricsByProjectId.value = { ...metricsByProjectId.value,
       ...Object.fromEntries(Object.entries(summaries).map(([id, channels]) => [id, channels.all])),
     }
+    projectInsightsById.value = Object.fromEntries(Object.entries(summaries).map(([id, channels]) =>
+      [id, { ...channels, goals: { yandex: [], vk: [], avito: [] } }]))
   } catch {
     // Compatibility during rolling release: the former read path stays usable.
     summaries = {}
   }
   if (requestId !== projectMetricsRequestId) return
   const entries = [
-    ...projects.value.map((project) => ({ id: project.id, projectId: project.id })),
     // Сводки папок: те же инсайты, но со скоупом folder_id — лежат под folder.id,
     // поэтому карточка папки использует те же функции, что и карточка проекта.
     ...folders.value.map((folder) => ({ id: folder.id, folderId: folder.id })),
+    ...projects.value.map((project) => ({ id: project.id, projectId: project.id })),
   ]
 
   // Раньше при 17 проектах браузер отправлял 119 запросов одновременно
@@ -2124,14 +2140,16 @@ const loadProjectMetrics = async () => {
   // ограниченный поток запросов вместо лавины.
   let nextIndex = 0
   const loadNext = async () => {
-    while (nextIndex < entries.length) {
+    while (nextIndex < entries.length && requestId === projectMetricsRequestId && !signal.aborted) {
       const entry = entries[nextIndex]
       nextIndex += 1
       let data
       try {
-        data = await loadProjectInsight(entry.projectId || null, startDate, endDate, entry.folderId || null, periodKey.value, summaries[entry.projectId])
+        data = await loadProjectInsight(entry.projectId || null, startDate, endDate, entry.folderId || null, preset, summaries[entry.projectId], signal, (metric) => {
+          if (requestId === projectMetricsRequestId) metricsByProjectId.value = { ...metricsByProjectId.value, [entry.id]: metric }
+        })
       } catch {
-        data = emptyProjectInsights()
+        data = { ...emptyProjectInsights(), goalsError: true }
       }
       if (requestId !== projectMetricsRequestId) return
       projectInsightsById.value = { ...projectInsightsById.value, [entry.id]: data }
@@ -2145,7 +2163,7 @@ const loadProjectMetrics = async () => {
   ))
 }
 
-const loadProjectInsight = async (projectId, startDate, endDate, folderId = null, periodPreset = null, summaries = null) => {
+const loadProjectInsight = async (projectId, startDate, endDate, folderId = null, periodPreset = null, summaries = null, signal, onSummary = () => {}) => {
   // Скоуп: конкретный проект (client_id) или папка (folder_id — сводка по вложенным)
   const scope = folderId ? { folder_id: folderId } : { client_id: projectId }
   const summaryParams = (platform) => ({
@@ -2168,13 +2186,18 @@ const loadProjectInsight = async (projectId, startDate, endDate, folderId = null
     ...(periodPreset ? { period_preset: periodPreset } : {}),
   })
 
+  let goalsError = false
+  const goalsFailed = () => { goalsError = true; return [] }
   const [all, yandex, vk, avito, yandexGoals, vkGoals, avitoGoals] = await Promise.all([
     ...['all', 'yandex', 'vk', 'avito'].map(channel => summaries
       ? Promise.resolve(summaries[channel])
-      : api.get('dashboard/summary', { params: summaryParams(channel) }).then(res => res.data || emptyMetric()).catch(() => emptyMetric())),
-    api.get('dashboard/goals', { params: goalParams('yandex') }).then((res) => res.data || []).catch(() => []),
-    api.get('dashboard/goals', { params: goalParams('vk') }).then((res) => res.data || []).catch(() => []),
-    api.get('dashboard/goals', { params: goalParams('avito') }).then((res) => res.data || []).catch(() => []),
+      : api.get('dashboard/summary', { params: summaryParams(channel), signal }).then(res => {
+          if (channel === 'all') onSummary(res.data)
+          return res.data || emptyMetric()
+        }).catch(() => emptyMetric())),
+    api.get('dashboard/goals', { params: goalParams('yandex'), signal }).then((res) => res.data || []).catch(goalsFailed),
+    api.get('dashboard/goals', { params: goalParams('vk'), signal }).then((res) => res.data || []).catch(goalsFailed),
+    api.get('dashboard/goals', { params: goalParams('avito'), signal }).then((res) => res.data || []).catch(goalsFailed),
   ])
 
   return {
@@ -2182,6 +2205,8 @@ const loadProjectInsight = async (projectId, startDate, endDate, folderId = null
     yandex,
     vk,
     avito,
+    goalsLoaded: true,
+    goalsError,
     goals: {
       yandex: yandexGoals,
       vk: vkGoals,

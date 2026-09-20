@@ -192,6 +192,7 @@
       >
         <div :style="{ gridColumn: String(panelColumn) }">
           <IntegrationSettingsPanel
+            :key="selectedIntegration.id"
             :integration="selectedIntegration"
             @close="closeSettings"
             @save="saveIntegrationSettings"

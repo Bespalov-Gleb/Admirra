@@ -113,9 +113,10 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { ArrowPathIcon, Cog6ToothIcon, MagnifyingGlassIcon } from '@heroicons/vue/24/outline'
 import api from '@/api/axios'
+import { createLatestRequest } from '@/utils/latestRequest'
 import { useToaster } from '@/composables/useToaster'
 import { useTheme } from '@/composables/useTheme'
 import { refreshReportsQueue } from '@/composables/useReportsQueue'
@@ -144,22 +145,20 @@ const matchesSearch = (item) => {
 const filteredPending = computed(() => pending.value.filter(matchesSearch))
 const filteredHistory = computed(() => history.value.filter(matchesSearch))
 
-const load = async () => {
+const reportRequests = createLatestRequest()
+onUnmounted(() => reportRequests.cancel())
+const load = () => reportRequests.run('deliveries', async ({ signal, isCurrent }) => {
   loading.value = true
-  try {
-    const [pendingResp, historyResp] = await Promise.all([
-      api.get('reports/deliveries', { params: { status: 'pending' } }),
-      api.get('reports/deliveries', { params: { status: 'history' } }),
-    ])
-    pending.value = Array.isArray(pendingResp.data) ? pendingResp.data : []
-    history.value = Array.isArray(historyResp.data) ? historyResp.data : []
-    refreshReportsQueue()
-  } catch (err) {
-    toaster.error(err.response?.data?.detail || 'Не удалось загрузить отчёты')
-  } finally {
-    loading.value = false
-  }
-}
+  await Promise.allSettled([['pending', pending], ['history', history]].map(async ([status, target]) => {
+    try {
+      const { data } = await api.get('reports/deliveries', { params: { status }, signal })
+      if (isCurrent()) target.value = Array.isArray(data) ? data : []
+    } catch (err) {
+      if (isCurrent()) toaster.error(err.response?.data?.detail || 'Не удалось загрузить отчёты')
+    }
+  }))
+  if (isCurrent()) { loading.value = false; refreshReportsQueue() }
+})
 
 const CHANNEL_META = {
   telegram: { cls: 'tg', label: 'Telegram' },

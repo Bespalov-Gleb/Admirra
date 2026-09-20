@@ -386,7 +386,11 @@
     />
 
     <template v-if="activeView === 'report'">
-    <div v-if="dashboardSyncInProgress || allChannelsDataLoading" class="kpi-grid kpi-grid--sync">
+    <div v-if="statsError && !loading" class="dashboard-sync-banner" role="alert">
+      <span>{{ statsError }}</span>
+      <button type="button" @click="fetchStats">Повторить</button>
+    </div>
+    <div v-if="dashboardSyncInProgress || loading" class="kpi-grid kpi-grid--sync">
       <article v-for="item in METRIC_CONFIG" :key="item.key" class="metric-card metric-card--skeleton">
         <span class="metric-skeleton-icon"></span>
         <div class="metric-skeleton-lines">
@@ -398,7 +402,7 @@
     </div>
 
     <VueDraggable
-      v-else
+      v-else-if="!statsError"
       v-model="visibleSlots"
       tag="section"
       class="kpi-grid"
@@ -1125,7 +1129,7 @@
     </section>
 
     <MobileCampaigns v-if="!isAllProjectsSummary" :rows="mobileCampaignRows" :options="campaignSortOptions" :sort="campaignSort" @sort="setCampaignSort" />
-    <section v-if="!isAllProjectsSummary" class="panel campaigns-panel" :class="{ 'panel--syncing': dashboardSyncInProgress || allChannelsDataLoading }">
+    <section v-if="!isAllProjectsSummary" class="panel campaigns-panel" :class="{ 'panel--syncing': dashboardSyncInProgress || loadingCampaignStats }">
       <div class="panel-title-row">
         <h2>Рекламные кампании</h2>
         <div class="campaign-sort-tabs" aria-label="Сортировка кампаний">
@@ -1297,7 +1301,7 @@
           </template>
         </div>
       </div>
-      <div v-if="dashboardSyncInProgress || allChannelsDataLoading" class="sync-panel-overlay">
+      <div v-if="dashboardSyncInProgress || loadingCampaignStats" class="sync-panel-overlay">
         <ArrowPathIcon class="spinning" />
         <strong>{{ dashboardSyncInProgress ? 'Выполняется синхронизация' : 'Загружаем рекламные кампании' }}</strong>
         <span>{{ dashboardSyncInProgress ? 'Кампании обновятся автоматически.' : 'Формируем общую таблицу по всем источникам.' }}</span>
@@ -1636,7 +1640,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue'
 import { reachGoal } from '@/utils/metrika'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -1677,6 +1681,7 @@ import { useTelegramReportLink } from '@/composables/useTelegramReportLink'
 import { refreshReportsQueue } from '@/composables/useReportsQueue'
 import { useToaster } from '@/composables/useToaster'
 import api from '@/api/axios'
+import { createLatestRequest } from '@/utils/latestRequest'
 import DateRangePicker from '@/components/ui/DateRangePicker.vue'
 import { projectPeriodOptions, getProjectPeriodLabel, getProjectPeriodRange, DEFAULT_PROJECT_PERIOD, loadSavedProjectPeriod, saveProjectPeriod } from '@/utils/projectPeriods'
 import { VueDraggable } from 'vue-draggable-plus'
@@ -1713,15 +1718,17 @@ const {
   clients,
   allCampaigns,
   loading,
+  error: statsError,
   filters,
   handlePeriodChange,
   fetchStats,
   fetchCampaignPool,
   fetchAllCampaignsForGoalsTab,
   loadingCampaigns,
+  loadingCampaignStats,
   deviceStats: deviceStatsRaw,
   placements: placementsRaw
-} = useDashboardStats()
+} = useDashboardStats({ overviewProjects: true })
 
 const {
   summary: detectorSummary,
@@ -2571,35 +2578,55 @@ const platformShortLabel = (platform) => {
   return '—'
 }
 
+let directionsRequestId = 0
+let directionStatsRequestId = 0
+let directionsController = null
+let directionStatsController = null
+onUnmounted(() => {
+  directionsRequestId += 1; directionStatsRequestId += 1
+  directionsController?.abort(); directionStatsController?.abort()
+})
 const fetchDirections = async () => {
+  const requestId = ++directionsRequestId
+  directionsController?.abort()
+  directionsController = new AbortController()
+  const signal = directionsController.signal
   if (!filters.client_id) {
     directions.value = []
     return
   }
   try {
     const { data } = await api.get(`clients/${filters.client_id}/directions/`, {
+      signal,
       params: { platform: filters.channel }
     })
-    directions.value = Array.isArray(data) ? data : []
+    if (requestId === directionsRequestId) directions.value = Array.isArray(data) ? data : []
   } catch (err) {
+    if (requestId !== directionsRequestId) return
     console.error('[Directions] list failed:', err)
     directions.value = []
   }
 }
 
 const fetchDirectionStats = async () => {
+  const requestId = ++directionStatsRequestId
+  directionStatsController?.abort()
+  directionStatsController = new AbortController()
+  const signal = directionStatsController.signal
   if (!filters.client_id || !filters.start_date || !filters.end_date) {
     directionStats.value = { label: 'Направления', label_key: 'directions', mode: 'cards', total_expenses: 0, items: [] }
     return
   }
   try {
     const { data } = await api.get(`clients/${filters.client_id}/directions/stats`, {
+      signal,
       params: {
         start_date: filters.start_date,
         end_date: filters.end_date,
         platform: filters.channel
       }
     })
+    if (requestId !== directionStatsRequestId) return
     directionStats.value = {
       label: data?.label || 'Направления',
       label_key: data?.label_key || 'directions',
@@ -2610,13 +2637,16 @@ const fetchDirectionStats = async () => {
     selectedDirectionLabelKey.value = directionStats.value.label_key
     if (selectedDirectionId.value) {
       const current = directionStats.value.items.find((item) => item.id === selectedDirectionId.value)
-      if (current) filters.campaign_ids = [...current.campaign_ids]
+      if (current) {
+        if (JSON.stringify(filters.campaign_ids) !== JSON.stringify(current.campaign_ids)) filters.campaign_ids = [...current.campaign_ids]
+      }
       else {
         selectedDirectionId.value = null
         filters.campaign_ids = []
       }
     }
   } catch (err) {
+    if (requestId !== directionStatsRequestId) return
     console.error('[Directions] stats failed:', err)
     directionStats.value = { label: 'Направления', label_key: 'directions', mode: 'cards', total_expenses: 0, items: [] }
   }
@@ -3919,7 +3949,7 @@ const isOrganizationDashboardProject = computed(() => {
 
 const isAllChannelsMode = computed(() => filters.channel === 'all')
 const allChannelsDataLoading = computed(() => (
-  isAllChannelsMode.value && (loading.value || reportGoalsLoading.value)
+  isAllChannelsMode.value && loading.value
 ))
 
 const channelSummaryEntries = computed(() =>
@@ -5116,7 +5146,12 @@ const getStatsParams = () => ({
   goal_action_ids: filters.channel === 'vk' && filters.vk_goal_action_ids?.length ? filters.vk_goal_action_ids : undefined
 })
 
+let reportGoalsController = null
+onUnmounted(() => { reportGoalsRequestId += 1; reportGoalsController?.abort() })
 const fetchReportGoals = async () => {
+  reportGoalsController?.abort()
+  reportGoalsController = new AbortController()
+  const signal = reportGoalsController.signal
   if (!filters.start_date || !filters.end_date) return
   const requestId = ++reportGoalsRequestId
   reportGoalsLoading.value = true
@@ -5134,6 +5169,7 @@ const fetchReportGoals = async () => {
       const settled = await Promise.allSettled(
         dashboardChannelKeys.map(async (channel) => {
           const { data } = await api.get('dashboard/goals', {
+            signal,
             params: { ...baseParams, platform: channel },
           })
           const items = Array.isArray(data) ? data : (data?.goals || [])
@@ -5148,6 +5184,7 @@ const fetchReportGoals = async () => {
       reportGoals.value = results.flatMap(([, items]) => items)
     } else {
       const { data } = await api.get('dashboard/goals', {
+        signal,
         params: { ...baseParams, platform: filters.channel },
       })
       if (requestId !== reportGoalsRequestId) return
@@ -5164,29 +5201,40 @@ const fetchReportGoals = async () => {
   }
 }
 
-const fetchTopAds = async () => {
-  if (!filters.start_date || !filters.end_date) return
-  topAdsLoading.value = true
-  try {
-    const params = getStatsParams()
-    const { data } = await api.get('dashboard/top-ads', { params })
-    topAds.value = Array.isArray(data) ? data : (data?.ads || data?.results || data?.items || [])
-  } catch {
-    topAds.value = []
-  } finally {
-    topAdsLoading.value = false
-  }
+const topAdsRequests = createLatestRequest()
+onUnmounted(() => topAdsRequests.cancel())
+const fetchTopAds = () => {
+  const params = getStatsParams()
+  return topAdsRequests.run(JSON.stringify(params), async ({ signal, isCurrent }) => {
+    if (!params.start_date || !params.end_date) return
+    topAdsLoading.value = true
+    try {
+      const { data } = await api.get('dashboard/top-ads', { params, signal })
+      if (isCurrent()) topAds.value = Array.isArray(data) ? data : (data?.ads || data?.results || data?.items || [])
+    } catch {
+      if (isCurrent()) topAds.value = []
+    } finally {
+      if (isCurrent()) topAdsLoading.value = false
+    }
+  })
 }
 
+let integrationsRequestId = 0
+let integrationsController = null
+onUnmounted(() => { integrationsRequestId += 1; integrationsController?.abort() })
 const fetchIntegrations = async () => {
+  const requestId = ++integrationsRequestId
+  integrationsController?.abort()
+  integrationsController = new AbortController()
+  const signal = integrationsController.signal
   try {
     const params = filters.folder_id
       ? { folder_id: filters.folder_id }
       : (filters.client_id ? { client_id: filters.client_id } : {})
-    const { data } = await api.get('dashboard/integrations', { params })
-    integrations.value = data || []
+    const { data } = await api.get('dashboard/integrations', { params, signal })
+    if (requestId === integrationsRequestId) integrations.value = data || []
   } catch {
-    integrations.value = []
+    if (requestId === integrationsRequestId) integrations.value = []
   }
 }
 
@@ -5806,25 +5854,33 @@ const summaryProjectsLoading = computed(() =>
   folderMode.value ? folderBreakdownLoading.value : topProjectsLoading.value
 )
 
-const fetchFolderBreakdown = async () => {
-  if (!filters.folder_id) { folderBreakdown.value = []; return }
-  folderBreakdownLoading.value = true
-  try {
-    const { data } = await api.get(`folders/${filters.folder_id}/breakdown`, {
-      params: { start_date: filters.start_date, end_date: filters.end_date },
-    })
-    folderBreakdown.value = data?.items || []
-    if (data?.folder?.name && folderMode.value) {
-      folderMode.value = { ...folderMode.value, name: data.folder.name }
+const folderBreakdownRequests = createLatestRequest()
+onUnmounted(() => folderBreakdownRequests.cancel())
+const fetchFolderBreakdown = () => {
+  const folderId = filters.folder_id
+  const params = { start_date: filters.start_date, end_date: filters.end_date }
+  return folderBreakdownRequests.run(JSON.stringify([folderId, params]), async ({ signal, isCurrent }) => {
+    if (!folderId) { folderBreakdown.value = []; folderBreakdownLoading.value = false; return }
+    folderBreakdownLoading.value = true
+    try {
+      const { data } = await api.get(`folders/${folderId}/breakdown`, { params, signal })
+      if (!isCurrent()) return
+      folderBreakdown.value = data?.items || []
+      if (data?.folder?.name && folderMode.value?.id === folderId) folderMode.value = { ...folderMode.value, name: data.folder.name }
+    } catch {
+      if (isCurrent()) folderBreakdown.value = []
+    } finally {
+      if (isCurrent()) folderBreakdownLoading.value = false
     }
-  } catch {
-    folderBreakdown.value = []
-  } finally {
-    folderBreakdownLoading.value = false
-  }
+  })
 }
 
+let topProjectsController = null
+onUnmounted(() => { topProjectsRequestId += 1; topProjectsController?.abort() })
 const fetchTopProjects = async () => {
+  topProjectsController?.abort()
+  topProjectsController = new AbortController()
+  const signal = topProjectsController.signal
   if (!isAllProjectsSummary.value) {
     topProjectsRequestId += 1
     topProjects.value = []
@@ -5835,6 +5891,7 @@ const fetchTopProjects = async () => {
   topProjectsLoading.value = true
   try {
     const { data } = await api.get('folders/top-projects', {
+      signal,
       params: {
         start_date: filters.start_date,
         end_date: filters.end_date,
@@ -5862,6 +5919,7 @@ watch(() => route.query.folder_id, (fid) => {
   } else {
     folderMode.value = null
     filters.folder_id = null
+    folderBreakdownRequests.cancel()
     folderBreakdown.value = []
     if (!filters.client_id) fetchTopProjects()
   }
@@ -5885,6 +5943,7 @@ watch(() => [filters.start_date, filters.end_date, filters.client_id, filters.fo
   if (isAllProjectsSummary.value) fetchTopProjects()
   else {
     topProjectsRequestId += 1
+    topProjectsController?.abort()
     topProjects.value = []
     topProjectsLoading.value = false
   }
@@ -5970,8 +6029,8 @@ watch(() => filters.client_id, (clientId) => {
   detectorVisitTouchedFor = null
   closeDetectorChipPanel()
   detectorSidebarOpen.value = false
+  fetchDetectorSummary(clientId)
   if (clientId) {
-    fetchDetectorSummary(clientId)
     fetchCampaignHighlights()
   }
 }, { immediate: true })
