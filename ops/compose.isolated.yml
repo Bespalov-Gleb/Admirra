@@ -67,6 +67,7 @@ services:
       - tests/test_api2_canary_nginx.py
       - tests/test_backup_receiver.py
       - tests/test_backup_retention.py
+      - tests/test_restore_load_safety.py
       - tests/test_cutover_preflight.py
       - tests/test_cutover_admission.py
       - tests/test_external_heartbeat.py

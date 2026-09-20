@@ -60,7 +60,8 @@ if [ -s "$runtime_file" ]; then
   fi
 fi
 
-suffix=$(printf '%s' "$backup_id" | tr '[:upper:]' '[:lower:]')
+run_id=$(python3 -c 'import uuid; print(uuid.uuid4().hex[:12])')
+suffix=$(printf '%s-%s' "$backup_id" "$run_id" | tr '[:upper:]' '[:lower:]')
 container=admirra-restore-$suffix
 volume=admirra-restore-$suffix
 image=postgres:15.18-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f
@@ -90,11 +91,11 @@ cleanup() {
     python3 -c 'import shutil,sys; shutil.rmtree(sys.argv[1])' "$runtime_directory"
   fi
 }
-trap cleanup EXIT HUP INT TERM
 if docker container inspect "$container" >/dev/null 2>&1 || docker volume inspect "$volume" >/dev/null 2>&1; then
   echo "restore drill resources already exist" >&2
   exit 1
 fi
+trap cleanup EXIT HUP INT TERM
 
 docker volume create "$volume" >/dev/null
 docker run -d \
@@ -260,6 +261,8 @@ if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
         -e CELERY_BROKER_URL=redis://127.0.0.1:6379/0 \
         -e TASK_BROKER_PREFIX="restore:$suffix:" \
         -e APP_PROCESS_ROLE=worker \
+        -e WW_TEST=1 \
+        -e "WW_TEST_ID=restore-$suffix" \
         -e DB_POOL_SIZE=2 \
         -e DB_MAX_OVERFLOW=0 \
         -e APP_RELEASE="restore-smoke-$expected_head" \
@@ -344,6 +347,8 @@ if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
     --security-opt no-new-privileges:true \
     -e DATABASE_URL=postgresql://postgres:isolated-restore-only@127.0.0.1:5432/restore \
     -e APP_PROCESS_ROLE=api \
+    -e WW_TEST=1 \
+    -e "WW_TEST_ID=restore-$suffix" \
     -e DB_POOL_SIZE=5 \
     -e DB_MAX_OVERFLOW=0 \
     -e "EXPECTED_SCHEMA_REVISION=$expected_head" \

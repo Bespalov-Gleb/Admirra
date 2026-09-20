@@ -7,6 +7,7 @@ import os
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import urlsplit
 
 import sqlalchemy as sa
 
@@ -14,7 +15,16 @@ from core import models, security
 from core.database import SessionLocal
 
 
+def assert_isolated_restore() -> None:
+    url = urlsplit(os.environ.get("DATABASE_URL", ""))
+    if (os.environ.get("WW_TEST") != "1"
+            or not os.environ.get("WW_TEST_ID", "").startswith("restore-")
+            or url.hostname != "127.0.0.1" or url.path != "/restore"):
+        raise RuntimeError("Read load is restricted to the isolated restore instance")
+
+
 def selected_user_email() -> str:
+    assert_isolated_restore()
     email = os.environ.get("ADMIRRA_TEST_ACCOUNT_EMAIL", "").strip()
     if not email:
         raise RuntimeError("ADMIRRA_TEST_ACCOUNT_EMAIL must identify the approved test account")
@@ -38,6 +48,7 @@ def percentile(values: list[float], fraction: float) -> float:
 
 
 def main() -> None:
+    assert_isolated_restore()
     token = security.create_access_token({"sub": selected_user_email()})
     end = date.today()
     start = end - timedelta(days=13)

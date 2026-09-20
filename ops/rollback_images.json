@@ -13,6 +13,11 @@
       "image": "sha256:33b4ca03408c55cd11093fa3c4f9b86ecf1f323f50636222a43ea71bb4217ab8",
       "tag": "admirra-rollback/automation:pre-cutover-20260920"
     },
+    "frontend": {
+      "container": "admirra-frontend-1",
+      "image": "sha256:1b36b676b9cadca75befb5d03c66ac4c1177b0a7099e652af46360163eba4767",
+      "tag": "admirra-rollback/frontend:pre-cutover-20260920"
+    },
     "admin_frontend": {
       "container": "admirra-admin_frontend-1",
       "image": "sha256:3023714f37d9bc7f675db78085068a4a200a78690f588751cd768555196aaa5e",
