@@ -8,6 +8,7 @@ fi
 backup_id=$1
 migration_image=${2:-}
 expected_head=${3:-}
+release_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 case "$backup_id" in
   [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
   *) echo "invalid backup id" >&2; exit 2 ;;
@@ -167,6 +168,7 @@ if [ -n "$migration_image" ]; then
 fi
 
 application_smoke=skipped
+api_load_smoke=skipped
 worker_preflight=skipped
 worker_smoke=skipped
 if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
@@ -198,6 +200,9 @@ if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
     -e APP_RELEASE="restore-smoke-$expected_head" \
     -e "EXPECTED_SCHEMA_REVISION=$expected_head" \
     -e DB_AUTO_BOOTSTRAP=false \
+    -e DB_POOL_SIZE=5 \
+    -e DB_MAX_OVERFLOW=0 \
+    -e DB_POOL_TIMEOUT=5 \
     -e RUN_SYNC_WORKER=false \
     -e RUN_API_SCHEDULER=false \
     -e DURABLE_TASKS=true \
@@ -378,7 +383,12 @@ except urllib.error.HTTPError as error:
 else:
     raise AssertionError("protected route was not protected")'
   application_smoke=passed
+  if [ "${ADMIRRA_API_LOAD_SMOKE:-0}" = 1 ]; then
+    test -s "$release_dir/api_load_smoke.py"
+    docker exec -i "$application_container" python - <"$release_dir/api_load_smoke.py"
+    api_load_smoke=passed
+  fi
 fi
 
 duration=$(( $(date +%s) - started_at ))
-echo "restore drill passed: backup=$backup_id schema=$restored_revision duration_seconds=$duration network=none migration=$([ -n "$migration_image" ] && echo applied || echo skipped) worker_preflight=$worker_preflight worker_smoke=$worker_smoke application=$application_smoke"
+echo "restore drill passed: backup=$backup_id schema=$restored_revision duration_seconds=$duration network=none migration=$([ -n "$migration_image" ] && echo applied || echo skipped) worker_preflight=$worker_preflight worker_smoke=$worker_smoke application=$application_smoke api_load=$api_load_smoke"
