@@ -46,7 +46,7 @@ if [ -s "$runtime_file" ]; then
   fi
   if [ -n "$release_manifest_sha" ]; then
     case "$release_manifest_sha" in
-      [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
+      [0-9a-f]*) printf '%s\\n' "$release_manifest_sha" | grep -Eq '^[0-9a-f]{64}$' || { echo "invalid release manifest checksum" >&2; exit 1; } ;;
       *) echo "invalid release manifest checksum" >&2; exit 1 ;;
     esac
     actual_release_manifest_sha=$(
