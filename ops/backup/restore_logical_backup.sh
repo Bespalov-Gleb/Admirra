@@ -334,6 +334,8 @@ if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
     echo "application restore drill container already exists" >&2
     exit 1
   fi
+  application_image=${ADMIRRA_APPLICATION_IMAGE:-$migration_image}
+  docker image inspect "$application_image" >/dev/null
   docker run -d \
     --name "$application_container" \
     --network "container:$container" \
@@ -347,6 +349,7 @@ if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
     --security-opt no-new-privileges:true \
     -e DATABASE_URL=postgresql://postgres:isolated-restore-only@127.0.0.1:5432/restore \
     -e APP_PROCESS_ROLE=api \
+    -e API_ONLY_REPLICA=true \
     -e WW_TEST=1 \
     -e "WW_TEST_ID=restore-$suffix" \
     -e DB_POOL_SIZE=5 \
@@ -366,12 +369,12 @@ if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
     -v "$runtime_directory/root/Admirra/.env:/app/.env:ro" \
     -v "$runtime_directory/root/Admirra/uploads:/app/uploads:ro" \
     -v "$runtime_directory/root/Admirra/secrets:/app/secrets:ro" \
-    "$migration_image" >/dev/null
+    "$application_image" >/dev/null
 
   ready=0
   for attempt in $(seq 1 60); do
     if docker exec "$application_container" python -c \
-      'import json,urllib.request; data=json.load(urllib.request.urlopen("http://127.0.0.1:8001/api/health/ready", timeout=2)); assert data["status"] == "ok" and data["role"] == "api"' \
+      'import json,urllib.request; data=json.load(urllib.request.urlopen("http://127.0.0.1:8001/api/health/ready", timeout=2)); assert (data.get("status") == "ok" and data.get("role") == "api") or data == {"status": "ready", "database": "ok"}' \
       >/dev/null 2>&1; then
       ready=1
       break
