@@ -16,7 +16,7 @@
 
 ## Первая recovery point
 
-Первый DB-only backup ID: `20260920T151415Z-e003a617`. После расширения состава принят полный backup ID `20260920T153240Z-574e4117`.
+Первый DB-only backup ID: `20260920T151415Z-e003a617`. После расширения состава принят полный backup ID `20260920T153240Z-574e4117`. После добавления release manifest создан и принят актуальный полный backup ID `20260920T155915Z-e639b5d3`.
 
 - исходный размер production DB: 842 407 271 bytes (803 MiB);
 - encrypted database object: 47 088 184 bytes;
@@ -26,6 +26,8 @@
 - сервис завершился успешно, заметного DB resource spike после завершения нет.
 
 Полный набор дополнительно содержит encrypted runtime object 614 744 bytes: действующий `.env`, application `secrets`, `uploads`, Compose/nginx project config, `/etc/admirra`, nginx/TLS и WireGuard-конфигурацию. Tar создаётся относительными путями и шифруется до передачи/записи. Restore-проверка валидирует checksum, отсутствие absolute/`..` members и обязательные файлы, но не извлекает их поверх хоста.
+
+Перед каждым backup автоматически создаётся `/etc/admirra/release-manifests/current.txt`: production Git revision и признак tracked-dirty, Alembic schema, фактические container image IDs/restart states и SHA-256 конфигурации. Содержимое env/secrets туда не попадает. SHA-256 manifest записывается внутрь зашифрованного backup manifest и сверяется при restore. В наборе `20260920T155915Z-e639b5d3` подтверждены production revision `cdf0a4d`, clean tracked tree и schema `cc3d4e5f6a7b`; размеры encrypted database/globals/runtime/manifest — 47 140 874 / 2 915 / 624 984 / 687 bytes.
 
 В manifest зашифрованы object receipts с размером и SHA-256. Restore до расшифровки сверяет оба encrypted objects; `age` дополнительно аутентифицирует ciphertext.
 
@@ -49,6 +51,7 @@
 2. Новый restore той же recovery point и миграционный job из чистого candidate image `admirra-devops:14c99d0`: пять миграций `cc3d4e5f6a7b → bc8d9e0f1a2b`, все девять ожидаемых таблиц существуют — pass, 21 s суммарно.
 3. Restore полного набора `20260920T153240Z-574e4117`: DB/schema consistency и encrypted runtime archive inventory — pass, 20 s.
 4. End-to-end rehearsal полного набора `20260920T153240Z-574e4117`: restore DB, пять миграций до `bc8d9e0f1a2b`, извлечение runtime в одноразовый tmpfs, запуск candidate API `admirra-devops:14c99d0` от UID `10001` с read-only rootfs и `network=none`, readiness и отказ защищённого `/api/auth/me` без сессии — pass, 24 s. После завершения временные application/DB containers, volume и расшифрованный runtime удалены.
+5. Новый полный набор `20260920T155915Z-e639b5d3` с release manifest: ciphertext checksum и встроенный release-manifest checksum, restore DB, migrations, application readiness/auth smoke — pass, 25 s; временные ресурсы удалены.
 
 Production DB и работающие API/automation при этом не изменялись. Outbound providers, scheduler, sync worker, durable tasks, Redis, SMTP, AI и Wordstat в восстановленном API принудительно выключены. Это доказывает, что зашифрованный набор достаточен для запуска application process на восстановленной БД и что candidate migrations совместимы с текущим снимком, но не является production migration approval.
 
@@ -94,7 +97,7 @@ systemctl disable --now admirra-backup-prune.timer
 1. Repository остаётся на втором рабочем сервере того же контура. Нужны внешний S3/object storage в другом fault/administrative domain, versioning/immutability и отдельные writer/restore/delete credentials.
 2. Логический daily dump не даёт PITR/RPO 15 min. После выбора external storage нужны pgBackRest/WAL-G либо проверенная base backup + continuous WAL схема и alert на archive backlog.
 3. Текущие uploads/runtime secrets извлечены и использованы в изолированном application smoke. При этом DB dump и runtime tar создаются последовательно, а не как единый атомарный snapshot: для изменяемых файлов остаётся необходимость формальной DB/file consistency policy. Будущий shared object storage потребует собственного versioned backup. Redis broker AOF пока не входит в recovery set; durable PostgreSQL outbox должен оставаться источником восстановления задач.
-4. Private age identity нуждается в независимом защищённом escrow: сейчас потеря server 2 делает эти dumps нечитаемыми. Release/image manifests также ещё не собраны в один disaster-recovery bundle.
+4. Private age identity нуждается в независимом защищённом escrow: сейчас потеря server 2 делает эти dumps нечитаемыми. Production release/image manifest уже входит в recovery set; отдельно нужно обеспечить доступность самого immutable image либо воспроизводимого image registry при потере обоих runtime-узлов.
 5. Проверен application process с отключёнными внешними side effects, но не выполнена сверка платежей/сообщений/AI с провайдерами после выбранной точки восстановления и не проверен ingress/TLS на полностью чистом хосте.
 6. Измеренные 24 s относятся к автоматизированному restore/application smoke в уже подготовленном Docker-окружении. Полный operational RTO от пустого хоста до переключения ingress ≤60 min пока не доказан.
 
