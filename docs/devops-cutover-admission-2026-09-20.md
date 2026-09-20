@@ -1,6 +1,6 @@
 # Cutover admission gate
 
-Дата: 20.09.2026. Статус: Nginx gate и atomic manager подготовлены и изолированно проверены; до отдельной установки production Nginx не изменён.
+Дата: 20.09.2026. Статус: Nginx gate установлен в production в безопасном режиме `open`; переключение `closed` не выполнялось.
 
 ## Зачем нужен отдельный gate
 
@@ -35,6 +35,10 @@
   - CloudPayments и lead webhook POST → не блокируются.
 
 Тестовый Nginx остановлен и временные файлы удалены; production-конфигурация при тесте не менялась.
+
+Production install выполнен из release `/root/admirra-cutover-admission-b82f78d`. До изменения сохранена root-only копия `/root/admirra-cutover-admission-backups/20260920T172006Z`; `nginx -t` и reload успешны. Оба site-файла подключают server snippet, активный map совпадает с reviewed `open`.
+
+После установки: `admirra.ru/` — 200, `/api/auth/me` — ожидаемый 401 без сессии, POST assistant/report — ожидаемый auth 401, а не gate 503. Оба API-2 monitor timer активны, public health не изменился. `admirra.online` не использовался как acceptance URL: внешний DNS/доступность этого legacy alias рассматривается отдельно и не смешивается с gate.
 
 ## Эксплуатация
 

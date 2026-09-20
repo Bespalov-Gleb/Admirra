@@ -11,7 +11,7 @@
   - `/var/lib/admirra-api2-monitor/ingress.prom`;
   - `/var/lib/admirra-api2-monitor/api2.prom`.
 - Проверяются: свободное место, возраст WireGuard handshake, API-2 readiness и DB check, Nginx service/config, финальные 5xx и fallback canary за десять минут, состояние/restart count контейнера API-2.
-- Порог диска: warning ниже 20%, critical ниже 10%. Любой финальный 5xx, unhealthy API-2/Nginx/VPN или critical disk возвращает ненулевой статус.
+- Порог диска: warning ниже 20%, critical ниже 10%. Warning возвращает exit 1, считается systemd-success и сохраняет общий monitor health `1`; отдельный check/value остаётся warning для профильного правила. Любой финальный 5xx, unhealthy API-2/Nginx/VPN или critical disk возвращает exit 2 и общий health `0`.
 
 Systemd unit работает с `ProtectSystem=strict`, `ProtectHome=yes`, `PrivateTmp=yes`, `NoNewPrivileges=yes`; write-доступ ограничен каталогом метрик и техническими путями, нужными `nginx -t`.
 
@@ -29,6 +29,8 @@ Systemd unit работает с `ProtectSystem=strict`, `ProtectHome=yes`, `Pri
 - Отдельный WireGuard fault выявил stale keepalive: при прежнем `proxy_read_timeout=120s` один из 100 клиентов сам прервал запрос через 5 s (Nginx 499), прежде чем произошёл retry. Для четырёх малых read-canary routes connect/read/send ограничены 1/2/2 s, общий retry window — 4 s; исходный snippet сохранён как rollback, `nginx -t` и reload прошли.
 - Повторный WireGuard fault после исправления: 120/120 запросов вернули ожидаемый 401, `5xx/000 = 0`, max 2,106 s; два запроса реально завершили upstream 504 от API-2 успешным retry на API-1. Туннель, readiness и local health guard вернулись в `ok`.
 - На сервере 1 удалён только неиспользуемый Docker build-cache старше суток: освобождено 14,28 ГБ, использование `/` уменьшилось с 79% до 43%. Images, containers, volumes и rollback-релизы не удалялись.
+- После изолированных image/config тестов server 2 кратко достиг 19,89% свободного диска. Удалены только dangling images (0 Б) и неиспользуемый build-cache (107,6 МБ); candidate digest и работающие containers сохранены, свободно 3,86 ГБ / использование 79%.
+- Исправлена ложная эскалация warning в `AdMirraCanaryMonitorFailed`: warning больше не обнуляет общий health, а systemd `SuccessExitStatus=1`. Изменение установлено на оба узла, оба штатных probe завершились `ExecMainStatus=0`, timers active; после следующей Prometheus evaluation pending/firing set пуст.
 
 ## Эксплуатация
 
