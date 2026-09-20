@@ -110,6 +110,11 @@ class YandexMetricaAPI:
         dimensions=ym:s:date — разбивка по дням.
         Returns list of {dimensions: [{name: date}], metrics: [...]} per day.
         """
+        d_start = datetime.strptime(date_from, "%Y-%m-%d").date()
+        d_end = datetime.strptime(date_to, "%Y-%m-%d").date()
+        if d_start > d_end:
+            raise ValueError("Invalid Metrika statistics window")
+        requested_metrics = metrics.split(",")
         params = {
             "ids": counter_id,
             "metrics": metrics,
@@ -153,19 +158,26 @@ class YandexMetricaAPI:
                         date_str = dims[0].get('name') if isinstance(dims[0], dict) else str(dims[0])
                     else:
                         raise ValueError("Invalid Metrika statistics row: missing date")
+                    stat_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                    if not d_start <= stat_date <= d_end or stat_date.isoformat() != date_str:
+                        raise ValueError("Invalid Metrika statistics date")
                     m = row.get('metrics', [])
-                    if len(m) != len(metrics.split(",")):
+                    if len(m) != len(requested_metrics):
                         raise ValueError("Invalid Metrika statistics metric count")
                     if date_str not in by_date:
                         by_date[date_str] = [0] * len(m)
                     for i, v in enumerate(m):
-                        if v is None or isinstance(v, bool) or float(v) < 0:
+                        if v is None or isinstance(v, bool):
                             raise ValueError("Invalid Metrika metric value")
-                        if i < len(by_date[date_str]):
-                            by_date[date_str][i] += int(v or 0)
+                        value = float(v)
+                        if not math.isfinite(value) or value < 0:
+                            raise ValueError("Invalid Metrika metric value")
+                        if requested_metrics[i].endswith("visits") and not value.is_integer():
+                            raise ValueError("Invalid Metrika visit count")
+                        # Validate before grouping: two corrupt 0.5 counts must
+                        # not turn into an apparently valid count of 1.
+                        by_date[date_str][i] += int(value) if value.is_integer() else value
 
-                d_start = datetime.strptime(date_from, "%Y-%m-%d").date()
-                d_end = datetime.strptime(date_to, "%Y-%m-%d").date()
                 num_metrics = len(next(iter(by_date.values()), [])) if by_date else 0
                 result = []
                 for i in range((d_end - d_start).days + 1):
