@@ -27,6 +27,7 @@ manifest=$(age --decrypt --identity "$identity" "$manifest_file")
 test "$(printf '%s\n' "$manifest" | sed -n 's/^backup_id=//p')" = "$backup_id"
 schema_revision=$(printf '%s\n' "$manifest" | sed -n 's/^schema_revision=//p')
 test -n "$schema_revision"
+release_manifest_sha=$(printf '%s\n' "$manifest" | sed -n 's/^release_manifest_sha256=//p')
 
 expected_database_sha=$(printf '%s\n' "$manifest" | sed -n 's/^stored database bytes=[0-9][0-9]* sha256=//p')
 expected_globals_sha=$(printf '%s\n' "$manifest" | sed -n 's/^stored globals bytes=[0-9][0-9]* sha256=//p')
@@ -42,6 +43,19 @@ if [ -s "$runtime_file" ]; then
   if printf '%s\n' "$runtime_members" | grep -Eq '(^/|(^|/)\.\.(/|$))'; then
     echo "unsafe runtime backup member" >&2
     exit 1
+  fi
+  if [ -n "$release_manifest_sha" ]; then
+    case "$release_manifest_sha" in
+      [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
+      *) echo "invalid release manifest checksum" >&2; exit 1 ;;
+    esac
+    actual_release_manifest_sha=$(
+      age --decrypt --identity "$identity" "$runtime_file" \
+      | tar --extract --to-stdout --file=- etc/admirra/release-manifests/current.txt \
+      | sha256sum \
+      | cut -d ' ' -f 1
+    )
+    test "$actual_release_manifest_sha" = "$release_manifest_sha"
   fi
 fi
 

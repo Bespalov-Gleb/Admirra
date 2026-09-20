@@ -27,6 +27,8 @@ chmod 0600 /etc/admirra/backup/receiver_ed25519
 chmod 0644 /etc/admirra/backup/receiver_ed25519.pub
 
 install -o root -g root -m 0755 "$release_dir/create_logical_backup.sh" /usr/local/sbin/admirra-create-logical-backup
+install -o root -g root -m 0755 "$release_dir/capture_release_manifest.sh" /usr/local/sbin/admirra-capture-release-manifest
+install -d -o root -g root -m 0700 /etc/admirra/release-manifests
 install -o root -g root -m 0644 "$release_dir/systemd/admirra-logical-backup.service" /etc/systemd/system/admirra-logical-backup.service
 install -o root -g root -m 0644 "$release_dir/systemd/admirra-logical-backup.timer" /etc/systemd/system/admirra-logical-backup.timer
 systemctl daemon-reload

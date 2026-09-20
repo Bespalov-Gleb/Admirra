@@ -21,6 +21,11 @@ case "$recipient" in
   *) echo "invalid age recipient" >&2; exit 1 ;;
 esac
 
+/usr/local/sbin/admirra-capture-release-manifest >/dev/null
+release_manifest_file=/etc/admirra/release-manifests/current.txt
+test -s "$release_manifest_file"
+release_manifest_sha=$(sha256sum "$release_manifest_file" | cut -d ' ' -f 1)
+
 backup_id=$(date -u +%Y%m%dT%H%M%SZ)-$(openssl rand -hex 4)
 ssh_options=(
   -o BatchMode=yes
@@ -77,8 +82,9 @@ runtime_receipt=$(
 )
 
 created_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-printf 'backup_id=%s\ncreated_at=%s\nschema_revision=%s\n%s\n%s\n%s\n' \
-  "$backup_id" "$created_at" "$schema_revision" "$database_receipt" "$globals_receipt" "$runtime_receipt" \
+printf 'backup_id=%s\ncreated_at=%s\nschema_revision=%s\nrelease_manifest_sha256=%s\n%s\n%s\n%s\n' \
+  "$backup_id" "$created_at" "$schema_revision" "$release_manifest_sha" \
+  "$database_receipt" "$globals_receipt" "$runtime_receipt" \
 | age --encrypt --recipient "$recipient" \
 | ssh "${ssh_options[@]}" "$repository_user@$repository_host" "put $backup_id manifest" >/dev/null
 

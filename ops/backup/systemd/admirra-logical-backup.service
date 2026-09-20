@@ -15,5 +15,6 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
 ReadOnlyPaths=/etc/admirra/backup
+ReadWritePaths=/etc/admirra/release-manifests
 NoNewPrivileges=true
 TimeoutStartSec=2h
