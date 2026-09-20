@@ -216,8 +216,9 @@ if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
       --name "$broker_container" \
       --network "container:$container" \
       --read-only \
-      --tmpfs /data:size=64m \
-      --tmpfs /tmp:size=16m \
+      --user 999:999 \
+      --tmpfs /data:rw,noexec,nosuid,size=64m,uid=999,gid=999,mode=0700 \
+      --tmpfs /tmp:rw,noexec,nosuid,size=16m,uid=999,gid=999,mode=0700 \
       --memory 128m \
       --cpus 0.25 \
       --pids-limit 64 \
