@@ -2,6 +2,8 @@
 
 Дата: 20.09.2026. Статус: fail-closed scope и resource observer реализованы и проверены; реальная provider-нагрузка не запускалась, потому что владелец ещё не утвердил точный tenant/project/integration scope и тестового получателя.
 
+**Обновление после ревью:** владелец предоставил тестовый аккаунт и разрешил выбор проектов. Scope validator и observer — только части приёмки, а не законченный launcher. Они не ограничивают фактический workload глобальных handlers. Требуется scoped runner с ownership validation и запретом side effects; текущий `provider_peak_accepted=false`. Подробности: [review](devops-review-2026-09-20.md). Digests и команды ниже относятся к прежнему candidate `acf6ed8` и не являются актуальным разрешением запуска.
+
 ## Что подготовлено
 
 `ops/provider_peak_scope.py` принимает только короткоживущий JSON-манифест:

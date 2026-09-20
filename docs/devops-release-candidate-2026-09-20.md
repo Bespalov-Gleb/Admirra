@@ -1,5 +1,7 @@
 # Backend release candidate acf6ed8
 
+> Исторический candidate. После ревью подготовлен `45ef70f`; актуальные fixes, tests/restore и незакрытые rollout gates: [devops-review-2026-09-20.md](devops-review-2026-09-20.md). Наличие нового проверенного image не означает разрешённый production cutover.
+
 Дата проверки: 20.09.2026. Статус: проверенный immutable candidate, **не включён** в production runtime.
 
 ## Источник и артефакт

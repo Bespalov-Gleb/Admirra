@@ -1,5 +1,7 @@
 # AdMirra DevOps — актуальный остаток до production cutover
 
+> **Дополнение после ревью 20.09:** прежний список из трёх P0 не является полным разрешением cutover. Найдены незакрытые AI run/quota/idempotency и scoped peak runner, сохраняются transaction/global-handler gaps. Исправленные дефекты, evidence и обновлённый порядок: [devops-review-2026-09-20.md](devops-review-2026-09-20.md). Аккаунт для тестов владелец уже предоставил; ждать выбора аккаунта больше не требуется. Alerts пока отложены, gate не обходится.
+
 Состояние на 20.09.2026 после production-safe admission/monitoring этапа. Этот файл — короткая оперативная карта; полные требования и история evidence находятся в `admirra_devops_completion_tz_2026-09-11.md`.
 
 ## Уже подтверждено
