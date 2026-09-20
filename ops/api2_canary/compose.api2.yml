@@ -1,0 +1,33 @@
+name: admirra-api2
+
+services:
+  api:
+    image: admirra-backend:api2-production-compatible-20260920
+    env_file:
+      - /etc/admirra/api2.env
+    environment:
+      API_ONLY_REPLICA: "true"
+      PYTHONDONTWRITEBYTECODE: "1"
+    command: ["uvicorn", "backend_api.main:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "1"]
+    ports:
+      - "10.77.0.2:8001:8001"
+    volumes:
+      - /srv/admirra/api2/uploads:/app/uploads
+      - /etc/admirra/api2-secrets:/app/secrets:ro
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 60s
+    mem_limit: 1024m
+    cpus: 1.5
+    pids_limit: 256
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/api/health/ready', timeout=4).read()"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: local
+      options:
+        max-size: 10m
+        max-file: "3"
