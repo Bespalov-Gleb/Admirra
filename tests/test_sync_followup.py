@@ -179,6 +179,18 @@ def test_manual_request_promotes_unclaimed_nightly_followup(scope, date_from):
     assert transport(factory, first)["queue"] == "sync.manual"
 
 
+def test_night_expansion_preserves_manual_trigger_and_priority(scope):
+    factory, integration_id, _, _ = scope
+    first = enqueue(scope)
+    assert durable_sync.enqueue(integration_id, days=30, force_full=False, trigger="auto",
+        date_from="2026-09-01", date_to="2026-09-20", occurrence="night-test") == first
+    assert transport(factory, first)["queue"] == "sync.manual"
+    with factory() as db:
+        params = json.loads(db.get(models.SyncJob, first).params)
+        assert params["trigger"] == "manual"
+        assert params["date_from"] == "2026-09-01"
+
+
 def test_older_completion_keeps_integration_pending(scope):
     from backend_api.sync_jobs import _keep_pending_followup
     factory = scope[0]

@@ -66,6 +66,10 @@ def covers(existing, wanted):
 
 def merged(existing, wanted):
     result = dict(wanted)
+    # The nightly planner can widen a pending manual request, but must not
+    # relabel the user's request as automatic while its queue stays manual.
+    if wanted.get("trigger") == "auto" and existing.get("trigger") not in (None, "auto"):
+        result["trigger"] = existing["trigger"]
     for field, operation in (("date_from", min), ("date_to", max)):
         if existing.get(field):
             result[field] = operation(existing[field], wanted[field])
