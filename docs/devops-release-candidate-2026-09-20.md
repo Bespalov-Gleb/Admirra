@@ -29,8 +29,8 @@
 - Candidate Alembic head: `bc8d9e0f1a2b`.
 - Ожидающие additive migrations: durable jobs/outbox, report route guards, history backfill state, durable public report links и artifact lifecycle.
 
-Зашифрованная recovery point `20260920T151415Z-e003a617` реально восстановлена в isolated PostgreSQL; все пять миграций candidate до `bc8d9e0f1a2b` применились за один транзакционный rehearsal, девять новых таблиц подтверждены. Production DB не изменялась. Candidate всё ещё нельзя подставлять вместо текущего API/automation или запускать как worker до полного G3/cutover: внешний offsite/PITR, secrets/files recovery и end-to-end restore остаются открыты. Старый production runtime остаётся без изменений; API-2 canary продолжает использовать production-compatible image.
+Зашифрованная recovery point `20260920T151415Z-e003a617` реально восстановлена в isolated PostgreSQL; все пять миграций candidate до `bc8d9e0f1a2b` применились за один транзакционный rehearsal, девять новых таблиц подтверждены. Полный набор `20260920T153240Z-574e4117` дополнительно прошёл запуск candidate API с восстановленными `.env`, secrets и uploads, без внешней сети и side effects; readiness и auth guard подтверждены, весь rehearsal занял 24 s. Production DB не изменялась. Candidate всё ещё нельзя подставлять вместо текущего API/automation или запускать как worker до согласованного cutover: внешний offsite/PITR и независимый escrow ключа остаются открыты. Старый production runtime остаётся без изменений; API-2 canary продолжает использовать production-compatible image.
 
 ## Следующий безопасный шаг
 
-Подключить внешний immutable repository/PITR и включить backup shared files/secrets, затем выполнить end-to-end application restore. После полного G3 — отдельное окно production migration и single-API durable-worker rollout.
+Подключить внешний immutable repository/PITR и независимый escrow ключа. После полного G3 — отдельное окно production migration и single-API durable-worker rollout; уже пройденный end-to-end restore повторить с будущей внешней recovery point.

@@ -43,13 +43,14 @@
 
 `restore_logical_backup.sh` проверяет manifest/checksums, расшифровывает поток прямо в отдельный PostgreSQL 15.18 container без host ports и с `network=none`. Temporary container и Docker volume удаляются и при успехе, и при ошибке.
 
-Подтверждены два запуска:
+Подтверждены четыре запуска:
 
 1. Restore `20260920T151415Z-e003a617` до исходного `cc3d4e5f6a7b`, базовая schema/data consistency — pass, 21 s.
 2. Новый restore той же recovery point и миграционный job из чистого candidate image `admirra-devops:14c99d0`: пять миграций `cc3d4e5f6a7b → bc8d9e0f1a2b`, все девять ожидаемых таблиц существуют — pass, 21 s суммарно.
 3. Restore полного набора `20260920T153240Z-574e4117`: DB/schema consistency и encrypted runtime archive inventory — pass, 20 s.
+4. End-to-end rehearsal полного набора `20260920T153240Z-574e4117`: restore DB, пять миграций до `bc8d9e0f1a2b`, извлечение runtime в одноразовый tmpfs, запуск candidate API `admirra-devops:14c99d0` от UID `10001` с read-only rootfs и `network=none`, readiness и отказ защищённого `/api/auth/me` без сессии — pass, 24 s. После завершения временные application/DB containers, volume и расшифрованный runtime удалены.
 
-Production DB и работающие API/automation при этом не изменялись. Это доказывает совместимость миграций с текущим снимком, но не является production migration approval.
+Production DB и работающие API/automation при этом не изменялись. Outbound providers, scheduler, sync worker, durable tasks, Redis, SMTP, AI и Wordstat в восстановленном API принудительно выключены. Это доказывает, что зашифрованный набор достаточен для запуска application process на восстановленной БД и что candidate migrations совместимы с текущим снимком, но не является production migration approval.
 
 ## Эксплуатация
 
@@ -73,6 +74,14 @@ Migration rehearsal:
   BACKUP_ID admirra-devops:14c99d0 bc8d9e0f1a2b
 ```
 
+Полный application restore smoke без внешней сети:
+
+```sh
+ADMIRRA_APPLICATION_SMOKE=1 \
+  /opt/admirra-backup/release-20260920/restore_logical_backup.sh \
+  BACKUP_ID admirra-devops:14c99d0 bc8d9e0f1a2b
+```
+
 Остановка расписаний не удаляет recovery points:
 
 ```sh
@@ -84,9 +93,9 @@ systemctl disable --now admirra-backup-prune.timer
 
 1. Repository остаётся на втором рабочем сервере того же контура. Нужны внешний S3/object storage в другом fault/administrative domain, versioning/immutability и отдельные writer/restore/delete credentials.
 2. Логический daily dump не даёт PITR/RPO 15 min. После выбора external storage нужны pgBackRest/WAL-G либо проверенная base backup + continuous WAL схема и alert на archive backlog.
-3. Текущие uploads/runtime secrets теперь входят в encrypted set, но не выполнены их extraction в чистый host, запуск восстановленного приложения и сверка DB/file/token consistency. Будущий shared object storage потребует собственного versioned backup. Redis broker AOF пока не входит в recovery set.
+3. Текущие uploads/runtime secrets извлечены и использованы в изолированном application smoke. При этом DB dump и runtime tar создаются последовательно, а не как единый атомарный snapshot: для изменяемых файлов остаётся необходимость формальной DB/file consistency policy. Будущий shared object storage потребует собственного versioned backup. Redis broker AOF пока не входит в recovery set; durable PostgreSQL outbox должен оставаться источником восстановления задач.
 4. Private age identity нуждается в независимом защищённом escrow: сейчас потеря server 2 делает эти dumps нечитаемыми. Release/image manifests также ещё не собраны в один disaster-recovery bundle.
-5. Проверено восстановление DB, runtime inventory и миграций, но не полный clean application restore с outbound payments/messages/AI disabled.
-6. RTO 20–21 s относится только к DB/runtime validation в уже готовом локальном окружении; end-to-end RTO ≤60 min пока не доказан.
+5. Проверен application process с отключёнными внешними side effects, но не выполнена сверка платежей/сообщений/AI с провайдерами после выбранной точки восстановления и не проверен ingress/TLS на полностью чистом хосте.
+6. Измеренные 24 s относятся к автоматизированному restore/application smoke в уже подготовленном Docker-окружении. Полный operational RTO от пустого хоста до переключения ingress ≤60 min пока не доказан.
 
 До закрытия этих пунктов G3 считается частично выполненным, а не полным production disaster recovery.
