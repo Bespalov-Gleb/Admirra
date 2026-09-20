@@ -3,6 +3,7 @@
 Отдельный роутер от ai/router.py (AI-комментарии дашборда)."""
 from __future__ import annotations
 
+from contextlib import aclosing
 import asyncio
 import json
 from datetime import datetime, timedelta, timezone
@@ -21,6 +22,7 @@ from core.database import get_db
 from backend_api.access_control import get_accessible_client_ids
 
 from . import agent, files, llm, wordstat_client
+from .streaming import stream_events
 from .models_catalog import DEFAULT_MODEL_ID, catalog_public, get_model, normalize_effort
 
 router = APIRouter(prefix="/assistant", tags=["AI Assistant"])
@@ -294,33 +296,13 @@ async def chat(
         # Мультиплексируем поток агента с heartbeat: при долгом думании/медленных
         # инструментах агент какое-то время молчит, и без периодических байтов
         # прокси (nginx) рвёт соединение по таймауту — казалось, что «завис».
-        queue: asyncio.Queue = asyncio.Queue()
-        _DONE = object()
-
-        async def _producer():
-            try:
-                async for ev in agent.run(db, conv, text, model, effort, current_user, attachments=attachments):
-                    await queue.put(ev)
-            except Exception as exc:  # noqa: BLE001
-                await queue.put({"type": "error", "error": f"Сбой стрима: {exc}"})
-            finally:
-                await queue.put(_DONE)
-
-        task = asyncio.create_task(_producer())
-        try:
-            while True:
-                try:
-                    item = await asyncio.wait_for(queue.get(), timeout=12.0)
-                except asyncio.TimeoutError:
-                    yield ": keepalive\n\n"   # SSE-комментарий — клиент игнорирует, соединение живёт
-                    continue
-                if item is _DONE:
-                    break
-                yield _sse(item)
-        finally:
-            if not task.done():
-                task.cancel()
-            yield _sse({"type": "end"})
+        async with aclosing(stream_events(
+            agent.run(db, conv, text, model, effort, current_user, attachments=attachments)
+        )) as events:
+            async for item in events:
+                yield ": keepalive\n\n" if item is None else _sse(item)
+        # Do not yield during cancellation: the consumer has already disconnected.
+        yield _sse({"type": "end"})
 
     return StreamingResponse(
         event_stream(),

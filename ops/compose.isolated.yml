@@ -75,6 +75,7 @@ services:
       - tests/test_peak_observer.py
       - tests/test_provider_peak_scope.py
       - tests/test_assistant_files.py
+      - tests/test_assistant_streaming.py
       - tests/test_assistant_vk_reporting.py
       - tests/test_billing_slot_purchase.py
       - tests/test_mobile_plan_progress.py

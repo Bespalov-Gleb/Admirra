@@ -219,8 +219,8 @@ async def run(
         )
         yield {"type": "done", "content": final_text or fallback, "message_id": str(saved.id) if saved else None}
     except llm.LLMError as exc:
-        logger.warning("LLM error: %s", exc)
-        yield {"type": "error", "error": f"Ошибка модели: {exc}"}
+        logger.warning("LLM request failed (%s)", type(exc).__name__)
+        yield {"type": "error", "error": "Модель временно недоступна. Попробуйте ещё раз позже."}
     except Exception as exc:  # noqa: BLE001
-        logger.exception("Assistant agent failure")
-        yield {"type": "error", "error": f"Внутренняя ошибка ассистента: {exc}"}
+        logger.error("Assistant agent failed (%s)", type(exc).__name__)
+        yield {"type": "error", "error": "Не удалось завершить анализ. Попробуйте ещё раз."}
