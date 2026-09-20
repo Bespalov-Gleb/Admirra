@@ -1,6 +1,6 @@
 {
   "format": "admirra-rollback-images-v1",
-  "captured_at": "2026-09-20T22:48:00Z",
+  "captured_at": "2026-09-20T23:18:00Z",
   "host": "server-1",
   "images": {
     "backend": {
@@ -15,8 +15,8 @@
     },
     "frontend": {
       "container": "admirra-frontend-1",
-      "image": "sha256:019ae4025bf17f9d4412b78946ebfb4a74a2aac6628c4dde9803a1ecbb31ec80",
-      "tag": "admirra-rollback/frontend:summary-df31bc8"
+      "image": "sha256:274aad1d3027412d1a600927f0a388c02f76b487cbeee8ce3670804f73c28a1a",
+      "tag": "admirra-rollback/frontend:reads-c39e7e2"
     },
     "admin_frontend": {
       "container": "admirra-admin_frontend-1",
