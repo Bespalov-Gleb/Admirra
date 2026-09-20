@@ -2,7 +2,7 @@
 
 Дата включения: 20.09.2026. Статус: приватная API-реплика включена; ограниченный read-canary получает 10% запросов четырёх маршрутов на `admirra.ru`. Это не полный двухсерверный cutover и не запуск Celery-workers.
 
-**Мониторинг 20.09.2026:** на обоих узлах включён минутный read-only health guard, проверены negative-сценарии и Docker recovery сервера 2. Подробности, метрики и ограничения: [health guard и recovery](devops-api2-monitor-2026-09-20.md).
+**Мониторинг 20.09.2026:** на обоих узлах включён минутный read-only health guard, проверены negative-сценарии, Docker recovery и полная OS reboot сервера 2 с автоматическим восстановлением WireGuard/containers. Подробности, метрики и ограничения: [health guard и recovery](devops-api2-monitor-2026-09-20.md).
 
 ## Фактическая схема
 
@@ -35,6 +35,7 @@ Nginx использует `least_conn`, вес API-1:API-2 = 9:1. Для connec
 - Под тестовым аккаунтом ответы API-1/API-2 совпали по status и каноническому JSON для auth/me, clients, folders, billing/overview и notifications. Токен/данные в evidence не сохранялись.
 - Healthy-canary: 60 публичных авторизованных запросов, все 200 и с одним response hash; распределение 54/6, то есть 10% дошло до API-2.
 - Failover: API-2 штатно остановлен, ещё 60 запросов — все 200; четыре попытки API-2 получили upstream 502 и автоматически завершились 200 через API-1. API-2 возвращён в healthy.
+- OS reboot: во время полной перезагрузки server 2 непрерывный публичный probe выполнил 243 запроса, все завершились ожидаемым 401 без `5xx/000`; два upstream 504 от API-2 автоматически завершились через API-1. WireGuard, Docker, API-2, Redis, exporters и timers восстановились автоматически; служебные public ports остались закрыты.
 - Direct load после ограничения пула: 120 запросов, concurrency 20, 0 ошибок, 173,9 req/s, p50 83,9 ms, p95 251,9 ms, max 306,6 ms. Это короткий synthetic smoke одного небольшого endpoint, не capacity acceptance всего продукта.
 - После проверки API-2 использовал около 117 MiB из 1 GiB; на сервере 2 доступно около 7,1 GiB RAM, swap не использовался. Диск после удаления временного transfer archive: 74%, около 4,5 GiB свободно.
 - Nginx config валиден, сервис active. Финальных 5xx в 120 контрольных canary-запросах нет.
@@ -72,7 +73,7 @@ ssh root@91.221.68.94 'cd /opt/admirra-api2/release-20260920 && docker compose -
 ## Что ещё обязательно до расширения
 
 1. Наблюдать canary error/timing и ресурсы минимум рабочий цикл; health guard и central Prometheus уже включены, но доставка alert человеку остаётся открыта.
-2. Docker recovery проверен; отдельно проверить OS reboot/WireGuard recovery в согласованное окно.
+2. Docker и OS reboot recovery проверены; отдельный принудительный WireGuard fault без reboot можно выполнить позднее в отдельном окне.
 3. Не добавлять dashboard stats, manual sync и другие маршруты без route-by-route проверки внешних вызовов, process-local state и cross-replica fixtures.
 4. До общего round-robin закрыть shared files/tokens, AI run/SSE drain, durable jobs, cache revision и billing/side-effect guards по основному DevOps-ТЗ.
 5. Celery workers пока не запускать: прежний полный workers manifest вместе с API-2 не проходил резерв памяти ОС.
