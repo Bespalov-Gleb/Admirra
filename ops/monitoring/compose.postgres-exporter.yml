@@ -1,0 +1,39 @@
+services:
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter@sha256:ac5ec343104fae0e2d84a27bb8d69b38430a11910c5382cad85d478d2bab713e
+    container_name: admirra-postgres-exporter
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_URI_FILE: /run/secrets/postgres_uri
+      DATA_SOURCE_USER_FILE: /run/secrets/postgres_user
+      DATA_SOURCE_PASS_FILE: /run/secrets/postgres_password
+      PG_EXPORTER_COLLECTION_TIMEOUT: 5s
+    command:
+      - --collector.long_running_transactions
+      - --web.listen-address=:9187
+    volumes:
+      - /etc/admirra/monitoring/postgres_uri:/run/secrets/postgres_uri:ro
+      - /etc/admirra/monitoring/postgres_user:/run/secrets/postgres_user:ro
+      - /etc/admirra/monitoring/postgres_password:/run/secrets/postgres_password:ro
+    ports:
+      - 127.0.0.1:9187:9187
+    networks:
+      - admirra
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 128m
+    cpus: 0.25
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+networks:
+  admirra:
+    external: true
+    name: admirra_default

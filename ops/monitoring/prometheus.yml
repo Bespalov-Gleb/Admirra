@@ -27,3 +27,24 @@ scrape_configs:
         labels:
           node: api2
           node_role: api-replica-redis
+
+  - job_name: postgres
+    static_configs:
+      - targets:
+          - 127.0.0.1:9187
+        labels:
+          node: api1
+          node_role: database
+
+  - job_name: redis
+    static_configs:
+      - targets:
+          - 10.77.0.2:9121
+        labels:
+          node: api2
+          redis_role: broker
+      - targets:
+          - 10.77.0.2:9122
+        labels:
+          node: api2
+          redis_role: cache

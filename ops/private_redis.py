@@ -12,8 +12,9 @@ import re
 import secrets
 
 ROOT = Path("/etc/admirra")
-USERS = ("broker_api", "broker_worker", "limiter_api", "limiter_worker",
-         "cache_api", "cache_worker", "health")
+LEGACY_USERS = ("broker_api", "broker_worker", "limiter_api", "limiter_worker",
+                "cache_api", "cache_worker", "health")
+USERS = LEGACY_USERS + ("monitor",)
 COMMON = "+ping +hello +select +client|setname +client|setinfo +client|id"
 BROKER = ("+get +mget +set +setnx +setex +psetex +del +exists +expire +pexpire +ttl +pttl "
           "+incr +incrby +decr +lpush +rpush +lpop +rpop +brpop +llen +lrange +lrem +ltrim "
@@ -21,6 +22,9 @@ BROKER = ("+get +mget +set +setnx +setex +psetex +del +exists +expire +pexpire +
           "+zadd +zrem +zrangebyscore +zrevrangebyscore +zrange +zcard +zcount +zscore "
           "+watch +unwatch +multi +exec +discard +eval +evalsha +script|load +script|exists "
           "+publish +subscribe +unsubscribe +psubscribe +punsubscribe")
+MONITOR = ("+@connection -auth -hello -echo -quit -client +client|setname +client|setinfo "
+           "+client|id +info +memory +config|get +slowlog|get +slowlog|len +latency|latest "
+           "+latency|history +latency|histogram +dbsize +command|info")
 
 
 def acl_line(user, password, keys="", commands="+ping", channels=""):
@@ -33,6 +37,8 @@ def acl_files(passwords, db=0):
         raise ValueError("Unexpected Redis database")
     broker = ["user default off", acl_line("health", passwords["health"], commands="+ping +client|setinfo")]
     cache = list(broker)
+    broker.append(acl_line("monitor", passwords["monitor"], commands=MONITOR))
+    cache.append(acl_line("monitor", passwords["monitor"], commands=MONITOR))
     for actor in ("api", "worker"):
         user = "broker_" + actor
         # Redis PSUBSCRIBE checks literal pattern equality, not whether the
@@ -81,7 +87,19 @@ def write_once(path, data, mode):
         os.fsync(stream.fileno())
 
 
-def provision(root, refresh_acl=False):
+def replace_private_json(path, value):
+    next_path = path.with_name(path.name + ".next")
+    if next_path.exists():
+        if next_path.is_symlink():
+            raise RuntimeError("Refusing symlink: " + str(next_path))
+        next_path.unlink()
+    write_once(next_path, json.dumps(value), 0o600)
+    os.replace(next_path, path)
+
+
+def provision(root, refresh_acl=False, rotate_monitor=False):
+    if rotate_monitor:
+        refresh_acl = True
     root.mkdir(mode=0o700, parents=True, exist_ok=True)
     if root.is_symlink() or root.stat().st_mode & 0o077 or root.stat().st_uid != os.geteuid():
         raise RuntimeError("Credential directory must be private (0700)")
@@ -90,8 +108,14 @@ def provision(root, refresh_acl=False):
         if path.is_symlink() or path.stat().st_mode & 0o077:
             raise RuntimeError("Credential state must be a private regular file")
         passwords = json.loads(path.read_text())
+        if set(passwords) == set(LEGACY_USERS) and refresh_acl:
+            passwords["monitor"] = secrets.token_urlsafe(32)
+            replace_private_json(path, passwords)
         if set(passwords) != set(USERS) or any(not isinstance(p, str) or not re.fullmatch(r"[A-Za-z0-9_-]{40,128}", p) for p in passwords.values()):
             raise RuntimeError("Unexpected credential state")
+        if rotate_monitor:
+            passwords["monitor"] = secrets.token_urlsafe(32)
+            replace_private_json(path, passwords)
     else:
         passwords = {user: secrets.token_urlsafe(32) for user in USERS}
         write_once(path, json.dumps(passwords), 0o600)
@@ -117,10 +141,11 @@ def provision(root, refresh_acl=False):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--refresh-acl", action="store_true", help="Explicit ACL-only update; backs up old file; requires container recreation")
+    parser.add_argument("--rotate-monitor", action="store_true", help="Rotate only the monitoring credential and refresh ACL files")
     args = parser.parse_args()
     if os.geteuid() != 0:
         raise SystemExit("Root required on worker host")
-    provision(ROOT, refresh_acl=args.refresh_acl)
+    provision(ROOT, refresh_acl=args.refresh_acl or args.rotate_monitor, rotate_monitor=args.rotate_monitor)
     print("Redis credentials/configuration prepared; no secrets emitted; no services started")
 
 

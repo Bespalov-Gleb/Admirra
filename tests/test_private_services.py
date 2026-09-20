@@ -29,6 +29,38 @@ def test_credentials_are_private_idempotent_and_never_in_acl(tmp_path):
         private_redis.write_once(root / "redis-worker.env", "different", 0o600)
 
 
+def test_legacy_credentials_require_explicit_monitor_migration(tmp_path):
+    root = tmp_path / "private"
+    root.mkdir(mode=0o700)
+    legacy = {user: "legacy-monitor-migration-" + uuid.uuid4().hex for user in private_redis.LEGACY_USERS}
+    private_redis.write_once(root / "redis-credentials.json", json.dumps(legacy), 0o600)
+
+    with pytest.raises(RuntimeError, match="Unexpected credential state"):
+        private_redis.provision(root)
+
+    private_redis.provision(root, refresh_acl=True)
+    migrated = json.loads((root / "redis-credentials.json").read_text())
+    assert set(migrated) == set(private_redis.USERS)
+    assert all(migrated[user] == password for user, password in legacy.items())
+    assert len(migrated["monitor"]) >= 40
+
+    previous = migrated.copy()
+    private_redis.provision(root, rotate_monitor=True)
+    rotated = json.loads((root / "redis-credentials.json").read_text())
+    assert rotated["monitor"] != previous["monitor"]
+    assert all(rotated[user] == password for user, password in previous.items() if user != "monitor")
+
+
+def test_monitor_acl_has_no_key_scope_or_write_commands():
+    passwords = {user: "monitor-acl-test-" + uuid.uuid4().hex for user in private_redis.USERS}
+    for content in private_redis.acl_files(passwords).values():
+        monitor = next(line for line in content.splitlines() if line.startswith("user monitor "))
+        assert "resetkeys" in monitor
+        assert " ~" not in monitor
+        assert "+set" not in monitor
+        assert "+eval" not in monitor
+
+
 def test_firewall_is_narrow_and_keeps_ssh_web_policy_unchanged():
     for ipv6 in (True, False):
         chains, hooks = private_firewall.rules("10.77.0.2", "10.77.0.1", "eth0", ipv6)
@@ -104,6 +136,14 @@ def test_redis_roles_cannot_administer_or_cross_namespaces(secured_redis):
     assert health.ping()
     with pytest.raises(ResponseError):
         health.get("admirra:task:foo")
+
+    monitor = client("monitor")
+    assert monitor.ping()
+    assert monitor.info()["redis_version"]
+    with pytest.raises(ResponseError):
+        monitor.set("admirra:task:forbidden", "value")
+    with pytest.raises(ResponseError):
+        monitor.get("admirra:task:forbidden")
 
 
 def test_cache_and_rate_limiter_lua_allowed_but_other_keys_denied(secured_redis):
