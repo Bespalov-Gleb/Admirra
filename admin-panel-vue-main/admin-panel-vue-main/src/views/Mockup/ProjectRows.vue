@@ -487,6 +487,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../../api/axios'
+import { loadProjectSummaries } from '../../utils/projectSummaries'
 import { useProjects } from '../../composables/useProjects'
 import { relativeSyncLabel } from '../../utils/relativeTime'
 import { useToaster } from '../../composables/useToaster'
@@ -1141,8 +1142,21 @@ const requestDeleteProject = (project) => {
   closeActionMenu()
 }
 
+let projectMetricsRequestId = 0
 const loadProjectMetrics = async () => {
+  const requestId = ++projectMetricsRequestId
   const { startDate, endDate } = getProjectPeriodRange(periodKey.value, customPeriodRange.value)
+  try {
+    const summaries = await loadProjectSummaries(api, projects.value.map(project => project.id), {
+      start_date: startDate, end_date: endDate,
+    }, () => requestId === projectMetricsRequestId)
+    if (requestId !== projectMetricsRequestId || summaries === null) return
+    metricsByProjectId.value = Object.fromEntries(Object.entries(summaries).map(([id, channels]) => [id, channels.all]))
+    return
+  } catch {
+    // Older backend or temporary batch failure: keep the established read path.
+  }
+  if (requestId !== projectMetricsRequestId) return
 
   const entries = await Promise.all(
     projects.value.map(async (project) => {
@@ -1162,7 +1176,7 @@ const loadProjectMetrics = async () => {
     })
   )
 
-  metricsByProjectId.value = Object.fromEntries(entries)
+  if (requestId === projectMetricsRequestId) metricsByProjectId.value = Object.fromEntries(entries)
 }
 
 const reloadMetrics = async () => {

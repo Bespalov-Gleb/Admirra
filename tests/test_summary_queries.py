@@ -286,6 +286,34 @@ def test_batch_memory_and_query_budget_are_page_bounded(summary_db, monkeypatch)
     assert len(queries) == 30
 
 
+def test_project_batch_endpoint_matches_serialized_summary_and_query_budget(summary_db, monkeypatch):
+    from backend_api.stats import get_project_summaries
+    from core import schemas
+    db, engine, a, b, _, _ = summary_db
+    monkeypatch.setattr("backend_api.access_control.get_accessible_client_ids", lambda *_: [a, b])
+    with statements(engine) as queries:
+        result = get_project_summaries([a, b, a], str(DAY), str(DAY), "this_week", "owner", db)
+    assert len(queries) == 11
+    assert set(result) == {str(a), str(b)}
+    for cid in (a, b):
+        for platform in ("all", "yandex", "vk", "avito"):
+            expected = StatsService.aggregate_summary(db, [cid], DAY, DAY, platform, period_preset="this_week")
+            assert schemas.StatsSummary.model_validate(result[str(cid)][platform]).model_dump() == schemas.StatsSummary.model_validate(expected).model_dump()
+
+
+@pytest.mark.parametrize("case", ["foreign", "revoked", "empty", "oversized", "date"])
+def test_project_batch_rejects_invalid_or_inaccessible_scope_without_stats_sql(summary_db, monkeypatch, case):
+    from fastapi import HTTPException
+    from backend_api.stats import get_project_summaries
+    db, engine, a, b, _, _ = summary_db
+    monkeypatch.setattr("backend_api.access_control.get_accessible_client_ids", lambda *_: [] if case == "revoked" else [a])
+    ids = {"foreign": [a, b], "revoked": [a], "empty": [], "oversized": [a] * 65, "date": [a]}[case]
+    with statements(engine) as queries, pytest.raises(HTTPException) as error:
+        get_project_summaries(ids, "invalid" if case == "date" else str(DAY), str(DAY), None, "owner", db)
+    assert error.value.status_code == (403 if case in ("foreign", "revoked") else 422)
+    assert queries == []
+
+
 def test_exists_stops_after_first_goal_row(summary_db):
     db, engine, a, _, ids, _ = summary_db
     db.execute(models.MetrikaGoals.__table__.insert(), [

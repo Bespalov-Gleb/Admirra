@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from core.database import get_db
@@ -1389,6 +1389,43 @@ async def get_summary(
             db.rollback()
             logger.exception("Не удалось сохранить snapshot просмотра проекта %s", u_client_id)
     return result
+
+@router.get("/project-summaries", response_model=dict[str, dict[str, schemas.StatsSummary]])
+def get_project_summaries(
+    client_ids: List[uuid.UUID] = Query(..., min_length=1, max_length=64),
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    period_preset: Optional[str] = None,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Four summary channels for a bounded, explicitly authorized project page.
+
+    No provider calls or dashboard-visit writes: listing a card is not opening
+    its dashboard. Goal details retain their existing independent endpoint.
+    """
+    from backend_api.access_control import get_accessible_client_ids
+    from backend_api.summary_scope import SummaryScope
+    from backend_api.summary_facts import SummaryFacts
+    if not client_ids or len(client_ids) > 64:
+        raise HTTPException(422, "Выберите от 1 до 64 проектов")
+    ids = list(dict.fromkeys(client_ids))
+    accessible = set(get_accessible_client_ids(db, current_user))
+    if not set(ids).issubset(accessible):
+        raise HTTPException(403, "Нет доступа к выбранным проектам")
+    try:
+        end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
+        start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else end - timedelta(days=13)
+        if start > end:
+            raise ValueError()
+    except ValueError:
+        raise HTTPException(422, "Некорректный период") from None
+    scope = SummaryScope.load(db, ids)
+    facts = SummaryFacts(scope)
+    return {str(cid): {platform: StatsService.aggregate_summary(db, [cid], start, end, platform,
+                period_preset=period_preset, integration_scope=scope, summary_facts=facts)
+            for platform in ("all", "yandex", "vk", "avito")} for cid in ids}
+
 
 @router.get("/dynamics", response_model=schemas.DynamicsStat)
 async def get_dynamics(

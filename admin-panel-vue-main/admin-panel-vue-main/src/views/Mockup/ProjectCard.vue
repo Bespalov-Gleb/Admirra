@@ -764,6 +764,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import api from '../../api/axios'
+import { loadProjectSummaries } from '../../utils/projectSummaries'
 import { useProjects } from '../../composables/useProjects'
 import { useToaster } from '../../composables/useToaster'
 import { hasActiveProjectIntegration, hasProjectPlatform } from '../../utils/projectIntegrations'
@@ -2096,6 +2097,20 @@ const goalTrendClass = (value) => {
 const loadProjectMetrics = async () => {
   const requestId = ++projectMetricsRequestId
   const { startDate, endDate } = getProjectPeriodRange(periodKey.value, customPeriodRange.value)
+  let summaries = {}
+  try {
+    summaries = await loadProjectSummaries(api, projects.value.map(project => project.id), {
+      start_date: startDate, end_date: endDate, period_preset: periodKey.value,
+    }, () => requestId === projectMetricsRequestId)
+    if (requestId !== projectMetricsRequestId || summaries === null) return
+    metricsByProjectId.value = { ...metricsByProjectId.value,
+      ...Object.fromEntries(Object.entries(summaries).map(([id, channels]) => [id, channels.all])),
+    }
+  } catch {
+    // Compatibility during rolling release: the former read path stays usable.
+    summaries = {}
+  }
+  if (requestId !== projectMetricsRequestId) return
   const entries = [
     ...projects.value.map((project) => ({ id: project.id, projectId: project.id })),
     // Сводки папок: те же инсайты, но со скоупом folder_id — лежат под folder.id,
@@ -2114,7 +2129,7 @@ const loadProjectMetrics = async () => {
       nextIndex += 1
       let data
       try {
-        data = await loadProjectInsight(entry.projectId || null, startDate, endDate, entry.folderId || null, periodKey.value)
+        data = await loadProjectInsight(entry.projectId || null, startDate, endDate, entry.folderId || null, periodKey.value, summaries[entry.projectId])
       } catch {
         data = emptyProjectInsights()
       }
@@ -2130,7 +2145,7 @@ const loadProjectMetrics = async () => {
   ))
 }
 
-const loadProjectInsight = async (projectId, startDate, endDate, folderId = null, periodPreset = null) => {
+const loadProjectInsight = async (projectId, startDate, endDate, folderId = null, periodPreset = null, summaries = null) => {
   // Скоуп: конкретный проект (client_id) или папка (folder_id — сводка по вложенным)
   const scope = folderId ? { folder_id: folderId } : { client_id: projectId }
   const summaryParams = (platform) => ({
@@ -2154,10 +2169,9 @@ const loadProjectInsight = async (projectId, startDate, endDate, folderId = null
   })
 
   const [all, yandex, vk, avito, yandexGoals, vkGoals, avitoGoals] = await Promise.all([
-    api.get('dashboard/summary', { params: summaryParams('all') }).then((res) => res.data || emptyMetric()).catch(() => emptyMetric()),
-    api.get('dashboard/summary', { params: summaryParams('yandex') }).then((res) => res.data || emptyMetric()).catch(() => emptyMetric()),
-    api.get('dashboard/summary', { params: summaryParams('vk') }).then((res) => res.data || emptyMetric()).catch(() => emptyMetric()),
-    api.get('dashboard/summary', { params: summaryParams('avito') }).then((res) => res.data || emptyMetric()).catch(() => emptyMetric()),
+    ...['all', 'yandex', 'vk', 'avito'].map(channel => summaries
+      ? Promise.resolve(summaries[channel])
+      : api.get('dashboard/summary', { params: summaryParams(channel) }).then(res => res.data || emptyMetric()).catch(() => emptyMetric())),
     api.get('dashboard/goals', { params: goalParams('yandex') }).then((res) => res.data || []).catch(() => []),
     api.get('dashboard/goals', { params: goalParams('vk') }).then((res) => res.data || []).catch(() => []),
     api.get('dashboard/goals', { params: goalParams('avito') }).then((res) => res.data || []).catch(() => []),
