@@ -38,7 +38,7 @@ def enqueue(integration_id, *, days, force_full, trigger, date_from=None, date_t
         db.flush()
         submit(db, kind="sync", queue="sync.nightly" if trigger == "auto" else "sync.manual",
                key=f"night:{integration_id}:{occurrence}" if occurrence else f"sync:{job_id}",
-               resource=f"integration:{integration_id}", tenant=integration.client_id,
+               resource=f"integration:{integration_id}", tenant=integration.client.owner_id,
                payload={"sync_job_id": str(job_id)}, replay_safe=True)
         db.commit()
         return job_id
@@ -69,6 +69,6 @@ def enqueue_goals(integration_id, date_from, date_to):
         from sqlalchemy import func
         minute = int(db.execute(select(func.extract("epoch", func.clock_timestamp()))).scalar_one()) // 300
         submit(db, kind="goals", queue="sync.manual", key=f"goals:{integration_id}:{date_from}:{date_to}:{minute}",
-               resource=f"integration:{integration_id}", tenant=integration.client_id,
+               resource=f"integration:{integration_id}", tenant=integration.client.owner_id,
                payload={"integration_id": str(integration_id), "date_from": date_from, "date_to": date_to}, replay_safe=True)
         db.commit()

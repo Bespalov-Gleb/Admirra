@@ -6,7 +6,8 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/python3 /opt/admirra-public-heartbeat/external_heartbeat.py
-TimeoutStartSec=40
+# Three attempts may each make two 8s requests, plus two 2s retry delays.
+TimeoutStartSec=70
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes

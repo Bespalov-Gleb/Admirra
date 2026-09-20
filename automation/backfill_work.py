@@ -59,7 +59,7 @@ def reconcile(db, *, min_age_seconds=0):
     db.execute(jobs.delete().where(jobs.c.id.in_(old)))
 
 
-def submit_project(db, client_id, integration_ids, chunks, months, cooldown_seconds):
+def submit_project(db, client_id, integration_ids, chunks, months, cooldown_seconds, *, tenant_id):
     """Caller holds the Client row lock; different overlapping scopes dedupe."""
     now = db.scalar(sa.select(sa.func.clock_timestamp()))
     old = db.execute(sa.select(runs).where(runs.c.client_id == client_id).with_for_update()).mappings().first()
@@ -81,7 +81,7 @@ def submit_project(db, client_id, integration_ids, chunks, months, cooldown_seco
         for start, end in chunks:
             submit(db, kind="history.backfill", queue="sync.backfill",
                 key=f"backfill:{run_id}:{integration_id}:{start}", resource=f"integration:{integration_id}",
-                tenant=client_id, payload={"run_id": str(run_id), "client_id": str(client_id),
+                tenant=tenant_id, payload={"run_id": str(run_id), "client_id": str(client_id),
                     "integration_id": str(integration_id), "date_from": start.isoformat(), "date_to": end.isoformat()},
                 replay_safe=True)
     return "started"
@@ -106,7 +106,8 @@ def start(client_ids, months):
                 models.Integration.connection_status == "active", models.Integration.platform.in_([
                     models.IntegrationPlatform.YANDEX_DIRECT, models.IntegrationPlatform.VK_ADS,
                     models.IntegrationPlatform.AVITO_ADS]))).scalars().all()
-            reasons.append(submit_project(db, client.id, ids, chunks, months, COOLDOWN_SEC))
+            reasons.append(submit_project(db, client.id, ids, chunks, months, COOLDOWN_SEC,
+                                          tenant_id=client.owner_id))
     return {"started": "started" in reasons, "projects_started": reasons.count("started"),
             "reason": None if "started" in reasons else reasons[0] if reasons else "no_client", **status(client_ids)}
 

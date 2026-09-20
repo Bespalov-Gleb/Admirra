@@ -149,3 +149,21 @@ def test_evidence_file_is_private_and_atomic(tmp_path):
     atomic_write(path, {"status": "pass"})
     assert path.stat().st_mode & 0o777 == 0o600
     assert json.loads(path.read_text()) == {"status": "pass"}
+
+
+def test_low_host_reserve_is_not_reported_as_pass():
+    result = observe(NAMES, samples=2, interval=1, runner=runner_factory(),
+        process_reader=process_reader, host_reader=lambda: {
+            "memory_available_bytes": 512 * 1024**2, "load_1": 1, "load_5": 1},
+        sleep=lambda _: None, now=clock)
+    assert result["status"] == "failed"
+    assert result["provider_peak_accepted"] is False
+
+
+def test_measurement_time_counts_towards_deadline():
+    times = iter([0, 0, 60])
+    with pytest.raises(TimeoutError):
+        observe(NAMES, samples=2, interval=1, max_duration_seconds=30,
+            monotonic=lambda: next(times), runner=runner_factory(),
+            process_reader=process_reader, host_reader=host_reader,
+            sleep=lambda _: None, now=clock)

@@ -120,3 +120,24 @@ def test_scope_digest_binds_evidence_to_exact_bytes(tmp_path):
     digest, errors = load_and_assess(path, now=NOW, expected_image=IMAGE, expected_schema=SCHEMA)
     assert errors == []
     assert digest.startswith("sha256:") and len(digest) == 71
+
+
+@pytest.mark.parametrize("bad", [[{}], [["nested"]], [True], [None]])
+def test_malformed_uuid_lists_fail_without_crashing(bad):
+    value = scope()
+    value["target"]["client_ids"] = bad
+    assert verdict(value)
+
+
+@pytest.mark.parametrize("bad", [None, "one", {}, [], True])
+def test_malformed_sandbox_counts_fail_without_crashing(bad):
+    value = scope()
+    value["safety"]["recipient_policy"] = "sandbox"
+    value["limits"]["operations"]["report_delivery"] = bad
+    assert verdict(value)
+
+
+def test_non_text_approval_is_rejected():
+    value = scope()
+    value["owner"] = {"approved": True}
+    assert verdict(value)

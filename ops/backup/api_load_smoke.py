@@ -3,6 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 import json
 import math
+import os
 import time
 import urllib.error
 import urllib.request
@@ -14,17 +15,21 @@ from core.database import SessionLocal
 
 
 def selected_user_email() -> str:
+    email = os.environ.get("ADMIRRA_TEST_ACCOUNT_EMAIL", "").strip()
+    if not email:
+        raise RuntimeError("ADMIRRA_TEST_ACCOUNT_EMAIL must identify the approved test account")
     with SessionLocal() as db:
         row = db.execute(
             sa.select(models.User.email, sa.func.count(models.Client.id).label("projects"))
             .join(models.Client, models.Client.owner_id == models.User.id)
-            .where(models.User.is_active.is_(True), models.User.email_verified.is_(True))
+            .where(models.User.is_active.is_(True), models.User.email_verified.is_(True),
+                   sa.func.lower(models.User.email) == email.lower())
             .group_by(models.User.id, models.User.email)
             .order_by(sa.desc("projects"), models.User.id)
             .limit(1)
         ).first()
     if not row:
-        raise RuntimeError("No active verified restore user with projects")
+        raise RuntimeError("Approved restore account has no active verified user with projects")
     return row.email
 
 

@@ -45,6 +45,7 @@ services:
       - tests/test_db_statement_sample.py
       - tests/test_integration_list_queries.py
       - tests/test_durable_work.py
+      - tests/test_sync_tenant_scope.py
       - tests/test_outbox_publication.py
       - tests/test_celery_recovery.py
       - tests/test_provider_transport.py
@@ -66,6 +67,12 @@ services:
       - tests/test_api2_canary_nginx.py
       - tests/test_backup_receiver.py
       - tests/test_backup_retention.py
+      - tests/test_cutover_preflight.py
+      - tests/test_cutover_admission.py
+      - tests/test_external_heartbeat.py
+      - tests/test_alertmanager_delivery.py
+      - tests/test_peak_observer.py
+      - tests/test_provider_peak_scope.py
       - tests/test_assistant_files.py
       - tests/test_assistant_vk_reporting.py
       - tests/test_billing_slot_purchase.py

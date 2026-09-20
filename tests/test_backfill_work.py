@@ -44,7 +44,8 @@ def submit(backfills, client, integrations=None):
     with factory.begin() as db:
         db.execute(sa.text("SELECT id FROM clients WHERE id = :id FOR UPDATE"), {"id": client})
         return history.submit_project(db, client, integrations or [uuid.uuid4()],
-            [(date(2026, 1, 1), date(2026, 3, 31)), (date(2026, 4, 1), date(2026, 6, 30))], 6, 3600)
+            [(date(2026, 1, 1), date(2026, 3, 31)), (date(2026, 4, 1), date(2026, 6, 30))], 6, 3600,
+            tenant_id=client)
 
 
 def test_concurrent_api_requests_create_only_one_run(backfills):
@@ -86,11 +87,21 @@ def test_durable_outbox_and_run_rollback_together(backfills):
     factory, _, _ = backfills
     client = project(backfills)
     with factory() as db:
-        history.submit_project(db, client, [uuid.uuid4()], [(date(2026, 1, 1), date(2026, 1, 31))], 1, 3600)
+        history.submit_project(db, client, [uuid.uuid4()], [(date(2026, 1, 1), date(2026, 1, 31))], 1, 3600,
+                               tenant_id=client)
         db.rollback()
     with factory() as db:
         assert db.scalar(sa.select(sa.func.count()).select_from(history.runs)) == 0
         assert db.scalar(sa.select(sa.func.count()).select_from(jobs)) == 0
+
+
+def test_history_uses_account_quota_not_project_id(backfills):
+    factory, _, _ = backfills
+    client, owner = project(backfills), uuid.uuid4()
+    with factory.begin() as db:
+        history.submit_project(db, client, [uuid.uuid4()],
+            [(date(2026, 1, 1), date(2026, 1, 31))], 1, 3600, tenant_id=owner)
+        assert db.scalar(sa.select(jobs.c.tenant)) == str(owner)
 
 
 def test_manual_queue_has_priority_and_backfill_global_cap(backfills):

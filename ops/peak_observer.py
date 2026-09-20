@@ -11,8 +11,10 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import math
 import os
 import re
+import signal
 import subprocess
 import tempfile
 import time
@@ -194,10 +196,16 @@ def observe(
     sleep: Callable[[float], None] = time.sleep,
     now: Callable[[], dt.datetime] = lambda: dt.datetime.now(dt.timezone.utc),
     scope_digest: str | None = None,
+    max_duration_seconds: float = 1800,
+    monotonic: Callable[[], float] = time.monotonic,
 ) -> dict[str, Any]:
     names = validate_names(names)
-    if not 2 <= samples <= 1800 or not 0.25 <= interval <= 60 or samples * interval > 1800:
+    if (type(samples) is not int or not 2 <= samples <= 1800
+            or not math.isfinite(interval) or not 0.25 <= interval <= 60
+            or not math.isfinite(max_duration_seconds) or not 0 < max_duration_seconds <= 1800
+            or samples * interval > max_duration_seconds):
         raise ValueError("observer duration is outside bounds")
+    deadline = monotonic() + max_duration_seconds
     started_at = now()
     before = docker_states(names, runner=runner)
     aggregates = {
@@ -213,6 +221,8 @@ def observe(
     }
     host = {"min_memory_available_bytes": None, "max_load_1": 0.0, "max_load_5": 0.0}
     for index in range(samples):
+        if monotonic() >= deadline:
+            raise TimeoutError("observer exceeded approved duration")
         for name, item in docker_sample(names, runner=runner).items():
             row = aggregates[name]
             row["max_cpu_pct"] = max(row["max_cpu_pct"], item["cpu_pct"])
@@ -239,15 +249,20 @@ def observe(
         aggregates[name]["oom_killed"] = after[name]["oom_killed"]
         aggregates[name]["final_status"] = after[name]["status"]
     completed_at = now()
+    if monotonic() >= deadline:
+        raise TimeoutError("observer exceeded approved duration")
     passed = all(
         row["restart_delta"] == 0 and row["oom_killed"] is False and row["final_status"] == "running"
-        for row in aggregates.values()
-    )
+        and row["max_memory_pct"] < 100
+        and before[name]["status"] == "running" and before[name]["oom_killed"] is False
+        for name, row in aggregates.items()
+    ) and host["min_memory_available_bytes"] >= 1536 * 1024**2
     return {
         "format": "admirra-provider-peak-observer-v1",
         "started_at": started_at.isoformat().replace("+00:00", "Z"),
         "completed_at": completed_at.isoformat().replace("+00:00", "Z"),
         "status": "pass" if passed else "failed",
+        "provider_peak_accepted": False,
         "sample_count": samples,
         "interval_seconds": interval,
         "scope_digest": scope_digest,
@@ -292,16 +307,34 @@ def main() -> int:
         )
         if scope_errors:
             raise ValueError("approved peak scope is invalid")
+        scope_bytes = args.scope_file.read_bytes()
+        scope = json.loads(scope_bytes)
+        # Bind duration to the same bytes that were validated, not a replaced file.
+        import hashlib
+        if "sha256:" + hashlib.sha256(scope_bytes).hexdigest() != scope_digest:
+            raise ValueError("scope changed during validation")
+        expires = dt.datetime.fromisoformat(scope["expires_at"].replace("Z", "+00:00"))
+        maximum = min(scope["limits"]["max_duration_minutes"] * 60,
+                      (expires - dt.datetime.now(dt.timezone.utc)).total_seconds())
+        if maximum <= 0 or args.samples * args.interval > maximum:
+            raise ValueError("observer exceeds approved scope window")
+        def expired(*_):
+            raise TimeoutError("observer exceeded approved scope window")
+        signal.signal(signal.SIGALRM, expired)
+        signal.setitimer(signal.ITIMER_REAL, maximum)
         result = observe(
             args.container,
             samples=args.samples,
             interval=args.interval,
             scope_digest=scope_digest,
+            max_duration_seconds=maximum,
         )
         atomic_write(args.output, result)
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError, json.JSONDecodeError):
         print(json.dumps({"status": "blocked", "error": "peak observer failed; inspect host diagnostics privately"}))
         return 2
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
     print(json.dumps({"status": result["status"], "output": str(args.output), "samples": result["sample_count"]}))
     return 0 if result["status"] == "pass" else 2
 

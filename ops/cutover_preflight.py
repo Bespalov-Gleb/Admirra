@@ -48,7 +48,7 @@ def _mapping(value: Any) -> dict[str, Any]:
 
 
 def _provided(value: Any) -> bool:
-    text = str(value or "").strip()
+    text = value.strip() if isinstance(value, str) else ""
     return bool(text) and not text.upper().startswith("REQUIRED")
 
 

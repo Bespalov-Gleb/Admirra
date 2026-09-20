@@ -260,6 +260,8 @@ if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
         -e CELERY_BROKER_URL=redis://127.0.0.1:6379/0 \
         -e TASK_BROKER_PREFIX="restore:$suffix:" \
         -e APP_PROCESS_ROLE=worker \
+        -e DB_POOL_SIZE=2 \
+        -e DB_MAX_OVERFLOW=0 \
         -e APP_RELEASE="restore-smoke-$expected_head" \
         -e "EXPECTED_SCHEMA_REVISION=$expected_head" \
         -e DB_AUTO_BOOTSTRAP=false \
@@ -342,6 +344,8 @@ if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
     --security-opt no-new-privileges:true \
     -e DATABASE_URL=postgresql://postgres:isolated-restore-only@127.0.0.1:5432/restore \
     -e APP_PROCESS_ROLE=api \
+    -e DB_POOL_SIZE=5 \
+    -e DB_MAX_OVERFLOW=0 \
     -e "EXPECTED_SCHEMA_REVISION=$expected_head" \
     -e DB_AUTO_BOOTSTRAP=false \
     -e RUN_SYNC_WORKER=false \
@@ -385,7 +389,9 @@ else:
   application_smoke=passed
   if [ "${ADMIRRA_API_LOAD_SMOKE:-0}" = 1 ]; then
     test -s "$release_dir/api_load_smoke.py"
-    docker exec -i "$application_container" python - <"$release_dir/api_load_smoke.py"
+    : "${ADMIRRA_TEST_ACCOUNT_EMAIL:?Select the approved test account for read load}"
+    docker exec -i -e "ADMIRRA_TEST_ACCOUNT_EMAIL=$ADMIRRA_TEST_ACCOUNT_EMAIL" \
+      "$application_container" python - <"$release_dir/api_load_smoke.py"
     api_load_smoke=passed
   fi
 fi

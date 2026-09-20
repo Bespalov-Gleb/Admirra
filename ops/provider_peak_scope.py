@@ -27,7 +27,7 @@ OPERATION_LIMITS = {
 
 
 def _provided(value: Any) -> bool:
-    text = str(value or "").strip()
+    text = value.strip() if isinstance(value, str) else ""
     return bool(text) and not text.upper().startswith("REQUIRED")
 
 
@@ -42,7 +42,9 @@ def _timestamp(value: Any) -> dt.datetime | None:
 
 
 def _uuid_list(value: Any, *, minimum: int, maximum: int) -> bool:
-    if not isinstance(value, list) or not minimum <= len(value) <= maximum or len(value) != len(set(value)):
+    if (not isinstance(value, list) or not minimum <= len(value) <= maximum
+            or not all(isinstance(item, str) for item in value)
+            or len(value) != len(set(value))):
         return False
     try:
         return all(str(uuid.UUID(item)) == item for item in value if isinstance(item, str)) and all(
@@ -121,12 +123,13 @@ def assess(
         errors.append("billing replay must use sandbox fixtures only")
     recipient_policy = safety.get("recipient_policy")
     delivery_count = operations.get("report_delivery", 0) if isinstance(operations, dict) else 0
-    if recipient_policy not in {"disabled", "sandbox"}:
+    if not isinstance(recipient_policy, str) or recipient_policy not in {"disabled", "sandbox"}:
         errors.append("recipient policy must be disabled or sandbox")
     if recipient_policy == "disabled" and delivery_count != 0:
         errors.append("report delivery must be zero when recipients are disabled")
     if recipient_policy == "sandbox" and (
-        delivery_count < 1 or safety.get("sandbox_recipient_configured") is not True
+        type(delivery_count) is not int or delivery_count < 1
+        or safety.get("sandbox_recipient_configured") is not True
     ):
         errors.append("sandbox delivery requires a configured sandbox recipient")
     return errors
