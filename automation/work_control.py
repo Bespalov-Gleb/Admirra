@@ -30,7 +30,7 @@ def occurrences(tick, now):
         yield "reports.export", "maintenance", True, stamp
         if env_bool("AI_PREWARM_ENABLED", False):
             yield "ai.prewarm", "ai.prewarm", False, stamp
-        yield "billing.maintenance", "maintenance", False, stamp
+        yield "billing.maintenance", "maintenance", True, stamp
     if local.minute == 0:
         yield "vk.maintenance", "maintenance", True, stamp
     # Preserve the legacy container timezone explicitly at cutover.

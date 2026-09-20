@@ -46,6 +46,7 @@ services:
       - tests/test_integration_list_queries.py
       - tests/test_durable_work.py
       - tests/test_calendar_work.py
+      - tests/test_billing_work.py
       - tests/test_sync_tenant_scope.py
       - tests/test_sync_followup.py
       - tests/test_outbox_publication.py

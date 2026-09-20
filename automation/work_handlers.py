@@ -21,10 +21,9 @@ async def _async_run(kind, payload):
     if kind == "ai.prewarm":
         from ai.comment_prewarm import prewarm_warm_project_comments
         return await prewarm_warm_project_comments()
-    if kind == "billing.maintenance":
-        from backend_api.services.billing_notifications import send_overflow_renewal_warnings, reconcile_recurring_totals
-        await send_overflow_renewal_warnings()
-        return await reconcile_recurring_totals()
+    if kind in {"billing.warning", "billing.recurring"}:
+        from automation.billing_work import execute
+        return await execute(kind, payload)
     if kind == "lead.daily":
         from lead_validator.tasks.alert_scheduler import run_daily_alerts
         return await run_daily_alerts()
@@ -35,6 +34,10 @@ async def _async_run(kind, payload):
 
 
 def run(kind, payload):
+    if kind == "billing.maintenance":
+        from core.database import SessionLocal
+        from automation.billing_work import plan_page
+        return plan_page(SessionLocal, payload)
     if kind == "sync.alias":
         # Durable receipt only: the referenced SyncJob owns execution/status.
         return {"joined_sync_job_id": payload["sync_job_id"]}
