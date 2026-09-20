@@ -47,7 +47,9 @@ Manual/nightly сохраняют concurrency 2 и получают по 1280 Mi
 
 Capacity gate теперь сверяет не только названия сервисов, RAM/CPU/SQL, но и эксклюзивное покрытие всех Celery queues. `ai.prewarm` указан как намеренно disabled; пропущенная, неизвестная, задублированная либо одновременно disabled+consumed очередь отклоняет manifest. Сумма CPU caps с API-2 — 8,0 на 4 CPU; это верхние пределы, а не резерв ядер, поэтому load acceptance всё ещё обязательна.
 
-На server 2 реальный Compose разобран через `config --no-env-resolution --no-interpolate`: `capacity_pass=true`, `load_accepted=false`, headroom 1796 MiB, worker pool max 14, API-2 pool max 5. Фокусные capacity/durable tests: **36 passed**, 1 warning, 2,06 s. Чистый immutable candidate `acf6ed8` затем прошёл полный image-only suite: **603 passed, 1 skipped, 1 deselected**, 47 warnings, 6 subtests, 134,66 s. Production workers не включались.
+На server 2 реальный Compose разобран через `config --no-env-resolution --no-interpolate`: `capacity_pass=true`, `load_accepted=false`, headroom 1796 MiB, worker pool max 14, API-2 pool max 5. Фокусные capacity/durable tests: **36 passed**, 1 warning, 2,06 s. Чистый immutable candidate `acf6ed8` затем прошёл полный image-only suite: **603 passed, 1 skipped, 1 deselected**, 47 warnings, 6 subtests, 134,66 s.
+
+Дополнительно весь launch consumer set одновременно поднят на восстановленной production-БД после migrations: manual 2, nightly/backfill 2, reports 1, maintenance 1; каждый worker прошёл preflight/ready и ответил на Celery inspect ping через одноразовый Redis. Среда была `network=none`, scheduler/jobs не запускались, полный restore + workers + API smoke занял 41 s и полностью очистился. Это **boot acceptance**, не mixed/peak load acceptance. Production workers не включались.
 
 ## Read-only снимок инфраструктуры 12.09
 
