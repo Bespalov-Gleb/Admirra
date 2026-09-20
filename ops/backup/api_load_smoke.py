@@ -36,14 +36,14 @@ def main() -> None:
     token = security.create_access_token({"sub": selected_user_email()})
     end = date.today()
     start = end - timedelta(days=13)
-    paths = [
-        "/api/auth/me",
-        "/api/clients",
-        "/api/folders",
-        "/api/notifications",
-        f"/api/stats/summary?start_date={start.isoformat()}&end_date={end.isoformat()}&platform=all",
-    ]
-    requests = paths * 8
+    paths = {
+        "auth": "/api/auth/me",
+        "clients": "/api/clients",
+        "folders": "/api/folders",
+        "notifications": "/api/notifications",
+        "summary": f"/api/stats/summary?start_date={start.isoformat()}&end_date={end.isoformat()}&platform=all",
+    }
+    requests = list(paths.values()) * 8
 
     def fetch(path: str) -> tuple[int, float]:
         request = urllib.request.Request(
@@ -67,10 +67,10 @@ def main() -> None:
             raise RuntimeError("Restore API response exceeded load-smoke limit")
         return status, elapsed
 
-    for path in paths:
+    for label, path in paths.items():
         status, _ = fetch(path)
         if status != 200:
-            raise RuntimeError("Restore API warm-up failed")
+            raise RuntimeError(f"Restore API warm-up failed: route={label} status={status}")
 
     started = time.perf_counter()
     with ThreadPoolExecutor(max_workers=4) as pool:
