@@ -22,7 +22,7 @@ import httpx
 
 from core.config import get_config
 
-from . import wire_anthropic, wire_google, wire_responses
+from . import wire_anthropic, wire_google, wire_responses, runs
 from .models_catalog import ModelSpec, normalize_effort
 
 logger = logging.getLogger("ai_assistant.llm")
@@ -75,12 +75,14 @@ async def stream_completion(
     eff = normalize_effort(model, effort)
     protocol, base_url, wire_name = _route(model)
     key = _key()
+    runs.before_provider()
     try:
         if protocol == "anthropic":
             async for ev in wire_anthropic.stream(
                 base_url=base_url, api_key=key, headers_extra={}, timeout=cfg.openrouter.request_timeout,
                 model_name=wire_name, messages=messages, tools=tools, effort=eff,
             ):
+                runs.record_usage(ev, provider=cfg.openrouter.provider, model=wire_name)
                 yield ev
             return
         if protocol == "responses":
@@ -89,6 +91,7 @@ async def stream_completion(
                 timeout=cfg.openrouter.request_timeout,
                 model_name=wire_name, messages=messages, tools=tools, effort=eff,
             ):
+                runs.record_usage(ev, provider=cfg.openrouter.provider, model=wire_name)
                 yield ev
             return
         if protocol == "google":
@@ -97,12 +100,14 @@ async def stream_completion(
                 timeout=cfg.openrouter.request_timeout,
                 model_name=wire_name, messages=messages, tools=tools, effort=eff,
             ):
+                runs.record_usage(ev, provider=cfg.openrouter.provider, model=wire_name)
                 yield ev
             return
         async for ev in _stream_openai_compat(
             base_url=base_url, key=key, model_slug=wire_name,
             messages=messages, tools=tools, effort=eff,
         ):
+            runs.record_usage(ev, provider=cfg.openrouter.provider, model=wire_name)
             yield ev
     except LLMError:
         raise
@@ -148,6 +153,7 @@ async def _stream_openai_compat(
     tool_calls_acc: dict[int, dict] = {}
     finish_reason: Optional[str] = None
     usage: Optional[dict] = None
+    request_id = None
 
     async with httpx.AsyncClient(timeout=cfg.openrouter.request_timeout) as client:
         async with client.stream("POST", url, headers=headers, json=body) as resp:
@@ -166,6 +172,7 @@ async def _stream_openai_compat(
                     continue
                 if chunk.get("usage"):
                     usage = chunk["usage"]
+                request_id = chunk.get("id") or request_id
                 for choice in chunk.get("choices", []) or []:
                     delta = choice.get("delta") or {}
                     if delta.get("content"):
@@ -193,4 +200,4 @@ async def _stream_openai_compat(
     if tool_calls_acc:
         message["tool_calls"] = [tool_calls_acc[i] for i in sorted(tool_calls_acc)]
     yield {"type": "message", "message": message, "finish_reason": finish_reason,
-           "usage": usage, "reasoning_text": "".join(reasoning_parts)}
+           "usage": usage, "request_id": request_id, "reasoning_text": "".join(reasoning_parts)}

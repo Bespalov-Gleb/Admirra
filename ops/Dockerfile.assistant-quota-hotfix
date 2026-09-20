@@ -1,0 +1,9 @@
+# Overlay only reviewed assistant/accounting files on the ACTUAL production
+# image, not on the unrelated pending DevOps candidate.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG APP_RELEASE
+LABEL org.opencontainers.image.revision=${APP_RELEASE}
+COPY ai/assistant/runs.py ai/assistant/router.py ai/assistant/llm.py ai/assistant/agent.py ai/assistant/streaming.py /app/ai/assistant/
+COPY backend_api/services/subscription.py /app/backend_api/services/subscription.py
+COPY ops/migrate_assistant_runs.py /app/ops/migrate_assistant_runs.py

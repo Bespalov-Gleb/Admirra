@@ -800,11 +800,13 @@ onMounted(() => {
   subscriptionPollTimer = setInterval(loadSubscription, 60_000)
   document.addEventListener('click', handleClickOutside)
   document.addEventListener('keydown', handleKeydown)
+  window.addEventListener('admirra:ai-usage-changed', loadSubscription)
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
   document.removeEventListener('keydown', handleKeydown)
+  window.removeEventListener('admirra:ai-usage-changed', loadSubscription)
   clearUsageCloseTimer()
   if (notificationsPollTimer) clearInterval(notificationsPollTimer)
   if (subscriptionPollTimer) clearInterval(subscriptionPollTimer)

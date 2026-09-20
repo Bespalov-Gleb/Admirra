@@ -224,9 +224,13 @@ class RouterTests(unittest.TestCase):
         async def run(db, conv, text, model, effort, user, attachments=None):
             seen.extend(attachments)
             yield {'type': 'done', 'content': 'Готово', 'message_id': self.mid}
-        with patch.object(self.routes.agent, 'run', run):
+        row = {"id": uuid.uuid4(), "account_id": self.uid, "conversation_id": uuid.UUID(self.cid)}
+        with patch.object(self.routes.agent, 'run', run), \
+                patch.object(self.routes.runs, 'reserve', return_value=(row, True)), \
+                patch.object(self.routes.runs, 'finish'), \
+                patch.object(self.routes.llm, 'is_configured', return_value=True):
             response = self.client.post('/assistant/chat', json={
-                'message': 'Прочитай', 'conversation_id': self.cid, 'attachment_ids': [aid]})
+                'request_id': str(uuid.uuid4()), 'message': 'Прочитай', 'conversation_id': self.cid, 'attachment_ids': [aid]})
         self.assertEqual(response.status_code, 200)
         self.assertIn(self.mid, response.text)
         self.assertEqual(len(seen), 1)

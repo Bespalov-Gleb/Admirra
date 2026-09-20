@@ -1,4 +1,5 @@
 import uuid
+from sqlalchemy import inspect as sa_inspect
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -620,6 +621,15 @@ class SubscriptionService:
     def _ensure_ai_period(user: models.User, plan: EffectivePlan) -> None:
         now = SubscriptionService._now()
         started = user.ai_requests_period_started_at
+        normalized = started.replace(tzinfo=timezone.utc) if started and started.tzinfo is None else started
+        if normalized is not None and now - normalized < timedelta(days=plan.period_days):
+            return
+        # A header/quota read racing the first reservation of a new period must
+        # not overwrite that reservation with a stale reset to zero.
+        state = sa_inspect(user, raiseerr=False)
+        if state is not None and state.persistent and state.session is not None:
+            state.session.refresh(user, ["ai_requests_used", "ai_requests_period_started_at"], with_for_update=True)
+            started = user.ai_requests_period_started_at
         if started is None:
             user.ai_requests_period_started_at = now
             user.ai_requests_used = 0
@@ -675,6 +685,7 @@ class SubscriptionService:
     @staticmethod
     def increment_ai_usage(db: Session, user: models.User, requested: int = 1) -> None:
         quota_user = SubscriptionService._resolve_ai_quota_user(db, user)
+        quota_user = db.query(models.User).filter(models.User.id == quota_user.id).populate_existing().with_for_update().one()
         if SubscriptionService.is_admin_bypass(quota_user):
             return
         plan = SubscriptionService.get_user_plan(db, quota_user)

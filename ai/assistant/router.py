@@ -15,13 +15,13 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from core import models, security
 from core.database import get_db
 from backend_api.access_control import get_accessible_client_ids
 
-from . import agent, files, llm, wordstat_client
+from . import agent, files, llm, wordstat_client, runs
 from .streaming import stream_events
 from .models_catalog import DEFAULT_MODEL_ID, catalog_public, get_model, normalize_effort
 
@@ -35,6 +35,7 @@ class ConversationCreate(BaseModel):
 
 
 class ChatRequest(BaseModel):
+    request_id: Optional[UUID] = None
     message: str = Field(max_length=20000)
     attachment_ids: list[UUID] = Field(default_factory=list, max_length=files.MAX_FILES)
     conversation_id: Optional[str] = None
@@ -275,32 +276,71 @@ async def chat(
         if len(attachments) != len(ids):
             raise HTTPException(404, "Файл не найден в этом диалоге.")
 
-    if conv is None:
-        conv = models.AiConversation(
-            user_id=current_user.id,
-            client_id=UUID(client_id) if client_id else None,
-            model=get_model(req.model).id,
-        )
-        db.add(conv)
-        db.commit()
-        db.refresh(conv)
-
     # Ассистент работает только на Gemini: модель зафиксирована на дефолте,
     # выбор во фронте убран. Реверт — вернуть get_model(req.model or conv.model).
     model = get_model(DEFAULT_MODEL_ID)
     effort = normalize_effort(model, req.effort)
+    if req.request_id is None:
+        raise HTTPException(428, "Обновите страницу, чтобы безопасно отправить AI-запрос.")
+    request_hash = runs.fingerprint({"message": text, "conversation_id": req.conversation_id,
+        "client_id": req.client_id, "model": model.id, "effort": effort,
+        "attachment_ids": sorted(str(value) for value in req.attachment_ids)})
+    # An existing request can still be replayed when the provider is offline.
+    factory = sessionmaker(bind=db.get_bind())
+    try:
+        row, created = runs.reserve(db, current_user, request_id=req.request_id,
+            request_hash=request_hash, conversation_id=conv.id if conv else None,
+            client_id=UUID(client_id) if client_id else None, model=model.id)
+    except Exception:
+        db.rollback()
+        raise
+    if not created:
+        if row["state"] in runs.ACTIVE:
+            raise HTTPException(409, "Этот запрос уже выполняется. Откройте диалог позже; повтор не списан.")
+        if row["state"] != "succeeded":
+            raise HTTPException(409, "Предыдущий запрос остановлен. Автоматический повтор отключён. Для нового анализа измените запрос.")
+        saved = db.get(models.AiMessage, row["message_id"]) if row["message_id"] else None
+        if saved is None or row["conversation_id"] is None:
+            raise HTTPException(410, "Ответ уже удалён. Этот запрос не будет выполнен повторно.")
+        data = {"type": "done", "content": saved.content, "message_id": str(saved.id)}
+        replay = _sse({"type": "meta", "conversation_id": str(row["conversation_id"]), "model": model.id, "replayed": True})
+        replay += _sse(data) + _sse({"type": "end"})
+        db.rollback()
+        return Response(replay, media_type="text/event-stream", headers={"Cache-Control": "no-store"})
+    if not llm.is_configured():
+        runs.finish(factory, row, "failed")
+        raise HTTPException(503, "AI-ассистент временно недоступен. Лимит запроса возвращён.")
+    conv = db.get(models.AiConversation, row["conversation_id"])
     conversation_id = str(conv.id)
 
     async def event_stream():
-        yield _sse({"type": "meta", "conversation_id": conversation_id, "model": model.id})
         # Мультиплексируем поток агента с heartbeat: при долгом думании/медленных
         # инструментах агент какое-то время молчит, и без периодических байтов
         # прокси (nginx) рвёт соединение по таймауту — казалось, что «завис».
-        async with aclosing(stream_events(
-            agent.run(db, conv, text, model, effort, current_user, attachments=attachments)
-        )) as events:
-            async for item in events:
-                yield ": keepalive\n\n" if item is None else _sse(item)
+        settled = False
+        try:
+            yield _sse({"type": "meta", "conversation_id": conversation_id, "model": model.id})
+            with runs.execution(factory, row):
+                async with asyncio.timeout(runs.MAX_RUN_SECONDS), aclosing(stream_events(
+                    agent.run(db, conv, text, model, effort, current_user, attachments=attachments)
+                )) as events:
+                    async for item in events:
+                        if item and item.get("type") == "done" and item.get("message_id"):
+                            runs.finish(factory, row, "succeeded", UUID(item["message_id"]))
+                            settled = True
+                        elif item and item.get("type") in {"done", "error"}:
+                            db.rollback()
+                            runs.finish(factory, row, "uncertain")
+                            settled = True
+                        yield ": keepalive\n\n" if item is None else _sse(item)
+        except TimeoutError:
+            yield _sse({"type": "error", "error": "Анализ занял слишком много времени. Автоматический повтор не выполнялся."})
+        finally:
+            if not settled:
+                # Release request Session locks before settlement on a short,
+                # independent connection. Never refund an unknown provider cost.
+                db.rollback()
+                runs.finish(factory, row, "interrupted")
         # Do not yield during cancellation: the consumer has already disconnected.
         yield _sse({"type": "end"})
 

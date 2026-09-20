@@ -225,6 +225,7 @@ import AttachmentList from './AttachmentList.vue'
 import { useTheme } from '../../composables/useTheme'
 import api from '../../api/axios'
 import { getAccessToken } from '../../utils/authToken'
+import { identifyRequest, rememberConversation, completeRequest } from './requestIntent'
 import yandexMetrikaIcon from '../../assets/icons/yandex-metrika.png'
 
 const { isDarkMode } = useTheme()
@@ -433,6 +434,7 @@ const loadConversations = async () => {
 
 const newChat = async () => {
   if (sending.value || uploading.value) return
+  completeRequest()
   pendingFiles.value = []
   fileError.value = ''
   activeConversationId.value = null
@@ -576,6 +578,7 @@ const handleEvent = (ev, assistantMsg) => {
   switch (ev.type) {
     case 'meta':
       if (ev.conversation_id) activeConversationId.value = ev.conversation_id
+      if (ev.conversation_id) rememberConversation(ev.conversation_id)
       break
     case 'reasoning':
       assistantMsg.reasoning = (assistantMsg.reasoning || '') + (ev.delta || '')
@@ -591,6 +594,7 @@ const handleEvent = (ev, assistantMsg) => {
     case 'done':
       if (ev.content) assistantMsg.content = ev.content
       assistantMsg.savedId = ev.message_id || null
+      if (ev.message_id) { completeRequest(); pendingFiles.value = [] }
       toolActivity.value = ''
       break
     case 'error':
@@ -650,28 +654,34 @@ const sendPrompt = async () => {
   abortController = new AbortController()
   let stopped = false
   try {
+    // Stable across transport retry. Account/session changes never reuse it.
+    const identifiedBody = await identifyRequest(body, token || 'cookie-session')
     const resp = await fetch('/api/assistant/chat', {
       method: 'POST',
       credentials: 'include',
       signal: abortController.signal,
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify(body),
+      body: JSON.stringify(identifiedBody),
     })
-    if (!resp.ok || !resp.body) throw new Error(`HTTP ${resp.status}`)
-    pendingFiles.value = []
+    if (!resp.ok || !resp.body) {
+      const problem = await resp.json().catch(() => ({}))
+      throw new Error(typeof problem.detail === 'string' ? problem.detail : `Ошибка запроса (${resp.status})`)
+    }
     await consumeSSE(resp.body, assistantMsg)
   } catch (e) {
     if (e?.name === 'AbortError') {
       stopped = true
       assistantMsg.content += (assistantMsg.content ? '\n\n' : '') + '_Остановлено._'
     } else if (!assistantMsg.content) {
-      assistantMsg.content = 'Не удалось получить ответ. Попробуйте ещё раз.'
+      assistantMsg.content = e?.message && !String(e.message).includes('fetch')
+        ? e.message : 'Соединение прервалось. Повтор той же отправки не запустит анализ заново.'
     }
   } finally {
     abortController = null
     assistantMsg.pending = false
     sending.value = false
     toolActivity.value = ''
+    window.dispatchEvent(new Event('admirra:ai-usage-changed'))
     if (!stopped) loadConversations()
     await nextTick(); scrollThread(); threadTextarea.value?.focus()
   }
