@@ -1,5 +1,7 @@
 # DevOps review — 20.09.2026
 
+> **Обновление 19:01 UTC:** по отдельному разрешению владельца выкатили узкий hotfix нового ассистента `0e5f031`: quota reservation, request idempotency, SSE cleanup, usage по итерациям. R1 ниже описывает исходное finding; эти части теперь закрыты и проверены на prod. Полный cost reconciliation и большой DevOps cutover не объявлены завершёнными. Точные границы, images, smoke и rollback: [assistant-quota-release-2026-09-20.md](assistant-quota-release-2026-09-20.md).
+
 ## Вердикт и границы
 
 **Полный cutover по master-ТЗ пока не принят.** Предыдущая короткая карта «только alerts, peak и время» не отражала незакрытые части T07–T10. Существующий ограниченный read-canary не равнозначен балансировке всех API/SSE и переносу всего календаря.

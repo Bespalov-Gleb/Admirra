@@ -1,0 +1,6 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG APP_RELEASE
+LABEL org.opencontainers.image.revision=${APP_RELEASE}
+# Keep deployed public files and hashed assets for already-open browser tabs.
+COPY dist/ /usr/share/nginx/html/

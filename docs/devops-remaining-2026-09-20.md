@@ -1,5 +1,7 @@
 # AdMirra DevOps — актуальный остаток до production cutover
 
+> **После AI hotfix 19:01 UTC:** учёт лимита и защита от повторов нового ассистента выкачены отдельно, см. [release](assistant-quota-release-2026-09-20.md). Runtime backend/frontend теперь overlay `0e5f031`, а не исходные images `cdf0a4d`. Alembic остаётся `cc3d4e5f6a7b` плюс additive `assistant_request_runs`; будущий head — `cd9e0f1a2b3c`. Полный cutover по-прежнему закрыт; ниже исторические этапы не являются свежим разрешением. Новый rollback inventory — `ops/rollback_images.json`.
+
 > **Дополнение после ревью 20.09:** прежний список из трёх P0 не является полным разрешением cutover. Найдены незакрытые AI run/quota/idempotency и scoped peak runner, сохраняются transaction/global-handler gaps. Исправленные дефекты, evidence и обновлённый порядок: [devops-review-2026-09-20.md](devops-review-2026-09-20.md). Аккаунт для тестов владелец уже предоставил; ждать выбора аккаунта больше не требуется. Alerts пока отложены, gate не обходится.
 
 Состояние на 20.09.2026 после production-safe admission/monitoring этапа. Этот файл — короткая оперативная карта; полные требования и история evidence находятся в `admirra_devops_completion_tz_2026-09-11.md`.
@@ -31,7 +33,7 @@
 ## Порядок после P0
 
 1. Перевести подготовленный [ingress admission gate](devops-cutover-admission-2026-09-20.md) в `closed`, остановить legacy scheduler/consumer и повторно подтвердить отсутствие legacy `QUEUED/RUNNING` jobs. Gate точечно оставляет billing/lead webhooks и обычные reads доступными.
-2. Применить пять additive migrations отдельным job; проверить schema head и девять новых таблиц.
+2. Применить ожидающую цепочку additive migrations отдельным job; проверить head `cd9e0f1a2b3c`, девять DevOps-таблиц и adoption уже существующего `assistant_request_runs`. Перед этим повторить restore на актуальном artifact.
 3. Поднять candidate API-1 без embedded scheduler/sync, затем минимальный launch worker set и единственный scheduler. Выполнить approved test job end-to-end.
 4. Открыть admission, наблюдать single-API worker rollout. При correctness/side-effect uncertainty остановить claims, не повторять действие автоматически.
 5. Только после стабильного single-API режима переводить API-2 на тот же digest/schema и расширять canary ступенями 10% → 25% → целевое распределение. Dashboard/mutations/SSE не добавлять до проверки shared state/files и drain.

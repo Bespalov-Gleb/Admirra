@@ -216,7 +216,7 @@ def test_example_uses_the_preserved_backend_rollback_image():
     example = json.loads((root / "ops" / "cutover_evidence.example.json").read_text())
     assert manifest["format"] == "admirra-rollback-images-v1"
     assert example["release"]["rollback_image"] == manifest["images"]["backend"]["image"]
-    assert example["release"]["rollback_image"] == "sha256:047c8019bbbeec83c0c8cd11b39c03b31af2931d8e2f0b415196199f8768afe0"
+    assert example["release"]["rollback_image"] == "sha256:6321c5fb910e9f8e4ff942deffd6bbe63d6285efd05b35b670a192ce780d365d"
 
 
 def test_forbidden_scheduler_hour_blocks_even_inside_window():

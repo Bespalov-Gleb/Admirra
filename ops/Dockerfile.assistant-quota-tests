@@ -1,0 +1,7 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+# Test derivative only; never start this image with production credentials.
+USER root
+RUN rm -rf /app/.env /app/secrets /app/uploads
+COPY tests/ /app/tests/
+COPY ops/run_isolated_tests.py /app/ops/run_isolated_tests.py

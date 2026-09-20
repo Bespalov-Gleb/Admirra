@@ -1,5 +1,7 @@
 # Production rollback artifacts
 
+> После отдельного AI hotfix рабочие backend/frontend изменились. Для будущего cutover актуальны `admirra-rollback/backend:quota-0e5f031` (`sha256:6321c5fb910e9f8e4ff942deffd6bbe63d6285efd05b35b670a192ce780d365d`) и `admirra-rollback/frontend:quota-0e5f031` (`sha256:680b8893a1dcfa00460d0c2f591b5e7cb415d047cd9780d566535e6419a04af1`). `ops/rollback_images.json` обновлён. Таблица ниже сохраняет **до-hotfix** baseline для отката самого hotfix; automation/admin не менялись. Все старые теги сохранены. См. [release](assistant-quota-release-2026-09-20.md).
+
 Дата фиксации: 20.09.2026. Статус: точные images backend, automation и внутренней админки закреплены отдельными Docker-тегами на server 1; запущенные контейнеры не перезапускались. На ревью добавлен ранее пропущенный **пользовательский frontend**; результат закрепления указан в review evidence.
 
 ## Зафиксированные артефакты
