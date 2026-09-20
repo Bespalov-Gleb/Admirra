@@ -1,0 +1,38 @@
+services:
+  alertmanager:
+    image: quay.io/prometheus/alertmanager@sha256:e9733bafb1bdef9b00e25a21f8f99dc26a22224bf16641ad754d1649f4c3357a
+    container_name: admirra-alertmanager
+    restart: unless-stopped
+    network_mode: host
+    user: "65534:65534"
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --data.retention=120h
+      - --web.listen-address=127.0.0.1:9093
+      - --web.external-url=http://127.0.0.1:9093
+      - --web.enable-lifecycle
+      - --cluster.listen-address=
+      - --log.format=json
+    volumes:
+      - /etc/admirra/monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - /etc/admirra/monitoring/alertmanager-receiver-url:/etc/alertmanager/secrets/receiver-url:ro
+      - alertmanager-data:/alertmanager
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 256m
+    cpus: 0.25
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  alertmanager-data:

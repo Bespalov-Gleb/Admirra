@@ -1,0 +1,20 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: admirra-operator
+  group_by:
+    - alertname
+    - severity
+    - node
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+receivers:
+  - name: admirra-operator
+    webhook_configs:
+      - url_file: /etc/alertmanager/secrets/receiver-url
+        send_resolved: true
+        max_alerts: 20
+        timeout: 10s

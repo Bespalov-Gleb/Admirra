@@ -1,6 +1,6 @@
 # Production observability — host, PostgreSQL и Redis
 
-Дата включения: 20.09.2026. Статус: центральный Prometheus собирает host-, API-2-canary-, PostgreSQL- и Redis-метрики с обоих production-узлов; правила алертов вычисляются. Alertmanager/доставка человеку не включены до выбора владельцем канала и получателя.
+Дата включения: 20.09.2026. Статус: центральный Prometheus собирает host-, API-2-canary-, PostgreSQL- и Redis-метрики с обоих production-узлов; правила алертов вычисляются. Alertmanager/config/deploy/synthetic smoke [подготовлены и изолированно проверены](devops-alertmanager-prepared-2026-09-20.md), но production-доставка человеку не включена до выбора владельцем канала и получателя.
 
 ## Развёрнутая схема
 
@@ -35,7 +35,7 @@ PostgreSQL exporter использует отдельную роль `admirra_mo
 
 ## Правила
 
-`rules.yml` содержит 20 правил:
+Текущий production `rules.yml` содержит 20 правил. Подготовленный release добавляет ещё два правила доставки и после включения будет содержать 22:
 
 - exporter down;
 - health guard failed/stale;
@@ -48,6 +48,8 @@ PostgreSQL exporter использует отдельную роль `admirra_mo
 - PostgreSQL exporter/connection saturation/idle and long transactions/deadlocks;
 - Redis exporter/evictions/high memory/AOF failure.
 - отсутствие или возраст более 30 часов последней complete encrypted logical backup.
+- Alertmanager не обнаружен Prometheus;
+- ошибка доставки Prometheus → Alertmanager.
 
 Тестовый Docker recovery создал fallback, и Prometheus перевёл соответствующее правило в pending/firing; то есть цепочка `probe → exporter → Prometheus → rule` проверена. Доставка человеку ещё не проверена и не считается закрытой.
 
