@@ -41,7 +41,7 @@ def main() -> None:
         "clients": "/api/clients",
         "folders": "/api/folders",
         "notifications": "/api/notifications",
-        "summary": f"/api/stats/summary?start_date={start.isoformat()}&end_date={end.isoformat()}&platform=all",
+        "summary": f"/api/dashboard/summary?start_date={start.isoformat()}&end_date={end.isoformat()}&platform=all",
     }
     requests = list(paths.values()) * 8
 
