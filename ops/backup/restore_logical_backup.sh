@@ -65,9 +65,19 @@ volume=admirra-restore-$suffix
 image=postgres:15.18-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f
 started_at=$(date +%s)
 application_container=
+broker_container=
+worker_containers=()
 runtime_directory=
 
 cleanup() {
+  for worker_container in "${worker_containers[@]}"; do
+    docker stop --time 10 "$worker_container" >/dev/null 2>&1 || true
+    docker container rm "$worker_container" >/dev/null 2>&1 || true
+  done
+  if [ -n "$broker_container" ]; then
+    docker stop --time 10 "$broker_container" >/dev/null 2>&1 || true
+    docker container rm "$broker_container" >/dev/null 2>&1 || true
+  fi
   if [ -n "$application_container" ]; then
     docker stop --time 10 "$application_container" >/dev/null 2>&1 || true
     docker container rm "$application_container" >/dev/null 2>&1 || true
@@ -158,6 +168,7 @@ fi
 
 application_smoke=skipped
 worker_preflight=skipped
+worker_smoke=skipped
 if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
   if [ -z "$migration_image" ] || [ ! -s "$runtime_file" ]; then
     echo "application smoke requires migration image and runtime object" >&2
@@ -198,6 +209,114 @@ if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
     --entrypoint python \
     "$migration_image" -c 'from automation.work_preflight import check; check()'
   worker_preflight=passed
+
+  if [ "${ADMIRRA_WORKER_SMOKE:-0}" = 1 ]; then
+    broker_container=admirra-broker-restore-$suffix
+    docker run -d \
+      --name "$broker_container" \
+      --network "container:$container" \
+      --read-only \
+      --tmpfs /data:size=64m \
+      --tmpfs /tmp:size=16m \
+      --memory 128m \
+      --cpus 0.25 \
+      --pids-limit 64 \
+      --cap-drop ALL \
+      --security-opt no-new-privileges:true \
+      redis:7.4-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf \
+      redis-server --bind 127.0.0.1 --protected-mode no --save '' --appendonly no >/dev/null
+    for attempt in $(seq 1 30); do
+      if docker exec "$broker_container" redis-cli ping 2>/dev/null | grep -qx PONG; then
+        break
+      fi
+      if [ "$attempt" -eq 30 ]; then
+        echo "isolated restore broker did not become ready" >&2
+        exit 1
+      fi
+      sleep 1
+    done
+
+    start_worker() {
+      local role=$1 memory=$2 cpus=$3 concurrency=$4 queues=$5
+      local worker=admirra-worker-$role-restore-$suffix
+      docker run -d \
+        --name "$worker" \
+        --network "container:$container" \
+        --read-only \
+        --tmpfs /tmp:size=128m \
+        --user 10001:10001 \
+        --memory "$memory" \
+        --cpus "$cpus" \
+        --pids-limit 128 \
+        --cap-drop ALL \
+        --security-opt no-new-privileges:true \
+        -e DATABASE_URL=postgresql://postgres:isolated-restore-only@127.0.0.1:5432/restore \
+        -e CELERY_BROKER_URL=redis://127.0.0.1:6379/0 \
+        -e TASK_BROKER_PREFIX="restore:$suffix:" \
+        -e APP_PROCESS_ROLE=worker \
+        -e APP_RELEASE="restore-smoke-$expected_head" \
+        -e "EXPECTED_SCHEMA_REVISION=$expected_head" \
+        -e DB_AUTO_BOOTSTRAP=false \
+        -e RUN_SYNC_WORKER=false \
+        -e RUN_API_SCHEDULER=false \
+        -e DURABLE_TASKS=true \
+        -e REPORT_DELIVERY_GUARDS=true \
+        -e SHARED_READ_CACHE=false \
+        -e LOG_TO_STDOUT=true \
+        -e REJECTED_LEADS_DIR=/tmp/rejected-leads \
+        -e OPENAI_API_KEY= \
+        -e WORDSTAT_API_KEY= \
+        -v "$runtime_directory/root/Admirra/.env:/app/.env:ro" \
+        -v "$runtime_directory/root/Admirra/uploads:/app/uploads:ro" \
+        -v "$runtime_directory/root/Admirra/secrets:/app/secrets:ro" \
+        "$migration_image" python -m automation.work_worker \
+        "--concurrency=$concurrency" "--queues=$queues" "--hostname=$role@restore" >/dev/null
+      worker_containers+=("$worker")
+    }
+    start_worker manual 1280m 1.5 2 sync.manual
+    start_worker nightly 1280m 1.5 2 sync.nightly,sync.backfill
+    start_worker reports 768m 1 1 reports
+    start_worker maintenance 768m 1 1 maintenance
+
+    workers_ready=0
+    for attempt in $(seq 1 60); do
+      workers_ready=1
+      for worker_container in "${worker_containers[@]}"; do
+        if ! docker logs "$worker_container" 2>&1 | grep -q 'ready\.'; then
+          workers_ready=0
+          break
+        fi
+      done
+      [ "$workers_ready" -eq 1 ] && break
+      sleep 1
+    done
+    if [ "$workers_ready" -ne 1 ]; then
+      echo "isolated restored worker set did not become ready" >&2
+      for worker_container in "${worker_containers[@]}"; do
+        docker logs --tail 20 "$worker_container" >&2 || true
+      done
+      exit 1
+    fi
+
+    ping_output=$(docker run --rm \
+      --network "container:$container" \
+      --read-only \
+      --tmpfs /tmp:size=32m \
+      --user 10001:10001 \
+      --memory 256m \
+      --cpus 0.5 \
+      --pids-limit 64 \
+      --cap-drop ALL \
+      --security-opt no-new-privileges:true \
+      -e CELERY_BROKER_URL=redis://127.0.0.1:6379/0 \
+      -e TASK_BROKER_PREFIX="restore:$suffix:" \
+      --entrypoint celery \
+      "$migration_image" -A automation.celery_app:app inspect ping --timeout 10)
+    for role in manual nightly reports maintenance; do
+      printf '%s\n' "$ping_output" | grep -q "$role@restore: OK"
+    done
+    worker_smoke=passed
+  fi
 
   application_container=admirra-app-restore-$suffix
   if docker container inspect "$application_container" >/dev/null 2>&1; then
@@ -261,4 +380,4 @@ else:
 fi
 
 duration=$(( $(date +%s) - started_at ))
-echo "restore drill passed: backup=$backup_id schema=$restored_revision duration_seconds=$duration network=none migration=$([ -n "$migration_image" ] && echo applied || echo skipped) worker_preflight=$worker_preflight application=$application_smoke"
+echo "restore drill passed: backup=$backup_id schema=$restored_revision duration_seconds=$duration network=none migration=$([ -n "$migration_image" ] && echo applied || echo skipped) worker_preflight=$worker_preflight worker_smoke=$worker_smoke application=$application_smoke"
