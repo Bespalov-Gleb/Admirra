@@ -15,6 +15,9 @@ if ! id -u admirra-backup >/dev/null 2>&1; then
 fi
 
 install -o root -g root -m 0755 "$release_dir/receive.py" /usr/local/sbin/admirra-backup-receive
+install -o root -g root -m 0755 "$release_dir/prune.py" /usr/local/sbin/admirra-backup-prune
+install -o root -g root -m 0644 "$release_dir/systemd/admirra-backup-prune.service" /etc/systemd/system/admirra-backup-prune.service
+install -o root -g root -m 0644 "$release_dir/systemd/admirra-backup-prune.timer" /etc/systemd/system/admirra-backup-prune.timer
 install -d -o admirra-backup -g admirra-backup -m 0700 /var/lib/admirra-backup /var/lib/admirra-backup/.ssh /var/lib/admirra-backup/postgres
 install -d -o root -g root -m 0700 /etc/admirra/backup
 
@@ -35,5 +38,6 @@ printf 'restrict,command="/usr/local/sbin/admirra-backup-receive" %s\n' "$public
   >/var/lib/admirra-backup/.ssh/authorized_keys
 chown admirra-backup:admirra-backup /var/lib/admirra-backup/.ssh/authorized_keys
 chmod 0600 /var/lib/admirra-backup/.ssh/authorized_keys
+systemctl daemon-reload
 
 echo "encrypted backup repository prepared; timer not enabled"

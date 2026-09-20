@@ -26,6 +26,9 @@ from typing import Iterable
 
 
 CANARY_LINE_RE = re.compile(r"(?P<key>[a-z_]+)=(?P<value>[^ ]*)")
+BACKUP_OBJECT_RE = re.compile(
+    r"(?P<id>[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8})\.(?P<kind>database|globals|manifest)\.age\Z"
+)
 
 
 @dataclass
@@ -215,6 +218,40 @@ def check_container(result: Result, container: str) -> None:
 def check_api2_host(result: Result, args: argparse.Namespace) -> None:
     check_container(result, args.api2_container)
     check_http_ready(result, args.api2_ready_url, args.http_timeout)
+    check_logical_backups(result, Path(args.backup_directory), args.backup_maximum_age)
+
+
+def logical_backup_inventory(path: Path, now: dt.datetime | None = None) -> tuple[int, float]:
+    now = now or dt.datetime.now(dt.timezone.utc)
+    objects: dict[str, set[str]] = {}
+    for item in path.iterdir():
+        if not item.is_file() or item.is_symlink():
+            continue
+        match = BACKUP_OBJECT_RE.fullmatch(item.name)
+        if match:
+            objects.setdefault(match.group("id"), set()).add(match.group("kind"))
+    complete = sorted(backup_id for backup_id, kinds in objects.items() if kinds == {"database", "globals", "manifest"})
+    if not complete:
+        return 0, -1.0
+    newest = dt.datetime.strptime(complete[-1][:16], "%Y%m%dT%H%M%SZ").replace(tzinfo=dt.timezone.utc)
+    return len(complete), (now - newest).total_seconds()
+
+
+def check_logical_backups(result: Result, path: Path, maximum_age: int) -> None:
+    try:
+        count, age = logical_backup_inventory(path)
+    except OSError:
+        result.metrics.update({"logical_backup_complete_sets": 0.0, "logical_backup_age_seconds": -1.0})
+        result.check("logical_backup", False, "Logical backup repository is unavailable")
+        return
+    result.metrics.update(
+        {"logical_backup_complete_sets": float(count), "logical_backup_age_seconds": age}
+    )
+    result.check(
+        "logical_backup",
+        count > 0 and -300 <= age <= maximum_age,
+        "Latest logical backup is missing, stale or dated in the future",
+    )
 
 
 def render_metrics(result: Result) -> str:
@@ -277,6 +314,8 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--disk-path", default="/")
     result.add_argument("--disk-warning-percent", type=float, default=20.0)
     result.add_argument("--disk-critical-percent", type=float, default=10.0)
+    result.add_argument("--backup-directory", default="/var/lib/admirra-backup/postgres")
+    result.add_argument("--backup-maximum-age", type=int, default=108000)
     return result
 
 

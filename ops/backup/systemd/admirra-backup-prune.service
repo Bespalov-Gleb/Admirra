@@ -1,0 +1,13 @@
+[Unit]
+Description=AdMirra encrypted backup retention
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/admirra-backup-prune --apply
+User=root
+Nice=10
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/admirra-backup/postgres
+NoNewPrivileges=true

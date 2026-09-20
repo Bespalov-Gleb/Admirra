@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily AdMirra encrypted backup retention
+
+[Timer]
+OnCalendar=*-*-* 23:30:00 UTC
+RandomizedDelaySec=15m
+Persistent=true
+Unit=admirra-backup-prune.service
+
+[Install]
+WantedBy=timers.target

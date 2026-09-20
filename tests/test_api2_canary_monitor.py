@@ -3,7 +3,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ops.api2_canary.check_canary import Result, atomic_write, recent_canary_rows, render_metrics
+from ops.api2_canary.check_canary import (
+    Result,
+    atomic_write,
+    check_logical_backups,
+    logical_backup_inventory,
+    recent_canary_rows,
+    render_metrics,
+)
 
 
 class Api2CanaryMonitorTest(unittest.TestCase):
@@ -55,6 +62,24 @@ class Api2CanaryMonitorTest(unittest.TestCase):
             atomic_write(path, "metric 1\n")
 
             self.assertEqual(path.stat().st_mode & 0o777, 0o644)
+
+    def test_logical_backup_requires_complete_fresh_set(self):
+        now = dt.datetime(2026, 9, 20, 16, tzinfo=dt.timezone.utc)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            backup_id = "20260920T151415Z-e003a617"
+            for kind in ("database", "globals"):
+                (root / f"{backup_id}.{kind}.age").write_bytes(b"encrypted")
+            self.assertEqual(logical_backup_inventory(root, now), (0, -1.0))
+
+            (root / f"{backup_id}.manifest.age").write_bytes(b"encrypted")
+            count, age = logical_backup_inventory(root, now)
+            self.assertEqual(count, 1)
+            self.assertEqual(age, 2745)
+
+            result = Result(role="api2")
+            check_logical_backups(result, root, maximum_age=3600)
+            self.assertEqual(result.checks["logical_backup"], 1.0)
 
 
 if __name__ == "__main__":

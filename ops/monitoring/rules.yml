@@ -171,3 +171,12 @@ groups:
         annotations:
           summary: "AdMirra broker Redis AOF rewrite failed"
           runbook: "docs/devops-observability-2026-09-20.md"
+
+      - alert: AdMirraLogicalBackupStale
+        expr: admirra_api2_monitor_value{role="api2",name="logical_backup_age_seconds"} < 0 or admirra_api2_monitor_value{role="api2",name="logical_backup_age_seconds"} > 108000
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "AdMirra encrypted logical backup is missing or stale"
+          runbook: "docs/devops-backup-2026-09-20.md"
