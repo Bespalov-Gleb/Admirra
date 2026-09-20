@@ -35,7 +35,7 @@ PostgreSQL exporter использует отдельную роль `admirra_mo
 
 ## Правила
 
-`rules.yml` содержит 19 правил:
+`rules.yml` содержит 20 правил:
 
 - exporter down;
 - health guard failed/stale;
@@ -47,6 +47,7 @@ PostgreSQL exporter использует отдельную роль `admirra_mo
 - API-2 container restart;
 - PostgreSQL exporter/connection saturation/idle and long transactions/deadlocks;
 - Redis exporter/evictions/high memory/AOF failure.
+- отсутствие или возраст более 30 часов последней complete encrypted logical backup.
 
 Тестовый Docker recovery создал fallback, и Prometheus перевёл соответствующее правило в pending/firing; то есть цепочка `probe → exporter → Prometheus → rule` проверена. Доставка человеку ещё не проверена и не считается закрытой.
 
@@ -71,7 +72,7 @@ ssh -L 9090:127.0.0.1:9090 root@91.221.68.90
 
 После подключения открыть локально `http://127.0.0.1:9090`.
 
-Проверка конфигурации перед каждым deploy выполняется `promtool check config`; на production подтверждено 19 валидных rules.
+Проверка конфигурации перед каждым deploy выполняется `promtool check config`; на production подтверждено 20 валидных rules.
 
 ## Деплой и откат
 

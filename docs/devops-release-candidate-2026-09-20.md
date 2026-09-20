@@ -29,8 +29,8 @@
 - Candidate Alembic head: `bc8d9e0f1a2b`.
 - Ожидающие additive migrations: durable jobs/outbox, report route guards, history backfill state, durable public report links и artifact lifecycle.
 
-Поэтому candidate нельзя подставлять вместо текущего API/automation и нельзя запускать его workers до G3: свежая recovery point, restore rehearsal и проверенный migration/rollback plan. Старый production runtime остаётся без изменений; API-2 canary продолжает использовать production-compatible image.
+Зашифрованная recovery point `20260920T151415Z-e003a617` реально восстановлена в isolated PostgreSQL; все пять миграций candidate до `bc8d9e0f1a2b` применились за один транзакционный rehearsal, девять новых таблиц подтверждены. Production DB не изменялась. Candidate всё ещё нельзя подставлять вместо текущего API/automation или запускать как worker до полного G3/cutover: внешний offsite/PITR, secrets/files recovery и end-to-end restore остаются открыты. Старый production runtime остаётся без изменений; API-2 canary продолжает использовать production-compatible image.
 
 ## Следующий безопасный шаг
 
-Подготовить независимую зашифрованную recovery point и провести restore drill в изолированный PostgreSQL. До появления внешнего S3 второй сервер может быть только промежуточным отдельным repository; это не закрывает требование offsite/PITR. После restore evidence — rehearsal пяти additive migrations на восстановленной копии, затем отдельное окно production migration и single-API durable-worker rollout.
+Подключить внешний immutable repository/PITR и включить backup shared files/secrets, затем выполнить end-to-end application restore. После полного G3 — отдельное окно production migration и single-API durable-worker rollout.
