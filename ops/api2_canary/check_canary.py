@@ -239,9 +239,14 @@ def logical_backup_inventory(path: Path, now: dt.datetime | None = None) -> tupl
     return len(complete), (now - newest).total_seconds()
 
 
-def check_logical_backups(result: Result, path: Path, maximum_age: int) -> None:
+def check_logical_backups(
+    result: Result,
+    path: Path,
+    maximum_age: int,
+    now: dt.datetime | None = None,
+) -> None:
     try:
-        count, age = logical_backup_inventory(path)
+        count, age = logical_backup_inventory(path, now)
     except OSError:
         result.metrics.update({"logical_backup_complete_sets": 0.0, "logical_backup_age_seconds": -1.0})
         result.check("logical_backup", False, "Logical backup repository is unavailable")

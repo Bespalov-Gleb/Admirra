@@ -78,7 +78,7 @@ class Api2CanaryMonitorTest(unittest.TestCase):
             self.assertEqual(age, 2745)
 
             result = Result(role="api2")
-            check_logical_backups(result, root, maximum_age=3600)
+            check_logical_backups(result, root, maximum_age=3600, now=now)
             self.assertEqual(result.checks["logical_backup"], 1.0)
 
 
