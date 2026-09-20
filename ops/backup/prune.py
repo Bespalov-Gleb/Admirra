@@ -10,9 +10,14 @@ import re
 
 
 OBJECT = re.compile(
-    r"(?P<id>[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8})\.(?P<kind>database|globals|manifest)\.age\Z"
+    r"(?P<id>[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8})\.(?P<kind>database|globals|runtime|manifest)\.age\Z"
 )
-KINDS = {"database", "globals", "manifest"}
+LEGACY_KINDS = {"database", "globals", "manifest"}
+KINDS = LEGACY_KINDS | {"runtime"}
+
+
+def is_complete(kinds: set[str]) -> bool:
+    return kinds in (LEGACY_KINDS, KINDS)
 
 
 def backup_time(backup_id: str) -> dt.datetime:
@@ -53,11 +58,11 @@ def retention_set(complete: list[str], daily: int = 7, weekly: int = 4, monthly:
 def deletion_plan(root: Path, now: dt.datetime | None = None) -> list[Path]:
     now = now or dt.datetime.now(dt.timezone.utc)
     objects = inventory(root)
-    complete = [backup_id for backup_id, kinds in objects.items() if set(kinds) == KINDS]
+    complete = [backup_id for backup_id, kinds in objects.items() if is_complete(set(kinds))]
     keep = retention_set(complete)
     delete: list[Path] = []
     for backup_id, kinds in objects.items():
-        if set(kinds) == KINDS:
+        if is_complete(set(kinds)):
             if backup_id not in keep:
                 delete.extend(kinds.values())
             continue

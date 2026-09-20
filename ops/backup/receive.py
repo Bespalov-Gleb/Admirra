@@ -12,10 +12,11 @@ import sys
 
 
 ROOT = Path("/var/lib/admirra-backup/postgres")
-COMMAND = re.compile(r"put ([0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}) (database|globals|manifest)\Z")
+COMMAND = re.compile(r"put ([0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}) (database|globals|runtime|manifest)\Z")
 LIMITS = {
     "database": 4 * 1024 * 1024 * 1024,
     "globals": 64 * 1024 * 1024,
+    "runtime": 4 * 1024 * 1024 * 1024,
     "manifest": 1024 * 1024,
 }
 

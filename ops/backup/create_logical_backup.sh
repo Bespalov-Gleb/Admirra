@@ -49,9 +49,36 @@ globals_receipt=$(
   | ssh "${ssh_options[@]}" "$repository_user@$repository_host" "put $backup_id globals"
 )
 
+for path in \
+  /root/Admirra/.env \
+  /root/Admirra/secrets \
+  /root/Admirra/uploads \
+  /root/Admirra/docker-compose.yml \
+  /root/Admirra/nginx.conf \
+  /etc/admirra \
+  /etc/nginx \
+  /etc/wireguard \
+  /etc/letsencrypt; do
+  test -e "$path"
+done
+runtime_receipt=$(
+  tar --create --file=- --numeric-owner --one-file-system --directory=/ \
+    root/Admirra/.env \
+    root/Admirra/secrets \
+    root/Admirra/uploads \
+    root/Admirra/docker-compose.yml \
+    root/Admirra/nginx.conf \
+    etc/admirra \
+    etc/nginx \
+    etc/wireguard \
+    etc/letsencrypt \
+  | age --encrypt --recipient "$recipient" \
+  | ssh "${ssh_options[@]}" "$repository_user@$repository_host" "put $backup_id runtime"
+)
+
 created_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-printf 'backup_id=%s\ncreated_at=%s\nschema_revision=%s\n%s\n%s\n' \
-  "$backup_id" "$created_at" "$schema_revision" "$database_receipt" "$globals_receipt" \
+printf 'backup_id=%s\ncreated_at=%s\nschema_revision=%s\n%s\n%s\n%s\n' \
+  "$backup_id" "$created_at" "$schema_revision" "$database_receipt" "$globals_receipt" "$runtime_receipt" \
 | age --encrypt --recipient "$recipient" \
 | ssh "${ssh_options[@]}" "$repository_user@$repository_host" "put $backup_id manifest" >/dev/null
 

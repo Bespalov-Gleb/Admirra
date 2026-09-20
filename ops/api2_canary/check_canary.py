@@ -27,7 +27,7 @@ from typing import Iterable
 
 CANARY_LINE_RE = re.compile(r"(?P<key>[a-z_]+)=(?P<value>[^ ]*)")
 BACKUP_OBJECT_RE = re.compile(
-    r"(?P<id>[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8})\.(?P<kind>database|globals|manifest)\.age\Z"
+    r"(?P<id>[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8})\.(?P<kind>database|globals|runtime|manifest)\.age\Z"
 )
 
 
@@ -230,7 +230,9 @@ def logical_backup_inventory(path: Path, now: dt.datetime | None = None) -> tupl
         match = BACKUP_OBJECT_RE.fullmatch(item.name)
         if match:
             objects.setdefault(match.group("id"), set()).add(match.group("kind"))
-    complete = sorted(backup_id for backup_id, kinds in objects.items() if kinds == {"database", "globals", "manifest"})
+    legacy = {"database", "globals", "manifest"}
+    current = legacy | {"runtime"}
+    complete = sorted(backup_id for backup_id, kinds in objects.items() if kinds in (legacy, current))
     if not complete:
         return 0, -1.0
     newest = dt.datetime.strptime(complete[-1][:16], "%Y%m%dT%H%M%SZ").replace(tzinfo=dt.timezone.utc)

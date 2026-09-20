@@ -17,6 +17,7 @@ repository=${ADMIRRA_BACKUP_REPOSITORY:-/var/lib/admirra-backup/postgres}
 identity=${ADMIRRA_BACKUP_IDENTITY:-/etc/admirra/backup/age.key}
 database_file=$repository/$backup_id.database.age
 globals_file=$repository/$backup_id.globals.age
+runtime_file=$repository/$backup_id.runtime.age
 manifest_file=$repository/$backup_id.manifest.age
 for file in "$identity" "$database_file" "$globals_file" "$manifest_file"; do
   test -s "$file"
@@ -31,6 +32,18 @@ expected_database_sha=$(printf '%s\n' "$manifest" | sed -n 's/^stored database b
 expected_globals_sha=$(printf '%s\n' "$manifest" | sed -n 's/^stored globals bytes=[0-9][0-9]* sha256=//p')
 test "$(sha256sum "$database_file" | cut -d ' ' -f 1)" = "$expected_database_sha"
 test "$(sha256sum "$globals_file" | cut -d ' ' -f 1)" = "$expected_globals_sha"
+if [ -s "$runtime_file" ]; then
+  expected_runtime_sha=$(printf '%s\n' "$manifest" | sed -n 's/^stored runtime bytes=[0-9][0-9]* sha256=//p')
+  test "$(sha256sum "$runtime_file" | cut -d ' ' -f 1)" = "$expected_runtime_sha"
+  runtime_members=$(age --decrypt --identity "$identity" "$runtime_file" | tar --list --file=-)
+  printf '%s\n' "$runtime_members" | grep -qx 'root/Admirra/.env'
+  printf '%s\n' "$runtime_members" | grep -qx 'root/Admirra/docker-compose.yml'
+  printf '%s\n' "$runtime_members" | grep -qx 'etc/wireguard/admirra0.conf'
+  if printf '%s\n' "$runtime_members" | grep -Eq '(^/|(^|/)\.\.(/|$))'; then
+    echo "unsafe runtime backup member" >&2
+    exit 1
+  fi
+fi
 
 suffix=$(printf '%s' "$backup_id" | tr '[:upper:]' '[:lower:]')
 container=admirra-restore-$suffix

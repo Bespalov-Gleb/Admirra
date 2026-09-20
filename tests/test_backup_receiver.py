@@ -30,7 +30,7 @@ def test_receiver_accepts_only_fixed_object_names(tmp_path):
 
 @pytest.mark.parametrize("command", [
     "", "list", "put ../escape database", f"put {BACKUP_ID} unknown",
-    f"put {BACKUP_ID} database extra", f"rm {BACKUP_ID} database",
+    f"put {BACKUP_ID} database extra", f"rm {BACKUP_ID} database", f"put {BACKUP_ID} secrets",
 ])
 def test_receiver_rejects_shell_and_path_injection(command):
     with pytest.raises(ValueError, match="unsupported"):

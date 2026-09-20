@@ -1,7 +1,7 @@
 import datetime as dt
 from pathlib import Path
 
-from ops.backup.prune import KINDS, deletion_plan, retention_set
+from ops.backup.prune import KINDS, LEGACY_KINDS, deletion_plan, is_complete, retention_set
 
 
 def backup_id(value: dt.datetime, suffix: str = "deadbeef") -> str:
@@ -29,6 +29,9 @@ def test_retention_keeps_daily_weekly_monthly_and_latest():
     assert ids[0] in keep
     assert len(keep) <= 14
     assert {backup_time[:8] for backup_time in keep} >= {value[:8] for value in ids[:7]}
+    assert is_complete(LEGACY_KINDS)
+    assert is_complete(KINDS)
+    assert not is_complete({"database", "globals"})
 
 
 def test_deletion_plan_removes_only_expired_sets_and_old_incomplete(tmp_path):
