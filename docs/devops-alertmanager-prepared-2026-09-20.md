@@ -1,5 +1,7 @@
 # Alertmanager — подготовленный production receiver
 
+> Обновление: выбран Telegram, webhook-шаблон заменён native receiver. Production включение, private gateway и реальные проверки описаны в [devops-telegram-alerts-2026-09-20.md](devops-telegram-alerts-2026-09-20.md). Ниже — историческое состояние до подключения; команды/пути webhook не использовать для новой конфигурации.
+
 Дата: 20.09.2026. Статус: конфигурация, deploy/rollback и synthetic firing/resolved smoke подготовлены и проверены изолированно; production Alertmanager не включён, уведомления человеку не подключены до получения адреса канала. Независимый public heartbeat на третьем сервере уже [включён отдельно](devops-external-heartbeat-2026-09-20.md).
 
 ## Реализация
