@@ -1,11 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
-if [ "$(id -u)" -ne 0 ] || [ "$#" -ne 1 ]; then
-  echo "usage: restore_logical_backup.sh BACKUP_ID (as root on repository host)" >&2
+if [ "$(id -u)" -ne 0 ] || { [ "$#" -ne 1 ] && [ "$#" -ne 3 ]; }; then
+  echo "usage: restore_logical_backup.sh BACKUP_ID [MIGRATION_IMAGE EXPECTED_HEAD] (as root on repository host)" >&2
   exit 2
 fi
 backup_id=$1
+migration_image=${2:-}
+expected_head=${3:-}
 case "$backup_id" in
   [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
   *) echo "invalid backup id" >&2; exit 2 ;;
@@ -89,5 +91,34 @@ check=$(docker exec "$container" psql -U postgres -d restore -Atc \
        AND NOT EXISTS (SELECT 1 FROM alembic_version WHERE version_num IS NULL)")
 test "$check" = t
 
+if [ -n "$migration_image" ]; then
+  case "$expected_head" in
+    [0-9a-z][0-9a-z][0-9a-z][0-9a-z][0-9a-z][0-9a-z][0-9a-z][0-9a-z][0-9a-z][0-9a-z][0-9a-z][0-9a-z]) ;;
+    *) echo "invalid expected migration head" >&2; exit 2 ;;
+  esac
+  docker image inspect "$migration_image" >/dev/null
+  docker run --rm \
+    --network "container:$container" \
+    --read-only \
+    --tmpfs /tmp:size=64m \
+    --user 10001:10001 \
+    --pids-limit 128 \
+    --cap-drop ALL \
+    --security-opt no-new-privileges:true \
+    -e DATABASE_URL=postgresql://postgres:isolated-restore-only@127.0.0.1:5432/restore \
+    --entrypoint alembic \
+    "$migration_image" upgrade head
+  restored_revision=$(docker exec "$container" psql -U postgres -d restore -Atc \
+    "SELECT version_num FROM alembic_version ORDER BY version_num LIMIT 1")
+  test "$restored_revision" = "$expected_head"
+  migrated_tables=$(docker exec "$container" psql -U postgres -d restore -Atc \
+    "SELECT count(*) FROM information_schema.tables
+       WHERE table_schema = 'public'
+         AND table_name IN ('background_jobs','background_outbox','background_schedule_cursor',
+           'report_route_attempts','history_backfill_runs','public_report_links',
+           'stored_artifacts','report_artifact_refs','artifact_public_links')")
+  test "$migrated_tables" = 9
+fi
+
 duration=$(( $(date +%s) - started_at ))
-echo "restore drill passed: backup=$backup_id schema=$restored_revision duration_seconds=$duration network=none"
+echo "restore drill passed: backup=$backup_id schema=$restored_revision duration_seconds=$duration network=none migration=$([ -n "$migration_image" ] && echo applied || echo skipped)"
