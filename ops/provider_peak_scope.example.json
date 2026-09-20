@@ -1,0 +1,37 @@
+{
+  "format": "admirra-provider-peak-scope-v1",
+  "approved_at": "REQUIRED_FRESH_TIMESTAMP",
+  "expires_at": "REQUIRED_WITHIN_24_HOURS",
+  "owner": "REQUIRED",
+  "operator": "REQUIRED",
+  "release": {
+    "candidate_image": "sha256:ad9559725e724789281765526f85839b8b9adf604c114ad25850812b0c544d0a",
+    "expected_schema": "bc8d9e0f1a2b"
+  },
+  "target": {
+    "tenant_ids": ["REQUIRED_CANONICAL_UUID"],
+    "client_ids": ["REQUIRED_CANONICAL_UUID"],
+    "integration_ids": ["REQUIRED_CANONICAL_UUID"],
+    "provider_calls_approved": false
+  },
+  "limits": {
+    "max_concurrency": 4,
+    "max_duration_minutes": 20,
+    "operations": {
+      "manual_sync": 2,
+      "nightly_sync": 2,
+      "report_render": 1,
+      "report_delivery": 0,
+      "assistant": 2,
+      "billing_replay": 1
+    }
+  },
+  "safety": {
+    "recipient_policy": "disabled",
+    "sandbox_recipient_configured": false,
+    "billing_sandbox_only": true,
+    "production_messages_allowed": false,
+    "production_charges_allowed": false,
+    "all_projects_force_sync_allowed": false
+  }
+}

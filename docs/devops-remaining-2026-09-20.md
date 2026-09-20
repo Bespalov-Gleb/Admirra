@@ -19,7 +19,7 @@
 ## P0 — блокирует миграцию production
 
 1. **Alert → человек.** Alertmanager с секретом через file, pinned image, deploy/rollback, Prometheus routing/rules и synthetic firing/resolved smoke [подготовлен и проверен](devops-alertmanager-prepared-2026-09-20.md). Внешний heartbeat вне обоих app servers уже [работает](devops-external-heartbeat-2026-09-20.md). Владелец выбирает отдельный технический webhook и ответственного; после защищённой установки URL остаются production deploy и фактическое подтверждение человеком `firing → resolved` и heartbeat `critical → recovery`.
-2. **Worker/provider peak acceptance.** Read API + idle worker mixed-smoke уже пройден. На восстановленной копии либо утверждённом test tenant остаётся выполнить bounded manual/night/report/AI/billing load; измерить RSS/PSS, CPU, Redis/AOF, DB pool/locks, provider quotas и latency.
+2. **Worker/provider peak acceptance.** Read API + idle worker mixed-smoke уже пройден. Fail-closed [scope + observer](devops-provider-peak-prepared-2026-09-20.md) подготовлены: exact tenant/project/integration, короткое окно, запрет production delivery/charges, RSS/PSS/cgroup/host evidence. Остаётся получить утверждённый test scope и выполнить bounded manual/night/report/AI/billing-sandbox run.
 3. **Окно cutover.** Нужны дата/оператор и запрет окна 03:00/05:00 МСК. Fail-closed [cutover preflight](devops-cutover-preflight-2026-09-20.md) уже проверяет окно, точные artifacts/schema, recovery/alert evidence, отсутствие активных side effects и approvals; незаполненный шаблон блокируется. Перед окном evidence собирается заново.
 
 ## Временно принятое исключение первого запуска
