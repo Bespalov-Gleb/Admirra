@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import json
 import os
 import shutil
 import subprocess
@@ -20,6 +21,7 @@ DEFAULT_SITES = (
 )
 ACTIVE_MAP = Path("/etc/nginx/conf.d/admirra-cutover-map.conf")
 ACTIVE_SNIPPET = Path("/etc/nginx/snippets/admirra-cutover-admission.conf")
+ACTIVE_STATE = Path("/var/lib/admirra-cutover-admission/state.json")
 
 
 def patch_site(text: str) -> str:
@@ -112,12 +114,30 @@ def preserve_install_backup(sites: tuple[Path, ...]) -> Path:
     for index, site in enumerate(sites, start=1):
         resolved = site.resolve(strict=True)
         shutil.copy2(resolved, backup / f"site-{index}.conf")
-    for name, path in (("active-map.conf", ACTIVE_MAP), ("active-snippet.conf", ACTIVE_SNIPPET)):
+    for name, path in (
+        ("active-map.conf", ACTIVE_MAP),
+        ("active-snippet.conf", ACTIVE_SNIPPET),
+        ("active-state.json", ACTIVE_STATE),
+    ):
         if path.exists():
             shutil.copy2(path.resolve(), backup / name)
     (backup / "paths.txt").write_text("\n".join(str(site.resolve()) for site in sites) + "\n")
     os.chmod(backup / "paths.txt", 0o600)
     return backup
+
+
+def state_payload(mode: str, now: dt.datetime | None = None) -> bytes:
+    if mode not in {"open", "closed"}:
+        raise ValueError("invalid admission mode")
+    now = (now or dt.datetime.now(dt.timezone.utc)).astimezone(dt.timezone.utc)
+    return (json.dumps(
+        {
+            "format": "admirra-cutover-admission-v1",
+            "mode": mode,
+            "switched_at": now.isoformat().replace("+00:00", "Z"),
+        },
+        sort_keys=True,
+    ) + "\n").encode()
 
 
 def install(root: Path, sites: tuple[Path, ...]) -> Path:
@@ -129,6 +149,7 @@ def install(root: Path, sites: tuple[Path, ...]) -> Path:
     writes: dict[Path, tuple[bytes, int]] = {
         ACTIVE_MAP: (open_map.read_bytes(), 0o644),
         ACTIVE_SNIPPET: (snippet.read_bytes(), 0o644),
+        ACTIVE_STATE: (state_payload("open"), 0o644),
     }
     for site in sites:
         resolved = site.resolve(strict=True)
@@ -142,7 +163,10 @@ def set_mode(root: Path, mode: str) -> None:
     source = open_map if mode == "open" else closed_map
     if not source.is_file() or not ACTIVE_SNIPPET.is_file():
         raise ValueError("admission gate is not installed")
-    transact({ACTIVE_MAP: (source.read_bytes(), 0o644)})
+    transact({
+        ACTIVE_MAP: (source.read_bytes(), 0o644),
+        ACTIVE_STATE: (state_payload(mode), 0o644),
+    })
 
 
 def current_mode(root: Path) -> str:

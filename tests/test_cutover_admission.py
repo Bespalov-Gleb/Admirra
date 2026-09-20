@@ -1,3 +1,5 @@
+import datetime as dt
+import json
 from pathlib import Path
 
 import pytest
@@ -72,10 +74,13 @@ def test_install_backup_preserves_resolved_sites_and_existing_gate(tmp_path, mon
     link.symlink_to(target)
     active_map = tmp_path / "active-map.conf"
     active_snippet = tmp_path / "active-snippet.conf"
+    active_state = tmp_path / "active-state.json"
     active_map.write_text("old-map")
     active_snippet.write_text("old-snippet")
+    active_state.write_text("old-state")
     monkeypatch.setattr(manage, "ACTIVE_MAP", active_map)
     monkeypatch.setattr(manage, "ACTIVE_SNIPPET", active_snippet)
+    monkeypatch.setattr(manage, "ACTIVE_STATE", active_state)
     monkeypatch.setenv("ADMIRRA_CUTOVER_BACKUP_DIR", str(tmp_path / "backups"))
 
     backup = manage.preserve_install_backup((link,))
@@ -83,4 +88,20 @@ def test_install_backup_preserves_resolved_sites_and_existing_gate(tmp_path, mon
     assert (backup / "site-1.conf").read_text() == site()
     assert (backup / "active-map.conf").read_text() == "old-map"
     assert (backup / "active-snippet.conf").read_text() == "old-snippet"
+    assert (backup / "active-state.json").read_text() == "old-state"
     assert (backup / "paths.txt").read_text().strip() == str(target)
+
+
+def test_state_payload_is_versioned_utc_and_contains_no_runtime_details():
+    now = dt.datetime(2026, 9, 20, 18, 30, tzinfo=dt.timezone(dt.timedelta(hours=3)))
+    payload = json.loads(manage.state_payload("closed", now))
+    assert payload == {
+        "format": "admirra-cutover-admission-v1",
+        "mode": "closed",
+        "switched_at": "2026-09-20T15:30:00Z",
+    }
+
+
+def test_state_payload_rejects_unknown_mode():
+    with pytest.raises(ValueError, match="invalid admission mode"):
+        manage.state_payload("paused")
