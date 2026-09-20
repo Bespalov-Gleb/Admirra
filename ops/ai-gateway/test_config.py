@@ -44,6 +44,16 @@ class GatewayConfigTests(unittest.TestCase):
         self.assertIn('udp sport 67 udp dport 68 accept', conf)
         self.assertIn('udp sport 547 udp dport 546 accept', conf)
 
+    def test_telegram_route_is_fixed_private_post_and_secret_safe(self):
+        conf = (ROOT / 'telegram-location.conf').read_text()
+        for directive in ('allow 10.78.0.1;', 'deny all;', 'limit_except POST { deny all; }',
+                          'set $telegram_upstream api.telegram.org;', 'proxy_ssl_verify on;',
+                          'proxy_next_upstream off;', 'error_log /dev/null crit;',
+                          'client_max_body_size 16k;', 'proxy_cache off;'):
+            self.assertIn(directive, conf)
+        self.assertIn('/sendMessage$', conf)
+        self.assertNotIn('$http_host', conf)
+
     def test_rollback_refuses_intervening_change(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -22,12 +22,20 @@ class Mock(ThreadingHTTPServer):
 class Handler(BaseHTTPRequestHandler):
     protocol_version = 'HTTP/1.1'
     failures = 0
+    telegram_requests = 0
 
     def log_message(self, *_args):
         pass
 
     def do_POST(self):
         self.rfile.read(int(self.headers.get('Content-Length', 0)))
+        if self.path == '/bot123:synthetic-token/sendMessage':
+            Handler.telegram_requests += 1
+            self.send_response(200)
+            self.send_header('Content-Length', '11')
+            self.end_headers()
+            self.wfile.write(b'{"ok":true}')
+            return
         if self.headers.get('X-Test-Fail'):
             Handler.failures += 1
             self.send_response(503)
@@ -80,7 +88,9 @@ def main():
             tmp = Path(directory)
             proxy = (source / 'proxy.conf').read_text().replace('set $ai_upstream openrouter.ai;', 'set $ai_upstream 127.0.0.1:18081;').replace('proxy_pass https://', 'proxy_pass http://')
             (tmp / 'proxy.conf').write_text(proxy)
-            server = (source / 'openrouter.conf').read_text().replace('listen 10.78.0.3:8080;', 'listen 127.0.0.1:18080;').replace('allow 10.78.0.1;', 'allow 127.0.0.1;').replace('/etc/nginx/snippets/admirra-openrouter-proxy.conf', str(tmp / 'proxy.conf')).replace('/var/log/nginx/ai-gateway-access.log', str(tmp / 'access.log')).replace('/var/log/nginx/ai-gateway-error.log', str(tmp / 'error.log'))
+            telegram = (source / 'telegram-location.conf').read_text().replace('set $telegram_upstream api.telegram.org;', 'set $telegram_upstream 127.0.0.1:18081;').replace('proxy_pass https://', 'proxy_pass http://').replace('allow 10.78.0.1;', 'allow 127.0.0.1;')
+            (tmp / 'telegram.conf').write_text(telegram)
+            server = (source / 'openrouter.conf').read_text().replace('listen 10.78.0.3:8080;', 'listen 127.0.0.1:18080;').replace('allow 10.78.0.1;', 'allow 127.0.0.1;').replace('/etc/nginx/snippets/admirra-openrouter-proxy.conf', str(tmp / 'proxy.conf')).replace('/etc/nginx/snippets/admirra-telegram-location.conf', str(tmp / 'telegram.conf')).replace('/var/log/nginx/ai-gateway-access.log', str(tmp / 'access.log')).replace('/var/log/nginx/ai-gateway-error.log', str(tmp / 'error.log'))
             config = tmp / 'nginx.conf'
             config.write_text(f'pid {tmp}/nginx.pid; error_log {tmp}/main-error.log; worker_processes 1; events {{ worker_connections 4096; }} http {{ {server} }}')
             command = ['nginx', '-p', str(tmp), '-c', str(config)]
@@ -92,10 +102,19 @@ def main():
                 assert request('POST', '/api/v1/models') == 403
                 assert request('POST', '/api/v1/chat/completions', {'X-Test-Fail': 'yes'}) == 503
                 assert Handler.failures == 1, 'Gateway retried failed paid request'
+                assert request('POST', '/telegram/bot123:synthetic-token/sendMessage') == 200
+                assert Handler.telegram_requests == 1
+                assert request('GET', '/telegram/bot123:synthetic-token/sendMessage') == 403
+                assert request('POST', '/telegram/bot123:synthetic-token/getUpdates') == 404
+                assert request('POST', '/telegram/bot123:synthetic-token/sendMessage?extra=yes') == 400
+                assert request('POST', '/telegram/bot123:synthetic-token/sendMessage/extra') == 404
+                assert Handler.telegram_requests == 1
                 for count in (25, 50, 100):
                     with ThreadPoolExecutor(max_workers=count) as pool:
                         first = list(pool.map(lambda _: request('POST', '/api/v1/chat/completions', stream=True), range(count)))
                     print(json.dumps({'parallel_streams': count, 'passed': len(first), 'max_first_chunk_seconds': max(first)}), flush=True)
+                for log in ('access.log', 'error.log', 'main-error.log'):
+                    assert 'synthetic-token' not in (tmp / log).read_text(), 'Telegram secret leaked to nginx logs'
                 print('PASS: exact paths/methods, upstream errors preserved, no retries, unbuffered SSE at 25/50/100 concurrency')
             finally:
                 subprocess.run(command + ['-s', 'quit'], check=True)

@@ -29,6 +29,8 @@ receivers:
   - name: admirra-operator
     telegram_configs:
       - bot_token_file: /etc/alertmanager/secrets/telegram-token
+        # API-1 cannot reach Telegram directly; fixed Bot API route over WireGuard.
+        api_url: http://10.78.0.3:8080/telegram
         # Replace with the ID of the operator's technical group.
         chat_id: 0
         send_resolved: true
