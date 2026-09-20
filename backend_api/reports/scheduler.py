@@ -1323,34 +1323,48 @@ async def send_report_for_schedule(db: Session, rule, user) -> dict:
     return results
 
 
-async def run_scheduled_report_rules(scheduled_at: datetime | None = None):
+def recover_stale_report_deliveries(db, *, owner_id=None, rule_id=None):
+    """Bounded SQL-only reconciliation; preserve legacy unknown-send policy."""
+    query = db.query(models.ReportDelivery).filter(
+        models.ReportDelivery.status == "sending",
+        models.ReportDelivery.updated_at < datetime.now(MSK) - timedelta(minutes=15))
+    if owner_id is not None:
+        query = query.filter(models.ReportDelivery.user_id == owner_id)
+    if rule_id is not None:
+        query = query.filter(models.ReportDelivery.schedule_id == rule_id)
+    rows = query.order_by(models.ReportDelivery.updated_at).limit(100).with_for_update(skip_locked=True).all()
+    for delivery in rows:
+        delivery.status = "failed"
+        previous = dict(delivery.delivery_results or {})
+        errors = dict(previous.get("errors") or {})
+        errors["system"] = "Отправка прервана; результат последних запросов неизвестен. Проверьте получение перед повтором."
+        previous["errors"] = errors
+        delivery.delivery_results = route_ledger.add_evidence(db, delivery.id, previous) if route_ledger.enabled() else previous
+    return len(rows)
+
+
+async def run_scheduled_report_rules(scheduled_at: datetime | None = None, *, rule_id=None, owner_id=None):
     """Каждую минуту обрабатывает единственную настройку каждого проекта/папки."""
+    if (rule_id is None) != (owner_id is None):
+        raise ValueError("Scoped report requires both rule and owner")
     db: Session = SessionLocal()
     try:
         now = scheduled_at.astimezone(MSK) if scheduled_at else datetime.now(MSK)
-        stale_before = datetime.now(MSK) - timedelta(minutes=15)
-        stale_deliveries = db.query(models.ReportDelivery).filter(
-            models.ReportDelivery.status == "sending",
-            models.ReportDelivery.updated_at < stale_before,
-        ).all()
-        for delivery in stale_deliveries:
-            delivery.status = "failed"
-            previous = dict(delivery.delivery_results or {})
-            errors = dict(previous.get("errors") or {})
-            errors["system"] = "Отправка прервана; результат последних запросов неизвестен. Проверьте получение перед повтором."
-            previous["errors"] = errors
-            delivery.delivery_results = route_ledger.add_evidence(db, delivery.id, previous) if route_ledger.enabled() else previous
-        if stale_deliveries:
+        if recover_stale_report_deliveries(db, owner_id=owner_id, rule_id=rule_id):
             db.commit()
         weekday_name = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")[now.weekday()]
         allowed_days = ["daily", weekday_name]
         if now.weekday() <= 4:
             allowed_days.append("weekdays")
-        rules = db.query(models.ReportSchedule).filter(
+        rules_query = db.query(models.ReportSchedule).filter(
             models.ReportSchedule.enabled.is_(True),
             models.ReportSchedule.send_time == now.strftime("%H:%M"),
             models.ReportSchedule.day.in_(allowed_days),
-        ).all()
+        )
+        if rule_id is not None:
+            rules_query = rules_query.filter(models.ReportSchedule.id == rule_id,
+                                             models.ReportSchedule.user_id == owner_id)
+        rules = rules_query.all()
         for rule in rules:
             if not _rule_matches(rule, now):
                 continue
@@ -1384,8 +1398,12 @@ async def run_scheduled_report_rules(scheduled_at: datetime | None = None):
                         rule.last_sent_at = datetime.now(MSK)
                     db.commit()
                     logger.info("Report rule %s completed for %s: status=%s", rule.id, user.email, delivery.status)
+                    if rule_id is not None and delivery.status == "failed":
+                        raise RuntimeError("Report delivery failed; inspect recipient outcomes")
             except Exception as e:
                 db.rollback()
-                logger.exception("Report rule %s failed for user %s: %s", rule.id, rule.user_id, e)
+                logger.error("Report rule failed (%s)", type(e).__name__)
+                if rule_id is not None:
+                    raise  # Child ledger must not mark failed delivery as success.
     finally:
         db.close()

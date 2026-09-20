@@ -8,12 +8,27 @@ from core.database import SessionLocal
 from automation.work_ledger import submit
 
 
-def enqueue(integration_id, *, days, force_full, trigger, date_from=None, date_to=None, occurrence=None):
+def enqueue(integration_id, *, days, force_full, trigger, date_from=None, date_to=None, occurrence=None, expected_owner_id=None):
     with SessionLocal() as db:
+        client = None
+        if expected_owner_id is not None:
+            # Keep the same Client -> Integration lock order as guarded sync.
+            client_id = db.scalar(select(models.Integration.client_id).where(models.Integration.id == integration_id))
+            client = db.query(models.Client).filter(models.Client.id == client_id).with_for_update().first()
+            if client is None:
+                return None
         # Serializes enqueue even when requests hit different API instances.
         integration = db.query(models.Integration).filter(models.Integration.id == integration_id).with_for_update().first()
         if integration is None:
+            if expected_owner_id is not None:
+                return None
             raise ValueError("Integration not found")
+        if expected_owner_id is not None:
+            # A queued calendar child must not follow a moved/paused cabinet to
+            # another account. Recheck under the enqueue transaction's locks.
+            if (client.id != integration.client_id or client.owner_id != expected_owner_id or client.status != models.ClientStatus.ACTIVE
+                    or integration.connection_status != "active"):
+                return None
         if occurrence:
             from automation.work_tables import jobs
             previous = db.execute(select(jobs.c.payload).where(

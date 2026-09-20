@@ -15,27 +15,9 @@ async def _async_run(kind, payload):
         return await execute(payload)
     if kind == "goals":
         return await _goals(payload)
-    if kind == "nightly.enqueue":
-        from core.database import SessionLocal
-        from core import models
-        from automation.durable_sync import enqueue
-        from automation.main import AUTO_SYNC_DAYS
-        with SessionLocal() as db:
-            ids = db.query(models.Integration.id).join(models.Client).filter(
-                models.Client.status == models.ClientStatus.ACTIVE,
-                models.Integration.connection_status == "active",
-            ).all()
-        for (integration_id,) in ids:
-            enqueue(integration_id, days=AUTO_SYNC_DAYS, force_full=False, trigger="auto",
-                    occurrence=payload["scheduled_at"])
-        return
-    if kind == "reports.rules":
-        from backend_api.reports.scheduler import run_scheduled_report_rules
-        from datetime import timezone, timedelta
-        scheduled = datetime.fromisoformat(payload["scheduled_at"])
-        if datetime.now(timezone.utc) - scheduled > timedelta(minutes=15):
-            return  # Never deliver an obsolete minute after a long queue outage.
-        return await run_scheduled_report_rules(scheduled_at=scheduled)
+    if kind == "reports.rule":
+        from automation.calendar_work import run_report
+        return await run_report(payload)
     if kind == "ai.prewarm":
         from ai.comment_prewarm import prewarm_warm_project_comments
         return await prewarm_warm_project_comments()
@@ -53,6 +35,13 @@ async def _async_run(kind, payload):
 
 
 def run(kind, payload):
+    if kind in {"nightly.enqueue", "reports.rules"}:
+        from core.database import SessionLocal
+        from automation.calendar_work import plan_page
+        return plan_page(SessionLocal, kind, payload)
+    if kind == "nightly.integration":
+        from automation.calendar_work import enqueue_nightly
+        return enqueue_nightly(payload)
     if kind == "sync":
         from automation.durable_sync import execute
         return execute(payload)
