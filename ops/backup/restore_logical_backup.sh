@@ -8,6 +8,14 @@ fi
 backup_id=$1
 migration_image=${2:-}
 expected_head=${3:-}
+current_schema_only=${ADMIRRA_RESTORE_CURRENT_SCHEMA:-0}
+if [ "$current_schema_only" = 1 ]; then
+  : "${ADMIRRA_APPLICATION_IMAGE:?Current-schema smoke requires a separate application image}"
+  if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" != 1 ] || [ "${ADMIRRA_WORKER_SMOKE:-0}" = 1 ]; then
+    echo "current-schema mode requires application smoke and forbids new workers" >&2
+    exit 2
+  fi
+fi
 release_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 case "$backup_id" in
   [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z-[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;
@@ -139,7 +147,9 @@ check=$(docker exec "$container" psql -U postgres -d restore -Atc \
        AND NOT EXISTS (SELECT 1 FROM alembic_version WHERE version_num IS NULL)")
 test "$check" = t
 
-if [ -n "$migration_image" ]; then
+if [ "$current_schema_only" = 1 ]; then
+  test "$expected_head" = "$restored_revision"
+elif [ -n "$migration_image" ]; then
   case "$expected_head" in
     [0-9a-z][0-9a-z][0-9a-z][0-9a-z][0-9a-z][0-9a-z][0-9a-z][0-9a-z][0-9a-z][0-9a-z][0-9a-z][0-9a-z]) ;;
     *) echo "invalid expected migration head" >&2; exit 2 ;;
@@ -186,6 +196,7 @@ if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
   test -d "$runtime_directory/root/Admirra/secrets"
   chown -R 10001:10001 "$runtime_directory/root/Admirra"
 
+  if [ "$current_schema_only" != 1 ]; then
   docker run --rm \
     --network "container:$container" \
     --read-only \
@@ -215,6 +226,7 @@ if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
     --entrypoint python \
     "$migration_image" -c 'from automation.work_preflight import check; check()'
   worker_preflight=passed
+  fi
 
   if [ "${ADMIRRA_WORKER_SMOKE:-0}" = 1 ]; then
     broker_container=admirra-broker-restore-$suffix
@@ -341,6 +353,7 @@ if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
     --network "container:$container" \
     --read-only \
     --tmpfs /tmp:size=128m \
+    --tmpfs /app/logs:size=64m,mode=1777 \
     --user 10001:10001 \
     --memory 1g \
     --cpus 1 \
@@ -403,7 +416,12 @@ else:
       "$application_container" python - <"$release_dir/api_load_smoke.py"
     api_load_smoke=passed
   fi
+  if [ "${ADMIRRA_SUMMARY_BATCH_SMOKE:-0}" = 1 ]; then
+    : "${ADMIRRA_TEST_ACCOUNT_EMAIL:?Select the approved test account}"
+    docker exec -i "$application_container" python - --email "$ADMIRRA_TEST_ACCOUNT_EMAIL" \
+      <"$release_dir/../performance/smoke.py"
+  fi
 fi
 
 duration=$(( $(date +%s) - started_at ))
-echo "restore drill passed: backup=$backup_id schema=$restored_revision duration_seconds=$duration network=none migration=$([ -n "$migration_image" ] && echo applied || echo skipped) worker_preflight=$worker_preflight worker_smoke=$worker_smoke application=$application_smoke api_load=$api_load_smoke"
+echo "restore drill passed: backup=$backup_id schema=$restored_revision duration_seconds=$duration network=none migration=$([ -n "$migration_image" ] && [ "$current_schema_only" != 1 ] && echo applied || echo skipped) worker_preflight=$worker_preflight worker_smoke=$worker_smoke application=$application_smoke api_load=$api_load_smoke"

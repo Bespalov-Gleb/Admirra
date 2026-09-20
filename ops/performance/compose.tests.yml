@@ -1,0 +1,6 @@
+# Legacy production logging writes here even with LOG_TO_STDOUT set.
+# Keep those writes ephemeral in the isolated production-image test.
+services:
+  tests:
+    tmpfs:
+      - /app/logs:size=64m,mode=1777
