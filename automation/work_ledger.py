@@ -69,8 +69,11 @@ def claim(db, job_id, *, lease_seconds=None):
     job = db.execute(sa.select(jobs).where(jobs.c.id == job_id).with_for_update()).mappings().first()
     if not job or job["state"] != "queued" or job["available_at"] > now:
         return None
-    # A resource is exclusive (e.g. full sync and goals-only sync of one cabinet).
-    busy = db.execute(sa.select(jobs.c.id).where(jobs.c.resource == job["resource"], jobs.c.state == "running")).first()
+    # Unknown external outcomes hold the resource too. A *new* calendar key
+    # must not bypass the no-replay policy (duplicate email/payment/export).
+    # Only explicit reconciliation can release an uncertain operation.
+    busy = db.execute(sa.select(jobs.c.id).where(jobs.c.resource == job["resource"],
+        jobs.c.state.in_(["running", "uncertain"]))).first()
     if busy:
         return None
     if job["kind"] == "sync" and job["payload"].get("after_sync_job_id"):

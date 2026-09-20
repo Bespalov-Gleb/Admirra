@@ -161,6 +161,31 @@ def test_fencing_rejects_old_worker_even_after_context_exit(pg):
         assert db.execute(sa.text("SELECT id FROM effects ORDER BY id")).scalars().all() == [2, 3]
 
 
+@pytest.mark.parametrize("failure", ["timeout", "lost_worker"])
+def test_uncertain_resource_blocks_new_occurrence_but_not_other_tenant(pg, failure):
+    factory, _ = pg
+    previous = submit(factory, "yesterday", resource="delivery:one", safe=False, queue="reports")
+    execution = claim(factory, previous)
+    if failure == "lost_worker":
+        expire(factory, previous)
+        with factory.begin() as db:
+            ledger.recover_expired(db)
+    else:
+        with factory.begin() as db:
+            ledger.finish(db, previous, execution["lease_token"], error=TimeoutError("unknown outcome"))
+    next_job = submit(factory, "today", resource="delivery:one", safe=False, queue="reports")
+    unrelated = submit(factory, "other", resource="delivery:two", tenant="other", safe=False, queue="reports")
+    assert claim(factory, next_job) is None
+    assert claim(factory, unrelated)
+    with factory() as db:
+        assert db.scalar(sa.select(jobs.c.state).where(jobs.c.id == previous)) == "uncertain"
+        assert db.scalar(sa.select(jobs.c.attempt).where(jobs.c.id == next_job)) == 0
+    # Simulate an operator-confirmed terminal outcome, not an automatic retry.
+    with factory.begin() as db:
+        db.execute(jobs.update().where(jobs.c.id == previous).values(state="succeeded"))
+    assert claim(factory, next_job)
+
+
 def test_live_heartbeat_and_wrong_token(pg):
     factory, _ = pg
     job = submit(factory)
