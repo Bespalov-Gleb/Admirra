@@ -89,12 +89,12 @@ services:
   sync-manual:
     <<: *worker
     command: [python, -m, automation.work_worker, --concurrency=2, --queues=sync.manual, --hostname=manual@%h]
-    mem_limit: 1536m
+    mem_limit: 1280m
     cpus: 1.5
   sync-nightly:
     <<: *worker
     command: [python, -m, automation.work_worker, --concurrency=2, "--queues=sync.nightly,sync.backfill", --hostname=nightly@%h]
-    mem_limit: 1536m
+    mem_limit: 1280m
     cpus: 1.5
   reports:
     <<: *worker
@@ -102,9 +102,6 @@ services:
   maintenance:
     <<: *worker
     command: [python, -m, automation.work_worker, --concurrency=1, --queues=maintenance, --hostname=maintenance@%h]
-  ai-prewarm:
-    <<: *worker
-    command: [python, -m, automation.work_worker, --concurrency=1, --queues=ai.prewarm, --hostname=prewarm@%h]
   scheduler:
     <<: *worker
     command: [python, -m, automation.work_control]
@@ -112,6 +109,8 @@ services:
       <<: *runtime
       APP_PROCESS_ROLE: scheduler
       LEAD_ALERT_TIMEZONE: UTC
+      # Prewarm is an optional expansion and stays off on the 8 GiB launch host.
+      AI_PREWARM_ENABLED: "false"
     stop_grace_period: 60s
     mem_limit: 256m
     cpus: 0.5

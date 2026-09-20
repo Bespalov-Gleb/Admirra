@@ -211,6 +211,19 @@ def test_scheduler_deduplicates_and_bounds_catchup(pg):
         assert len(recent_reports) == 17  # original minute + last 15 minutes inclusive
 
 
+def test_ai_prewarm_requires_explicit_capacity_flag(monkeypatch):
+    from automation.work_control import occurrences
+
+    now = datetime(2026, 9, 11, 2, 0, tzinfo=timezone.utc)  # 05:00 MSK
+    monkeypatch.delenv("AI_PREWARM_ENABLED", raising=False)
+    kinds = [kind for kind, *_ in occurrences(now, now)]
+    assert "reports.export" in kinds and "billing.maintenance" in kinds
+    assert "ai.prewarm" not in kinds
+
+    monkeypatch.setenv("AI_PREWARM_ENABLED", "true")
+    assert "ai.prewarm" in [kind for kind, *_ in occurrences(now, now)]
+
+
 def test_executor_duplicate_and_external_failure(pg, monkeypatch):
     from automation import work_executor
     factory, engine = pg

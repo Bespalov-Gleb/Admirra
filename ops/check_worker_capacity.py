@@ -51,11 +51,32 @@ def worker_concurrency(command):
     return positive(values[0], "worker concurrency")
 
 
+def worker_queues(command):
+    args = shlex.split(command) if isinstance(command, str) else command
+    if not isinstance(args, list) or not all(isinstance(x, str) for x in args):
+        raise ValueError("Explicit worker command required")
+    values = []
+    for i, arg in enumerate(args):
+        if arg.startswith("--queues="):
+            values.append(arg.partition("=")[2])
+        elif arg in ("--queues", "-Q"):
+            values.append(args[i + 1] if i + 1 < len(args) else None)
+    if len(values) != 1 or not values[0]:
+        raise ValueError("Exactly one explicit queue list is required")
+    queues = values[0].split(",")
+    if any(not queue or not re.fullmatch(r"[a-z][a-z0-9_.-]*", queue) for queue in queues):
+        raise ValueError("Invalid worker queue")
+    if len(queues) != len(set(queues)):
+        raise ValueError("Duplicate worker queue")
+    return queues
+
+
 def assess(compose, budget, *, with_api2=False):
     services = compose.get("services", {})
     if set(services) != set(budget["services"]):
         raise ValueError("Service inventory differs from the reviewed capacity manifest")
     memory = cpu = connections = 0
+    consumed_queues = []
     rows = []
     for name, service in sorted(services.items()):
         replicas = positive((service.get("deploy") or {}).get("replicas", 1), "replicas")
@@ -72,6 +93,7 @@ def assess(compose, budget, *, with_api2=False):
                 env.get("DB_MAX_OVERFLOW", -1), "DB overflow", zero=True)
             if role == "worker":
                 processes = worker_concurrency(service.get("command"))
+                consumed_queues.extend(worker_queues(service.get("command")))
                 parent_processes = 1
                 if pool < 2:
                     raise ValueError("Business operation and heartbeat need at least two child connections")
@@ -85,6 +107,12 @@ def assess(compose, budget, *, with_api2=False):
         connections += demand
         memory += replicas * cap_mib
         cpu += replicas * cores
+    expected_queues = set(budget["queues"])
+    disabled_queues = set(budget.get("disabled_at_launch", []))
+    if (len(consumed_queues) != len(set(consumed_queues))
+            or set(consumed_queues) & disabled_queues
+            or set(consumed_queues) | disabled_queues != expected_queues):
+        raise ValueError("Worker queue inventory differs from the reviewed capacity manifest")
     api_connections = 0
     errors = []
     if with_api2:

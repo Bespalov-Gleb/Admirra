@@ -27,7 +27,8 @@ def occurrences(tick, now):
         yield "nightly.enqueue", "maintenance", True, stamp
     if local.hour == env_int("AUTO_REPORTS_HOUR_MSK", 5, 0, 23) and local.minute == 0:
         yield "reports.export", "reports", False, stamp
-        yield "ai.prewarm", "ai.prewarm", False, stamp
+        if env_bool("AI_PREWARM_ENABLED", False):
+            yield "ai.prewarm", "ai.prewarm", False, stamp
         yield "billing.maintenance", "maintenance", False, stamp
     if local.minute == 0:
         yield "vk.maintenance", "maintenance", True, stamp
