@@ -178,3 +178,29 @@ async def test_expired_child_does_not_call_legacy_handler(monkeypatch):
 def test_subscription_and_owner_are_required_together():
     with pytest.raises(ValueError):
         notifications._scoped(Mock(), uuid.uuid4(), None)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("change_period", [False, True])
+async def test_warning_smtp_has_no_sql_connection_and_cannot_mark_new_period(billing_scope, monkeypatch, change_period):
+    factory, _ = billing_scope
+    payload, end = populate(billing_scope)
+    work.plan_page(factory, payload)
+    sender = mock_warning(monkeypatch)
+    engine = factory.kw["bind"]
+    def send(*_):
+        assert engine.pool.checkedout() == 0
+        if change_period:
+            with factory.begin() as db:
+                db.get(models.Subscription, uuid.UUID(int=1)).current_period_end = end + timedelta(days=30)
+        return True
+    sender.side_effect = send
+    request = child(billing_scope, "billing.warning")
+    if change_period:
+        with pytest.raises(notifications.BillingMaintenanceUncertain):
+            await work.execute("billing.warning", request)
+    else:
+        assert await work.execute("billing.warning", request) == {"completed": 1}
+    with factory() as db:
+        sub = db.get(models.Subscription, uuid.UUID(int=1))
+        assert sub.overflow_warning_period_end == (None if change_period else end)

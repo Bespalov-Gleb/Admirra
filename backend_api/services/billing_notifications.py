@@ -24,6 +24,25 @@ def _scoped(query, subscription_id, owner_id):
     return query
 
 
+async def _send_scoped_warning(subscription_id, owner_id, period_end, email, subject, body):
+    """No ORM/session survives SMTP; confirmation must target the same period."""
+    try:
+        sent = await asyncio.to_thread(_send_sync, email, subject, body)
+    except Exception as error:
+        logger.warning("Scoped overflow email failed (%s)", type(error).__name__)
+        raise BillingMaintenanceUncertain("Overflow email was not confirmed") from None
+    if not sent:
+        raise BillingMaintenanceUncertain("Overflow email was not confirmed")
+    with SessionLocal.begin() as db:
+        sub = _scoped(db.query(models.Subscription), subscription_id, owner_id).filter(
+            models.Subscription.current_period_end == period_end,
+        ).with_for_update().first()
+        if sub is None:
+            raise BillingMaintenanceUncertain("Subscription changed while email was being sent")
+        sub.overflow_warning_period_end = period_end
+    return 1
+
+
 async def send_overflow_renewal_warnings(*, subscription_id=None, owner_id=None, expected_period_end=None) -> int:
     """Одно письмо владельцу за 7 дней до продления в состоянии overflow."""
     db = SessionLocal()
@@ -50,7 +69,17 @@ async def send_overflow_renewal_warnings(*, subscription_id=None, owner_id=None,
                 period_end = sub.current_period_end.replace(tzinfo=timezone.utc) if sub.current_period_end.tzinfo is None else sub.current_period_end
                 if abs((warned - period_end).total_seconds()) < 60:
                     continue
-            plan = SubscriptionService.get_user_plan(db, owner)
+            if subscription_id is None:
+                plan = SubscriptionService.get_user_plan(db, owner)
+            else:
+                # Scoped preparation is read-only and uses THIS subscription,
+                # not an account helper that may create/select another record.
+                from core import pricing
+                from core.config import get_config
+                fallback = pricing.resolve_plan(sub.plan_code or "start", get_config().billing)
+                snapshot = sub.price_book_snapshot
+                spec = pricing.plan_from_snapshot(snapshot, fallback)
+                plan = SubscriptionService.get_plan_from_config(spec.code, spec=spec, price_fixed=bool(snapshot))
             state = SubscriptionService.compute_overflow_state(db, owner, plan, sub)
             if not state["over_limit"]:
                 continue
@@ -65,6 +94,10 @@ async def send_overflow_renewal_warnings(*, subscription_id=None, owner_id=None,
                 "https://admirra.ru/projects\n\n"
                 "После второго продления подряд в превышении создание новых проектов будет приостановлено."
             )
+            if subscription_id is not None:
+                args = (sub.id, owner.id, sub.current_period_end, owner.email, subject, body)
+                db.close()
+                return await _send_scoped_warning(*args)
             try:
                 sent = await asyncio.to_thread(_send_sync, owner.email, subject, body)
             except Exception as error:
