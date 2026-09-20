@@ -1,0 +1,19 @@
+[Unit]
+Description=AdMirra encrypted logical PostgreSQL backup
+After=docker.service network-online.target admirra0.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/admirra-create-logical-backup
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+CPUQuota=50%
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/etc/admirra/backup
+NoNewPrivileges=true
+TimeoutStartSec=2h
