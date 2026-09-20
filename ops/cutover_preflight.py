@@ -47,6 +47,11 @@ def _mapping(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def _provided(value: Any) -> bool:
+    text = str(value or "").strip()
+    return bool(text) and not text.upper().startswith("REQUIRED")
+
+
 def _timestamp(value: Any) -> dt.datetime | None:
     if not isinstance(value, str):
         return None
@@ -91,6 +96,7 @@ def assess(
     expected_production_commit: str,
     expected_candidate_commit: str,
     expected_candidate_image: str,
+    expected_rollback_image: str,
     expected_schema: str,
 ) -> Verdict:
     """Evaluate a complete evidence bundle without performing side effects."""
@@ -118,7 +124,7 @@ def assess(
         now.astimezone(MOSCOW).hour not in {3, 5},
         "cutover is forbidden during the 03:00/05:00 MSK scheduler windows",
     )
-    verdict.check("operator", bool(str(window.get("operator", "")).strip()), "cutover operator is not assigned")
+    verdict.check("operator", _provided(window.get("operator")), "cutover operator is not assigned")
 
     release = _mapping(evidence.get("release"))
     verdict.check(
@@ -142,8 +148,9 @@ def assess(
     verdict.check(
         "rollback_image",
         IMAGE_RE.fullmatch(str(release.get("rollback_image", ""))) is not None
+        and release.get("rollback_image") == expected_rollback_image
         and release.get("rollback_image") != release.get("candidate_image"),
-        "a distinct immutable rollback image is required",
+        "rollback image differs from the preserved production artifact",
     )
     verdict.check(
         "expected_schema",
@@ -187,7 +194,7 @@ def assess(
         exception.get("owner_accepted") is True
         and exception.get("server2_backup_verified") is True
         and exception.get("offline_key_copy_confirmed") is True
-        and bool(str(exception.get("owner", "")).strip())
+        and _provided(exception.get("owner"))
         and exception_expires is not None
         and now < exception_expires <= now + dt.timedelta(days=30)
     )
@@ -204,6 +211,13 @@ def assess(
 
     alerts = _mapping(evidence.get("alerts"))
     _fresh(verdict, "receiver_tested_at", alerts.get("receiver_tested_at"), now, dt.timedelta(hours=24))
+    _fresh(
+        verdict,
+        "external_heartbeat_checked_at",
+        alerts.get("external_heartbeat_checked_at"),
+        now,
+        dt.timedelta(minutes=5),
+    )
     for key, message in (
         ("firing_delivered", "firing alert was not delivered to a human"),
         ("resolved_delivered", "resolved alert was not delivered to a human"),
@@ -236,12 +250,12 @@ def assess(
     verdict.check("owner_approved", approval.get("owner_approved") is True, "owner cutover approval is missing")
     verdict.check(
         "approved_test_scope",
-        bool(str(approval.get("test_scope", "")).strip()),
+        _provided(approval.get("test_scope")),
         "approved test tenant/scope is missing",
     )
     verdict.check(
         "rollback_operator",
-        bool(str(approval.get("rollback_operator", "")).strip()),
+        _provided(approval.get("rollback_operator")),
         "rollback operator is not assigned",
     )
     return verdict
@@ -253,6 +267,7 @@ def main() -> int:
     parser.add_argument("--expected-production-commit", required=True)
     parser.add_argument("--expected-candidate-commit", required=True)
     parser.add_argument("--expected-candidate-image", required=True)
+    parser.add_argument("--expected-rollback-image", required=True)
     parser.add_argument("--expected-schema", required=True)
     args = parser.parse_args()
     try:
@@ -268,6 +283,7 @@ def main() -> int:
             expected_production_commit=args.expected_production_commit,
             expected_candidate_commit=args.expected_candidate_commit,
             expected_candidate_image=args.expected_candidate_image,
+            expected_rollback_image=args.expected_rollback_image,
             expected_schema=args.expected_schema,
         )
     except (OSError, ValueError, TypeError, json.JSONDecodeError):

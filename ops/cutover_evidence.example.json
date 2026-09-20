@@ -11,7 +11,7 @@
     "production_commit": "cdf0a4d3c9dee66722219d7e7e2924d5475c0044",
     "candidate_commit": "acf6ed8d76ea13436152e8ccc9659346169c7040",
     "candidate_image": "sha256:ad9559725e724789281765526f85839b8b9adf604c114ad25850812b0c544d0a",
-    "rollback_image": "REQUIRED_IMMUTABLE_DIGEST",
+    "rollback_image": "sha256:047c8019bbbeec83c0c8cd11b39c03b31af2931d8e2f0b415196199f8768afe0",
     "expected_schema": "bc8d9e0f1a2b",
     "tracked_tree_clean": true,
     "tests_passed": true,
@@ -37,6 +37,7 @@
   },
   "alerts": {
     "receiver_tested_at": "REQUIRED_RECENT_TIMESTAMP",
+    "external_heartbeat_checked_at": "REQUIRED_FRESH_TIMESTAMP",
     "firing_delivered": false,
     "resolved_delivered": false,
     "external_heartbeat_healthy": false

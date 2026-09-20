@@ -1,5 +1,7 @@
 import datetime as dt
+import json
 from copy import deepcopy
+from pathlib import Path
 
 import pytest
 
@@ -47,6 +49,7 @@ def evidence():
         },
         "alerts": {
             "receiver_tested_at": "2026-09-20T15:00:00Z",
+            "external_heartbeat_checked_at": "2026-09-20T15:29:30Z",
             "firing_delivered": True,
             "resolved_delivered": True,
             "external_heartbeat_healthy": True,
@@ -81,6 +84,7 @@ def run(bundle, *, now=NOW, candidate=CANDIDATE):
         expected_production_commit=PRODUCTION,
         expected_candidate_commit=candidate,
         expected_candidate_image=IMAGE,
+        expected_rollback_image=ROLLBACK,
         expected_schema=SCHEMA,
     )
 
@@ -139,6 +143,14 @@ def test_stale_snapshot_and_backup_are_rejected():
     assert verdict.checks["backup_created_at_fresh"] is False
 
 
+def test_stale_external_heartbeat_is_rejected():
+    bundle = evidence()
+    bundle["alerts"]["external_heartbeat_checked_at"] = "2026-09-20T15:20:00Z"
+    verdict = run(bundle)
+    assert not verdict.passed
+    assert verdict.checks["external_heartbeat_checked_at_fresh"] is False
+
+
 def test_bounded_owner_exception_can_temporarily_replace_external_recovery():
     bundle = evidence()
     bundle["recovery"].update({
@@ -190,6 +202,23 @@ def test_release_mismatch_and_mutable_rollback_are_rejected():
     assert verdict.checks["rollback_image"] is False
 
 
+def test_unpreserved_rollback_image_is_rejected():
+    bundle = evidence()
+    bundle["release"]["rollback_image"] = "sha256:" + "2" * 64
+    verdict = run(bundle)
+    assert not verdict.passed
+    assert verdict.checks["rollback_image"] is False
+
+
+def test_example_uses_the_preserved_backend_rollback_image():
+    root = Path(__file__).parents[1]
+    manifest = json.loads((root / "ops" / "rollback_images.json").read_text())
+    example = json.loads((root / "ops" / "cutover_evidence.example.json").read_text())
+    assert manifest["format"] == "admirra-rollback-images-v1"
+    assert example["release"]["rollback_image"] == manifest["images"]["backend"]["image"]
+    assert example["release"]["rollback_image"] == "sha256:047c8019bbbeec83c0c8cd11b39c03b31af2931d8e2f0b415196199f8768afe0"
+
+
 def test_forbidden_scheduler_hour_blocks_even_inside_window():
     bundle = evidence()
     bundle["window"]["starts_at"] = "2026-09-21T00:00:00Z"
@@ -209,6 +238,23 @@ def test_wrong_types_do_not_compare_equal_to_zero_or_true():
     assert not verdict.passed
     assert verdict.checks["active_reports"] is False
     assert verdict.checks["capacity_pass"] is False
+
+
+@pytest.mark.parametrize(
+    "section,key",
+    [
+        ("window", "operator"),
+        ("approval", "test_scope"),
+        ("approval", "rollback_operator"),
+    ],
+)
+def test_required_placeholders_are_not_accepted_as_approvals(section, key):
+    bundle = evidence()
+    bundle[section][key] = "REQUIRED"
+    verdict = run(bundle)
+    assert not verdict.passed
+    check = "approved_test_scope" if key == "test_scope" else key
+    assert verdict.checks[check] is False
 
 
 def test_assess_does_not_mutate_evidence():

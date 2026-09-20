@@ -14,6 +14,7 @@
 - Production application остаётся на `cdf0a4d` / schema `cc3d4e5f6a7b`; candidate migrations/workers не включались.
 - Cutover admission gate установлен перед текущим ingress в `open`; `closed` подготовлен, но до согласованного окна не включался. После установки public 200/auth 401 штатны, monitoring timers active, pending/firing alerts — 0.
 - Независимый public heartbeat работает на AI gateway каждые две минуты: root 200/auth guard 401, state `ok`. Он пока observe-only и станет полноценной тревогой после подключения выбранного получателя.
+- Точные images текущих backend/automation/frontend [закреплены rollback-тегами](devops-rollback-artifacts-2026-09-20.md); preflight сверяет заявленный rollback backend с сохранённым digest.
 
 ## P0 — блокирует миграцию production
 
