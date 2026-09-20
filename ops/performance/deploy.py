@@ -23,6 +23,16 @@ def inspect(service):
     return json.loads(capture(["docker", "inspect", f"admirra-{service}-1"]))[0]
 
 
+def mount_config(container):
+    # Docker inspect does not guarantee mount array order across recreation.
+    # Compare every property, keyed by the unique container destination.
+    mounts = container["Mounts"]
+    result = {mount["Destination"]: mount for mount in mounts}
+    if len(result) != len(mounts):
+        raise RuntimeError("Duplicate mount destinations")
+    return result
+
+
 def deploy(backend, frontend, email):
     moscow = datetime.now(timezone(timedelta(hours=3)))
     minutes = moscow.hour * 60 + moscow.minute
@@ -45,6 +55,7 @@ with SessionLocal() as db:
     capture(["docker", "exec", "-i", "admirra-backend-1", "python", "-"], input=preflight)
     directory = Path("/etc/admirra/releases") / ("summary-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
     directory.mkdir(mode=0o700, parents=True)
+    write(directory / "runtime-before.json", old)
     images = dict(backend=backend, frontend=frontend)
     for service in EXPECTED:
         images[service] = capture(["docker", "image", "inspect", "--format", "{{.Id}}", images[service]]).strip()
@@ -75,9 +86,14 @@ with SessionLocal() as db:
         start(directory / "frontend-active.json", "frontend")
         for service in EXPECTED:
             new = inspect(service)
-            if (new["Image"] != images[service] or set(new["Config"]["Env"]) != set(old[service]["Config"]["Env"])
-                    or new["Mounts"] != old[service]["Mounts"]
-                    or new["HostConfig"]["PortBindings"] != old[service]["HostConfig"]["PortBindings"]):
+            checks = {
+                "image": new["Image"] == images[service],
+                "environment": set(new["Config"]["Env"]) == set(old[service]["Config"]["Env"]),
+                "mounts": mount_config(new) == mount_config(old[service]),
+                "ports": new["HostConfig"]["PortBindings"] == old[service]["HostConfig"]["PortBindings"],
+            }
+            if not all(checks.values()):
+                print("Runtime check failed:", service, [key for key, ok in checks.items() if not ok], flush=True)
                 raise RuntimeError("Runtime environment/mount/port drift")
         capture(["curl", "-fsS", "--max-time", "10", "-o", "/dev/null", "https://admirra.ru/"])
     except BaseException:
