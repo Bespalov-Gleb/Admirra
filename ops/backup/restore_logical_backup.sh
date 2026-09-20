@@ -155,6 +155,7 @@ if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
   test -s "$runtime_directory/root/Admirra/.env"
   test -d "$runtime_directory/root/Admirra/uploads"
   test -d "$runtime_directory/root/Admirra/secrets"
+  chown -R 10001:10001 "$runtime_directory/root/Admirra"
 
   application_container=admirra-app-restore-$suffix
   if docker container inspect "$application_container" >/dev/null 2>&1; then
