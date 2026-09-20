@@ -183,6 +183,7 @@ if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
     -e SHARED_READ_CACHE=false \
     -e SMTP_ENABLED=false \
     -e LOG_TO_STDOUT=true \
+    -e REJECTED_LEADS_DIR=/tmp/rejected-leads \
     -e OPENAI_API_KEY= \
     -e WORDSTAT_API_KEY= \
     -v "$runtime_directory/root/Admirra/.env:/app/.env:ro" \
