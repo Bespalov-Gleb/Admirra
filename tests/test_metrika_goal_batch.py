@@ -70,6 +70,29 @@ async def test_empty_success_response_is_legitimate_zero():
 
 
 @pytest.mark.asyncio
+async def test_all_goals_is_explicit_and_empty_selection_stays_empty():
+    api = api_with_counts({"a": 7})
+    rows, missing = await collect_goal_rows(api, InlineQueue(), ["a"], None, DAYS, {})
+    assert not missing
+    assert next(row for row in rows if row["date"] == DAYS[0] and row["goal_id"] == "all") == {
+        "date": DAYS[0], "goal_id": "all", "goal_name": "All Goals", "conversion_count": 7}
+    api.get_goals_stats = AsyncMock()
+    rows, _ = await collect_goal_rows(api, InlineQueue(), ["a"], [], DAYS, {})
+    api.get_goals_stats.assert_not_awaited()
+    assert len(rows) == 2 and all(row["conversion_count"] == 0 for row in rows)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("metadata", [None, {}, [None], [{}], [{"id": None}], [{"id": True}],
+    [{"id": 0}], [{"id": "1 OR 1"}], [{"id": "١"}], [{"id": "1", "name": []}], [{"id": 1}, {"id": "1"}]])
+async def test_malformed_metadata_does_not_become_empty_goals(metadata):
+    api = api_with_counts({"a": 1})
+    api.get_counter_goals = AsyncMock(return_value=metadata)
+    with pytest.raises(ValueError):
+        await collect_goal_rows(api, InlineQueue(), ["a"], None, DAYS, {})
+
+
+@pytest.mark.asyncio
 async def test_goal_on_second_counter_is_not_reported_missing():
     api = api_with_counts({"b": 1})
     api.get_counter_goals = AsyncMock(side_effect=[[], [{"id": "1", "name": "Заявка"}]])
@@ -167,3 +190,79 @@ def test_latest_name_selected_once_and_bulk_write_has_no_per_row_select(goal_db)
     replace_goal_window(db, integration, DAYS, rows, [], {}, no_notification)
     db.commit()
     assert db.query(models.MetrikaGoals).count() == 60
+
+
+@pytest.fixture
+def standalone(goal_db, monkeypatch):
+    from datetime import datetime
+    from automation import sync
+    db, integration = goal_db
+    integration.platform = models.IntegrationPlatform.YANDEX_METRIKA
+    integration.access_token = "test-only"
+    integration.account_id = "123"
+    integration.agency_client_login = None
+    integration.client = SimpleNamespace(status=models.ClientStatus.ACTIVE, owner_id=None)
+    integration.last_sync_at = datetime(2026, 8, 1)
+    monkeypatch.setattr(sync.security, "decrypt_token", lambda _: "test-only")
+    monkeypatch.setattr(sync, "_notify_missing_metrika_goals", no_notification)
+    monkeypatch.setattr(sync, "_run_detector_after_sync", lambda *_: False)
+    monkeypatch.setattr("backend_api.services.project_settings.update_actual_start_date", lambda *_: None)
+    monkeypatch.setattr("backend_api.cache_service.CacheService.invalidate_client", lambda *_: None)
+    monkeypatch.setattr("automation.request_queue.get_request_queue", AsyncMock(return_value=InlineQueue()))
+    return db, integration
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["metadata", "late_batch", "bad_metrics", "bad_date", "duplicate_date"])
+async def test_standalone_keeps_old_window_even_if_caller_commits_failure(standalone, monkeypatch, failure):
+    import json
+    from automation import sync
+    db, integration = standalone
+    integration.selected_goals = json.dumps([str(i) for i in range(1, 22)])
+    previous_sync = integration.last_sync_at
+    calls = 0
+
+    async def stats(counter, start, end, **kwargs):
+        nonlocal calls
+        calls += 1
+        # Old data must still exist even during the *second* provider batch.
+        assert db.query(models.MetrikaGoals.conversion_count).scalar() == 34
+        if failure == "late_batch" and calls == 2:
+            raise TimeoutError("synthetic timeout")
+        metrics = [2] * len(kwargs["metrics"].split(","))
+        if failure == "bad_metrics":
+            metrics = []
+        row = {"dimensions": [{"name": "bad" if failure == "bad_date" else DAYS[0].isoformat()}], "metrics": metrics}
+        return [row, row] if failure == "duplicate_date" else [row]
+
+    api = SimpleNamespace(get_counter_goals=AsyncMock(return_value=None if failure == "metadata" else [
+        {"id": i, "name": str(i)} for i in range(1, 22)]), get_goals_stats=stats)
+    monkeypatch.setattr(sync, "YandexMetricaAPI", lambda *args, **kwargs: api)
+    with pytest.raises((ValueError, TimeoutError)):
+        await sync.sync_integration(db, integration, DAYS[0].isoformat(), DAYS[-1].isoformat())
+    db.commit()
+    assert db.query(models.MetrikaGoals.conversion_count).scalar() == 34
+    assert integration.last_sync_at == previous_sync
+    assert integration.sync_status == models.IntegrationSyncStatus.FAILED
+    if failure == "late_batch":
+        assert calls == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("select_all,empty", [(False, False), (True, False), (False, True)])
+async def test_standalone_replaces_complete_window_without_doubling(standalone, monkeypatch, select_all, empty):
+    from automation import sync
+    db, integration = standalone
+    integration.selected_goals = None if select_all else '["1"]'
+    api = SimpleNamespace(get_counter_goals=AsyncMock(return_value=[{"id": 1, "name": "Заявка"}]),
+        get_goals_stats=AsyncMock(return_value=[] if empty else [
+            {"dimensions": [{"name": DAYS[0].isoformat()}], "metrics": [7]}]))
+    monkeypatch.setattr(sync, "YandexMetricaAPI", lambda *args, **kwargs: api)
+    for _ in range(2):
+        await sync.sync_integration(db, integration, DAYS[0].isoformat(), DAYS[-1].isoformat())
+        db.commit()
+        rows = db.query(models.MetrikaGoals).filter(models.MetrikaGoals.date == DAYS[0]).all()
+        assert len(rows) == 2
+        assert {row.goal_id: row.conversion_count for row in rows} == {"all": 0 if empty else 7, "1": 0 if empty else 7}
+        assert next(row.goal_name for row in rows if row.goal_id == "all") == ("All Goals" if select_all else "Selected Goals")
+        assert integration.sync_status == models.IntegrationSyncStatus.SUCCESS

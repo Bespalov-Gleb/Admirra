@@ -1324,82 +1324,17 @@ async def sync_integration(
             from automation.request_queue import get_request_queue
             queue = await get_request_queue()
 
-            sync_start_date = datetime.strptime(sync_date_from, "%Y-%m-%d").date()
-            sync_end_date = datetime.strptime(sync_date_to, "%Y-%m-%d").date()
-            db.query(models.MetrikaGoals).filter(
-                models.MetrikaGoals.integration_id == integration.id,
-                models.MetrikaGoals.date >= sync_start_date,
-                models.MetrikaGoals.date <= sync_end_date,
-            ).delete(synchronize_session=False)
-            db.flush()
-
-            goal_info_list = await queue.enqueue('metrica', api.get_counter_goals, integration.account_id) or []
-            available_goals = [str(goal.get("id")) for goal in goal_info_list if goal.get("id")]
-            goal_names_map = {
-                str(goal.get("id")): goal.get("name", f"Goal {goal.get('id')}")
-                for goal in goal_info_list
-                if goal.get("id")
-            }
-
-            if selected_goals:
-                goals_to_sync = [goal_id for goal_id in selected_goals if not available_goals or goal_id in available_goals]
-                missing_goals = [goal_id for goal_id in selected_goals if available_goals and goal_id not in available_goals]
-                historical_names = {
-                    str(row.goal_id): row.goal_name
-                    for row in db.query(models.MetrikaGoals.goal_id, models.MetrikaGoals.goal_name)
-                    .filter(
-                        models.MetrikaGoals.integration_id == integration.id,
-                        models.MetrikaGoals.goal_id.in_(selected_goals),
-                        models.MetrikaGoals.goal_id != "all",
-                    )
-                    .order_by(models.MetrikaGoals.date.desc())
-                    .all()
-                    if row.goal_name
-                }
-                _notify_missing_metrika_goals(db, integration, missing_goals, historical_names)
-            else:
-                goals_to_sync = available_goals
-                historical_names = {}
-
-            totals_by_date = {day: 0 for day in _date_items(sync_date_from, sync_date_to)}
-            for goals_batch in _chunks(goals_to_sync, METRIKA_STATS_METRICS_LIMIT):
-                metrics = ",".join(f"ym:s:goal{goal_id}visits" for goal_id in goals_batch)
-                goal_data = await queue.enqueue(
-                    'metrica',
-                    api.get_goals_stats,
-                    integration.account_id,
-                    sync_date_from,
-                    sync_date_to,
-                    metrics=metrics,
-                )
-                rows_by_date = {}
-                for row in goal_data or []:
-                    try:
-                        stat_date = datetime.strptime(row['dimensions'][0]['name'], "%Y-%m-%d").date()
-                        rows_by_date[stat_date] = [int(value or 0) for value in row.get('metrics', [])]
-                    except Exception as parse_err:
-                        logger.warning(f"Failed to parse Metrika goal row for integration {integration.id}: {parse_err}")
-
-                for day in _date_items(sync_date_from, sync_date_to):
-                    values = rows_by_date.get(day, [0] * len(goals_batch))
-                    if len(values) < len(goals_batch):
-                        values = values + [0] * (len(goals_batch) - len(values))
-                    for index, goal_id in enumerate(goals_batch):
-                        visits = int(values[index] if index < len(values) else 0)
-                        goal_name = goal_names_map.get(goal_id) or historical_names.get(goal_id) or f"Goal {goal_id}"
-                        _upsert_metrika_goal(db, integration, day, goal_id, goal_name, visits, accumulate=True)
-                        totals_by_date[day] += visits
-
-            for day, total in totals_by_date.items():
-                _upsert_metrika_goal(
-                    db,
-                    integration,
-                    day,
-                    "all",
-                    "Selected Goals" if selected_goals else "All Goals",
-                    total,
-                    accumulate=True,
-                )
+            # Collect and validate the complete window before touching old rows.
+            # In particular, a malformed/partial API response is not zero leads.
+            from automation.metrika_goal_batch import latest_goal_names, collect_goal_rows, replace_goal_window
+            days = list(_date_items(sync_date_from, sync_date_to))
+            historical_names = latest_goal_names(db, integration.id, selected_goals) if selected_goals else {}
+            rows, missing_goals = await collect_goal_rows(
+                api, queue, [str(integration.account_id)], selected_goals or None,
+                days, historical_names, batch_size=METRIKA_STATS_METRICS_LIMIT,
+            )
+            replace_goal_window(db, integration, days, rows, missing_goals,
+                                historical_names, _notify_missing_metrika_goals)
 
         elif integration.platform == models.IntegrationPlatform.AVITO_ADS:
             from automation.avito_integration_helpers import (

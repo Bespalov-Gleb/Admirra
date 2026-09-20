@@ -27,22 +27,36 @@ def latest_goal_names(db, integration_id, goal_ids):
 
 
 async def collect_goal_rows(api, queue, counter_ids, goal_ids, days, known_names, filters=None, batch_size=20):
+    # None explicitly requests every goal (standalone Metrika); an empty
+    # selection for a linked advertising integration must remain empty.
+    all_goals = goal_ids is None
     if not days or batch_size < 1:
         raise ValueError("A nonempty date window and positive batch size are required")
     rows = {}
     available_anywhere = set()
     # Create totals even for a confirmed, legitimately empty counter response.
     for day in days:
-        rows[day, "all"] = {"date": day, "goal_id": "all", "goal_name": "Selected Goals", "conversion_count": 0}
+        rows[day, "all"] = {"date": day, "goal_id": "all", "goal_name": "All Goals" if all_goals else "Selected Goals", "conversion_count": 0}
 
     for counter_id in dict.fromkeys(counter_ids):
         # Metadata errors are errors, not evidence that a selected goal vanished.
         metadata = await queue.enqueue("metrica", api.get_counter_goals, counter_id)
         if not isinstance(metadata, list):
             raise ValueError("Invalid Metrika goals metadata")
-        names = {str(goal["id"]): goal.get("name") for goal in metadata}
+        names = {}
+        for goal in metadata:
+            if not isinstance(goal, dict):
+                raise ValueError("Invalid Metrika goal metadata item")
+            raw_id = goal.get("id")
+            goal_id = str(raw_id)
+            if isinstance(raw_id, bool) or not goal_id.isascii() or not goal_id.isdigit() or int(goal_id) <= 0 or goal_id in names:
+                raise ValueError("Invalid or duplicate Metrika goal ID")
+            name = goal.get("name")
+            if name is not None and not isinstance(name, str):
+                raise ValueError("Invalid Metrika goal name")
+            names[goal_id] = name
         available_anywhere.update(names)
-        selected = [goal_id for goal_id in dict.fromkeys(goal_ids) if goal_id in names]
+        selected = list(names) if all_goals else [goal_id for goal_id in dict.fromkeys(goal_ids) if goal_id in names]
         for offset in range(0, len(selected), batch_size):
             batch = selected[offset:offset + batch_size]
             response = await queue.enqueue(
@@ -74,7 +88,7 @@ async def collect_goal_rows(api, queue, counter_ids, goal_ids, days, known_names
                     })
                     row["conversion_count"] += count
                     rows[day, "all"]["conversion_count"] += count
-    missing = [goal_id for goal_id in goal_ids if goal_id not in available_anywhere]
+    missing = [] if all_goals else [goal_id for goal_id in goal_ids if goal_id not in available_anywhere]
     return list(rows.values()), missing
 
 
