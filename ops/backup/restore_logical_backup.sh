@@ -175,6 +175,7 @@ if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
     --security-opt no-new-privileges:true \
     -e DATABASE_URL=postgresql://postgres:isolated-restore-only@127.0.0.1:5432/restore \
     -e APP_PROCESS_ROLE=api \
+    -e "EXPECTED_SCHEMA_REVISION=$expected_head" \
     -e DB_AUTO_BOOTSTRAP=false \
     -e RUN_SYNC_WORKER=false \
     -e RUN_API_SCHEDULER=false \
