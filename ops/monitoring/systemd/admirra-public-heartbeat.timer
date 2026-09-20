@@ -1,0 +1,12 @@
+[Unit]
+Description=Run AdMirra external public heartbeat every two minutes
+
+[Timer]
+OnBootSec=60s
+OnUnitActiveSec=2min
+AccuracySec=10s
+RandomizedDelaySec=5s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

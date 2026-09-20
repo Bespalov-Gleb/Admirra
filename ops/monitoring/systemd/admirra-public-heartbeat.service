@@ -1,0 +1,21 @@
+[Unit]
+Description=AdMirra external public HTTPS heartbeat
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/admirra-public-heartbeat/external_heartbeat.py
+TimeoutStartSec=40
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryMax=64M
+ReadWritePaths=/var/lib/admirra-public-heartbeat
