@@ -15,6 +15,7 @@ from backend_api.folders import _summary_with_combined_leads_cpl
 from backend_api import folders
 from backend_api.stats_service import StatsService
 from backend_api.summary_scope import SummaryScope
+from backend_api.summary_facts import SummaryFacts
 from core import models
 from tests.test_durable_work import pg  # explicitly isolated, per-test schema
 
@@ -124,7 +125,7 @@ def test_combined_channels_share_one_metadata_read(summary_db):
     assert result["cpa"] == round(4500 / 43, 2)
     assert result["balance"] == 30500
     assert result["lead_cost_by_platform"] == {"yandex": 1000, "vk": 3000, "avito": 500}
-    assert len(queries) == 15
+    assert len(queries) == 6  # metadata + five grouped facts, reused by channels
 
 
 def test_folder_scope_narrows_goals_and_balances(summary_db):
@@ -210,6 +211,79 @@ def test_top_projects_loads_metadata_once_after_access_resolution(summary_db, mo
     assert result["total_projects"] == 2
     assert [row["name"] for row in result["items"]] == ["A", "B"]
     assert sum("FROM integrations" in q for q in queries) == 1
+    assert len(queries) == 6  # Constant within a bounded page, not 14 per project.
+
+
+@pytest.mark.parametrize("platform", ["all", "yandex", "vk", "avito"])
+@pytest.mark.parametrize("trends", [True, False])
+@pytest.mark.parametrize("preset", [None, "this_week", "this_month", "last_month"])
+def test_batched_facts_equal_canonical_all_fields(summary_db, platform, trends, preset):
+    db, _, a, b, _, _ = summary_db
+    scope = SummaryScope.load(db, [a, b])
+    facts = SummaryFacts(scope)
+    for ids in ([a], [b], [a, b], []):
+        expected = StatsService.aggregate_summary(db, ids, DAY, DAY, platform,
+            include_trends=trends, period_preset=preset, integration_scope=scope)
+        actual = StatsService.aggregate_summary(db, ids, DAY, DAY, platform,
+            include_trends=trends, period_preset=preset, integration_scope=scope, summary_facts=facts)
+        assert actual == expected
+
+
+def test_batched_facts_keep_filters_and_exact_direction_path(summary_db):
+    db, _, a, b, _, campaigns = summary_db
+    scope = SummaryScope.load(db, [a, b])
+    facts = SummaryFacts(scope)
+    for kwargs in ({"campaign_ids": [campaigns["y"]], "campaign_lead_overrides": {"yandex": 12}},
+                   {"vk_goal_action_ids": ["traffic"]}):
+        expected = StatsService.aggregate_summary(db, [a], DAY, DAY, integration_scope=scope, **kwargs)
+        assert StatsService.aggregate_summary(db, [a], DAY, DAY, integration_scope=scope,
+            summary_facts=facts, **kwargs) == expected
+    assert len(facts.cache) == 0
+    with pytest.raises(ValueError, match="cannot be expanded"):
+        facts.read(db, [uuid.uuid4()], DAY, DAY)
+
+
+def test_batched_new_request_observes_settings_and_stat_commit(summary_db):
+    db, _, a, b, ids, _ = summary_db
+    def read():
+        scope = SummaryScope.load(db, [a, b])
+        return StatsService.aggregate_summary(db, [a], DAY, DAY, "vk", integration_scope=scope,
+            summary_facts=SummaryFacts(scope))
+    assert read()["leads"] == 6
+    db.execute(sa.update(models.Integration).where(models.Integration.id == ids["v"]).values(lead_action_types='["traffic"]'))
+    db.commit()
+    assert read()["leads"] == 999
+    db.execute(sa.update(models.VKStats).where(models.VKStats.client_id == a, models.VKStats.date == DAY).values(conversions=20))
+    db.commit()
+    assert read()["leads"] == 20
+
+
+def test_batched_missing_goals_and_group_limit_fallback(summary_db, monkeypatch):
+    db, _, a, _, _, _ = summary_db
+    scope = SummaryScope.load(db, [a])
+    monkeypatch.setattr(SummaryFacts, "MAX_GOAL_GROUPS", 1)
+    facts = SummaryFacts(scope)
+    assert StatsService.aggregate_summary(db, [a], DAY, DAY, "yandex", integration_scope=scope,
+        summary_facts=facts) == StatsService.aggregate_summary(db, [a], DAY, DAY, "yandex")
+    assert all(value is None for value in facts.cache.values())
+    db.execute(sa.delete(models.MetrikaGoals).where(models.MetrikaGoals.client_id == a))
+    db.commit()
+    scope = SummaryScope.load(db, [a])
+    assert StatsService.aggregate_summary(db, [a], DAY, DAY, "yandex", integration_scope=scope,
+        summary_facts=SummaryFacts(scope))["goals_syncing"] is True
+
+
+def test_batch_memory_and_query_budget_are_page_bounded(summary_db, monkeypatch):
+    db, engine, a, b, _, _ = summary_db
+    ids = [a, b, *[uuid.uuid4() for _ in range(130)]]
+    scope = SummaryScope.load(db, ids)
+    facts = SummaryFacts(scope)
+    with statements(engine) as queries:
+        for cid in sorted(ids, key=str):
+            StatsService.aggregate_summary(db, [cid], DAY, DAY, integration_scope=scope, summary_facts=facts)
+            assert len(facts.cache) <= 4
+    # Three bounded pages, two periods, five facts queries per page/period.
+    assert len(queries) == 30
 
 
 def test_exists_stops_after_first_goal_row(summary_db):

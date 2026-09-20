@@ -17,6 +17,7 @@ from backend_api.services.history import log_history_event
 from backend_api.services.subscription import SubscriptionService
 from backend_api.stats_service import StatsService
 from backend_api.summary_scope import SummaryScope
+from backend_api.summary_facts import SummaryFacts
 from core import models, schemas, security
 from core.database import get_db
 
@@ -83,6 +84,7 @@ def _summary_with_combined_leads_cpl(
     *,
     include_trends: bool = True,
     integration_scope: Optional[SummaryScope] = None,
+    summary_facts=None,
 ) -> dict:
     """Собирает лиды и CPL по той же формуле, что и KPI дашборда.
 
@@ -91,9 +93,11 @@ def _summary_with_combined_leads_cpl(
     лидовый расход. Поэтому общий итог складывается из трёх канальных итогов.
     """
     integration_scope = integration_scope or SummaryScope.load(db, client_ids)
+    summary_facts = summary_facts or SummaryFacts(integration_scope)
     summary = StatsService.aggregate_summary(
         db, client_ids, d_start, d_end, include_trends=include_trends,
         integration_scope=integration_scope,
+        summary_facts=summary_facts,
     )
     total_leads = 0
     lead_cost = 0.0
@@ -106,6 +110,7 @@ def _summary_with_combined_leads_cpl(
             platform,
             include_trends=False,
             integration_scope=integration_scope,
+            summary_facts=summary_facts,
         )
         total_leads += int(channel_summary.get("leads") or 0)
         lead_cost += float((channel_summary.get("lead_cost_by_platform") or {}).get(platform) or 0)
@@ -369,10 +374,13 @@ def projects_tree(
     folder_ids = {f.id for f in folders}
     counts = _folder_counts(db, list(folder_ids))
     clients = _accessible_clients(db, current_user)
+    integration_scope = SummaryScope.load(db, [c.id for c in clients]) if with_stats else None
+    summary_facts = SummaryFacts(integration_scope) if with_stats else None
 
     def client_resp(c: models.Client) -> schemas.ClientResponse:
         if with_stats:
-            c.summary = StatsService.aggregate_summary(db, [c.id], d_start, d_end)
+            c.summary = StatsService.aggregate_summary(db, [c.id], d_start, d_end,
+                integration_scope=integration_scope, summary_facts=summary_facts)
         return schemas.ClientResponse.model_validate(c)
 
     root_projects = []
@@ -391,7 +399,8 @@ def projects_tree(
             continue
         summary = None
         if with_stats and members:
-            summary = StatsService.aggregate_summary(db, [c.id for c in members], d_start, d_end)
+            summary = StatsService.aggregate_summary(db, [c.id for c in members], d_start, d_end,
+                integration_scope=integration_scope, summary_facts=summary_facts)
         base = _folder_to_schema(f, counts)
         tree_folders.append(
             schemas.FolderTreeItem(
@@ -426,6 +435,7 @@ def folder_breakdown(
         if c.id in accessible
     ]
     integration_scope = SummaryScope.load(db, [c.id for c in members])
+    summary_facts = SummaryFacts(integration_scope)
     items = []
     for c in members:
         # summary уже содержит balance филиала (Integration.balance активных
@@ -437,10 +447,12 @@ def folder_breakdown(
             "avatar_url": c.avatar_url,
             "summary": _summary_with_combined_leads_cpl(
                 db, [c.id], d_start, d_end, integration_scope=integration_scope,
+                summary_facts=summary_facts,
             ),
         })
     total = _summary_with_combined_leads_cpl(
         db, [c.id for c in members], d_start, d_end, integration_scope=integration_scope,
+        summary_facts=summary_facts,
     ) if members else None
     return {
         "folder": _folder_to_schema(folder, _folder_counts(db, [folder.id])).model_dump(mode="json"),
@@ -467,6 +479,7 @@ def top_projects(
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else d_end - timedelta(days=6)
     members = _accessible_clients(db, current_user)
     integration_scope = SummaryScope.load(db, [c.id for c in members])
+    summary_facts = SummaryFacts(integration_scope)
 
     items = []
     for client in members:
@@ -477,6 +490,7 @@ def top_projects(
             d_end,
             include_trends=False,
             integration_scope=integration_scope,
+            summary_facts=summary_facts,
         )
         items.append({
             "client_id": str(client.id),

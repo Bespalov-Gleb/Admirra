@@ -1,6 +1,7 @@
 """Bounded authenticated read load, executed only inside an isolated restore API."""
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
+import hashlib
 import json
 import math
 import os
@@ -59,9 +60,17 @@ def main() -> None:
         "notifications": "/api/notifications",
         "summary": f"/api/dashboard/summary?start_date={start.isoformat()}&end_date={end.isoformat()}&platform=all",
     }
-    requests = list(paths.values()) * 8
+    if os.getenv("ADMIRRA_DASHBOARD_BENCHMARK") == "1":
+        period = f"start_date={start.isoformat()}&end_date={end.isoformat()}"
+        paths.update({
+            "project_cards": f"/api/clients/stats?{period}",
+            "project_tree": f"/api/folders/tree?{period}&with_stats=true",
+            "top_projects": f"/api/folders/top-projects?{period}&limit=5",
+        })
+    requests = list(paths.items()) * 8
 
-    def fetch(path: str) -> tuple[int, float]:
+    def fetch(item):
+        label, path = item
         request = urllib.request.Request(
             "http://127.0.0.1:8001" + path,
             headers={"Authorization": "Bearer " + token},
@@ -81,12 +90,15 @@ def main() -> None:
         elapsed = time.perf_counter() - started
         if len(body) > 10 * 1024 * 1024:
             raise RuntimeError("Restore API response exceeded load-smoke limit")
-        return status, elapsed
+        digest = hashlib.sha256(body).hexdigest() if status == 200 else None
+        return label, status, elapsed, len(body), digest
 
+    cold = {}
     for label, path in paths.items():
-        status, _ = fetch(path)
+        _, status, elapsed, size, digest = fetch((label, path))
         if status != 200:
             raise RuntimeError(f"Restore API warm-up failed: route={label} status={status}")
+        cold[label] = {"first_ms": round(elapsed * 1000, 2), "bytes": size, "sha256": digest}
 
     started = time.perf_counter()
     with ThreadPoolExecutor(max_workers=4) as pool:
@@ -94,7 +106,7 @@ def main() -> None:
     duration = time.perf_counter() - started
     statuses: dict[int, int] = {}
     latencies = []
-    for status, elapsed in results:
+    for _, status, elapsed, _, _ in results:
         statuses[status] = statuses.get(status, 0) + 1
         latencies.append(elapsed)
     evidence = {
@@ -106,6 +118,13 @@ def main() -> None:
         "p50_ms": round(percentile(latencies, 0.50) * 1000, 2),
         "p95_ms": round(percentile(latencies, 0.95) * 1000, 2),
         "max_ms": round(max(latencies) * 1000, 2),
+        "routes": {
+            label: {**cold[label],
+                "p50_ms": round(percentile([r[2] for r in results if r[0] == label], .5) * 1000, 2),
+                "p95_ms": round(percentile([r[2] for r in results if r[0] == label], .95) * 1000, 2),
+                "statuses": [r[1] for r in results if r[0] == label],
+            } for label in paths
+        },
     }
     print(json.dumps(evidence, sort_keys=True))
     if statuses != {200: len(results)}:

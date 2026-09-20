@@ -314,6 +314,7 @@ class StatsService:
         period_preset: Optional[str] = None,
         *,
         integration_scope: Optional[SummaryScope] = None,
+        summary_facts=None,
     ):
         if not client_ids:
             return {
@@ -562,11 +563,19 @@ class StatsService:
                 for row in sample_data[:5]:
                     debug_logger.info(f"🔍   Date: {row.date}, Campaign: {row.name}, Impressions: {row.imps}, Clicks: {row.clicks}, Cost: {row.cost}")
 
-            y_s = y_q.first() if platform in ["all", "yandex"] else None
-            v_s = v_q.first() if platform in ["all", "vk"] else None
-            v_lead_s = v_lead_q.first() if platform in ["all", "vk"] else None
-            a_s = a_q.first() if platform in ["all", "avito"] else None
-            m_s = m_q.first() if platform in ["all", "yandex", "avito"] else None
+            facts = summary_facts.read(db, client_ids, start, end) if summary_facts is not None and not campaign_ids and not vk_goal_action_ids else None
+            if facts is None:
+                y_s = y_q.first() if platform in ["all", "yandex"] else None
+                v_s = v_q.first() if platform in ["all", "vk"] else None
+                v_lead_s = v_lead_q.first() if platform in ["all", "vk"] else None
+                a_s = a_q.first() if platform in ["all", "avito"] else None
+                m_s = m_q.first() if platform in ["all", "yandex", "avito"] else None
+            else:
+                y_s = facts.get("y") if platform in ("all", "yandex") else None
+                v_s = facts.get("v") if platform in ("all", "vk") else None
+                v_lead_s = facts.get("vl") if platform in ("all", "vk") else None
+                a_s = facts.get("a") if platform in ("all", "avito") else None
+                m_s = summary_facts.metrika(facts, selected_goal_ids, goal_scope_ids, metrika_goal_platform) if platform in ("all", "yandex", "avito") else None
 
             costs = float((y_s.total_cost if y_s else 0) or 0) + float((v_s.total_cost if v_s else 0) or 0) + float((a_s.total_cost if a_s else 0) or 0)
             imps = int((y_s.total_impressions if y_s else 0) or 0) + int((v_s.total_impressions if v_s else 0) or 0) + int((a_s.total_impressions if a_s else 0) or 0)
@@ -766,7 +775,9 @@ class StatsService:
                 models.MetrikaGoals.date >= d_start,
                 models.MetrikaGoals.date <= d_end,
             )
-            goals_syncing = not db.query(metrika_rows.exists()).scalar()
+            facts = summary_facts.read(db, client_ids, d_start, d_end) if summary_facts is not None and not vk_goal_action_ids else None
+            goals_syncing = not (summary_facts.goals_present(facts, selected_goal_ids_for_summary)
+                                 if facts is not None else db.query(metrika_rows.exists()).scalar())
         
         # Previous period data for trends. Сводка ТОП-проектов использует только
         # текущий период: не делаем тяжёлые запросы за прошлый период, когда их

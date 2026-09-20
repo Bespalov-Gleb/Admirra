@@ -11,6 +11,8 @@ from typing import List
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from backend_api.stats_service import StatsService
+from backend_api.summary_scope import SummaryScope
+from backend_api.summary_facts import SummaryFacts
 from backend_api.services.subscription import SubscriptionService
 from backend_api.services.project_settings import get_detector_state, get_integration_state
 from backend_api.services.directions import normalize_label
@@ -60,11 +62,14 @@ def get_clients_with_stats(
     
     accessible_ids = get_accessible_client_ids(db, current_user)
     user_clients = db.query(models.Client).filter(models.Client.id.in_(accessible_ids)).all() if accessible_ids else []
+    integration_scope = SummaryScope.load(db, [client.id for client in user_clients])
+    summary_facts = SummaryFacts(integration_scope)
     
     results = []
     for client in user_clients:
         # Get dynamic summary with trends for each client
-        summary_data = StatsService.aggregate_summary(db, [client.id], d_start, d_end)
+        summary_data = StatsService.aggregate_summary(db, [client.id], d_start, d_end,
+            integration_scope=integration_scope, summary_facts=summary_facts)
         client.summary = summary_data
         results.append(client)
         
