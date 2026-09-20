@@ -263,9 +263,9 @@ def check_logical_backups(
 
 def render_metrics(result: Result) -> str:
     lines = [
-        "# HELP admirra_api2_monitor_ok Last API-2 monitor check result (1=ok).",
+        "# HELP admirra_api2_monitor_ok Last API-2 monitor has no critical failure (1=healthy or warning).",
         "# TYPE admirra_api2_monitor_ok gauge",
-        f'admirra_api2_monitor_ok{{role="{result.role}"}} {1 if result.status == "ok" else 0}',
+        f'admirra_api2_monitor_ok{{role="{result.role}"}} {1 if not result.errors else 0}',
         "# HELP admirra_api2_monitor_check_ok Individual API-2 monitor check result (1=ok).",
         "# TYPE admirra_api2_monitor_check_ok gauge",
     ]

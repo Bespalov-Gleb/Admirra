@@ -5,6 +5,9 @@ After=network-online.target docker.service nginx.service wg-quick@admirra0.servi
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/python3 /opt/admirra-api2-canary/check_canary.py %i --metrics-file /var/lib/admirra-api2-monitor/%i.prom
+# Exit 1 represents a warning with complete fresh metrics. Critical probe
+# failures still exit 2 and mark the unit failed.
+SuccessExitStatus=1
 TimeoutStartSec=25
 NoNewPrivileges=yes
 ProtectSystem=strict

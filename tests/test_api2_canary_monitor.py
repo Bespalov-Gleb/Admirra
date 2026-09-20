@@ -56,6 +56,27 @@ class Api2CanaryMonitorTest(unittest.TestCase):
         self.assertIn('admirra_api2_monitor_value{role="api2",name="disk_free_percent"} 42.5', metrics)
         self.assertNotIn("sensitive diagnostic", metrics)
 
+    def test_warning_does_not_escalate_monitor_health_to_critical(self):
+        result = Result(role="api2")
+        result.check("disk_warning", False, "disk below warning threshold", warning=True)
+
+        metrics = render_metrics(result)
+
+        self.assertEqual(result.status, "warning")
+        self.assertEqual(result.exit_code, 1)
+        self.assertIn('admirra_api2_monitor_ok{role="api2"} 1', metrics)
+        self.assertIn('admirra_api2_monitor_check_ok{role="api2",check="disk_warning"} 0', metrics)
+
+    def test_critical_failure_sets_monitor_health_to_zero(self):
+        result = Result(role="ingress")
+        result.check("nginx_config", False, "invalid config")
+
+        metrics = render_metrics(result)
+
+        self.assertEqual(result.status, "critical")
+        self.assertEqual(result.exit_code, 2)
+        self.assertIn('admirra_api2_monitor_ok{role="ingress"} 0', metrics)
+
     def test_atomic_write_makes_metrics_world_readable(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "monitor.prom"
