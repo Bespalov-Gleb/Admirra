@@ -157,6 +157,7 @@ if [ -n "$migration_image" ]; then
 fi
 
 application_smoke=skipped
+worker_preflight=skipped
 if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
   if [ -z "$migration_image" ] || [ ! -s "$runtime_file" ]; then
     echo "application smoke requires migration image and runtime object" >&2
@@ -170,6 +171,33 @@ if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
   test -d "$runtime_directory/root/Admirra/uploads"
   test -d "$runtime_directory/root/Admirra/secrets"
   chown -R 10001:10001 "$runtime_directory/root/Admirra"
+
+  docker run --rm \
+    --network "container:$container" \
+    --read-only \
+    --tmpfs /tmp:size=64m \
+    --user 10001:10001 \
+    --memory 512m \
+    --cpus 1 \
+    --pids-limit 128 \
+    --cap-drop ALL \
+    --security-opt no-new-privileges:true \
+    -e DATABASE_URL=postgresql://postgres:isolated-restore-only@127.0.0.1:5432/restore \
+    -e APP_PROCESS_ROLE=worker \
+    -e APP_RELEASE="restore-smoke-$expected_head" \
+    -e "EXPECTED_SCHEMA_REVISION=$expected_head" \
+    -e DB_AUTO_BOOTSTRAP=false \
+    -e RUN_SYNC_WORKER=false \
+    -e RUN_API_SCHEDULER=false \
+    -e DURABLE_TASKS=true \
+    -e REPORT_DELIVERY_GUARDS=true \
+    -e SHARED_READ_CACHE=false \
+    -e LOG_TO_STDOUT=true \
+    -v "$runtime_directory/root/Admirra/.env:/app/.env:ro" \
+    -v "$runtime_directory/root/Admirra/secrets:/app/secrets:ro" \
+    --entrypoint python \
+    "$migration_image" -c 'from automation.work_preflight import check; check()'
+  worker_preflight=passed
 
   application_container=admirra-app-restore-$suffix
   if docker container inspect "$application_container" >/dev/null 2>&1; then
@@ -233,4 +261,4 @@ else:
 fi
 
 duration=$(( $(date +%s) - started_at ))
-echo "restore drill passed: backup=$backup_id schema=$restored_revision duration_seconds=$duration network=none migration=$([ -n "$migration_image" ] && echo applied || echo skipped) application=$application_smoke"
+echo "restore drill passed: backup=$backup_id schema=$restored_revision duration_seconds=$duration network=none migration=$([ -n "$migration_image" ] && echo applied || echo skipped) worker_preflight=$worker_preflight application=$application_smoke"
