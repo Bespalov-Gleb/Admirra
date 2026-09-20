@@ -1,5 +1,7 @@
 # AdMirra DevOps — актуальный остаток до production cutover
 
+> **После следующей итерации:** candidate `3e5ddae` разбивает ночное планирование и минутные report rules на scoped children. 748 tests и restore свежей post-hotfix БД до `cd9e0f1a2b3c` прошли. Это ещё не production switch и не real-provider peak. Сделанное и точные оставшиеся границы: [devops-calendar-candidate-2026-09-20.md](devops-calendar-candidate-2026-09-20.md).
+
 > **После AI hotfix 19:01 UTC:** учёт лимита и защита от повторов нового ассистента выкачены отдельно, см. [release](assistant-quota-release-2026-09-20.md). Runtime backend/frontend теперь overlay `0e5f031`, а не исходные images `cdf0a4d`. Alembic остаётся `cc3d4e5f6a7b` плюс additive `assistant_request_runs`; будущий head — `cd9e0f1a2b3c`. Полный cutover по-прежнему закрыт; ниже исторические этапы не являются свежим разрешением. Новый rollback inventory — `ops/rollback_images.json`.
 
 > **Дополнение после ревью 20.09:** прежний список из трёх P0 не является полным разрешением cutover. Найдены незакрытые AI run/quota/idempotency и scoped peak runner, сохраняются transaction/global-handler gaps. Исправленные дефекты, evidence и обновлённый порядок: [devops-review-2026-09-20.md](devops-review-2026-09-20.md). Аккаунт для тестов владелец уже предоставил; ждать выбора аккаунта больше не требуется. Alerts пока отложены, gate не обходится.

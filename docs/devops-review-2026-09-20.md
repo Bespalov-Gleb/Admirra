@@ -1,5 +1,7 @@
 # DevOps review — 20.09.2026
 
+> Следующая итерация `3e5ddae`: `nightly.enqueue` / `reports.rules` теперь bounded planners с scoped children; полный suite 748 passed, свежий restore до `cd9e0f1a2b3c` passed. R3 закрыт **частично**, остальные общие handlers и sync transactions не исправлены этим изменением. [Candidate evidence](devops-calendar-candidate-2026-09-20.md). Новый candidate не включён в production.
+
 > **Обновление 19:01 UTC:** по отдельному разрешению владельца выкатили узкий hotfix нового ассистента `0e5f031`: quota reservation, request idempotency, SSE cleanup, usage по итерациям. R1 ниже описывает исходное finding; эти части теперь закрыты и проверены на prod. Полный cost reconciliation и большой DevOps cutover не объявлены завершёнными. Точные границы, images, smoke и rollback: [assistant-quota-release-2026-09-20.md](assistant-quota-release-2026-09-20.md).
 
 ## Вердикт и границы
