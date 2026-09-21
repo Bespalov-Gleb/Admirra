@@ -8,5 +8,5 @@ RUN python /tmp/api-only-test.py && rm /tmp/api-only-test.py
 COPY tests/ /app/tests/
 COPY ops/run_isolated_tests.py /app/ops/run_isolated_tests.py
 COPY ops/backup/api_load_smoke.py /app/ops/backup/api_load_smoke.py
-COPY automation/work_tables.py automation/work_ledger.py /app/automation/
+COPY automation/work_tables.py automation/work_ledger.py automation/work_errors.py /app/automation/
 COPY core/job_fence.py /app/core/job_fence.py

@@ -262,9 +262,9 @@ class GoogleSheetsService:
 
     @classmethod
     def prepare_snapshot(cls, client_id: str, db: Session) -> dict:
-        """SQL only: plain values survive closing the read session, no Google SDK."""
-        return {"Raw Data": cls.raw_rows(client_id, db), "Weekly Reports": cls.weekly_rows(client_id, db),
-                "Monthly Report": cls.monthly_rows(client_id, db), "Goals": cls.goal_rows(client_id, db)}
+        """SQL only, bounded complete history; never exports a truncated prefix."""
+        from automation.sheets_snapshot import prepare_snapshot
+        return prepare_snapshot(client_id, db)
 
     def write_snapshot(self, spreadsheet_id: str, snapshot: dict) -> dict:
         """External IO only; caller must have closed its SQL transaction."""

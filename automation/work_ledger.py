@@ -131,10 +131,16 @@ def prune_completed(db):
 
 
 def finish(db, job_id, token, *, error=None):
+    from automation.work_errors import RejectedBeforeExternalIO
     now = _clock(db)
     # Execution retries are explicit. Broker redelivery alone cannot replay an
     # external side effect after a completed/failed execution.
-    state = "succeeded" if error is None else sa.case((jobs.c.replay_safe.is_(False), "uncertain"), else_="failed")
+    if error is None:
+        state = "succeeded"
+    elif isinstance(error, RejectedBeforeExternalIO):
+        state = "failed"
+    else:
+        state = sa.case((jobs.c.replay_safe.is_(False), "uncertain"), else_="failed")
     changed = db.execute(jobs.update().where(
         jobs.c.id == job_id, jobs.c.lease_token == token, jobs.c.state == "running", jobs.c.lease_until > now,
     ).values(state=state, finished_at=now, lease_token=None, lease_until=None,
