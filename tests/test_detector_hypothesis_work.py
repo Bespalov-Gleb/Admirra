@@ -66,6 +66,15 @@ async def run(g):
         return await work.execute(g.factory, g.client)
 
 
+@pytest.mark.asyncio
+async def test_expected_owner_cannot_adopt_current_owner_context(hypothesis):
+    import uuid
+    g = hypothesis
+    with fenced_job(g.job, g.token):
+        assert await work.execute(g.factory, g.client, expected_owner_id=uuid.uuid4()) == 0
+    assert not g.constructors and not g.calls
+
+
 def current(g):
     with g.factory() as db:
         alert = db.get(models.DetectorAlert, g.alert)

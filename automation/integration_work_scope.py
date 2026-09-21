@@ -17,7 +17,7 @@ class IntegrationScopeChanged(RejectedBeforeExternalIO):
     pass
 
 
-def require_scope(db, payload, *, kind, integration_id):
+def require_execution(db, payload, *, kind, integration_id):
     fence = current_fence.get()
     if fence is None:
         raise LeaseLost("Integration work requires the durable executor")
@@ -31,6 +31,12 @@ def require_scope(db, payload, *, kind, integration_id):
     if (execution["kind"] != kind or execution["resource"] != f"integration:{integration_id}"
             or execution["payload"] != payload):
         raise IntegrationScopeChanged("Queued integration work does not match its execution scope")
+    return execution
+
+
+def require_scope(db, payload, *, kind, integration_id):
+    execution = require_execution(db, payload, kind=kind, integration_id=integration_id)
+    integration_id = uuid.UUID(str(integration_id))
     integration = db.get(models.Integration, integration_id)
     client = db.get(models.Client, integration.client_id) if integration else None
     if (not client or client.status != models.ClientStatus.ACTIVE or integration.connection_status != "active"

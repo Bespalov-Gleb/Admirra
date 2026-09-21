@@ -80,7 +80,7 @@ def apply(db, plan, text, now):
     return True
 
 
-async def execute(factory, client_id):
+async def execute(factory, client_id, *, expected_owner_id=None):
     if current_fence.get() is None:
         raise LeaseLost("Detached hypothesis work requires the durable executor")
     cfg = get_config()
@@ -88,6 +88,8 @@ async def execute(factory, client_id):
         return 0
     with factory() as db:
         plans = prepare(db, client_id, datetime.now(timezone.utc))
+    if expected_owner_id is not None:
+        plans = [plan for plan in plans if plan.owner_id == expected_owner_id]
     if not plans:
         return 0
 

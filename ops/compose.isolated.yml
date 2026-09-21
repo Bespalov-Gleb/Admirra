@@ -93,6 +93,7 @@ services:
       - tests/test_metrika_goal_batch.py
       - tests/test_metrika_goal_work.py
       - tests/test_metrika_history_work.py
+      - tests/test_metrika_sync_work.py
       - tests/test_metrika_api_failure.py
       - tests/test_postgres_runtime_health.py
       - tests/test_economics_master.py

@@ -93,6 +93,12 @@ def execute(payload):
     from backend_api.sync_jobs import _run_job_sync
     job_id = uuid.UUID(payload["sync_job_id"])
     with SessionLocal() as db:
+        platform = db.scalar(select(models.Integration.platform).join(models.SyncJob,
+            models.SyncJob.integration_id == models.Integration.id).where(models.SyncJob.id == job_id))
+    if platform == models.IntegrationPlatform.YANDEX_METRIKA:
+        from automation.metrika_sync_work import run
+        return run(SessionLocal, payload)
+    with SessionLocal() as db:
         business_job = db.get(models.SyncJob, job_id)
         if business_job and business_job.status == models.SyncJobStatus.SUCCESS:
             return

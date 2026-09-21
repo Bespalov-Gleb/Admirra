@@ -106,6 +106,16 @@ def apply(db, plan, rows, missing):
     replace_goal_window(db, integration, plan.days, rows, missing, plan.known_names, _notify_missing_metrika_goals)
 
 
+async def collect(plan):
+    from automation.yandex_metrica import YandexMetricaAPI
+    from automation.request_queue import get_request_queue
+    from automation.sync import METRIKA_STATS_METRICS_LIMIT
+    api = YandexMetricaAPI(plan.token, client_login=plan.profile)
+    queue = await get_request_queue()
+    return await collect_goal_rows(api, queue, plan.counters, plan.goals, plan.days,
+        plan.known_names, filters=plan.filters, batch_size=METRIKA_STATS_METRICS_LIMIT)
+
+
 async def execute(factory, payload, *, kind="goals"):
     if kind not in {"goals", "history.backfill"}:
         raise ValueError("Unsupported Metrika execution kind")
@@ -125,13 +135,7 @@ async def execute(factory, payload, *, kind="goals"):
             raise IntegrationScopeChanged("Integration scope changed during goals preparation")
     if plan is None:
         return "skipped"
-    from automation.yandex_metrica import YandexMetricaAPI
-    from automation.request_queue import get_request_queue
-    from automation.sync import METRIKA_STATS_METRICS_LIMIT
-    api = YandexMetricaAPI(plan.token, client_login=plan.profile)
-    queue = await get_request_queue()
-    rows, missing = await collect_goal_rows(api, queue, plan.counters, plan.goals, plan.days,
-        plan.known_names, filters=plan.filters, batch_size=METRIKA_STATS_METRICS_LIMIT)
+    rows, missing = await collect(plan)
     with factory.begin() as db:
         apply(db, plan, rows, missing)
         if kind == "history.backfill":
