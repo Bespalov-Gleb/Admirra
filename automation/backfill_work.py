@@ -138,9 +138,16 @@ def status(client_ids):
 
 async def execute(payload):
     from core.database import SessionLocal
+    from core import models
     from automation.sync import sync_integration
     from automation.integration_work_scope import require_scope
     with SessionLocal() as db:
         integration, _ = require_scope(db, payload, kind="history.backfill", integration_id=payload["integration_id"])
-        await sync_integration(db, integration, payload["date_from"], payload["date_to"], historical=True)
-        db.commit()
+        if integration.platform != models.IntegrationPlatform.YANDEX_METRIKA:
+            await sync_integration(db, integration, payload["date_from"], payload["date_to"], historical=True)
+            db.commit()
+            return
+    # Close the dispatcher session before detached prepare/fetch/apply. The
+    # handler revalidates the authoritative scope; no ORM objects cross it.
+    from automation.metrika_goal_work import execute as collect_metrika
+    return await collect_metrika(SessionLocal, payload, kind="history.backfill")
