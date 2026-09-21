@@ -2,7 +2,9 @@
 
 import asyncio
 import logging
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 from core import models
 from core.database import SessionLocal
@@ -114,11 +116,89 @@ async def send_overflow_renewal_warnings(*, subscription_id=None, owner_id=None,
         db.close()
 
 
+def _recurring_snapshot(sub):
+    # Compare the complete row, including pending tariff/slot changes and period.
+    # JSON price books must not share mutable references with the ORM instance.
+    return {column.key: deepcopy(getattr(sub, column.key)) for column in models.Subscription.__table__.columns}
+
+
+def _recurring_terms(sub):
+    from backend_api.billing import _normalize_billing_period
+    from core import pricing
+    from core.config import get_config
+
+    pending_code = sub.pending_plan_code
+    fallback = pricing.resolve_plan(pending_code or sub.plan_code or "start", get_config().billing)
+    snapshot = sub.pending_price_book_snapshot if pending_code else sub.price_book_snapshot
+    spec = pricing.plan_from_snapshot(snapshot, fallback)
+    plan = SubscriptionService.get_plan_from_config(spec.code, spec=spec, price_fixed=bool(snapshot))
+    period = _normalize_billing_period(sub.pending_billing_period or sub.billing_period)
+    slots = (max(0, int(sub.pending_purchased_project_slots))
+             if sub.pending_purchased_project_slots is not None else SubscriptionService._purchased_slots(sub))
+    return plan, period, slots
+
+
+def _matches_recurring(db, sub, snapshot, email):
+    if sub is None or _recurring_snapshot(sub) != snapshot:
+        return False
+    owner = db.query(models.User).filter(models.User.id == snapshot["user_id"]).first()
+    return owner is not None and (owner.email or "") == email
+
+
+async def _reconcile_scoped_recurring(subscription_id, owner_id):
+    """Prepare -> release SQL -> provider IO -> fenced conditional confirmation.
+
+    This detects concurrent cancellation/edits; it does not serialize the legacy
+    API's external operations. A changed/unknown result remains uncertain in the
+    durable ledger, not an automatic retry or an assertion of provider state.
+    """
+    from backend_api.billing import _update_recurrent_total
+
+    with SessionLocal.begin() as db:
+        sub = _scoped(db.query(models.Subscription), subscription_id, owner_id).filter(
+            models.Subscription.recurring_sync_required.is_(True),
+            models.Subscription.cancel_at_period_end.is_(False),
+            models.Subscription.cloudpayments_subscription_id.isnot(None),
+        ).first()
+        if sub is None or not str(sub.cloudpayments_subscription_id or "").strip():
+            return 0
+        owner = db.query(models.User).filter(models.User.id == owner_id).first()
+        if owner is None:
+            return 0
+        snapshot, email = _recurring_snapshot(sub), owner.email or ""
+        plan, period, slots = _recurring_terms(sub)
+
+    # Recheck after preparation and validate the execution fence before IO.
+    # No session/row lock is held while waiting for the payment provider.
+    with SessionLocal.begin() as db:
+        sub = _scoped(db.query(models.Subscription), subscription_id, owner_id).first()
+        if not _matches_recurring(db, sub, snapshot, email):
+            return 0
+    try:
+        confirmed = await _update_recurrent_total(SimpleNamespace(**deepcopy(snapshot)), plan, period, slots, email)
+    except Exception:
+        raise BillingMaintenanceUncertain("Recurring update was not confirmed") from None
+    if not confirmed:
+        raise BillingMaintenanceUncertain("Recurring update was not confirmed")
+
+    with SessionLocal.begin() as db:
+        sub = _scoped(db.query(models.Subscription), subscription_id, owner_id).with_for_update().first()
+        if not _matches_recurring(db, sub, snapshot, email):
+            raise BillingMaintenanceUncertain("Subscription changed during recurring update; reconcile provider state")
+        sub.recurring_sync_required = False
+    return 1
+
+
 async def reconcile_recurring_totals(*, subscription_id=None, owner_id=None) -> int:
     """Повторяет временно не принятые CloudPayments изменения суммы."""
     from backend_api.billing import _normalize_billing_period, _update_recurrent_total
     from core import pricing
     from core.config import get_config
+
+    if (subscription_id is None) != (owner_id is None):
+        raise ValueError("Subscription and owner must be specified together")
+    if subscription_id is not None:
+        return await _reconcile_scoped_recurring(subscription_id, owner_id)
 
     db = SessionLocal()
     repaired = 0

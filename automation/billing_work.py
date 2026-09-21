@@ -2,7 +2,8 @@
 
 Legacy per-subscription calculations remain unchanged. Children have separate
 resources and are non-replayable: ambiguous outcomes require reconciliation.
-This module does not claim to remove all SQL/HTTP overlap in legacy billing.
+Scoped children release SQL before provider IO and fence local confirmation;
+legacy interactive payment/cancellation operations still need serialization.
 """
 from datetime import datetime, timedelta, timezone
 import uuid

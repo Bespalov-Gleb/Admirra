@@ -232,3 +232,172 @@ async def test_warning_confirmation_rejects_expired_execution_lease(billing_scop
         assert db.get(models.Subscription, uuid.UUID(int=1)).overflow_warning_period_end is None
         assert work_ledger.recover_expired(db) == 1
         assert db.scalar(sa.select(jobs.c.state).where(jobs.c.id == job_id)) == "uncertain"
+
+
+@pytest.mark.asyncio
+async def test_recurring_provider_has_no_checked_out_sql_and_preserves_pricing(billing_scope, monkeypatch):
+    from backend_api import billing
+    factory, owners = billing_scope
+    populate(billing_scope)
+    with factory.begin() as db:
+        sub = db.get(models.Subscription, uuid.UUID(int=1))
+        sub.pending_plan_code = "pro"
+        sub.pending_billing_period = "year"
+        sub.pending_purchased_project_slots = 2
+        plan, period, slots = notifications._recurring_terms(sub)
+        amount = billing._subscription_total(plan, period, slots)
+    async def send(provider_id, **changes):
+        assert factory.kw["bind"].pool.checkedout() == 0
+        assert provider_id == "synthetic-1"
+        assert changes["Amount"] == amount
+        assert changes["Period"] == 12 and changes["Interval"] == "Month"
+        assert changes["CustomerReceipt"]["amounts"]["electronic"] == amount
+        return {"Success": True}
+    sender = AsyncMock(side_effect=send)
+    monkeypatch.setattr(billing.CloudPaymentsService, "update_subscription", sender)
+    assert await notifications.reconcile_recurring_totals(subscription_id=uuid.UUID(int=1), owner_id=owners[0]) == 1
+    assert await notifications.reconcile_recurring_totals(subscription_id=uuid.UUID(int=1), owner_id=owners[0]) == 0
+    sender.assert_awaited_once()
+    with factory() as db:
+        sub = db.get(models.Subscription, uuid.UUID(int=1))
+        assert sub.recurring_sync_required is False
+        assert sub.pending_plan_code == "pro"  # Confirmation does not apply the future plan early.
+        assert sub.pending_purchased_project_slots == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("changed", ["cancel", "provider", "plan", "slots", "period", "snapshot", "owner", "email", "delete"])
+async def test_recurring_does_not_confirm_over_concurrent_changes(billing_scope, monkeypatch, changed):
+    from backend_api import billing
+    factory, owners = billing_scope
+    payload, end = populate(billing_scope)
+    work.plan_page(factory, payload)
+    request = child(billing_scope, "billing.recurring")
+    async def send(*_):
+        assert factory.kw["bind"].pool.checkedout() == 0
+        with factory.begin() as db:
+            sub = db.get(models.Subscription, uuid.UUID(int=1))
+            if changed == "cancel":
+                sub.cancel_at_period_end = True
+                sub.cloudpayments_subscription_id = None
+            elif changed == "provider":
+                sub.cloudpayments_subscription_id = "replacement"
+            elif changed == "plan":
+                sub.pending_plan_code = "pro"
+            elif changed == "slots":
+                sub.pending_purchased_project_slots = 5
+            elif changed == "period":
+                sub.current_period_end = end + timedelta(days=30)
+            elif changed == "snapshot":
+                sub.pending_price_book_snapshot = {"synthetic": "changed during IO"}
+            elif changed == "owner":
+                sub.user_id = owners[1]
+            elif changed == "email":
+                db.get(models.User, owners[0]).email = "new@example.test"
+            else:
+                db.delete(sub)
+        return True
+    monkeypatch.setattr(billing, "_update_recurrent_total", AsyncMock(side_effect=send))
+    with pytest.raises(notifications.BillingMaintenanceUncertain, match="changed during"):
+        await work.execute("billing.recurring", request)
+    with factory() as db:
+        sub = db.get(models.Subscription, uuid.UUID(int=1))
+        if changed == "delete":
+            assert sub is None
+        else:
+            assert sub.recurring_sync_required is True
+            if changed == "cancel":
+                assert sub.cancel_at_period_end is True and sub.cloudpayments_subscription_id is None
+
+
+@pytest.mark.asyncio
+async def test_recurring_change_during_preparation_skips_provider(billing_scope, monkeypatch):
+    from backend_api import billing
+    factory, owners = billing_scope
+    populate(billing_scope)
+    original = notifications._recurring_terms
+    def prepare(sub):
+        result = original(sub)
+        with factory.begin() as db:
+            db.get(models.Subscription, sub.id).cancel_at_period_end = True
+        return result
+    monkeypatch.setattr(notifications, "_recurring_terms", prepare)
+    sender = AsyncMock()
+    monkeypatch.setattr(billing, "_update_recurrent_total", sender)
+    assert await notifications.reconcile_recurring_totals(subscription_id=uuid.UUID(int=1), owner_id=owners[0]) == 0
+    sender.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("after_io", [False, True])
+async def test_recurring_lease_loss_rejects_send_or_confirmation(billing_scope, monkeypatch, after_io):
+    from backend_api import billing
+    from automation import work_ledger
+    from core.job_fence import fenced_job, LeaseLost
+    factory, _ = billing_scope
+    payload, _ = populate(billing_scope)
+    work.plan_page(factory, payload)
+    with factory.begin() as db:
+        job_id = db.scalar(sa.select(jobs.c.id).where(jobs.c.kind == "billing.recurring"))
+        execution = work_ledger.claim(db, job_id)
+    def expire():
+        with factory.kw["bind"].begin() as conn:
+            conn.execute(jobs.update().where(jobs.c.id == job_id).values(
+                lease_until=sa.func.clock_timestamp() - sa.text("interval '1 second'")))
+    async def send(*_):
+        assert factory.kw["bind"].pool.checkedout() == 0
+        expire()
+        return True
+    sender = AsyncMock(side_effect=send)
+    monkeypatch.setattr(billing, "_update_recurrent_total", sender)
+    if not after_io:
+        expire()
+    request = child(billing_scope, "billing.recurring")
+    with fenced_job(job_id, execution["lease_token"]):
+        with pytest.raises(LeaseLost):
+            await work.execute("billing.recurring", request)
+    assert sender.await_count == int(after_io)
+    with factory.begin() as db:
+        assert db.get(models.Subscription, uuid.UUID(int=1)).recurring_sync_required is True
+        assert work_ledger.recover_expired(db) == 1
+        assert db.scalar(sa.select(jobs.c.state).where(jobs.c.id == job_id)) == "uncertain"
+
+
+@pytest.mark.asyncio
+async def test_recurring_exception_after_provider_acceptance_is_uncertain(billing_scope, monkeypatch):
+    from backend_api import billing
+    factory, owners = billing_scope
+    populate(billing_scope)
+    monkeypatch.setattr(billing, "_update_recurrent_total", AsyncMock(side_effect=TimeoutError("synthetic")))
+    with pytest.raises(notifications.BillingMaintenanceUncertain):
+        await notifications.reconcile_recurring_totals(subscription_id=uuid.UUID(int=1), owner_id=owners[0])
+    with factory() as db:
+        assert db.get(models.Subscription, uuid.UUID(int=1)).recurring_sync_required is True
+
+
+def test_recurring_changed_after_io_blocks_redelivery_and_next_occurrence(billing_scope, monkeypatch):
+    from backend_api import billing
+    from automation import work_executor
+    factory, _ = billing_scope
+    payload, _ = populate(billing_scope)
+    work.plan_page(factory, payload)
+    monkeypatch.setattr(work_executor, "engine", factory.kw["bind"])
+    async def send(*_):
+        with factory.begin() as db:
+            db.get(models.Subscription, uuid.UUID(int=1)).pending_purchased_project_slots = 3
+        return True
+    sender = AsyncMock(side_effect=send)
+    monkeypatch.setattr(billing, "_update_recurrent_total", sender)
+    with factory() as db:
+        job_id = db.scalar(sa.select(jobs.c.id).where(jobs.c.kind == "billing.recurring"))
+    assert work_executor.execute_job(job_id) == "finished"
+    with factory() as db:
+        assert db.scalar(sa.select(jobs.c.state).where(jobs.c.id == job_id)) == "uncertain"
+    assert work_executor.execute_job(job_id) == "not_claimed"
+    stamp = datetime.fromisoformat(payload["scheduled_at"]) + timedelta(seconds=30)
+    work.plan_page(factory, {"scheduled_at": stamp.isoformat()})
+    with factory() as db:
+        next_id = db.scalar(sa.select(jobs.c.id).where(jobs.c.kind == "billing.recurring", jobs.c.id != job_id))
+    assert next_id is not None
+    assert work_executor.execute_job(next_id) == "not_claimed"
+    sender.assert_awaited_once()
