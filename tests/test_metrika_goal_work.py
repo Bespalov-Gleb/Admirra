@@ -241,3 +241,9 @@ def test_window_preserves_first_sync_and_legacy_lookback(monkeypatch, first, loo
     monkeypatch.setenv("METRIKA_GOALS_LOOKBACK_DAYS", lookback)
     days = goal_window(str(DAY), str(DAY), first_sync=first)
     assert days[0].isoformat() == start and days[-1] == DAY
+
+
+def test_first_sync_does_not_shorten_an_explicit_long_window(monkeypatch):
+    monkeypatch.setenv("METRIKA_GOALS_LOOKBACK_DAYS", "30")
+    days = goal_window("2026-01-01", str(DAY), first_sync=True)
+    assert days[0].isoformat() == "2026-01-01" and days[-1] == DAY

@@ -255,3 +255,15 @@ async def test_lease_lost_after_data_flush_rolls_back_data_and_success_together(
     assert counts(g) == {"1": 34}
     assert state(g)[:3] == (models.SyncJobStatus.RUNNING, models.IntegrationSyncStatus.PENDING, datetime(2026, 9, 9))
     assert not g.invalidated and not g.enriched
+
+
+@pytest.mark.asyncio
+async def test_first_sync_covers_the_entire_accepted_long_period(current_sync):
+    g = current_sync
+    with g.factory.begin() as db:
+        db.execute(sa.delete(models.MetrikaGoals).where(models.MetrikaGoals.integration_id == g.id))
+        job = db.get(models.SyncJob, g.business)
+        job.params = json.dumps({**json.loads(job.params), "date_from": "2026-01-01"})
+    await run(g)
+    assert g.calls[0][1:3] == ("2026-01-01", str(DAY))
+    assert state(g)[0] == models.SyncJobStatus.SUCCESS

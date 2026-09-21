@@ -9,7 +9,9 @@ def goal_window(date_from, date_to, *, first_sync):
     if start > end:
         raise ValueError("Invalid Metrika date window")
     if first_sync:
-        start = end - timedelta(days=89)
+        # Bootstrap may widen the requested interval, never silently truncate
+        # an explicitly accepted range longer than ninety days.
+        start = min(start, end - timedelta(days=89))
     try:
         lookback = int(os.getenv("METRIKA_GOALS_LOOKBACK_DAYS", "30"))
         start = min(start, end - timedelta(days=lookback))
