@@ -82,6 +82,7 @@ def submit_project(db, client_id, integration_ids, chunks, months, cooldown_seco
             submit(db, kind="history.backfill", queue="sync.backfill",
                 key=f"backfill:{run_id}:{integration_id}:{start}", resource=f"integration:{integration_id}",
                 tenant=tenant_id, payload={"run_id": str(run_id), "client_id": str(client_id),
+                    "owner_id": str(tenant_id),
                     "integration_id": str(integration_id), "date_from": start.isoformat(), "date_to": end.isoformat()},
                 replay_safe=True)
     return "started"
@@ -137,13 +138,9 @@ def status(client_ids):
 
 async def execute(payload):
     from core.database import SessionLocal
-    from core import models
     from automation.sync import sync_integration
-    from backend_api.services.project_settings import is_project_paused
+    from automation.integration_work_scope import require_scope
     with SessionLocal() as db:
-        integration = db.get(models.Integration, uuid.UUID(payload["integration_id"]))
-        if (not integration or str(integration.client_id) != payload["client_id"]
-                or integration.connection_status != "active" or is_project_paused(integration.client)):
-            raise ValueError("History source removed, inactive or project paused")
+        integration, _ = require_scope(db, payload, kind="history.backfill", integration_id=payload["integration_id"])
         await sync_integration(db, integration, payload["date_from"], payload["date_to"], historical=True)
         db.commit()

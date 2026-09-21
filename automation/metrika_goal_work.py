@@ -94,7 +94,9 @@ def apply(db, plan, rows, missing):
 async def execute(factory, payload):
     if current_fence.get() is None:
         raise LeaseLost("Goals-only work requires the durable executor")
-    with factory() as db:
+    with factory.begin() as db:
+        from automation.integration_work_scope import require_scope
+        require_scope(db, payload, kind="goals", integration_id=payload["integration_id"])
         plan = prepare(db, uuid.UUID(payload["integration_id"]), payload["date_from"], payload["date_to"])
     if plan is None:
         return "skipped"

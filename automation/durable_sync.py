@@ -121,13 +121,17 @@ def enqueue_goals(integration_id, date_from, date_to):
     if datetime.strptime(date_from, "%Y-%m-%d") > datetime.strptime(date_to, "%Y-%m-%d"):
         raise ValueError("Invalid goals date range")
     with SessionLocal() as db:
+        client_id = db.scalar(select(models.Integration.client_id).where(models.Integration.id == integration_id))
+        client = db.query(models.Client).filter(models.Client.id == client_id).with_for_update().first()
         integration = db.query(models.Integration).filter(models.Integration.id == integration_id).with_for_update().first()
-        if not integration:
+        if (not integration or not client or integration.client_id != client.id
+                or client.status != models.ClientStatus.ACTIVE or integration.connection_status != "active"):
             return
         # Small time bucket prevents a dashboard polling loop creating endless work.
         from sqlalchemy import func
         minute = int(db.execute(select(func.extract("epoch", func.clock_timestamp()))).scalar_one()) // 300
         submit(db, kind="goals", queue="sync.manual", key=f"goals:{integration_id}:{date_from}:{date_to}:{minute}",
-               resource=f"integration:{integration_id}", tenant=integration.client.owner_id,
-               payload={"integration_id": str(integration_id), "date_from": date_from, "date_to": date_to}, replay_safe=True)
+               resource=f"integration:{integration_id}", tenant=client.owner_id,
+               payload={"integration_id": str(integration_id), "client_id": str(client.id),
+                        "owner_id": str(client.owner_id), "date_from": date_from, "date_to": date_to}, replay_safe=True)
         db.commit()

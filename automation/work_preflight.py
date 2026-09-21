@@ -5,6 +5,20 @@ from urllib.parse import urlsplit
 import sqlalchemy as sa
 
 
+def check_integration_bindings(db):
+    unbound = db.scalar(sa.text("""
+        SELECT count(*) FROM background_jobs
+        WHERE kind IN ('goals', 'history.backfill') AND state IN ('queued', 'running')
+          AND (payload->>'owner_id' IS DISTINCT FROM tenant
+            OR nullif(payload->>'owner_id', '') IS NULL
+            OR nullif(payload->>'client_id', '') IS NULL
+            OR nullif(payload->>'integration_id', '') IS NULL
+            OR resource IS DISTINCT FROM 'integration:' || (payload->>'integration_id'))
+    """))
+    if unbound:
+        raise RuntimeError("Unbound legacy integration jobs must be reconciled/resubmitted before worker startup")
+
+
 def prepare_worker_parent():
     """Preflight may open SQL connections; parent must not retain them at fork.
 
@@ -46,3 +60,4 @@ def check():
         """))
         if orphaned:
             raise RuntimeError("Legacy sync jobs must be drained/reconciled before durable workers start")
+        check_integration_bindings(db)

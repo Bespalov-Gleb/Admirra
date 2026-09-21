@@ -102,6 +102,8 @@ def test_history_uses_account_quota_not_project_id(backfills):
         history.submit_project(db, client, [uuid.uuid4()],
             [(date(2026, 1, 1), date(2026, 1, 31))], 1, 3600, tenant_id=owner)
         assert db.scalar(sa.select(jobs.c.tenant)) == str(owner)
+        bound = db.scalar(sa.select(jobs.c.payload))
+        assert bound["owner_id"] == str(owner) and bound["client_id"] == str(client)
 
 
 def test_manual_queue_has_priority_and_backfill_global_cap(backfills):
