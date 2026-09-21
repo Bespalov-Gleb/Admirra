@@ -33,6 +33,7 @@ def signature(integration, client):
 class GoalPlan:
     integration_id: uuid.UUID
     client_id: uuid.UUID
+    owner_id: uuid.UUID
     settings: tuple = field(repr=False)
     token: str = field(repr=False)
     profile: str | None = field(repr=False)
@@ -75,7 +76,7 @@ def prepare(db, integration_id, date_from, date_to):
         models.MetrikaGoals.integration_id == integration_id).limit(1)) is not None
     days = goal_window(date_from, date_to,
         first_sync=not exists or integration.sync_status == models.IntegrationSyncStatus.NEVER)
-    return GoalPlan(integration.id, integration.client_id, signature(integration, client), token,
+    return GoalPlan(integration.id, integration.client_id, client.owner_id, signature(integration, client), token,
         profile, filters, goals, counters, tuple(days), latest_goal_names(db, integration.id, goals))
 
 
@@ -95,9 +96,14 @@ async def execute(factory, payload):
     if current_fence.get() is None:
         raise LeaseLost("Goals-only work requires the durable executor")
     with factory.begin() as db:
-        from automation.integration_work_scope import require_scope
+        from automation.integration_work_scope import require_scope, IntegrationScopeChanged
         require_scope(db, payload, kind="goals", integration_id=payload["integration_id"])
         plan = prepare(db, uuid.UUID(payload["integration_id"]), payload["date_from"], payload["date_to"])
+        # READ COMMITTED may observe an ownership/project change between the
+        # guard and preparation. Never adopt that new scope into this old job.
+        if plan is not None and (str(plan.integration_id) != payload["integration_id"]
+                or str(plan.client_id) != payload["client_id"] or str(plan.owner_id) != payload["owner_id"]):
+            raise IntegrationScopeChanged("Integration scope changed during goals preparation")
     if plan is None:
         return "skipped"
     from automation.yandex_metrica import YandexMetricaAPI

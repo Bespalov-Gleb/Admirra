@@ -128,6 +128,31 @@ async def test_settings_change_during_http_discards_all_rows(goals, field, value
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("change", ["owner", "project"])
+async def test_scope_change_between_guard_and_preparation_does_not_adopt_new_scope(goals, monkeypatch, change):
+    g = goals
+    original = work.prepare
+    def moving(db, *args):
+        with g.factory.begin() as other:
+            owner = models.User(email="preparation-owner@example.test", password_hash="synthetic")
+            other.add(owner)
+            other.flush()
+            if change == "owner":
+                other.get(models.Client, g.client).owner_id = owner.id
+            else:
+                client = models.Client(owner_id=owner.id, name="Moved", status=models.ClientStatus.ACTIVE)
+                other.add(client)
+                other.flush()
+                other.get(models.Integration, g.id).client_id = client.id
+        db.expire_all()
+        return original(db, *args)
+    monkeypatch.setattr(work, "prepare", moving)
+    with pytest.raises(IntegrationScopeChanged, match="during goals preparation"):
+        await run(g)
+    assert not g.constructors and counts(g) == {"1": 34}
+
+
+@pytest.mark.asyncio
 async def test_owner_change_during_collection_cannot_publish_to_new_owner(goals):
     g = goals
     original = g.api.get_goals_stats
