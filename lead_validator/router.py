@@ -4,7 +4,7 @@ FastAPI роутер для приёма лидов.
 """
 
 import logging
-from fastapi import APIRouter, Request, BackgroundTasks, Depends
+from fastapi import APIRouter, Request, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from lead_validator.schemas import LeadInput, ValidationResult
 from lead_validator.validators import lead_validator
@@ -15,6 +15,7 @@ from lead_validator.services.placement_blacklist import placement_blacklist
 from core import models, security
 from fastapi.responses import JSONResponse, Response
 from datetime import datetime, timedelta
+from datetime import date as Date, timezone
 from typing import Optional
 import uuid
 from sqlalchemy.orm import Session
@@ -84,9 +85,10 @@ async def health_check():
     summary="Статистика отклонённых заявок",
     description="Возвращает статистику за указанную дату"
 )
-async def get_stats(
-    date: str = None,
-    current_user: models.User = Depends(security.get_current_user)
+def get_stats(
+    date: Optional[Date] = None,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
 ):
     """
     Получить статистику отклонённых заявок.
@@ -94,8 +96,10 @@ async def get_stats(
     Args:
         date: Дата в формате YYYY-MM-DD (по умолчанию сегодня)
     """
-    stats = await trash_logger.get_stats(date)
-    return stats
+    from lead_validator.services.scoped_stats import daily_rejections
+    if date == Date.max:
+        raise HTTPException(status_code=422, detail="Дата вне поддерживаемого диапазона")
+    return daily_rejections(db, current_user.id, date or datetime.now(timezone.utc).date())
 
 
 @router.get(
@@ -666,4 +670,3 @@ async def get_blacklist(
             status_code=500,
             content={"error": str(e)}
         )
-

@@ -1,14 +1,13 @@
 import uuid
-from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import List
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import func, case
 from sqlalchemy.orm import Session
 
 from core import models, security
 from core.database import get_db
+from lead_validator.services.scoped_stats import project_statistics, StatsLimitExceeded
 
 router = APIRouter(prefix="/phone-stats", tags=["Phone Stats"])
 
@@ -43,64 +42,7 @@ def get_phone_stats(
     """
     Статистика заявок телефонии за период.
     """
-    since = datetime.utcnow() - timedelta(days=days)
-
-    base_query = (
-        db.query(models.Lead)
-        .join(models.PhoneProject, models.Lead.project_id == models.PhoneProject.id)
-        .filter(
-            models.PhoneProject.owner_id == current_user.id,
-            models.Lead.created_at >= since,
-        )
-    )
-
-    total = base_query.count()
-    accepted = base_query.filter(models.Lead.is_valid == True).count()
-    rejected = base_query.filter(models.Lead.is_valid == False).count()
-    rejection_rate = (rejected / total * 100) if total else 0.0
-
-    project_rows = (
-        db.query(
-            models.PhoneProject.id.label("project_id"),
-            models.PhoneProject.name.label("project_name"),
-            func.count(models.Lead.id).label("total"),
-            func.sum(case((models.Lead.is_valid == True, 1), else_=0)).label("accepted"),
-            func.sum(case((models.Lead.is_valid == False, 1), else_=0)).label("rejected"),
-        )
-        .join(models.Lead, models.Lead.project_id == models.PhoneProject.id)
-        .filter(
-            models.PhoneProject.owner_id == current_user.id,
-            models.Lead.created_at >= since,
-        )
-        .group_by(models.PhoneProject.id, models.PhoneProject.name)
-        .order_by(func.count(models.Lead.id).desc())
-        .all()
-    )
-
-    project_stats = []
-    for row in project_rows:
-        total_p = int(row.total or 0)
-        accepted_p = int(row.accepted or 0)
-        rejected_p = int(row.rejected or 0)
-        acceptance_rate = (accepted_p / total_p * 100) if total_p else 0.0
-        project_stats.append(
-            PhoneProjectStats(
-                project_id=row.project_id,
-                project_name=row.project_name,
-                total=total_p,
-                accepted=accepted_p,
-                rejected=rejected_p,
-                acceptance_rate=round(acceptance_rate, 2),
-            )
-        )
-
-    return PhoneStatsPayload(
-        stats=PhoneStatsResponse(
-            total=total,
-            accepted=accepted,
-            rejected=rejected,
-            rejection_rate=round(rejection_rate, 2),
-        ),
-        project_stats=project_stats,
-    )
-
+    try:
+        return PhoneStatsPayload(**project_statistics(db, current_user.id, days=days))
+    except StatsLimitExceeded as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc

@@ -51,6 +51,7 @@ services:
       - tests/test_cloudpayments_lookup.py
       - tests/test_billing_provider_work.py
       - tests/test_lead_alert_work.py
+      - tests/test_lead_scoped_stats.py
       - tests/test_sync_tenant_scope.py
       - tests/test_integration_work_scope.py
       - tests/test_sync_followup.py

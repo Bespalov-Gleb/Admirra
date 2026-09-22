@@ -4,6 +4,11 @@
 
 ## Новый candidate, не production
 
+**Продолжение пункта 3, 22.09:** `/lead/stats` переведён с общего файла на owner-scoped
+SQL; `/phone-stats/` — один bounded агрегат вместо четырёх запросов, без PENDING
+в отклонениях. Остальные quality/blacklist endpoints и сохранение ранних отказов
+ещё требуют правок. [Точный контракт и границы](devops-lead-stats-2026-09-22.md).
+
 **Объединённая проверка, 22.09:** isolated backend manifest — **1281 passed,
 1 skipped, 1 deselected**, 6 subtests passed; финальные report guards отдельно —
 95 passed, ещё 4 проверки отделения AI receipt от результата доставки — passed.
