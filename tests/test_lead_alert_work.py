@@ -236,6 +236,18 @@ async def test_top_sources_bounded_plain_text(scope):
 
 
 @pytest.mark.asyncio
+async def test_missing_and_empty_utm_share_one_source_threshold(scope):
+    s = scope
+    add_leads(s, 3, utm_source=None, utm_campaign=None, utm_content=None)
+    add_leads(s, 3, utm_source="", utm_campaign="", utm_content="")
+    plan(s)
+    notifier = sender(s)
+    await run(s, notifier)
+    text = notifier.send_message.call_args.args[0]
+    assert "direct / none / none: 6 из 6" in text
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("field", ["tenant", "resource", "kind"])
 async def test_authoritative_job_binding(scope, field):
     s = scope

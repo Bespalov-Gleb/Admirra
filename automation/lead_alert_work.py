@@ -131,8 +131,8 @@ def prepare(db, kind, payload):
     count = sa.func.count(lead.id)
     bad = sa.func.count(lead.id).filter(rejected)
     total, rejected_total = db.execute(sa.select(count, bad).where(*filters)).one()
-    dimensions = [sa.func.coalesce(lead.utm_source, "direct"),
-                  sa.func.coalesce(lead.utm_campaign, "none"), sa.func.coalesce(lead.utm_content, "none")]
+    dimensions = [sa.func.coalesce(sa.func.nullif(column, ""), fallback) for column, fallback in (
+        (lead.utm_source, "direct"), (lead.utm_campaign, "none"), (lead.utm_content, "none"))]
     sources = db.execute(sa.select(*dimensions, count, bad).where(*filters).group_by(*dimensions)
         .having(count >= minimum, bad * 100.0 >= count * threshold)
         .order_by((bad * 100.0 / count).desc(), bad.desc(), *dimensions).limit(10)).all()
