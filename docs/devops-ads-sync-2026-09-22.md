@@ -20,6 +20,14 @@
 
 Промежуточный расширенный прогон: **231 passed**, 194 warnings, 186,15 с, изолированные PostgreSQL/Redis, без production credentials и внешних API. После него внесены небольшие исправления; окончательный artifact regression фиксируется отдельно.
 
+Полный manifest чистого Git-артефакта `f97746d`: **1101 passed, 1 skipped, 1 deselected, 195 warnings, 6 subtests passed**, 470,55 с. После небольшой правки сохранения provider CPC/CPA финальный `3d65ef3` прошёл **129 целевых тестов**, 185 warnings, 93,41 с: новые contract/worker тесты, SDK Direct/VK, standalone Metrika lifecycle и follow-up. Полный manifest на `3d65ef3` повторно не запускался; эти два результата нельзя представлять как полный прогон одной ревизии.
+
+Финальный образ: `admirra-devops:3d65ef3`, digest `sha256:f8438bea893dad0083ab2b8d642ff4bb71e27a4143092cdc1a710b51013820f8`. Исходники упакованы из Git, не из грязного worktree; frontend, незакоммиченные probes, uploads и secrets не входят.
+
+Backup `20260922T044425Z-8fcea122` восстановлен финальным образом с миграциями до `de0f1a2b3c4d`: **50 с**, `network=none`; worker preflight/boot, application readiness/auth guard и read smoke passed. 40/40 HTTP 200, concurrency 4, p50 133,72 мс / p95 814,03 мс / max 942,48 мс. Это read + idle workers, не mixed-provider peak и не скорость страницы в браузере.
+
+Production образы повторно сверены и не менялись: backend `4ca866eb…`, frontend `274aad1d…`, automation `33b4ca03…`; все running. API-2 running/healthy. Синтетические test containers/network и restore containers/volume удалены; отсутствие подтверждено Docker inventory. Изменения зафиксированы локально; push/cutover этим этапом не выполнены.
+
 Тесты покрывают manual/auto/replay, три канала, history watermark, required detail/Metrika failure, неполные/повторные/неверные строки, пустой период, settings/owner/lease race, token rotation/follow-up, legacy keyword binding. HTTP-моки проверяют `pool.checkedout() == 0`. Сохранены регрессии standalone Метрики, scope guard и SDK.
 
 Read-only проверка доступности Авито после согласования выполнена: у указанного владельцем тестового пользователя не найдено активного подключения в доступных ему проектах (включая командные права). Внешний API не вызывался. Контракты пока проверены тестовыми ответами, не реальными кабинетами; нужен проект для живой проверки. Прежний прямой URL OpenAPI вернул HTTP 404.

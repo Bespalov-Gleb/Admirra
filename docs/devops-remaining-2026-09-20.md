@@ -2,15 +2,17 @@
 
 Обновлено 22.09.2026 после scoped DB-backed lead quality notifications. Это **не** утверждение, что весь DevOps-проект готов: ниже три крупных этапа, внутри которых остаётся существенная работа. Полное ТЗ: [admirra_devops_completion_tz_2026-09-11.md](admirra_devops_completion_tz_2026-09-11.md). [Изменения и проверки 21 сентября](devops-progress-2026-09-21.md), [уведомления о качестве лидов 22 сентября](devops-lead-alerts-2026-09-22.md).
 
-## Уже в production
+## Новый candidate, не production
 
 **Candidate sync, 22.09:** fetch/apply без SQL во время HTTP реализован также для durable manual/night/history Директа, VK и Авито, с атомарной записью, повторной проверкой settings/lease и guarded OAuth renewal. В production не включён. Общий SYNC остаётся открыт: durable per-stage coverage/freshness, UI follow-up, live vendor quota/format acceptance и mixed-load не закрыты. [Реализация и границы](devops-ads-sync-2026-09-22.md). Следующие исторические пункты о непереведённых рекламных каналах относятся к состоянию до этого candidate.
+
+## Уже в production
 
 - API-2 / Redis / приватная сеть / exporters / ingress guard; 10% canary только четырёх разрешённых GET/HEAD routes. Dashboard, mutations и SSE на две реплики пока не переключены.
 - AI gateway и отдельный AI hotfix `0e5f031`: quota ledger / request idempotency сохранены. Поверх них 21.09.2026 выложен узкий пакет ускорения сводок: backend `4ca866eb…`, automation прежний `33b4ca03…`; затем frontend обновлён до `274aad1d…` (`c39e7e2`): KPI не ждут подробные таблицы, устаревшие read-ответы блокируются. Полные digests в `ops/rollback_images.json`. Runtime не равен git checkout `/root/Admirra`, нельзя деплоить blanket pull/build/up. [Серверные замеры](devops-summary-performance-2026-09-21.md), [frontend: причина задержки, проверки, rollback и ограничения](dashboard-read-lifecycle-2026-09-21.md). Браузерная приёмка владельцем ожидается.
 - Central Prometheus: 7 targets / 23 rules. Alertmanager и внешний public heartbeat настроены для группы AdMirra Alerts. Сетевая доставка из API-1 идёт через закрытый WireGuard gateway, внешний heartbeat — напрямую. [Проверки и ограничения](devops-telegram-alerts-2026-09-20.md). Подтверждение фактического получения человеком тестовых пар пока ожидается, gate автоматически не отмечен.
 - На API-2 root LVM/ext4 расширен из уже выделенного свободного места: 18,47 → 34,47 GiB, свободно около 19 GiB вместо 3,5 GiB; запас VG 2,47 GiB. Без удаления данных/перезагрузки; services healthy. Metadata backup `/etc/lvm/backup/ubuntu-vg.before-telegram-20260920`.
-- Encrypted daily backup на server 2; свежий backup `20260922T044425Z-8fcea122` успешно восстановлен в изоляции до будущего schema head `de0f1a2b3c4d` последним candidate `f1bfefa` (50 s, workers/application/read smoke passed). [Evidence и границы](devops-lead-alerts-2026-09-22.md).
+- Encrypted daily backup на server 2; backup `20260922T044425Z-8fcea122` повторно восстановлен в изоляции до будущего schema head `de0f1a2b3c4d` candidate `3d65ef3` (50 s, workers/application/read smoke passed). [Evidence и границы](devops-ads-sync-2026-09-22.md).
 - В production schema остаётся `cc3d4e5f6a7b` плюс additive assistant ledger; новая общая миграционная цепочка/worker consumers **не включены**.
 - API-2 получил собственный WireGuard peer `10.78.0.2/32` к AI gateway: private health и каталог OpenRouter проверены из его реального backend-контейнера. API-1 peer, default routes и БД/Redis-сеть сохранены. Это сеть, не полный AI/SSE rollout на API-2.
 
