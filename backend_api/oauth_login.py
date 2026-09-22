@@ -16,6 +16,7 @@ import base64
 import hashlib
 import hmac
 import logging
+import re
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -192,6 +193,27 @@ async def _vk_id_user_info(access_token: str) -> dict:
     if not isinstance(user, dict):
         raise HTTPException(status_code=400, detail="VK ID не вернул профиль пользователя")
     return user
+
+
+def _vk_profile_phone(info: dict) -> Optional[str]:
+    """Only a full phone returned by VK ID user_info; never infer masked digits."""
+    raw = info.get("phone")
+    if not isinstance(raw, str) or len(raw) > 64:
+        return None
+    raw = raw.strip()
+    if not re.fullmatch(r"\+?[0-9 ()-]+", raw):
+        return None
+    value = re.sub(r"[ ()-]", "", raw)
+    if not re.fullmatch(r"\+?[1-9][0-9]{6,14}", value):
+        return None
+    return "+" + value.lstrip("+")
+
+
+def _fill_missing_profile_phone(user: models.User, phone: Optional[str]) -> None:
+    # Preserve the user's existing contact and never erase it on a later login
+    # when the provider omits phone (for example, after permission revocation).
+    if phone and not (user.phone or "").strip():
+        user.phone = phone
 
 
 def _synthetic_email(prefix: str, provider_uid: str) -> str:
@@ -848,6 +870,7 @@ async def vk_oauth_callback(
     email = (user_info.get("email") or "").strip() or None
     first_name = (user_info.get("first_name") or "").strip() or None
     last_name = (user_info.get("last_name") or "").strip() or None
+    phone = _vk_profile_phone(user_info)
 
     current_user = _optional_current_user(request, db)
     identity = (
@@ -864,12 +887,14 @@ async def vk_oauth_callback(
         user = db.query(models.User).filter(models.User.id == identity.user_id).first()
         if not user:
             raise HTTPException(status_code=500, detail="Пользователь не найден")
+        _fill_missing_profile_phone(user, phone)
         token = _issue_token_for_user(db, user, request, response, remember_me=body.remember_me)
         db.commit()
         return token
 
     if current_user:
         _attach_identity(db, current_user, "vk", vk_uid_str)
+        _fill_missing_profile_phone(current_user, phone)
         current_user.email_verified = True
         if first_name and not current_user.first_name:
             current_user.first_name = first_name
@@ -892,6 +917,7 @@ async def vk_oauth_callback(
         user = _find_user_by_email_ci(db, email)
         if user:
             _attach_identity(db, user, "vk", vk_uid_str)
+            _fill_missing_profile_phone(user, phone)
             user.email_verified = True
             if first_name and not user.first_name:
                 user.first_name = first_name
@@ -918,6 +944,7 @@ async def vk_oauth_callback(
         username=None,
         first_name=first_name,
         last_name=last_name,
+        phone=phone,
         password_hash=security.get_password_hash(secrets.token_urlsafe(48)),
         role=models.UserRole.MANAGER,
         email_verified=True,
