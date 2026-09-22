@@ -153,6 +153,18 @@ async def _reconcile_scoped_recurring(subscription_id, owner_id):
     durable ledger, not an automatic retry or an assertion of provider state.
     """
     from backend_api.billing import _update_recurrent_total
+    from core import billing_intents
+    if billing_intents.enabled():
+        with SessionLocal.begin() as db:
+            sub = _scoped(db.query(models.Subscription), subscription_id, owner_id).with_for_update().first()
+            if not sub or not sub.recurring_sync_required or sub.cancel_at_period_end or not sub.cloudpayments_subscription_id:
+                return 0
+            # Any unknown/rejected command must be reconciled, not bypassed by
+            # creating a new calendar occurrence with another deduplication key.
+            if billing_intents.pending(db, owner_id):
+                return 0
+            billing_intents.enqueue(db, sub, "update")
+        return 1
 
     with SessionLocal.begin() as db:
         sub = _scoped(db.query(models.Subscription), subscription_id, owner_id).filter(

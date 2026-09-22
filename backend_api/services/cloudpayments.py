@@ -23,6 +23,8 @@ class CloudPaymentsService:
 
     @staticmethod
     async def create_subscription(payload: Dict[str, Any]) -> Dict[str, Any]:
+        from core.billing_intents import require_permit
+        require_permit("create", None)
         headers = {
             "Authorization": CloudPaymentsService._auth_header(),
             "Content-Type": "application/json",
@@ -38,6 +40,8 @@ class CloudPaymentsService:
 
     @staticmethod
     async def cancel_subscription(subscription_id: str) -> Dict[str, Any]:
+        from core.billing_intents import require_permit
+        require_permit("cancel", subscription_id)
         headers = {
             "Authorization": CloudPaymentsService._auth_header(),
             "Content-Type": "application/json",
@@ -52,8 +56,8 @@ class CloudPaymentsService:
             body = resp.json()
             # CP всегда отвечает HTTP 200, ошибка — в Success:false: без этой проверки
             # неудачная отмена проходила молча и рекуррент продолжал списывать.
-            if not body.get("Success"):
-                raise RuntimeError(f"CloudPayments cancel failed: {body.get('Message') or body}")
+            if not isinstance(body, dict) or body.get("Success") is not True:
+                raise RuntimeError("CloudPayments cancellation was not confirmed")
             return body
 
     @staticmethod
@@ -63,6 +67,8 @@ class CloudPaymentsService:
         CloudPayments официально поддерживает ``subscriptions/update``. Всегда
         проверяем ``Success``: HTTP 200 у API может содержать бизнес-ошибку.
         """
+        from core.billing_intents import require_permit
+        require_permit("update", subscription_id)
         payload: Dict[str, Any] = {"Id": subscription_id}
         payload.update({key: value for key, value in changes.items() if value is not None})
         headers = {
@@ -77,8 +83,8 @@ class CloudPaymentsService:
             )
             resp.raise_for_status()
             body = resp.json()
-            if not body.get("Success"):
-                raise RuntimeError(f"CloudPayments update failed: {body.get('Message') or body}")
+            if not isinstance(body, dict) or body.get("Success") is not True:
+                raise RuntimeError("CloudPayments update was not confirmed")
             return body
 
     @staticmethod

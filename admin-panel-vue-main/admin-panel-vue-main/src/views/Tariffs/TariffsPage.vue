@@ -10,6 +10,7 @@
         <p>Управляйте текущей подпиской, лимитами и сменой тарифа</p>
       </div>
 
+      <BillingOperationNotice ref="billingOperationNotice" @state="providerOperation = $event" @settled="reloadSubscription" />
       <section class="subscription-card">
         <div class="subscription-head">
           <div>
@@ -410,6 +411,10 @@
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount, computed, nextTick } from 'vue'
+import BillingOperationNotice from './BillingOperationNotice.vue'
+const billingOperationNotice = ref(null)
+const providerOperation = ref(null)
+const cancellationPending = computed(() => providerOperation.value?.command === 'cancel_all')
 import { useRouter } from 'vue-router'
 import api from '@/api/axios'
 import { useAuth } from '@/composables/useAuth'
@@ -557,6 +562,7 @@ const daysLeft = computed(() => {
 })
 
 const renewalText = computed(() => {
+  if (cancellationPending.value) return 'Ожидаем подтверждение отмены автопродления'
   const date = formatDate(subscription.value?.subscription_expires_at)
   const days = daysLeft.value
   if (subscriptionStatusKey.value === 'past_due') return 'Не удалось списать оплату. Обновите способ оплаты.'
@@ -638,6 +644,7 @@ const cardBrandKey = computed(() => {
 const showTrialNote = computed(() => subscriptionStatusKey.value === 'trial')
 
 const autorenewText = computed(() => {
+  if (cancellationPending.value) return 'Отмена ещё не подтверждена · списание пока возможно'
   const end = subscriptionEndDate.value
   if (autorenewEnabled.value) {
     return end
@@ -924,6 +931,7 @@ async function reloadSubscription() {
     const { data } = await api.get('billing/subscription')
     subscription.value = { ...subscription.value, ...data }
     await refreshSignupOffer()
+    await billingOperationNotice.value?.refresh()
   } catch { /* не критично: подтянется при следующем открытии */ }
 }
 
@@ -1138,20 +1146,18 @@ async function onCancelAutorenew() {
   cancellingAutorenew.value = true
   try {
     const { data: cancelResult } = await api.post('billing/autorenew/cancel')
-    // Отмена автопродления = отвязка карты (бэкенд чистит маску и рекуррент CP)
-    subscription.value = {
-      ...subscription.value,
-      autorenew: false,
-      payment_method: null,
-      payment_last4: '',
-      payment_exp: '',
-      payment_brand: '',
+    // Keep card details until the provider actually confirms cancellation.
+    subscription.value = { ...subscription.value, autorenew: false }
+    if (cancelResult?.recurrent_cancelled === true) {
+      Object.assign(subscription.value, { payment_method: null, payment_last4: '', payment_exp: '', payment_brand: '' })
     }
     cancelAutorenewModalOpen.value = false
     // Бэкенд отдаёт recurrent_cancelled=false, если рекуррент в CloudPayments
     // отменить не удалось. Обещать «списаний не будет» в этом случае нельзя —
     // раньше бодрый тост показывался всегда, а деньги продолжали списываться.
-    if (cancelResult && cancelResult.recurrent_cancelled === false) {
+    if (cancelResult?.operation_id) {
+      await billingOperationNotice.value?.refresh()
+    } else if (cancelResult && cancelResult.recurrent_cancelled === false) {
       toaster.error(
         cancelResult.warning
           || 'Автопродление отключено, но платёжная система не подтвердила отмену. Напишите в поддержку.'

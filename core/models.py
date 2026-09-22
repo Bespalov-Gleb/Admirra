@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Text, ForeignKey, DateTime, Integer, Numeric, Date, Enum, BigInteger, Boolean, UniqueConstraint, JSON, Sequence, LargeBinary, Index, text, CheckConstraint
+from sqlalchemy import Column, String, Text, ForeignKey, DateTime, Integer, Numeric, Date, Enum, BigInteger, Boolean, UniqueConstraint, JSON, Sequence, LargeBinary, Index, text, CheckConstraint, Identity
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -874,6 +874,28 @@ class Subscription(Base):
 
     user = relationship("User", back_populates="subscriptions")
     plan = relationship("TariffPlan", back_populates="subscriptions")
+
+
+class BillingProviderOperation(Base):
+    """Durable intent, not an assertion that the provider executed it."""
+    __tablename__ = "billing_provider_operations"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    ordinal = Column(BigInteger, Identity(), nullable=False, unique=True)
+    user_id = Column(UUID(as_uuid=True), nullable=False)
+    subscription_id = Column(UUID(as_uuid=True), nullable=False)
+    command = Column(String(16), nullable=False)
+    provider_id = Column(String(128), nullable=True)
+    status = Column(String(16), nullable=False, default="queued")
+    job_id = Column(UUID(as_uuid=True), nullable=False)
+    evidence = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+    __table_args__ = (
+        Index("ix_billing_provider_owner_order", "user_id", "ordinal"),
+        Index("ix_billing_provider_status", "status", "updated_at"),
+        CheckConstraint("command IN ('update', 'cancel_one', 'cancel_all')", name="ck_billing_provider_command"),
+        CheckConstraint("status IN ('queued', 'dispatching', 'confirmed', 'rejected', 'uncertain', 'superseded')", name="ck_billing_provider_status"),
+    )
 
 
 class BillingEvent(Base):

@@ -40,8 +40,17 @@ def recover_expired(db):
     for job in expired:
         can_retry = job["replay_safe"] and job["attempt"] < job["max_attempts"]
         state = "queued" if can_retry else "failed" if job["replay_safe"] else "uncertain"
+        if job["kind"] == "billing.provider":
+            from core.models import BillingProviderOperation
+            receipt = db.scalar(sa.select(BillingProviderOperation.status).where(
+                BillingProviderOperation.job_id == job["id"]))
+            if receipt in {"confirmed", "superseded"}:
+                # Business confirmation and receipt were committed atomically.
+                # Recover acknowledgement, not the external request itself.
+                state = "succeeded"
         db.execute(jobs.update().where(jobs.c.id == job["id"]).values(
-            state=state, lease_token=None, lease_until=None, error_type="WorkerLeaseExpired",
+            state=state, lease_token=None, lease_until=None,
+            error_type=None if state == "succeeded" else "WorkerLeaseExpired",
             available_at=now + timedelta(seconds=5), finished_at=None if can_retry else now,
         ))
         db.execute(outbox.update().where(outbox.c.job_id == job["id"]).values(next_publish_at=now))
@@ -76,6 +85,18 @@ def claim(db, job_id, *, lease_seconds=None):
         jobs.c.state.in_(["running", "uncertain"]))).first()
     if busy:
         return None
+    if job["kind"] == "billing.provider":
+        from core.models import BillingProviderOperation
+        legacy = db.scalar(sa.select(jobs.c.id).where(jobs.c.kind == "billing.recurring",
+            jobs.c.tenant == job["tenant"], jobs.c.state.in_(["running", "uncertain"])).limit(1))
+        if legacy:
+            return None
+        earlier = db.scalar(sa.select(BillingProviderOperation.id).where(
+            BillingProviderOperation.user_id == uuid.UUID(job["tenant"]),
+            BillingProviderOperation.ordinal < int(job["payload"]["ordinal"]),
+            BillingProviderOperation.status.in_(["queued", "dispatching", "uncertain", "rejected"])).limit(1))
+        if earlier:
+            return None
     if job["kind"] == "sync" and job["payload"].get("after_sync_job_id"):
         from core import models
         previous_id = uuid.UUID(job["payload"]["after_sync_job_id"])
@@ -125,7 +146,7 @@ def prune_completed(db):
     """Bound retention; never delete queued, running, or uncertain work."""
     cutoff = _clock(db) - timedelta(days=env_int("TASK_RETENTION_DAYS", 30, 7, 365))
     old = sa.select(jobs.c.id).where(jobs.c.state.in_(["succeeded", "failed"]), jobs.c.finished_at < cutoff,
-                                  jobs.c.kind != "history.backfill")
+                                  jobs.c.kind.not_in(["history.backfill", "billing.provider"]))
     old = old.order_by(jobs.c.finished_at).limit(500).with_for_update(skip_locked=True)
     return db.execute(jobs.delete().where(jobs.c.id.in_(old))).rowcount
 

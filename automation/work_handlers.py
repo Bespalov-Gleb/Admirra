@@ -10,6 +10,10 @@ async def _goals(payload):
 
 
 async def _async_run(kind, payload):
+    if kind == "billing.provider":
+        from automation.billing_provider_work import execute
+        from core.database import SessionLocal
+        return await execute(SessionLocal, payload)
     if kind == "reports.resume":
         from automation.report_resume import execute
         from core.database import SessionLocal

@@ -42,6 +42,22 @@ def check_lead_alert_bindings(db):
         raise RuntimeError("Legacy global lead sends must be reconciled before scoped planners start")
 
 
+def check_billing_bindings(db):
+    from core.runtime import env_bool
+    exists = db.scalar(sa.text("SELECT to_regclass('billing_provider_operations')"))
+    enabled = env_bool("BILLING_PROVIDER_QUEUE", False)
+    if enabled and not exists:
+        raise RuntimeError("Billing provider queue requires its additive schema migration")
+    if exists and not enabled:
+        pending = db.scalar(sa.text("SELECT count(*) FROM billing_provider_operations WHERE status IN ('queued','dispatching','uncertain','rejected')"))
+        if pending:
+            raise RuntimeError("Cannot disable billing queue with unresolved financial operations")
+    if enabled:
+        unknown = db.scalar(sa.text("SELECT count(*) FROM background_jobs WHERE kind = 'billing.recurring' AND state = 'uncertain'"))
+        if unknown:
+            raise RuntimeError("Reconcile uncertain legacy billing writes before enabling account queue")
+
+
 def check():
     from core.database import engine
     if (os.getenv("WW_TEST") == "1" and os.getenv("WW_TEST_ID")
@@ -72,3 +88,4 @@ def check():
             raise RuntimeError("Legacy sync jobs must be drained/reconciled before durable workers start")
         check_integration_bindings(db)
         check_lead_alert_bindings(db)
+        check_billing_bindings(db)

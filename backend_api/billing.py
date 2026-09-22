@@ -451,6 +451,15 @@ async def _update_recurrent_total(sub, plan, billing_period: str, slots: int, em
     cp_id = str(getattr(sub, "cloudpayments_subscription_id", "") or "").strip()
     if not cp_id:
         return True
+    from core import billing_intents
+    if billing_intents.enabled():
+        from sqlalchemy.orm import object_session
+        db = object_session(sub)
+        if db is None:
+            raise RuntimeError("Queued recurring updates require the owning SQL transaction")
+        sub.recurring_sync_required = True
+        billing_intents.enqueue(db, sub, "update")
+        return True  # Intent accepted, NOT a claim of provider confirmation.
     cfg = get_config()
     recurrent = _recurrent_for_billing_period(plan, billing_period)
     try:
@@ -539,6 +548,23 @@ def get_plans(
     # коммитит, поэтому сохраняем эту продуктовую миграцию явно.
     db.commit()
     return result
+
+
+@router.get("/provider-operation")
+def get_provider_operation(
+    current_user: models.User = Depends(security.get_current_user), db: Session = Depends(get_db),
+):
+    from core import billing_intents
+    from automation.work_tables import jobs
+    import sqlalchemy as sa
+    if not billing_intents.enabled():
+        return {"operation": None}
+    owner = SubscriptionService.get_billing_account_user(db, current_user)
+    row = billing_intents.pending(db, owner.id)
+    if row is None:
+        return {"operation": None}
+    job = db.execute(sa.select(jobs).where(jobs.c.id == row.job_id)).mappings().first()
+    return {"operation": billing_intents.public(row, job)}
 
 
 @router.get("/subscription", response_model=schemas.BillingSubscriptionResponse)
@@ -791,6 +817,8 @@ async def subscribe(
 
     sub = SubscriptionService.ensure_default_subscription(db, account_user)
     sub = SubscriptionService.get_user_subscription(db, account_user.id, for_update=True) or sub
+    from core.billing_intents import assert_checkout_allowed
+    assert_checkout_allowed(db, account_user.id)
     cur_plan = SubscriptionService.get_user_plan(db, account_user)
     is_trial = sub.status == models.SubscriptionStatus.TRIAL
     keep_fixed_price = requested_spec.code == cur_plan.code and not is_trial
@@ -1257,6 +1285,8 @@ def slots_purchase(
     plan = SubscriptionService.get_user_plan(db, account_user)
     sub = SubscriptionService.ensure_default_subscription(db, account_user)
     sub = SubscriptionService.get_user_subscription(db, account_user.id, for_update=True) or sub
+    from core.billing_intents import assert_checkout_allowed
+    assert_checkout_allowed(db, account_user.id)
     cfg = get_config()
     if not cfg.cloudpayments.public_id:
         raise HTTPException(status_code=500, detail="CLOUDPAYMENTS_PUBLIC_ID не настроен")
@@ -1395,6 +1425,18 @@ async def cancel_autorenew(
     доступ сохраняется до конца оплаченного периода."""
     account_user = SubscriptionService.get_billing_account_user(db, current_user)
     sub = SubscriptionService.ensure_default_subscription(db, account_user)
+    from core import billing_intents
+    if billing_intents.enabled():
+        sub = SubscriptionService.get_user_subscription(db, account_user.id, for_update=True) or sub
+        sub.cancel_at_period_end = True
+        operation = billing_intents.enqueue(db, sub, "cancel_all")
+        log_history_event(db, actor=current_user, event_type="billing", action="autorenew_cancel_requested",
+            description="Отмена автопродления поставлена в очередь; ожидаем подтверждение CloudPayments",
+            target_type="subscription", target_id=str(sub.id), meta={"operation_id": str(operation.id)})
+        operation_id = str(operation.id)
+        db.commit()
+        return {"ok": True, "autorenew": False, "recurrent_cancelled": False, "cancellation_pending": True,
+            "operation_id": operation_id, "warning": "Запрос отмены сохранён. До подтверждения платёжной системы списание ещё возможно."}
     cp_sub_id = (sub.cloudpayments_subscription_id or "").strip()
     cancelled_ids = []
     # Если рекуррент в CloudPayments отменить не удалось, списания продолжатся.
@@ -1578,6 +1620,12 @@ async def cloudpayments_webhook(
     status_field = str(data.get("Status") or "").strip().lower()
     reason_code = str(data.get("ReasonCode") or "").strip()
     is_recurrent_report = bool(data.get("Id")) and not data.get("TransactionId")
+    from core import billing_intents
+    if (billing_intents.enabled() and is_recurrent_report and sub.cloudpayments_subscription_id
+            and str(data.get("Id")) != sub.cloudpayments_subscription_id):
+        # Late cancellation/status of a replaced provider ID must not overwrite
+        # the new subscription or its card. The payment webhook remains active.
+        return schemas.CloudPaymentsWebhookResponse(code=0)
     failed = (
         not bool(data.get("Success", True))
         or (reason_code not in ("", "0"))
@@ -1607,6 +1655,7 @@ async def cloudpayments_webhook(
         if intent_paid:
             intent = None
     intent_payload = _coerce_json_data(getattr(intent, "payload", None)) if intent else {}
+    cancellation_wins = billing_intents.enabled() and billing_intents.cancellation_wins(db, sub, intent)
     purpose = str(intent_payload.get("purpose") or "").strip()
     is_recurring_charge = bool(data.get("SubscriptionId")) and bool(data.get("TransactionId")) and intent is None
 
@@ -1845,24 +1894,32 @@ async def cloudpayments_webhook(
                 db, user, actor=user, resolution_method="upgrade",
             )
     prev_cp_sub_id = (sub.cloudpayments_subscription_id or "").strip()
-    sub.cloudpayments_subscription_id = str(
-        data.get("SubscriptionId")
-        or (data.get("Id") if is_recurrent_report else None)
-        or sub.cloudpayments_subscription_id
-        or ""
-    )
+    replace_provider = outcome == "pay" or not billing_intents.enabled()
+    if replace_provider:
+        sub.cloudpayments_subscription_id = str(
+            data.get("SubscriptionId")
+            or (data.get("Id") if is_recurrent_report else None)
+            or sub.cloudpayments_subscription_id
+            or ""
+        )
     # Смена карты/тарифа = новая оплата = НОВАЯ подписка CP. Старый рекуррент при этом
     # продолжил бы списывать параллельно — отменяем его, чтобы не было двойных списаний.
     new_cp_sub_id = (str(data.get("SubscriptionId") or "")).strip()
-    if prev_cp_sub_id and new_cp_sub_id and prev_cp_sub_id != new_cp_sub_id:
-        try:
-            await CloudPaymentsService.cancel_subscription(prev_cp_sub_id)
-            logger.info("Cancelled previous CP subscription %s (replaced by %s)", prev_cp_sub_id, new_cp_sub_id)
-        except Exception as _cancel_err:
-            logger.warning("Failed to cancel previous CP subscription %s: %s", prev_cp_sub_id, _cancel_err)
+    if replace_provider and prev_cp_sub_id and new_cp_sub_id and prev_cp_sub_id != new_cp_sub_id:
+        if billing_intents.enabled():
+            # Commit the replacement and cancellation intent together. Never
+            # acknowledge a webhook if persisting the financial intent failed.
+            billing_intents.enqueue(db, sub, "cancel_one", prev_cp_sub_id)
+            logger.info("Previous CP subscription cancellation queued")
+        else:
+            try:
+                await CloudPaymentsService.cancel_subscription(prev_cp_sub_id)
+                logger.info("Cancelled previous CP subscription %s (replaced by %s)", prev_cp_sub_id, new_cp_sub_id)
+            except Exception as _cancel_err:
+                logger.warning("Failed to cancel previous CP subscription %s: %s", prev_cp_sub_id, _cancel_err)
     sub.cloudpayments_transaction_id = str(data.get("TransactionId") or sub.cloudpayments_transaction_id or "")
     # Маска карты из уведомления — чтобы показывать «Карта привязана **** 1234» в кабинете.
-    if data.get("CardLastFour"):
+    if replace_provider and data.get("CardLastFour"):
         sub.card_last4 = str(data.get("CardLastFour"))[:4]
         sub.card_type = str(data.get("CardType") or "")[:32] or sub.card_type
         sub.card_exp = str(data.get("CardExpDate") or "")[:8] or sub.card_exp
@@ -1880,7 +1937,9 @@ async def cloudpayments_webhook(
         # выставлялся в True при отмене и НИКОГДА не сбрасывался: после повторной
         # оплаты UI продолжал показывать «автопродление отключено», хотя рекуррент
         # в CloudPayments был создан заново и списания шли.
-        sub.cancel_at_period_end = False
+        sub.cancel_at_period_end = bool(cancellation_wins)
+        if cancellation_wins:
+            billing_intents.enqueue(db, sub, "cancel_all")
         if extend_period:
             sub.billing_period = billing_period
             days = _billing_period_days(plan, billing_period)

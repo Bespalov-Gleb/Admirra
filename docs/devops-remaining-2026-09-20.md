@@ -4,6 +4,15 @@
 
 ## Новый candidate, не production
 
+**Продолжение пунктов 2/4, 22.09:** единая account-scoped очередь CP для API,
+webhook и maintenance; порядок, non-replayable receipts, сохранение карты до
+подтверждения, операторская CLI-сверка и pending/uncertain UI. Schema head
+`f35e6f708192`, opt-in `BILLING_PROVIDER_QUEUE=false`.
+[Контракт, rollout, проверки и ограничения](devops-billing-order-2026-09-22.md).
+Немедленные lead exports/validation, legacy analytics/blacklist и остаток report
+SQL-over-IO ещё не закрыты. Отдельная визуальная/operator и sandbox-приёмка
+также остаётся; весь пакет 1–4 готовым не объявляем.
+
 **Candidate bounded consumer refresh / UI, 22.09:** реализована ограниченная
 догрузка недостающей истории для AI, Sheets и детектора с durable запросами,
 deadline, объединением совпадающих consumer jobs, общим бюджетом с report refresh
