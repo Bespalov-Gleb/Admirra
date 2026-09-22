@@ -44,4 +44,7 @@ def require_scope(db, payload, *, kind, integration_id):
             or payload.get("owner_id") != str(client.owner_id)
             or execution["tenant"] != str(client.owner_id)):
         raise IntegrationScopeChanged("Queued integration source was removed, paused or changed owner/project")
+    if payload.get("report_refresh") is not None:
+        from automation.report_refresh import require_report
+        require_report(db, payload, integration, client)
     return integration, client

@@ -23,7 +23,7 @@
         <div class="reports-panel-head">
           <div>
             <h2>Ожидают проверки</h2>
-            <p>Автоотправка с проверкой и отчёты, остановленные детектором.</p>
+            <p>Подготовка данных, согласование и отчёты, остановленные детектором.</p>
           </div>
           <span>{{ filteredPending.length }}</span>
         </div>
@@ -44,7 +44,7 @@
               <span class="report-status" :class="`report-status--${item.source}`">
                 {{ item.source === 'detector' ? 'Детектор' : item.source === 'auto' ? 'Авто' : 'Вручную' }}
               </span>
-              <span class="report-queue-card__check">Проверить</span>
+              <span class="report-queue-card__check">{{ reportReadiness(item)?.title || 'Проверить' }}</span>
               <button type="button" class="report-queue-card__settings" title="Настройки отчётов проекта" @click.stop="openSettings(item)"><Cog6ToothIcon /></button>
             </span>
             <strong>{{ item.scope_label }}</strong>
@@ -99,6 +99,7 @@
       :delivery="activeDelivery"
       @close="activeDelivery = null"
       @sent="handleSent"
+      @updated="handleUpdated"
     />
     <ReportSnapshotModal v-if="historyDelivery" :delivery="historyDelivery" @close="historyDelivery = null" @retry="handleHistoryRetry" />
     <ProjectReportSettingsModal
@@ -117,6 +118,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { ArrowPathIcon, Cog6ToothIcon, MagnifyingGlassIcon } from '@heroicons/vue/24/outline'
 import api from '@/api/axios'
 import { createLatestRequest } from '@/utils/latestRequest'
+import { reportReadiness } from '@/utils/reportReadiness'
 import { useToaster } from '@/composables/useToaster'
 import { useTheme } from '@/composables/useTheme'
 import { refreshReportsQueue } from '@/composables/useReportsQueue'
@@ -152,7 +154,13 @@ const load = () => reportRequests.run('deliveries', async ({ signal, isCurrent }
   await Promise.allSettled([['pending', pending], ['history', history]].map(async ([status, target]) => {
     try {
       const { data } = await api.get('reports/deliveries', { params: { status }, signal })
-      if (isCurrent()) target.value = Array.isArray(data) ? data : []
+      if (isCurrent()) {
+        target.value = Array.isArray(data) ? data : []
+        if (status === 'pending' && reportReadiness(activeDelivery.value)) {
+          const fresh = target.value.find(item => item.id === activeDelivery.value.id)
+          if (fresh) activeDelivery.value = fresh
+        }
+      }
     } catch (err) {
       if (isCurrent()) toaster.error(err.response?.data?.detail || 'Не удалось загрузить отчёты')
     }
@@ -229,6 +237,7 @@ const handleSent = async () => {
   activeDelivery.value = null
   await load()
 }
+const handleUpdated = (delivery) => { activeDelivery.value = delivery; load() }
 
 const handleHistoryRetry = async (updated) => {
   historyDelivery.value = updated || null
@@ -264,13 +273,21 @@ const formatDateTime = (value) => {
 }
 
 const queueReason = (item) => {
+  if (reportReadiness(item)) return reportReadiness(item).detail
   if (item?.anomaly_reason) return item.anomaly_reason
   const source = item?.source === 'auto' ? 'Автоотправка по расписанию' : 'Отчёт подготовлен вручную'
   const created = item?.created_at ? ` · ${formatDateTime(item.created_at)}` : ''
   return `${source}${created}`
 }
 
-onMounted(load)
+let refreshTimer
+onMounted(() => {
+  load()
+  refreshTimer = setInterval(() => {
+    if (!document.hidden && !loading.value && pending.value.some(item => reportReadiness(item)?.waiting)) load()
+  }, 30000)
+})
+onUnmounted(() => clearInterval(refreshTimer))
 </script>
 
 <style scoped>

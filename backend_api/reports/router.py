@@ -1789,6 +1789,38 @@ def reconcile_report_recipient(
     return _delivery_to_response(db, d)
 
 
+@router.post("/deliveries/{delivery_id}/refresh-data", response_model=schemas.ReportDeliveryResponse)
+async def refresh_report_delivery_data(delivery_id: uuid.UUID,
+    current_user: models.User = Depends(security.get_current_user), db: Session = Depends(get_db)):
+    """Explicit retry of a never-rendered, never-sent expired wait. Never auto-send."""
+    if not freshness.enabled():
+        raise HTTPException(409, "Повторная подготовка данных пока недоступна")
+    d = db.query(models.ReportDelivery).filter(models.ReportDelivery.id == delivery_id,
+        models.ReportDelivery.user_id == current_user.id).with_for_update().first()
+    if not d:
+        raise HTTPException(404, "Отчёт не найден")
+    from backend_api.reports import route_ledger
+    if (not (freshness.public_state(d) or {}).get("can_retry") or d.pdf_snapshot or d.png_snapshot
+            or db.query(route_ledger.routes).filter(route_ledger.routes.c.delivery_id == d.id).first()):
+        raise HTTPException(409, "Этот отчёт нельзя пересоздать: проверьте снимок и историю отправок")
+    if d.schedule_id:
+        rule = db.get(models.ReportSchedule, d.schedule_id)
+        if not rule or not rule.enabled or freshness.schedule_digest(rule) != d.data_readiness.get("schedule_digest"):
+            raise HTTPException(409, "Настройки изменились. Создайте новый отчёт с актуальными получателями")
+    previous = {k: d.data_readiness.get(k) for k in ("request_epoch", "deadline", "reason")}
+    d.data_readiness = None
+    d.source = "manual"
+    from backend_api.reports.scheduler import build_delivery_snapshot
+    try:
+        await build_delivery_snapshot(db, d, current_user)
+    except freshness.ReportDataPending:
+        freshness.enqueue_wait(db, d)
+    d.data_readiness = {**d.data_readiness, "previous_wait": previous}
+    db.commit()
+    db.refresh(d)
+    return _delivery_to_response(db, d)
+
+
 @router.post("/deliveries/{delivery_id}/approve", response_model=schemas.ReportDeliveryResponse)
 async def approve_report_delivery(
     delivery_id: uuid.UUID,

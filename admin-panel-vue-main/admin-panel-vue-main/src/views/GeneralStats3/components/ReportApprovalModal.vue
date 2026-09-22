@@ -16,7 +16,17 @@
           {{ delivery.anomaly_reason }}
         </div>
 
-        <div class="report-approval-body">
+        <div v-if="readiness" class="report-readiness" role="status" aria-live="polite">
+          <h4>{{ readiness.title }}</h4>
+          <p>{{ readiness.detail }}</p>
+          <small v-if="readiness.waiting && readiness.deadline">Проверяем до {{ readinessDeadline }}. Затем подготовка остановится.</small>
+          <div class="report-readiness-actions">
+            <button v-if="readiness.canRetry" type="button" class="report-approval-primary" :disabled="checkingReadiness" @click="checkReadiness(true)">Повторить подготовку</button>
+            <button type="button" class="report-approval-secondary" :disabled="checkingReadiness" @click="checkReadiness(false)">{{ checkingReadiness ? 'Проверяем…' : 'Проверить статус' }}</button>
+            <button type="button" class="report-approval-cancel" :disabled="checkingReadiness || cancelling" @click="cancelReport">Отменить отчёт</button>
+          </div>
+        </div>
+        <div v-else class="report-approval-body">
           <!-- Левая колонка: отчёт глазами клиента -->
           <div class="report-approval-preview">
             <div class="report-approval-preview__head">
@@ -158,12 +168,38 @@ import { useToaster } from '@/composables/useToaster'
 import { useTheme } from '@/composables/useTheme'
 import ChannelIcon from '@/components/ui/ChannelIcon.vue'
 import FullscreenImageViewer from '@/components/ui/FullscreenImageViewer.vue'
+import { reportReadiness } from '@/utils/reportReadiness'
 
 const props = defineProps({
   delivery: { type: Object, default: null },
 })
 
-const emit = defineEmits(['close', 'sent'])
+const emit = defineEmits(['close', 'sent', 'updated'])
+const updatedDelivery = ref(null)
+const checkingReadiness = ref(false)
+const readiness = computed(() => reportReadiness(updatedDelivery.value?.id === props.delivery?.id ? updatedDelivery.value : props.delivery))
+const readinessDeadline = computed(() => {
+  const value = new Date(readiness.value?.deadline)
+  return Number.isNaN(value.getTime()) ? '—' : value.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+})
+let disposed = false
+onBeforeUnmount(() => { disposed = true })
+const checkReadiness = async (retry) => {
+  const id = props.delivery?.id
+  if (!id || checkingReadiness.value) return
+  checkingReadiness.value = true
+  try {
+    const { data } = retry ? await api.post(`reports/deliveries/${id}/refresh-data`) : await api.get(`reports/deliveries/${id}`)
+    if (disposed || props.delivery?.id !== id) return
+    updatedDelivery.value = data
+    emit('updated', data)
+    if (!reportReadiness(data)) await loadPreview()
+  } catch (error) {
+    if (!disposed) toaster.error(error.response?.data?.detail || 'Не удалось проверить подготовку отчёта')
+  } finally {
+    checkingReadiness.value = false
+  }
+}
 const { isDarkMode } = useTheme()
 const toaster = useToaster()
 
@@ -258,7 +294,7 @@ const loadSnapshotImage = async (url) => {
 }
 
 const loadPreview = async () => {
-  if (!props.delivery?.id) return
+  if (!props.delivery?.id || readiness.value) return
   loadingPreview.value = true
   try {
     const { data } = await api.get(`reports/deliveries/${props.delivery.id}/preview`)
@@ -278,6 +314,7 @@ const loadPreview = async () => {
 }
 
 watch(() => props.delivery, (value) => {
+  updatedDelivery.value = null
   comment.value = value?.comment || ''
   editing.value = false
   commentStatus.value = value?.comment_status || (comment.value ? 'draft' : 'none')
@@ -399,6 +436,14 @@ const approve = async () => {
 </script>
 
 <style scoped>
+.report-readiness { padding: 1.3rem; border: 1px solid #dce4ef; border-radius: 1rem; background: #f7f9fc; color: #35445f; }
+.report-readiness h4 { margin: 0 0 .65rem; font-size: 1.15rem; }
+.report-readiness p { margin: 0 0 .65rem; line-height: 1.55; }
+.report-readiness small { display: block; color: #63728a; line-height: 1.5; }
+.report-readiness-actions { display: flex; flex-wrap: wrap; gap: .65rem; margin-top: 1.2rem; }
+.report-readiness-actions button { flex: 1 1 11rem; margin: 0; min-height: 2.8rem; }
+.is-dark .report-readiness { background: #202536; border-color: #3c465d; color: #e1e7f2; }
+.is-dark .report-readiness small { color: #aab7ce; }
 /* Компактная шкала модалки папок (ProjectCard.vue) */
 .report-approval-backdrop {
   position: fixed;

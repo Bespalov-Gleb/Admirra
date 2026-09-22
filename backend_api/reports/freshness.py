@@ -33,7 +33,13 @@ def _digest(value):
 def public_state(delivery):
     state = getattr(delivery, "data_readiness", None) or {}
     # Never expose other team owners, raw settings or provider IDs in the API.
-    return {k: state[k] for k in ("status", "reason", "deadline", "revision", "checked_at") if k in state} or None
+    if not state:
+        return None
+    result = {k: state[k] for k in ("status", "reason", "deadline", "revision", "checked_at", "refresh_status") if k in state}
+    result["can_retry"] = (state.get("status") == "held" and state.get("reason") == "deadline_expired"
+        and delivery.status == "pending" and not delivery.snapshot_data and not delivery.delivery_results
+        and not delivery.sent_at and not delivery.approved_at)
+    return result
 
 
 def schedule_digest(rule):
@@ -75,7 +81,8 @@ def prepare(db, delivery, user):
         wait = env_int("REPORT_DATA_WAIT_MINUTES", 30, 1, 120)
         age = env_int("REPORT_DATA_MAX_AGE_MINUTES", 1440, 1, 1440)
         state.update(deadline=(now + timedelta(minutes=wait)).isoformat(),
-                     not_before=(now - timedelta(minutes=age)).isoformat(), revision=0)
+                     not_before=(now - timedelta(minutes=age)).isoformat(), revision=0, request_epoch=str(uuid.uuid4()))
+    state.setdefault("request_epoch", str(uuid.uuid4()))
     if delivery.schedule_id:
         rule = db.scalar(sa.select(models.ReportSchedule).where(models.ReportSchedule.id == delivery.schedule_id)
                          .execution_options(populate_existing=True).with_for_update())
@@ -154,6 +161,8 @@ def enqueue_wait(db, delivery):
     state = delivery.data_readiness or {}
     if state.get("status") != "waiting":
         return None
+    from automation.report_refresh import plan
+    plan(db, delivery)
     now = db.scalar(sa.select(sa.func.clock_timestamp()))
     due = min(now.replace(second=0, microsecond=0) + timedelta(minutes=1), datetime.fromisoformat(state["deadline"]))
     job_id = submit(db, kind="reports.resume", queue="reports",
