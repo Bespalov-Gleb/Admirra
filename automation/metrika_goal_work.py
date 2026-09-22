@@ -4,7 +4,7 @@ Not a replacement for the full legacy sync transaction. Resource exclusion and
 execution fencing are supplied by the durable job executor, not process globals.
 """
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime, timezone
 import uuid
 
 from sqlalchemy import select
@@ -43,6 +43,7 @@ class GoalPlan:
     counters: tuple[str, ...]
     days: tuple[date, ...]
     known_names: dict = field(repr=False)
+    observed_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 def prepare(db, integration_id, date_from, date_to):
@@ -104,6 +105,9 @@ def apply(db, plan, rows, missing):
     if client is None or integration is None or signature(integration, client) != plan.settings:
         raise GoalSettingsChanged("Metrika settings changed during collection")
     replace_goal_window(db, integration, plan.days, rows, missing, plan.known_names, _notify_missing_metrika_goals)
+    from core.sync_coverage import replace_window
+    replace_window(db, integration, client, "metrika_goals", plan.days[0], plan.days[-1],
+                   plan.observed_at, complete=not missing)
 
 
 async def collect(plan):

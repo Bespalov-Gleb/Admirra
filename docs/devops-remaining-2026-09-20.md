@@ -4,9 +4,13 @@
 
 ## Новый candidate, не production
 
+**Candidate coverage, 22.09:** добавлена сохраняемая подтверждённая полнота date/stage/settings для durable sync и fail-closed reader. Старый SUCCESS/last_sync_at не считается покрытием; missing goals не подтверждают полноту. Это основа, а не включённый freshness barrier: report requirements/wait deadline, per-stage outcomes и consumers отчётов/AI/детектора ещё предстоят. Миграция candidate head `f02b3c4d5e6f`; production этим этапом не меняется. [Контракт и ограничения](devops-sync-coverage-2026-09-22.md).
+
 **Candidate sync, 22.09:** fetch/apply без SQL во время HTTP реализован также для durable manual/night/history Директа, VK и Авито, с атомарной записью, повторной проверкой settings/lease и guarded OAuth renewal. В production не включён. Общий SYNC остаётся открыт: durable per-stage coverage/freshness, UI follow-up, live vendor quota/format acceptance и mixed-load не закрыты. [Реализация и границы](devops-ads-sync-2026-09-22.md). Следующие исторические пункты о непереведённых рекламных каналах относятся к состоянию до этого candidate.
 
 ## Уже в production
+
+Примечание 22.09: поверх перечисленных ниже исторических DevOps/performance releases отдельно выложены signup-discount/ecommerce и компактная плашка. Их актуальные образы и additive schema описаны в [журнале релиза](signup-discount-ecommerce-release.md); исторические digests ниже не следует принимать за текущие rollback images. Общая DevOps migration chain и новые consumers этим релизом не включались.
 
 - API-2 / Redis / приватная сеть / exporters / ingress guard; 10% canary только четырёх разрешённых GET/HEAD routes. Dashboard, mutations и SSE на две реплики пока не переключены.
 - AI gateway и отдельный AI hotfix `0e5f031`: quota ledger / request idempotency сохранены. Поверх них 21.09.2026 выложен узкий пакет ускорения сводок: backend `4ca866eb…`, automation прежний `33b4ca03…`; затем frontend обновлён до `274aad1d…` (`c39e7e2`): KPI не ждут подробные таблицы, устаревшие read-ответы блокируются. Полные digests в `ops/rollback_images.json`. Runtime не равен git checkout `/root/Admirra`, нельзя деплоить blanket pull/build/up. [Серверные замеры](devops-summary-performance-2026-09-21.md), [frontend: причина задержки, проверки, rollback и ограничения](dashboard-read-lifecycle-2026-09-21.md). Браузерная приёмка владельцем ожидается.

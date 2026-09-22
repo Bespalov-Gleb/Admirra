@@ -4,7 +4,7 @@ Only a complete snapshot may replace statistics. The caller supplies the durable
 execution fence and commits statistics, business status and watermark together.
 """
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime, timezone
 import json
 import logging
 import uuid
@@ -33,6 +33,7 @@ class Plan:
     credentials: dict = field(repr=False)
     known: dict = field(repr=False)
     goal_plan: goals.GoalPlan | None = field(repr=False)
+    observed_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 def prepare(db, integration_id, start, end):
@@ -340,6 +341,9 @@ def apply(db, plan, snapshot, *, historical=False):
     if not historical:
         balance = snapshot["balance"] or {}
         integration.balance, integration.currency = balance.get("balance"), balance.get("currency")
+    from core.sync_coverage import replace_window
+    for level, _ in levels:
+        replace_window(db, integration, client, level, start, end, plan.observed_at)
 
 
 async def execute_history(factory, payload):

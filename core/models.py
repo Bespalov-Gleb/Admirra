@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Text, ForeignKey, DateTime, Integer, Numeric, Date, Enum, BigInteger, Boolean, UniqueConstraint, JSON, Sequence, LargeBinary, Index, text
+from sqlalchemy import Column, String, Text, ForeignKey, DateTime, Integer, Numeric, Date, Enum, BigInteger, Boolean, UniqueConstraint, JSON, Sequence, LargeBinary, Index, text, CheckConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -949,6 +949,27 @@ class SyncJob(Base):
     )
 
     integration = relationship("Integration", back_populates="sync_jobs")
+
+class SyncCoverage(Base):
+    """Effective, non-overlapping windows; committed atomically with statistics."""
+    __tablename__ = "sync_coverage"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    integration_id = Column(UUID(as_uuid=True), ForeignKey("integrations.id", ondelete="CASCADE"), nullable=False)
+    client_id = Column(UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    stage = Column(String(32), nullable=False)
+    settings_digest = Column(String(64), nullable=False)
+    date_from = Column(Date, nullable=False)
+    date_to = Column(Date, nullable=False)
+    # Conservative freshness: preparation BEFORE external IO, not its finish.
+    observed_at = Column(DateTime(timezone=True), nullable=False)
+    recorded_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    execution_id = Column(UUID(as_uuid=True), nullable=False)
+    __table_args__ = (
+        CheckConstraint("date_from <= date_to", name="ck_sync_coverage_dates"),
+        Index("ix_sync_coverage_window", "integration_id", "stage", "date_from", "date_to"),
+    )
+
 
 class YandexStats(Base):
     __tablename__ = "yandex_stats"
