@@ -98,6 +98,7 @@ services:
       - tests/test_ads_sync_contract.py
       - tests/test_ads_sync_work.py
       - tests/test_sync_coverage.py
+      - tests/test_report_freshness.py
       - tests/test_metrika_api_failure.py
       - tests/test_postgres_runtime_health.py
       - tests/test_economics_master.py

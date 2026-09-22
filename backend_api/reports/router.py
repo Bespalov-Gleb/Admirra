@@ -29,7 +29,7 @@ from backend_api.reports.export_service import (
     _get_report_data,
 )
 from backend_api.reports.report_html import render_report_html
-from backend_api.reports import public_links
+from backend_api.reports import public_links, freshness
 from core.runtime import env_bool
 
 logger = logging.getLogger(__name__)
@@ -1060,6 +1060,7 @@ def _delivery_to_response(
         _delivery_approver_name(db, d) if approver_names is None else None
     )
     return schemas.ReportDeliveryResponse(
+        data_readiness=freshness.public_state(d),
         id=d.id,
         status=d.status,
         source=d.source,
@@ -1397,6 +1398,11 @@ async def create_report_delivery(
     try:
         from backend_api.reports.scheduler import build_delivery_snapshot
         await build_delivery_snapshot(db, d, current_user)
+    except freshness.ReportDataPending:
+        freshness.enqueue_wait(db, d)
+        db.commit()
+        db.refresh(d)
+        return _delivery_to_response(db, d)
     except Exception as exc:
         db.rollback()
         logger.exception("Report snapshot failed: %s", exc)
@@ -1807,6 +1813,14 @@ async def approve_report_delivery(
 
     try:
         from backend_api.reports.scheduler import send_report_delivery, delivery_status_from_results
+        if freshness.enabled():
+            from backend_api.reports.scheduler import build_delivery_snapshot
+            try:
+                await build_delivery_snapshot(db, d, current_user)
+            except freshness.ReportDataPending as exc:
+                freshness.enqueue_wait(db, d)
+                db.commit()
+                raise HTTPException(status_code=409, detail=str(exc)) from None
         if not d.approved_by_user_id:
             d.approved_by_user_id = current_user.id
             d.approved_at = datetime.now(timezone.utc)
@@ -2061,7 +2075,12 @@ async def test_report_schedule(
     )
     delivery = create_pending_delivery_for_schedule(db, s, source="manual")
     db.flush()
-    await build_delivery_snapshot(db, delivery, current_user)
+    try:
+        await build_delivery_snapshot(db, delivery, current_user)
+    except freshness.ReportDataPending as exc:
+        freshness.enqueue_wait(db, delivery)
+        db.commit()
+        raise HTTPException(status_code=409, detail=str(exc)) from None
     results = await send_report_delivery(db, delivery, current_user)
     delivery.delivery_results = results
     delivery.status = delivery_status_from_results(results, _jlist(delivery.channels), _jlist(delivery.chat_targets))

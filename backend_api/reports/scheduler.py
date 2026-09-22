@@ -688,8 +688,30 @@ def refresh_delivery_snapshot_files(delivery) -> None:
     refresh_delivery_messages(delivery)
 
 
+def _render_detached_delivery(db, delivery):
+    # expire_on_commit would otherwise lazily open SQL again inside the renderer.
+    db.flush()
+    db.refresh(delivery)
+    db.expunge(delivery)
+    db.commit()
+    try:
+        refresh_delivery_snapshot_files(delivery)
+    finally:
+        db.add(delivery)
+
+
 async def build_delivery_snapshot(db: Session, delivery, user) -> None:
     """Freeze all template variants, recipients and presentation before queueing."""
+    from backend_api.reports import freshness
+    guarded = freshness.enabled()
+    resolved_ids = freshness.prepare(db, delivery, user) if guarded else None
+    if guarded and delivery.snapshot_data:
+        # Persisted data are immutable; retry a failed render without re-reading stats.
+        if not delivery.pdf_snapshot:
+            _render_detached_delivery(db, delivery)
+        else:
+            db.commit()
+        return
     if delivery.pdf_snapshot and delivery.snapshot_data:
         return
     sections = _jlist(delivery.sections, ["kpi", "chart", "channels", "campaigns"])
@@ -722,12 +744,15 @@ async def build_delivery_snapshot(db: Session, delivery, user) -> None:
                 dynamics_metrics=dynamics_metrics,
                 return_data=True,
                 render_pdf=False,
+                **({"_resolved_client_ids": resolved_ids} if guarded else {}),
             )
             # The selected template bytes are rendered below from this exact
             # fixed data; other variants need no eager PDF generation.
             render_data["cpl_target"] = _delivery_cpl_target(db, delivery, template)
             template_snapshots[template] = _json_safe(render_data)
         except Exception as exc:
+            if guarded:
+                raise  # A verified four-template snapshot must not silently omit a variant.
             logger.info("Delivery %s template %s unavailable: %s", delivery.id, template, exc)
     selected = delivery.platform or "all"
     if selected not in template_snapshots:
@@ -736,8 +761,17 @@ async def build_delivery_snapshot(db: Session, delivery, user) -> None:
     snapshot["template_snapshots"] = template_snapshots
     snapshot["delivery_targets"] = target_details
     snapshot["email_target_details"] = email_details
+    if guarded:
+        if freshness.client_ids(db, delivery) != resolved_ids:
+            raise ValueError("Report authorization/scope changed while capturing data")
+        snapshot["coverage_revision"] = delivery.data_readiness["revision"]
+        for variant in template_snapshots.values():
+            variant["coverage_revision"] = delivery.data_readiness["revision"]
     delivery.snapshot_data = _json_safe(snapshot)
-    refresh_delivery_snapshot_files(delivery)
+    if guarded:
+        _render_detached_delivery(db, delivery)
+    else:
+        refresh_delivery_snapshot_files(delivery)
 
 
 def _snapshot_caption(delivery) -> str:
@@ -1380,12 +1414,39 @@ async def run_scheduled_report_rules(scheduled_at: datetime | None = None, *, ru
                 reason = _rule_blocking_anomaly(db, rule)
                 delivery = create_pending_delivery_for_schedule(db, rule, reason=reason, scheduled_at=now)
                 db.flush()
-                await build_delivery_snapshot(db, delivery, user)
+                from backend_api.reports import freshness
+                try:
+                    await build_delivery_snapshot(db, delivery, user)
+                except freshness.ReportDataPending:
+                    freshness.enqueue_wait(db, delivery)
+                    db.commit()
+                    continue
+                if freshness.enabled():
+                    db.flush()
+                    db.refresh(delivery)
+                    db.refresh(rule)
+                    db.refresh(user)
+                    if delivery.status != "pending":
+                        db.commit()
+                        continue
+                    if (not rule.enabled or not user.is_active or
+                            freshness.schedule_digest(rule) != delivery.data_readiness.get("schedule_digest")):
+                        delivery.data_readiness = {**delivery.data_readiness, "status": "held", "reason": "schedule_or_account_changed"}
+                        db.commit()
+                        continue
+                    reason = _rule_blocking_anomaly(db, rule)
+                    delivery.anomaly_reason = reason or delivery.anomaly_reason
                 if bool(getattr(rule, "approval_required", True)) or reason:
                     delivery.status = "pending"
                     db.commit()
                     logger.info("Report rule %s queued for approval: delivery=%s reason=%s", rule.id, delivery.id, reason)
                 else:
+                    claimed = db.query(models.ReportDelivery).filter(
+                        models.ReportDelivery.id == delivery.id, models.ReportDelivery.status == "pending"
+                    ).update({models.ReportDelivery.status: "sending"}, synchronize_session=False)
+                    if claimed != 1:
+                        db.rollback()
+                        continue
                     delivery.status = "sending"
                     db.commit()
                     results = await send_report_delivery(db, delivery, user)

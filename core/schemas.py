@@ -633,6 +633,7 @@ class ReportDeliveryCreate(BaseModel):
 
 
 class ReportDeliveryResponse(BaseModel):
+    data_readiness: Optional[dict] = None
     id: UUID
     status: str
     source: str

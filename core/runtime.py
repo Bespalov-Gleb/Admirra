@@ -51,4 +51,7 @@ def get_runtime(env: Mapping[str, str] | None = None) -> Runtime:
         raise ValueError("Embedded API scheduler is allowed only in legacy mode")
     if env_bool("DURABLE_TASKS", False, values) and role in {"legacy", "sync"}:
         raise ValueError("Durable tasks require explicit api/worker/scheduler roles, never a legacy worker")
+    if env_bool("REPORT_FRESHNESS_GUARDS", False, values) and (
+            not env_bool("DURABLE_TASKS", False, values) or not env_bool("REPORT_DELIVERY_GUARDS", True, values)):
+        raise ValueError("Report freshness requires durable tasks and delivery guards")
     return Runtime(role, bootstrap, sync, scheduler)

@@ -86,12 +86,15 @@ def generate_report_pdf(
     dynamics_metrics: list | None = None,
     return_data: bool = False,
     render_pdf: bool = True,
+    _resolved_client_ids: list | None = None,
 ) -> bytes | tuple[bytes, dict]:
     """
     Генерирует PDF-отчёт на основе данных дашборда.
     folder_id — скоуп «папка»: сводный отчёт по всем вложенным проектам.
     """
-    if folder_id and not client_id:
+    if _resolved_client_ids is not None:
+        effective_client_ids = _resolved_client_ids
+    elif folder_id and not client_id:
         effective_client_ids = StatsService.resolve_folder_client_ids(db, user_id, folder_id)
     else:
         effective_client_ids = StatsService.get_effective_client_ids(db, user_id, client_id)

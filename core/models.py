@@ -363,6 +363,7 @@ class ReportDelivery(Base):
     delivery_results = Column(JSON, nullable=True)
     # Неизменяемый снимок: превью и все каналы используют одни и те же цифры/файлы.
     snapshot_data = Column(JSON, nullable=True)
+    data_readiness = Column(JSON, nullable=True)  # frozen requirements + bounded freshness wait
     pdf_snapshot = Column(LargeBinary, nullable=True)
     png_snapshot = Column(LargeBinary, nullable=True)
     public_token = Column(String(64), nullable=True, unique=True, index=True)

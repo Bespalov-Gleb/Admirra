@@ -21,6 +21,7 @@ def main():
     os.environ["RUN_API_SCHEDULER"] = "false"
     os.environ["DURABLE_TASKS"] = "false"
     os.environ["REPORT_DELIVERY_GUARDS"] = "false"
+    os.environ["REPORT_FRESHNESS_GUARDS"] = "false"
     os.environ["SHARED_READ_CACHE"] = "false"
     os.environ["DURABLE_REPORT_LINKS"] = "false"
     os.environ["DURABLE_REPORT_FILES"] = "false"
