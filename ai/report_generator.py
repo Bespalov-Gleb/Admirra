@@ -297,6 +297,42 @@ def _fallback_dashboard_comment(context: dict) -> str:
     return _flatten_comment(obj)
 
 
+async def generate_delivery_comment(snapshot: dict) -> str:
+    """Comment on the authorized immutable delivery, never today's live stats.
+
+    Internal only: the delivery owner performs authorization/snapshot capture.
+    No Session or ORM objects cross this boundary; oversized context is rejected.
+    """
+    from copy import deepcopy
+    ids = snapshot.get("_scope_client_ids")
+    summary = snapshot.get("summary")
+    campaigns = snapshot.get("top_campaigns") or []
+    if not ids or not isinstance(summary, dict) or not isinstance(campaigns, list) or len(campaigns) > 10:
+        raise ValueError("Delivery snapshot has no bounded, authorized AI context")
+    for client_id in ids:
+        uuid.UUID(str(client_id))
+    if len(json.dumps((summary, campaigns), ensure_ascii=False, default=str).encode()) > 65536:
+        raise ValueError("Delivery AI context exceeds 64 KiB")
+    # Match money displayed by the report/email, including Avito's VAT-inclusive
+    # source and lead-only cost basis. Never mutate the persisted raw snapshot.
+    from backend_api.reports.email_template import _with_channel_vat, _with_cost_breakdown_vat, _summary_platform, _campaign_platform
+    summary, campaigns = deepcopy(summary), deepcopy(campaigns)
+    platform = _summary_platform(snapshot, campaigns)
+    spend = _with_cost_breakdown_vat(summary.get("expenses", 0), summary.get("cost_by_platform"), platform)
+    lead_spend = _with_cost_breakdown_vat(summary.get("expenses", 0),
+        summary.get("lead_cost_by_platform") or summary.get("cost_by_platform"), platform)
+    summary["expenses"] = spend
+    clicks, leads = float(summary.get("clicks") or 0), float(summary.get("leads") or 0)
+    summary["cpc"] = spend / clicks if clicks else _with_channel_vat(summary.get("cpc", 0), platform)
+    summary["cpa"] = lead_spend / leads if leads else _with_channel_vat(summary.get("cpa", 0), platform)
+    for campaign in campaigns:
+        for field in ("cost", "cpa"):
+            campaign[field] = _with_channel_vat(campaign.get(field, 0), _campaign_platform(campaign) or platform)
+    return await _generate_report(db=None, user_id=None, client_id=None,
+        start_date=snapshot["start_date"], end_date=snapshot["end_date"], report_type="comment",
+        platform=snapshot.get("platform") or "all", _prepared=(summary, campaigns), _prepared_ids=ids)
+
+
 async def generate_report(db, user_id, client_id, start_date, end_date, report_type="full",
                           folder_id=None, platform="all", trigger="refresh") -> str:
     from ai import freshness

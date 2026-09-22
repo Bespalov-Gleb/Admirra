@@ -102,6 +102,7 @@ services:
       - tests/test_sync_coverage.py
       - tests/test_consumer_refresh.py
       - tests/test_report_freshness.py
+      - tests/test_report_automatic_comment.py
       - tests/test_report_refresh.py
       - tests/test_direct_export_freshness.py
       - tests/test_consumer_freshness.py

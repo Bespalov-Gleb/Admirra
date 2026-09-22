@@ -839,6 +839,11 @@ async def _generate_automatic_comment_if_needed(db: Session, delivery, user) -> 
     """
     if getattr(delivery, "source", "manual") != "auto" or not getattr(delivery, "include_ai_comment", False) or (getattr(delivery, "comment", None) or "").strip():
         return
+    from backend_api.reports import freshness
+    if freshness.enabled():
+        from backend_api.reports.automatic_comment import generate
+        await generate(db, delivery, user.id)
+        return
     try:
         from ai.report_generator import generate_report
         delivery.comment = (await generate_report(
@@ -1026,6 +1031,9 @@ async def _send_report_delivery(
         "email_targets": dict(previous.get("email_targets") or {}),
         "errors": dict(previous.get("errors") or {}),
     }
+    automatic_attempt = (delivery.delivery_results or {}).get("automatic_ai_attempt")
+    if automatic_attempt:
+        results["automatic_ai_attempt"] = automatic_attempt
     if route_ledger.enabled():
         results["route_guard_version"] = 1
         results["legacy_untracked_attempts"] = bool((delivery.delivery_results or {}).get("legacy_untracked_attempts"))

@@ -4,6 +4,12 @@
 
 ## Новый candidate, не production
 
+**Продолжение пункта 3, 22.09:** автоматический AI-комментарий теперь использует
+готовый snapshot отчёта, освобождает SQL на время LLM/render, сохраняет one-attempt
+receipt и не перетирает правки пользователя поздним ответом. Включается с report
+freshness guards; production не менялся.
+[Контракт и границы](devops-report-comment-2026-09-22.md).
+
 **Продолжение пунктов 2/4, 22.09:** единая account-scoped очередь CP для API,
 webhook и maintenance; порядок, non-replayable receipts, сохранение карты до
 подтверждения, операторская CLI-сверка и pending/uncertain UI. Schema head
