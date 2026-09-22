@@ -104,6 +104,7 @@
       <section class="ai-chat">
         <div ref="messagesContainer" class="ai-messages">
           <div v-if="contextError" class="ai-state-card ai-state-card--warning">{{ contextError }}</div>
+          <DataReadinessNotice :readiness="contextReadiness" action-label="Обновить данные" @ready-action="loadContext" />
 
           <div v-if="!activeDialogId && !messages.length" class="ai-intro-card">
             <div class="ai-avatar">
@@ -220,6 +221,7 @@ import {
   TrashIcon,
 } from '@heroicons/vue/24/outline'
 import api from '../../api/axios'
+import DataReadinessNotice from '@/components/DataReadinessNotice.vue'
 import { useProjects } from '../../composables/useProjects'
 import { useToaster } from '../../composables/useToaster'
 import DateRangePicker from '../../components/ui/DateRangePicker.vue'
@@ -241,6 +243,7 @@ const inputMessage = ref('')
 const sending = ref(false)
 const loadingDialogs = ref(false)
 const contextError = ref('')
+const contextReadiness = ref(null)
 const messagesContainer = ref(null)
 const promptModalOpen = ref(false)
 const editingPromptId = ref(null)
@@ -294,20 +297,29 @@ const applyQuota = (data) => {
   quota.reset_date = data?.reset_date || null
 }
 
+const contextScope = () => JSON.stringify([selectedProjectId.value, startDate.value, endDate.value])
+let contextVersion = 0
 const loadContext = async () => {
+  const version = ++contextVersion
+  const scope = contextScope()
+  contextReadiness.value = null
   if (!selectedProjectId.value || !startDate.value || !endDate.value) return
   contextError.value = ''
   try {
     const { data } = await api.get('ai/context', {
       params: { client_id: selectedProjectId.value, start_date: startDate.value, end_date: endDate.value },
     })
+    if (version !== contextVersion || scope !== contextScope()) return
     applyQuota(data.quota)
     suggestions.value = data.suggestions || []
     contextState.has_data = Boolean(data.has_data)
     contextState.has_integrations = Boolean(data.has_integrations)
     contextState.alerts = data.alerts || []
   } catch (error) {
-    contextError.value = error.response?.data?.detail || 'Не удалось загрузить контекст ассистента.'
+    if (version !== contextVersion || scope !== contextScope()) return
+    const detail = error.response?.data?.detail
+    contextReadiness.value = detail?.data_readiness || null
+    contextError.value = typeof detail === 'string' ? detail : detail?.message || 'Не удалось загрузить контекст ассистента.'
   }
 }
 
@@ -351,6 +363,7 @@ const startNewDialog = () => { activeDialogId.value = null; messages.value = [];
 const sendPrompt = (prompt) => { inputMessage.value = prompt.text; sendMessage() }
 
 const sendMessage = async () => {
+  const scope = contextScope()
   const text = inputMessage.value.trim()
   if (!text || sending.value || !selectedProjectId.value || quota.remaining <= 0) return
   sending.value = true
@@ -364,15 +377,21 @@ const sendMessage = async () => {
       client_id: selectedProjectId.value, start_date: startDate.value, end_date: endDate.value,
       dialog_id: activeDialogId.value, message: text,
     })
+    if (scope !== contextScope()) return
     activeDialogId.value = data.dialog_id
+    contextReadiness.value = null
     const index = messages.value.findIndex((item) => item.localId === optimistic.localId)
     if (index >= 0) messages.value.splice(index, 1, data.user_message)
     messages.value.push(data.assistant_message)
     applyQuota(data.quota)
     await loadDialogs()
   } catch (error) {
+    if (scope !== contextScope()) return
     messages.value = messages.value.filter((item) => item.localId !== optimistic.localId)
-    contextError.value = error.response?.data?.detail || 'Не удалось получить ответ ассистента.'
+    const detail = error.response?.data?.detail
+    contextReadiness.value = detail?.data_readiness || null
+    contextError.value = typeof detail === 'string' ? detail : detail?.message || 'Не удалось получить ответ ассистента.'
+    if (!inputMessage.value) inputMessage.value = text
     toaster.error(contextError.value)
   } finally {
     sending.value = false

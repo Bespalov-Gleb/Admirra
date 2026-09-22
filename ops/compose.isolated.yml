@@ -48,6 +48,7 @@ services:
       - tests/test_calendar_work.py
       - tests/test_sheets_snapshot.py
       - tests/test_billing_work.py
+      - tests/test_cloudpayments_lookup.py
       - tests/test_lead_alert_work.py
       - tests/test_sync_tenant_scope.py
       - tests/test_integration_work_scope.py
@@ -98,6 +99,7 @@ services:
       - tests/test_ads_sync_contract.py
       - tests/test_ads_sync_work.py
       - tests/test_sync_coverage.py
+      - tests/test_consumer_refresh.py
       - tests/test_report_freshness.py
       - tests/test_report_refresh.py
       - tests/test_direct_export_freshness.py

@@ -1,7 +1,16 @@
 """Detached prompt capture and revision-aware cache policy for DB-backed AI."""
 from core import consumer_freshness
 from core.data_requirements import DataNotReady
-from backend_api.reports.direct_freshness import capture
+from backend_api.reports.direct_freshness import capture as _capture
+
+
+def capture(db, user_id, *args, **kwargs):
+    try:
+        return _capture(db, user_id, *args, **kwargs)
+    except DataNotReady as exc:
+        from automation.consumer_refresh import enqueue_error
+        exc.data_readiness = enqueue_error(db, "ai", user_id, exc)
+        raise
 
 
 def enabled():

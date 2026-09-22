@@ -33,7 +33,10 @@ def verify(db, ids, start, end):
             client_id=uuid.UUID(req["client_id"]), owner_id=uuid.UUID(req["owner_id"]),
             stages=req["stages"], start=start, end=end, not_before=threshold)
         if not result.ready:
-            raise DataNotReady(result.reason)
+            error = DataNotReady(result.reason)
+            error.refresh_scope = (list(ids), start, end)
+            error.refresh_requirements = required
+            raise error
         rows = db.execute(sa.select(models.SyncCoverage.id, models.SyncCoverage.execution_id,
             models.SyncCoverage.stage, models.SyncCoverage.date_from, models.SyncCoverage.date_to,
             models.SyncCoverage.observed_at).where(

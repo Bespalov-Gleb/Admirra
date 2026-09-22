@@ -329,7 +329,7 @@ def export_google_sheets_now(
         from automation.sheets_freshness import prepare, recheck, session_factory, SheetDataNotReady
         if enabled("sheets"):
             factory = session_factory(db)
-            target, snapshot, proof = prepare(factory, client.id, client.owner_id)
+            target, snapshot, proof = prepare(factory, client.id, client.owner_id, viewer_id=current_user.id)
             gs = GoogleSheetsService()
             recheck(factory, client.id, client.owner_id, target, proof)
             export_summary = gs.write_snapshot(target, snapshot)
@@ -337,7 +337,8 @@ def export_google_sheets_now(
             gs = GoogleSheetsService()
             export_summary = gs.export_all(client.spreadsheet_id, client.id, db)
     except SheetDataNotReady as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
+        readiness = getattr(exc, "data_readiness", None)
+        raise HTTPException(status_code=409, detail={"message": str(exc), "data_readiness": readiness} if readiness else str(exc))
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:

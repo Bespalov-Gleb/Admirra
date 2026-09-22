@@ -136,6 +136,8 @@
         <div class="detector-banner__text">
           <span class="detector-banner__title">{{ neutralTitle }}</span>
           <span class="detector-banner__hypothesis">{{ neutralSubtitle }}</span>
+          <DataReadinessNotice v-for="item in syncIssues.filter(issue => issue.data_readiness)" :key="item.data_readiness.id"
+            :readiness="item.data_readiness" action-label="Обновить выводы детектора" @ready-action="$emit('refresh-data')" />
         </div>
       </div>
     </section>
@@ -159,6 +161,7 @@
 
 <script setup>
 import { computed, ref } from 'vue'
+import DataReadinessNotice from '@/components/DataReadinessNotice.vue'
 
 const props = defineProps({
   warningCount: { type: Number, default: 0 },
@@ -176,7 +179,7 @@ const props = defineProps({
   activePeriodEnd: { type: [String, Number, Date], default: null },
 })
 
-const emit = defineEmits(['ask-ai', 'snooze', 'acknowledge', 'not-problem', 'restore'])
+const emit = defineEmits(['ask-ai', 'snooze', 'acknowledge', 'not-problem', 'restore', 'refresh-data'])
 
 const expandedId = ref(null)
 const openSnoozeId = ref(null)

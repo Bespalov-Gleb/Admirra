@@ -541,6 +541,8 @@ app.include_router(internal_manager_router, prefix="/api")
 app.include_router(internal_seo_router, prefix="/api")
 app.include_router(internal_auth_public_router, prefix="/api")
 app.include_router(detector_router, prefix="/api")
+from backend_api.data_refresh import router as data_refresh_router
+app.include_router(data_refresh_router, prefix="/api")
 app.include_router(brand_router, prefix="/api")
 
 if AI_AVAILABLE:

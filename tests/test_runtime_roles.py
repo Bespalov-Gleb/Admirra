@@ -30,6 +30,8 @@ def test_bad_configuration_fails_closed():
         get_runtime({"APP_PROCESS_ROLE": "ap1"})
     with pytest.raises(ValueError):
         env_bool("FLAG", False, {"FLAG": "tru"})
+    with pytest.raises(ValueError):
+        get_runtime({"APP_PROCESS_ROLE": "api", "CONSUMER_REFRESH_ENABLED": "true"})
 
 
 def test_pool_bounds(monkeypatch):

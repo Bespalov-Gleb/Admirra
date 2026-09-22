@@ -951,6 +951,22 @@ class SyncJob(Base):
 
     integration = relationship("Integration", back_populates="sync_jobs")
 
+class DataRefreshRequest(Base):
+    __tablename__ = "data_refresh_requests"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    consumer = Column(String(16), nullable=False)
+    request_key = Column(String(64), nullable=False)
+    state = Column(JSON, nullable=False)
+    status = Column(String(16), nullable=False, default="waiting")
+    next_check_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    __table_args__ = (
+        UniqueConstraint("user_id", "consumer", "request_key", name="uq_data_refresh_request"),
+        Index("ix_data_refresh_due", "status", "next_check_at"),
+    )
+
+
 class SyncCoverage(Base):
     """Effective, non-overlapping windows; committed atomically with statistics."""
     __tablename__ = "sync_coverage"

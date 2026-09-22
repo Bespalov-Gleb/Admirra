@@ -4,6 +4,17 @@
 
 ## Новый candidate, не production
 
+**Candidate bounded consumer refresh / UI, 22.09:** реализована ограниченная
+догрузка недостающей истории для AI, Sheets и детектора с durable запросами,
+deadline, объединением совпадающих consumer jobs, общим бюджетом с report refresh
+и проверкой доступа перед fetch/apply. Добавлены waiting/held/ready и явный повтор
+подготовки. Новый schema head `f24d5e6f7081`, флаг по умолчанию false.
+Пункт 2 (общий финансовый порядок/reconciliation) и остаток legacy SQL-over-IO
+пункта 3 **не закрыты**; исправлены отдельные ошибки CP lookup/cancel и email report.
+Пункты 5–7 — предпродовые проверки, непосредственно cutover — пункт 8.
+[Точный контракт, текущий остаток 1–8 и проверки](devops-consumer-refresh-2026-09-22.md).
+Ниже — история предыдущих пакетов, не повторное открытие уже сделанных guard-правок.
+
 **Candidate Sheets / AI / detector, 22.09:** добавлены opt-in проверки покрытия и версии данных для всех трёх consumers: полный Sheets snapshot, detached AI prompt + защита кэша, приостановка detector mutations при неполноте. Live-инструменты ассистента сообщают о неполных/выборочных ответах. Три флага по умолчанию false; production не менялся. До включения остаются bounded refresh для длинной истории/baseline (nightly 7 дней недостаточно), общая нагрузочная/restore-приёмка и cutover. [Контракт, проверки и ограничения](devops-consumer-freshness-2026-09-22.md). Ниже записи предыдущих candidate сохранены как история, а не текущая незавершённость этих guard-правок.
 
 **Candidate direct exports, 22.09:** серверные PDF/PNG/DOCX и создание HTML-ссылки получили opt-in coverage gate и отдельную SQL-фазу до render. Исправлена потеря scope папки при создании ссылки; frontend понимает JSON-ошибки скачивания в Blob. Это не новый async renderer и не перевод Sheets/AI/detектора. [Реализация, проверки и точные границы](devops-direct-export-freshness-2026-09-22.md).

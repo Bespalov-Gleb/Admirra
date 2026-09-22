@@ -350,6 +350,7 @@
       :alerts="[]"
       :hidden-alerts="[]"
       :sync-issues="detectorSummary?.sync_issues || []"
+      @refresh-data="fetchDetectorSummary(filters.client_id)"
       class="detector-banner-slot"
     />
 
@@ -1036,6 +1037,7 @@
         </div>
 
         <template v-if="!aiCommentCollapsed">
+        <DataReadinessNotice :readiness="aiDataReadiness" action-label="Получить комментарий" @ready-action="triggerAiComment" />
         <!-- Генерация по кнопке -->
         <div v-if="loadingInitialComment || loadingAiComment" class="ai-comment__skeleton">
           <p class="ai-comment__skeleton-note">{{ loadingAiComment ? 'Формируем комментарий…' : 'Загружаем…' }}</p>
@@ -1681,6 +1683,7 @@ import { useTelegramReportLink } from '@/composables/useTelegramReportLink'
 import { refreshReportsQueue } from '@/composables/useReportsQueue'
 import { useToaster } from '@/composables/useToaster'
 import api from '@/api/axios'
+import DataReadinessNotice from '@/components/DataReadinessNotice.vue'
 import { createLatestRequest } from '@/utils/latestRequest'
 import { reportExportError } from '@/utils/reportExportError'
 import DateRangePicker from '@/components/ui/DateRangePicker.vue'
@@ -2269,6 +2272,9 @@ const formatReportDate = (value) => {
 }
 
 const reportComment = ref('')
+const aiDataReadiness = ref(null)
+const aiScopeKey = () => JSON.stringify([filters.client_id, filters.start_date, filters.end_date])
+let savedCommentRequest = 0
 const loadingAiComment = ref(false)
 const loadingInitialComment = ref(false)
 const aiCommentGeneratedAt = ref(null)
@@ -2279,7 +2285,10 @@ const aiCommentRating = ref(0)         // §7: 1 = 👍, -1 = 👎, 0 — не �
 const aiCommentDownvoteHint = ref(false)
 
 const loadSavedComment = async () => {
-  if (!filters.client_id) return
+  const requestId = ++savedCommentRequest
+  const scope = aiScopeKey()
+  aiDataReadiness.value = null
+  if (!filters.client_id) { loadingInitialComment.value = false; return }
   loadingInitialComment.value = true
   reportComment.value = ''
   aiCommentGeneratedAt.value = null
@@ -2290,6 +2299,8 @@ const loadSavedComment = async () => {
     if (filters.start_date) params.set('start_date', filters.start_date)
     if (filters.end_date) params.set('end_date', filters.end_date)
     const { data } = await api.get(`ai/comment?${params.toString()}`)
+    if (requestId !== savedCommentRequest || scope !== aiScopeKey()) return
+    aiDataReadiness.value = data?.data_readiness || null
     if (data?.text) reportComment.value = data.text
     aiCommentGeneratedAt.value = data?.generated_at || null
     aiCommentStandard.value = data?.standard ?? null
@@ -2299,7 +2310,7 @@ const loadSavedComment = async () => {
   } catch {
     // не критично — просто не показываем сохранённый
   } finally {
-    loadingInitialComment.value = false
+    if (requestId === savedCommentRequest) loadingInitialComment.value = false
   }
 }
 
@@ -5413,6 +5424,7 @@ const refreshUserReportSettings = async () => {
 }
 
 const handleGenerateReport = async () => {
+  const scope = aiScopeKey()
   try {
     const { data } = await api.post('ai/generate-report', {
       client_id: filters.client_id || null,
@@ -5420,11 +5432,16 @@ const handleGenerateReport = async () => {
       end_date: filters.end_date,
       report_type: 'dashboard_comment'
     })
+    if (scope !== aiScopeKey()) return ''
     reportComment.value = data?.text || ''
+    aiDataReadiness.value = null
     aiCommentGeneratedAt.value = new Date().toISOString()
     return reportComment.value
   } catch (err) {
-    toaster.error(err.response?.data?.detail || 'Не удалось сгенерировать отчет')
+    if (scope !== aiScopeKey()) return ''
+    const detail = err.response?.data?.detail
+    aiDataReadiness.value = detail?.data_readiness || null
+    toaster.error(typeof detail === 'string' ? detail : detail?.message || 'Не удалось сгенерировать отчет')
     return ''
   }
 }
@@ -5436,10 +5453,10 @@ const triggerAiComment = async () => {
   aiCommentDownvoteHint.value = false
   try {
     // Бэк кэширует dashboard_comment по периоду сам (ТЗ §12) — отдельный POST не нужен.
-    await handleGenerateReport()
+    const result = await handleGenerateReport()
     // После ручного «Рассчитать» произвольный период считается посчитанным.
     if (reportComment.value) aiCommentStandard.value = aiCommentStandard.value ?? false
-    aiCommentStale.value = false
+    if (result) aiCommentStale.value = false
   } finally {
     loadingAiComment.value = false
   }

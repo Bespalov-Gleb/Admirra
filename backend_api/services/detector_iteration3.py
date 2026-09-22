@@ -520,9 +520,10 @@ def _is_sync_stale(integration: models.Integration, reference_date: date, cfg: D
 
 
 def sync_issues_for_client(db: Session, client_id: uuid.UUID, reference_date: date | None = None) -> list[dict]:
-    from .detector_freshness import pending, issue
-    if pending(db, client_id, reference_date):
-        return [issue()]
+    from .detector_freshness import status, issue
+    proof = status(db, client_id, reference_date)
+    if proof is not None and proof["status"] != "ready":
+        return [issue(proof)]
     ref = reference_date or date.today()
     cfg = get_config().detector
     issues: list[dict] = []
@@ -1533,7 +1534,7 @@ def run_detector_iteration3(
         return
     ref = reference_date or date.today()
     from .detector_freshness import status
-    proof = status(db, client_id, ref)
+    proof = status(db, client_id, ref, refresh=True)
     if proof is not None and proof["status"] != "ready":
         # Do not close old alerts, increment recovery, or create notifications.
         return False

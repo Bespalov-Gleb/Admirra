@@ -80,6 +80,10 @@ def main():
                 from automation.backfill_work import reconcile
                 reconcile(db, min_age_seconds=15)
                 prune_completed(db)
+            # Separate transaction: source locks never follow scheduler/job locks.
+            from automation.consumer_refresh import reconcile as reconcile_consumers
+            with SessionLocal.begin() as db:
+                reconcile_consumers(db)
             published = publish_pending(SessionLocal, lambda job_id, queue: app.send_task(
                 "admirra.execute", args=[job_id], queue=queue, retry=False), batch_size=10)
             if published:

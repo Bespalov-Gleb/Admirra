@@ -96,7 +96,19 @@ class CloudPaymentsService:
             )
             resp.raise_for_status()
             body = resp.json()
-            return body.get("Model") or []
+            # An HTTP 200 business error is not an empty list of active
+            # subscriptions. Otherwise cancellation could be falsely confirmed.
+            if not isinstance(body, dict) or body.get("Success") is not True:
+                raise RuntimeError("CloudPayments subscription lookup was not confirmed")
+            rows = body.get("Model")
+            if not isinstance(rows, list) or any(
+                not isinstance(row, dict) or not row.get("Id")
+                or str(row.get("AccountId")) != str(account_id)
+                or row.get("Status") not in {"Active", "PastDue", "Cancelled", "Rejected", "Expired"}
+                for row in rows
+            ):
+                raise RuntimeError("CloudPayments returned an invalid subscription list")
+            return rows
 
     @staticmethod
     def validate_webhook_signature(raw_body: bytes, signature: str | None) -> bool:

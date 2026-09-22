@@ -357,6 +357,7 @@
                   {{ sheetsDisconnecting ? 'Отключаем...' : 'Отключить' }}
                 </button>
               </div>
+              <DataReadinessNotice :readiness="sheetsReadiness" action-label="Выгрузить таблицу" @ready-action="exportGoogleSheetsNow" />
             </div>
           </section>
 
@@ -513,6 +514,7 @@
 <script setup>
 import { computed, reactive, ref, watch, onMounted, onUnmounted } from 'vue'
 import api from '@/api/axios'
+import DataReadinessNotice from '@/components/DataReadinessNotice.vue'
 import { projectAvatarUrl, projectInitials } from '@/utils/projectAvatar'
 import { useToaster } from '@/composables/useToaster'
 import PlatformIcon from '@/components/ui/PlatformIcon.vue'
@@ -562,6 +564,7 @@ const containerRef = ref(null)
 const idCopied = ref(false)
 const initialFormSnapshot = ref('')
 const sheetsStatus = ref(null)
+const sheetsReadiness = ref(null)
 const sheetsChecking = ref(false)
 const sheetsExporting = ref(false)
 const sheetsDisconnecting = ref(false)
@@ -902,6 +905,7 @@ watch(
       pauseTargetStatus.value = ''
       deleteConfirmText.value = ''
       sheetsStatus.value = null
+      sheetsReadiness.value = null
       isInitializing.value = true
       // Период берём из последних сохранённых данных детектора (если есть),
       // иначе — текущий месяц. Иначе при повторном заходе колонки пустые,
@@ -1165,14 +1169,17 @@ async function connectGoogleSheets() {
 }
 
 async function exportGoogleSheetsNow() {
-  if (!sheetsConnected.value) return
+  if (!sheetsConnected.value || sheetsExporting.value) return
   sheetsExporting.value = true
   try {
     const { data } = await api.post(`clients/${props.project.id}/google-sheets/export`)
+    sheetsReadiness.value = null
     sheetsStatus.value = data
     toaster.success('Данные выгружены в Google Sheets')
   } catch (err) {
-    const message = err.response?.data?.detail || 'Не удалось выгрузить данные'
+    const detail = err.response?.data?.detail
+    sheetsReadiness.value = detail?.data_readiness || null
+    const message = typeof detail === 'string' ? detail : detail?.message || 'Не удалось выгрузить данные'
     sheetsStatus.value = { ...(sheetsStatus.value || {}), message }
     toaster.error(message)
   } finally {

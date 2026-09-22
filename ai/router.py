@@ -436,7 +436,7 @@ async def get_context(
         try:
             context = freshness.capture(db, current_user.id, project_id, None, start_date, end_date, reader)
         except DataNotReady as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from None
+            raise HTTPException(status_code=409, detail=exc.detail()) from None
         alerts = []  # Legacy alert rows do not carry this context's evidence.
     else:
         context = build_assistant_context(db, current_user.id, project_id, start_date, end_date)
@@ -699,7 +699,7 @@ async def chat(
                 history=previous_messages,
             )
         except DataNotReady as e:
-            raise HTTPException(status_code=409, detail=str(e))
+            raise HTTPException(status_code=409, detail=e.detail())
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except Exception as e:
@@ -834,7 +834,7 @@ async def generate_report(
         db.commit()
         return GenerateReportResponse(text=text)
     except freshness.DataNotReady as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
+        raise HTTPException(status_code=409, detail=exc.detail())
     except HTTPException:
         # Штатные API-ответы (в частности 429 троттла комментария) должны
         # доходить до клиента без подмены на общий 500.
@@ -875,8 +875,9 @@ async def get_ai_comment(
     if freshness.enabled():
         try:
             proof_revision = freshness.revision(db, current_user.id, cid, start_date, end_date)
-        except freshness.DataNotReady:
-            return {"text": None, "stale": True, "standard": None, "data_readiness": "waiting_data"}
+        except freshness.DataNotReady as exc:
+            return {"text": None, "stale": True, "standard": None,
+                    "data_readiness": getattr(exc, "data_readiness", None) or "waiting_data"}
     if start_date and end_date:
         _key, is_standard = _comment_cache_key(start_date, end_date)
         entry = _get_cached_comment(db, cid, start_date, end_date)

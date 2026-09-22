@@ -58,4 +58,6 @@ def get_runtime(env: Mapping[str, str] | None = None) -> Runtime:
         raise ValueError("Direct export freshness requires report freshness")
     if any(env_bool(flag, False, values) for flag in ("AI_FRESHNESS_GUARDS", "SHEETS_FRESHNESS_GUARDS", "DETECTOR_FRESHNESS_GUARDS")) and not env_bool("REPORT_FRESHNESS_GUARDS", False, values):
         raise ValueError("Consumer freshness requires report freshness")
+    if env_bool("CONSUMER_REFRESH_ENABLED", False, values) and not env_bool("REPORT_FRESHNESS_GUARDS", False, values):
+        raise ValueError("Consumer refresh requires durable report freshness")
     return Runtime(role, bootstrap, sync, scheduler)

@@ -985,7 +985,8 @@ async def send_report_delivery(db, delivery, user, **kwargs):
         route_ledger.context.reset(reset)
 
 
-@route_ledger.guarded("email", lambda kw: kw["email"].strip().lower())
+@route_ledger.guarded("email", lambda kw: kw["email"].strip().lower(),
+    snapshot={"delivery": ("start_date", "end_date", "pdf_snapshot")})
 async def _send_delivery_email(*, email, delivery, message, caption):
     from backend_api.services.unisender import is_configured as unisender_ok, send_report_email as uni_send
     kwargs = dict(recipients=[email], subject=message.get("subject") or f"Отчёт за {delivery.start_date} — {delivery.end_date}",

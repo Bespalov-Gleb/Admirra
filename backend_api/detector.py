@@ -440,7 +440,7 @@ def get_detector_summary(
         "plan_status": plan_status,
         "plan_completion_pct": _plan_completion_pct(db, client_id, plan_status, now.date()),
         "plan_summary": _plan_summary(db, client_id, plan_status, now.date()),
-        "sync_issues": [issue()] if held else sync_issues_for_client(db, client_id, now.date()),
+        "sync_issues": [issue(proof)] if held else sync_issues_for_client(db, client_id, now.date()),
         "onboarding_dismissed_until": _effective_onboarding_dismissed(db, client, now.date()),
         "visible_from": visible_from,
         "metric_plan": _metric_plan(db, client_id, now.date()),

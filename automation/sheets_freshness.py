@@ -15,7 +15,7 @@ class SheetDataNotReady(RejectedBeforeExternalIO):
     pass
 
 
-def prepare(factory, client_id, owner_id, target=None):
+def prepare(factory, client_id, owner_id, target=None, *, viewer_id=None):
     from automation.sheets_snapshot import prepare_snapshot, SnapshotLimits, ExportSnapshotLimitExceeded
     from automation.reports import _period_summary
     target = target or date.today()
@@ -100,7 +100,11 @@ def prepare(factory, client_id, owner_id, target=None):
                 raise ExportSnapshotLimitExceeded("Полная таблица превышает лимит экспорта")
             return client.spreadsheet_id, snapshot, proof
     except DataNotReady as exc:
-        raise SheetDataNotReady("Полная история ещё не подтверждена синхронизацией; таблица не изменена") from exc
+        from automation.consumer_refresh import enqueue_error
+        error = SheetDataNotReady("Полная история ещё не подтверждена синхронизацией; таблица не изменена")
+        with factory() as db:
+            error.data_readiness = enqueue_error(db, "sheets", viewer_id or owner_id, exc)
+        raise error from exc
 
 
 def recheck(factory, client_id, owner_id, spreadsheet_id, proof):

@@ -64,7 +64,7 @@ def plan(db, delivery):
     global_limit = env_int("REPORT_REFRESH_GLOBAL_JOBS", 8, 1, 32)
     owner_limit = env_int("REPORT_REFRESH_OWNER_JOBS", 2, 1, 4)
     active = list(db.execute(sa.select(jobs.c.tenant).where(jobs.c.kind == "history.backfill",
-        jobs.c.payload["report_refresh"].is_not(None), jobs.c.state.in_(["queued", "running"]))))
+        jobs.c.state.in_(["queued", "running"])).limit(1025)))
     slots = min(2, max(0, global_limit - len(active)))
     by_owner = {}
     for (owner,) in active:

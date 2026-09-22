@@ -14,6 +14,10 @@ class DataNotReady(RuntimeError):
         self.reason = reason
         super().__init__("Данные отчёта ещё не готовы. Обновите данные или подготовьте отчёт через согласование.")
 
+    def detail(self):
+        readiness = getattr(self, "data_readiness", None)
+        return {"message": str(self), "data_readiness": readiness} if readiness else str(self)
+
 
 def requirements(db, ids, start, end):
     ids = sorted(set(ids), key=str)

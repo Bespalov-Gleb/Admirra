@@ -65,6 +65,32 @@ def test_one_recipient_across_concurrent_senders(recipients):
 
 
 @pytest.mark.asyncio
+async def test_email_transport_never_reopens_expired_orm_transaction(recipients, monkeypatch):
+    factory, table = recipients
+    item = delivery_row(recipients)
+    with factory.begin() as db:
+        db.execute(table.update().where(table.c.id == item.id).values(
+            start_date=date(2026, 9, 1), end_date=date(2026, 9, 2), pdf_snapshot=b"synthetic"))
+    calls = []
+    async def send(**kwargs):
+        assert factory.kw["bind"].pool.checkedout() == 0
+        assert kwargs["pdf_bytes"] == b"synthetic"
+        calls.append(kwargs)
+        return True, None
+    monkeypatch.setattr("backend_api.services.unisender.is_configured", lambda: True)
+    monkeypatch.setattr("backend_api.services.unisender.send_report_email", send)
+    with factory() as db:
+        delivery = db.get(ReportDelivery, item.id)
+        reset = ledger.context.set((db, delivery))
+        try:
+            for email in ("one@example.test", "two@example.test", "one@example.test"):
+                assert await scheduler._send_delivery_email(email=email, delivery=delivery, message={}, caption="Report") == (True, None)
+        finally:
+            ledger.context.reset(reset)
+    assert len(calls) == 2
+
+
+@pytest.mark.asyncio
 async def test_success_is_not_replayed_despite_missing_batch_checkpoint(recipients):
     factory, _ = recipients
     item = delivery_row(recipients)

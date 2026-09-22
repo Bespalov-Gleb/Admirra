@@ -47,4 +47,7 @@ def require_scope(db, payload, *, kind, integration_id):
     if payload.get("report_refresh") is not None:
         from automation.report_refresh import require_report
         require_report(db, payload, integration, client)
+    if payload.get("consumer_refresh") is not None:
+        from automation.consumer_refresh import require_request
+        require_request(db, payload, integration, client)
     return integration, client

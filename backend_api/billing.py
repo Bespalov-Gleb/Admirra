@@ -1431,11 +1431,14 @@ async def cancel_autorenew(
     sub.cancel_at_period_end = True
     # Отмена автопродления = отвязка карты: рекуррент в CP отменён, токен карты больше
     # не используется — убираем и отображаемую маску, чтобы UI показал «Карта не привязана».
-    sub.card_last4 = None
-    sub.card_type = None
-    sub.card_exp = None
-    sub.cloudpayments_subscription_id = None
     recurrent_cancelled = not failed_ids
+    # Unknown provider outcome must retain the subscription reference for
+    # reconciliation. Do not present an unconfirmed cancellation as unlinking.
+    if recurrent_cancelled:
+        sub.card_last4 = None
+        sub.card_type = None
+        sub.card_exp = None
+        sub.cloudpayments_subscription_id = None
     log_history_event(
         db,
         actor=current_user,
@@ -1465,6 +1468,7 @@ async def cancel_autorenew(
         "ok": True,
         "autorenew": False,
         "recurrent_cancelled": recurrent_cancelled,
+        "cancellation_pending": not recurrent_cancelled,
         "warning": (
             None
             if recurrent_cancelled

@@ -1,6 +1,7 @@
 """Per-recipient send guards. Unknown external outcomes are NEVER replayed."""
 from contextvars import ContextVar
 from functools import wraps
+from types import SimpleNamespace
 import hashlib
 import uuid
 
@@ -90,7 +91,7 @@ def resolve(db, delivery_id, key, actor_id, decision, reason):
     # Caller authorizes ownership and commits atomically with any delivery changes.
 
 
-def guarded(channel, recipient):
+def guarded(channel, recipient, *, snapshot=None):
     def decorate(fn):
         @wraps(fn)
         async def wrapped(*args, **kwargs):
@@ -98,8 +99,14 @@ def guarded(channel, recipient):
             if not active or not enabled():
                 return await fn(*args, **kwargs)
             db, delivery = active
+            delivery_id = delivery.id
+            # Materialize before acquire commits/expires ORM objects. Nothing
+            # inside the transport may lazily reopen SQL during network IO.
+            for name, fields in (snapshot or {}).items():
+                source = kwargs[name]
+                kwargs[name] = SimpleNamespace(**{field: getattr(source, field) for field in fields})
             key = route_key(channel, recipient(kwargs))
-            token, state = acquire(db, delivery.id, key, channel,
+            token, state = acquire(db, delivery_id, key, channel,
                 untracked_history=bool((delivery.delivery_results or {}).get("legacy_untracked_attempts")))
             if token is None:
                 return (True, None) if state == "accepted" else (False, UNCERTAIN)
@@ -107,13 +114,13 @@ def guarded(channel, recipient):
             try:
                 ok, error = await fn(*args, **kwargs)
                 state = "accepted" if ok else "rejected" if outcome.get() == "rejected" else "uncertain"
-                settle(db, delivery.id, key, token, state)
+                settle(db, delivery_id, key, token, state)
                 return ok, UNCERTAIN if state == "uncertain" else error
             except Exception:
                 # A failed DB commit after an accepted send leaves 'sending'
                 # behind; a retry will be blocked, not silently resend.
                 db.rollback()
-                settle(db, delivery.id, key, token, "uncertain")
+                settle(db, delivery_id, key, token, "uncertain")
                 return False, UNCERTAIN
             finally:
                 outcome.reset(reset)
