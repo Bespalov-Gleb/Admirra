@@ -325,4 +325,8 @@ def test_worker_preflight_rejects_wrong_schema_and_orphaned_legacy_queue(pg, mon
     with factory.begin() as db:
         ledger.submit(db, kind="sync", queue="sync.manual", key="new", resource="new", tenant="client",
                       payload={"sync_job_id": str(legacy_id)}, replay_safe=True)
+    with pytest.raises(RuntimeError, match='Scoped lead placements'):
+        check()
+    with engine.begin() as db:
+        db.execute(sa.text('CREATE TABLE lead_placement_blocks (id integer PRIMARY KEY)'))
     check()

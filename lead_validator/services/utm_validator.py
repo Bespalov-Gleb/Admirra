@@ -13,7 +13,7 @@ from typing import Optional, Tuple, List
 from dataclasses import dataclass
 
 from lead_validator.config import settings
-from lead_validator.services.placement_blacklist import placement_blacklist
+from lead_validator.services import scoped_placements
 
 logger = logging.getLogger("lead_validator.utm_validator")
 
@@ -79,7 +79,8 @@ class UTMValidator:
         self, 
         utm: UTMData, 
         client_ip: Optional[str] = None,
-        geo_country: Optional[str] = None
+        geo_country: Optional[str] = None,
+        *, db=None, owner_id=None, project_id=None,
     ) -> UTMValidationResult:
         """
         Проверить UTM-метки.
@@ -102,7 +103,7 @@ class UTMValidator:
             warnings.append(format_result)
         
         # === Проверка 2: Чёрный список площадок ===
-        blacklist_result = await self._check_blacklist(utm)
+        blacklist_result = await self._check_blacklist(utm, db=db, owner_id=owner_id, project_id=project_id)
         if blacklist_result:
             logger.info(f"UTM blacklisted: {blacklist_result} from IP {client_ip}")
             return UTMValidationResult(
@@ -167,7 +168,7 @@ class UTMValidator:
         
         return "; ".join(issues) if issues else None
     
-    async def _check_blacklist(self, utm: UTMData) -> Optional[str]:
+    async def _check_blacklist(self, utm: UTMData, *, db=None, owner_id=None, project_id=None) -> Optional[str]:
         """Проверить чёрный список площадок (статический + динамический)."""
         # 1. Проверка статического чёрного списка (из конфига)
         if self.blacklisted_placements:
@@ -185,12 +186,11 @@ class UTMValidator:
                     if placement.lower() in campaign_lower:
                         return f"static:{placement}"
         
-        # 2. Проверка динамического чёрного списка (из Redis)
-        is_dynamic_blacklisted = await placement_blacklist.is_blacklisted(
-            utm.source,
-            utm.campaign,
-            utm.content
-        )
+        # Unbound/public diagnostics may use static rules, never another tenant's decisions.
+        is_dynamic_blacklisted = False
+        if db is not None and owner_id is not None and project_id is not None:
+            is_dynamic_blacklisted = scoped_placements.is_blacklisted(
+                db, owner_id, project_id, utm.source, utm.campaign, utm.content)
         if is_dynamic_blacklisted:
             return f"dynamic:{utm.source}/{utm.campaign}/{utm.content}"
         
@@ -250,4 +250,3 @@ class UTMValidator:
 
 # Глобальный экземпляр
 utm_validator = UTMValidator()
-

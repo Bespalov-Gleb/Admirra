@@ -89,3 +89,5 @@ def check():
         check_integration_bindings(db)
         check_lead_alert_bindings(db)
         check_billing_bindings(db)
+        if not db.scalar(sa.text("SELECT to_regclass('lead_placement_blocks')")):
+            raise RuntimeError('Scoped lead placements require their additive schema migration')

@@ -1,13 +1,21 @@
 # AdMirra DevOps — актуальный остаток до полного переключения
 
-Обновлено 22.09.2026 после scoped DB-backed lead quality notifications. Это **не** утверждение, что весь DevOps-проект готов: ниже три крупных этапа, внутри которых остаётся существенная работа. Полное ТЗ: [admirra_devops_completion_tz_2026-09-11.md](admirra_devops_completion_tz_2026-09-11.md). [Изменения и проверки 21 сентября](devops-progress-2026-09-21.md), [уведомления о качестве лидов 22 сентября](devops-lead-alerts-2026-09-22.md).
+Обновлено 23.09.2026 после scoped quality report/placement blacklist. Это **не** утверждение, что весь DevOps-проект готов: ниже три крупных этапа, внутри которых остаётся существенная работа. Полное ТЗ: [admirra_devops_completion_tz_2026-09-11.md](admirra_devops_completion_tz_2026-09-11.md). [Изменения и проверки 21 сентября](devops-progress-2026-09-21.md), [уведомления о качестве лидов 22 сентября](devops-lead-alerts-2026-09-22.md).
 
 ## Новый candidate, не production
 
+**Продолжение пунктов 3/4, 23.09:** quality/blacklist endpoints переведены на
+owner/project-scoped DB, добавлен bounded durable пересчёт блокировок с TTL и
+проверкой lease. Excel без SQL/отсутствующего pandas; PhoneReports — причины,
+project labels, error/retry и защита от поздних ответов. Schema head `f46f708192a3`.
+Остаются сохранение ранних отказов, immediate exports/validation, legacy diagnostics,
+interactive AI/report и billing analytics SQL-over-IO, операторская/визуальная
+приёмка. [Контракт, rollout и проверки](devops-lead-placements-2026-09-23.md).
+
 **Продолжение пункта 3, 22.09:** `/lead/stats` переведён с общего файла на owner-scoped
 SQL; `/phone-stats/` — один bounded агрегат вместо четырёх запросов, без PENDING
-в отклонениях. Остальные quality/blacklist endpoints и сохранение ранних отказов
-ещё требуют правок. [Точный контракт и границы](devops-lead-stats-2026-09-22.md).
+в отклонениях. Quality/blacklist дополнены пакетом 23.09 выше; сохранение ранних
+отказов ещё требует правок. [Точный контракт и границы](devops-lead-stats-2026-09-22.md).
 
 **Объединённая проверка, 22.09:** isolated backend manifest — **1281 passed,
 1 skipped, 1 deselected**, 6 subtests passed; финальные report guards отдельно —
@@ -26,7 +34,7 @@ webhook и maintenance; порядок, non-replayable receipts, сохране�
 подтверждения, операторская CLI-сверка и pending/uncertain UI. Schema head
 `f35e6f708192`, opt-in `BILLING_PROVIDER_QUEUE=false`.
 [Контракт, rollout, проверки и ограничения](devops-billing-order-2026-09-22.md).
-Немедленные lead exports/validation, legacy analytics/blacklist и остаток report
+Немедленные lead exports/validation, legacy diagnostics и остаток report
 SQL-over-IO ещё не закрыты. Отдельная визуальная/operator и sandbox-приёмка
 также остаётся; весь пакет 1–4 готовым не объявляем.
 

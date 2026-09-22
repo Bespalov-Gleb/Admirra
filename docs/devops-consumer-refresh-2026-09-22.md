@@ -103,7 +103,9 @@ report/lead SQL-over-IO пути также не объявляются испр
    [Контракт и rollout](devops-billing-order-2026-09-22.md).
 3. Legacy SQL-over-IO: исправлены email report transport и automatic AI report
    (`14c6131`, immutable snapshot, один AI attempt, release SQL до AI/render).
-   Остаются immediate lead export/validation, tenant-scoped legacy analytics/blacklist,
+   Scoped analytics/blacklist закрыты отдельным candidate 23.09
+   ([контракт](devops-lead-placements-2026-09-23.md)). Остаются immediate lead
+   export/validation, сохранение ранних отказов, legacy diagnostics,
    остальные interactive report/AI пути и offline conversion Метрики в billing webhook.
    [Проверки и границы отчётов](devops-report-comment-2026-09-22.md).
 4. Waiting/error/retry для data readiness реализованы; визуальная приёмка и UI

@@ -37,6 +37,7 @@ def occurrences(tick, now):
     alerts = tick.astimezone(ZoneInfo(os.getenv("LEAD_ALERT_TIMEZONE", "UTC")))
     if alerts.hour == 9 and alerts.minute == 0:
         yield "lead.daily", "maintenance", True, stamp
+        yield "lead.blacklist", "maintenance", True, stamp
     if alerts.weekday() == 0 and alerts.hour == 9 and alerts.minute == 30:
         yield "lead.weekly", "maintenance", True, stamp
 

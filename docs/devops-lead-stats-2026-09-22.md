@@ -38,6 +38,11 @@ Python и `git diff --check` также прошли. Предварительн
 
 ## Что остаётся
 
+Дополнение 23.09: quality/blacklist endpoints и проектная генерация блокировок
+реализованы следующим candidate — [контракт и проверки](devops-lead-placements-2026-09-23.md).
+Первые два пункта ниже описывают границы именно пакета 22.09, не повторное открытие
+задачи; сохранение ранних отказов и immediate exports всё ещё остаются.
+
 - `GET /reports/quality` и `/reports/blacklist` всё ещё используют legacy global
   analytics/Redis. Не считать всю страницу PhoneReports исправленной этим пакетом.
 - Для чёрного списка нужны ключи/ledger с owner+project, bounded генерация по

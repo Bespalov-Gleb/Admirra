@@ -40,7 +40,11 @@ async def _async_run(kind, payload):
 
 
 def run(kind, payload):
-    if kind in {"lead.daily", "lead.weekly"}:
+    if kind == 'lead.blacklist.project':
+        from core.database import SessionLocal
+        from automation.lead_placement_work import execute
+        return execute(SessionLocal, payload)
+    if kind in {"lead.daily", "lead.weekly", "lead.blacklist"}:
         from core.database import SessionLocal
         from automation.lead_alert_work import plan_page
         return plan_page(SessionLocal, kind, payload)

@@ -16,7 +16,7 @@
           <div class="flex items-center gap-1.5 mt-0.5">
             <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse flex-shrink-0"></div>
             <p class="text-[0.625rem] font-bold text-gray-400 uppercase tracking-wider truncate">
-              Анализ качества трафика для подрядчиков
+              Сохранённые заявки проектов · время UTC
             </p>
           </div>
         </div>
@@ -31,7 +31,7 @@
           </select>
           <button
             @click="exportReport"
-            :disabled="loading"
+            :disabled="loading || exporting || !report"
             class="px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-sm hover:shadow-md flex items-center gap-2 font-semibold text-sm"
           >
             <ArrowDownTrayIcon class="w-5 h-5" />
@@ -41,19 +41,22 @@
       </div>
     </div>
 
+    <p v-if="reportError" role="alert" class="text-sm text-red-600">
+      {{ reportError }} <button class="ml-2 underline" @click="fetchReport">Повторить</button>
+    </p>
     <!-- Общая статистика -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
       <div class="bg-white rounded-[2.2222rem] p-6 border border-gray-100 shadow-sm">
-        <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Всего заявок</p>
-        <p class="text-3xl font-black text-gray-900">{{ report?.overall?.total_leads || 0 }}</p>
+        <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Проверенные заявки</p>
+        <p class="text-3xl font-black text-gray-900">{{ report?.overall?.total_leads ?? '—' }}</p>
       </div>
       <div class="bg-white rounded-[2.2222rem] p-6 border border-gray-100 shadow-sm">
         <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Отклонено</p>
-        <p class="text-3xl font-black text-red-600">{{ report?.overall?.total_rejected || 0 }}</p>
+        <p class="text-3xl font-black text-red-600">{{ report?.overall?.total_rejected ?? '—' }}</p>
       </div>
       <div class="bg-white rounded-[2.2222rem] p-6 border border-gray-100 shadow-sm">
         <p class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">% отклонения</p>
-        <p class="text-3xl font-black text-gray-900">{{ report?.overall?.rejection_rate || 0 }}%</p>
+        <p class="text-3xl font-black text-gray-900">{{ report ? `${report.overall.rejection_rate}%` : '—' }}</p>
       </div>
     </div>
 
@@ -89,6 +92,7 @@
             >
               <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                 {{ source.source || '-' }}
+                <div class="text-xs text-gray-500">{{ source.project_name }}</div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                 {{ source.campaign || '-' }}
@@ -126,12 +130,12 @@
       <div v-if="loading" class="h-64 flex items-center justify-center">
         <div class="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
       </div>
-      <div v-else-if="!report?.rejection_reasons?.length" class="text-center text-gray-500 py-12">
+      <div v-else-if="!reasons.length" class="text-center text-gray-500 py-12">
         <p>Нет данных</p>
       </div>
       <div v-else class="space-y-3">
         <div
-          v-for="(reason, index) in report.rejection_reasons"
+          v-for="(reason, index) in reasons"
           :key="index"
           class="flex items-center justify-between p-4 bg-gray-50 rounded-xl"
         >
@@ -141,6 +145,9 @@
       </div>
     </div>
 
+    <p v-if="report?.other_rejection_count" class="text-sm text-gray-500">
+      Другие причины отклонения: {{ report.other_rejection_count }}
+    </p>
     <!-- Чёрный список -->
     <div class="bg-white rounded-[2.2222rem] border border-gray-100 shadow-sm overflow-hidden">
       <div class="p-6 border-b border-gray-200">
@@ -149,6 +156,9 @@
       </div>
       <div v-if="loadingBlacklist" class="p-12 text-center">
         <div class="inline-block w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+      </div>
+      <div v-else-if="blacklistError" role="alert" class="p-6 text-sm text-red-600">
+        {{ blacklistError }} <button class="ml-2 underline" @click="fetchBlacklist">Повторить</button>
       </div>
       <div v-else-if="!blacklist?.placements?.length" class="p-12 text-center text-gray-500">
         <p>Чёрный список пуст</p>
@@ -162,6 +172,7 @@
           >
             <span class="text-sm font-medium text-red-900">
               {{ placement.source }} / {{ placement.campaign }} / {{ placement.content }}
+              <span class="block text-xs font-normal">{{ placement.project_name }}</span>
             </span>
             <span class="text-xs text-red-600">{{ placement.reason }}</span>
           </div>
@@ -172,10 +183,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { DocumentChartBarIcon, ArrowDownTrayIcon } from '@heroicons/vue/24/outline'
 import api from '@/api/axios'
 import { useToaster } from '@/composables/useToaster'
+import { createLatestRequest } from '@/utils/latestRequest'
+import { rejectionRows } from './qualityReportView'
 
 const toaster = useToaster()
 const loading = ref(false)
@@ -183,6 +196,13 @@ const loadingBlacklist = ref(false)
 const reportDays = ref('7')
 const report = ref(null)
 const blacklist = ref({ placements: [] })
+const reportError = ref('')
+const blacklistError = ref('')
+const exporting = ref(false)
+const reasons = computed(() => rejectionRows(report.value?.rejection_reasons))
+const reportRequests = createLatestRequest()
+const blacklistRequests = createLatestRequest()
+onBeforeUnmount(() => { reportRequests.cancel(); blacklistRequests.cancel() })
 
 onMounted(async () => {
   await Promise.all([fetchReport(), fetchBlacklist()])
@@ -192,34 +212,39 @@ watch(reportDays, () => {
   fetchReport()
 })
 
-const fetchReport = async () => {
+const fetchReport = () => reportRequests.run(reportDays.value, async ({ signal, isCurrent }) => {
+  const days = reportDays.value
   try {
     loading.value = true
+    report.value = null
+    reportError.value = ''
     const response = await api.get('reports/quality', {
-      params: { days: reportDays.value }
+      params: { days }, signal
     })
-    report.value = response.data
+    if (isCurrent()) report.value = response.data
   } catch (error) {
-    console.error('Error fetching report:', error)
-    toaster.error('Не удалось загрузить отчёт')
+    if (isCurrent()) reportError.value = error.response?.data?.detail || 'Не удалось загрузить отчёт. Повторите попытку.'
   } finally {
-    loading.value = false
+    if (isCurrent()) loading.value = false
   }
-}
+})
 
-const fetchBlacklist = async () => {
+const fetchBlacklist = () => blacklistRequests.run('blacklist', async ({ signal, isCurrent }) => {
   try {
     loadingBlacklist.value = true
-    const response = await api.get('reports/blacklist')
-    blacklist.value = response.data
+    blacklistError.value = ''
+    const response = await api.get('reports/blacklist', { signal })
+    if (isCurrent()) blacklist.value = response.data
   } catch (error) {
-    console.error('Error fetching blacklist:', error)
+    if (isCurrent()) blacklistError.value = error.response?.data?.detail || 'Не удалось загрузить чёрный список. Это не означает, что он пуст.'
   } finally {
-    loadingBlacklist.value = false
+    if (isCurrent()) loadingBlacklist.value = false
   }
-}
+})
 
 const exportReport = async () => {
+  if (exporting.value) return
+  exporting.value = true
   try {
     const response = await api.get('reports/quality', {
       params: { days: reportDays.value, format: 'excel' },
@@ -233,11 +258,14 @@ const exportReport = async () => {
     document.body.appendChild(link)
     link.click()
     link.remove()
+    URL.revokeObjectURL(url)
     
     toaster.success('Отчёт успешно экспортирован')
   } catch (error) {
     console.error('Error exporting report:', error)
     toaster.error('Не удалось экспортировать отчёт')
+  } finally {
+    exporting.value = false
   }
 }
 </script>

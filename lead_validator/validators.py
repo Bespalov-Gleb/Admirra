@@ -21,7 +21,6 @@ from lead_validator.services.utm_validator import utm_validator, UTMData
 from lead_validator.services.metrica_service import metrica_service
 from lead_validator.services.request_validator import request_validator
 from lead_validator.services.data_quality import data_quality_validator
-from lead_validator.services.analytics import analytics_service
 from lead_validator.services.email_mx_validator import email_mx_validator, timezone_validator
 from lead_validator.services.social_checker import social_checker
 from lead_validator.services.social_merge import merge_social_accounts_payload, social_payload_to_json
@@ -351,7 +350,8 @@ class LeadValidator:
             utm_result = await utm_validator.validate(
                 utm_data, 
                 client_ip=client_ip,
-                geo_country=lead.geo_country
+                geo_country=lead.geo_country,
+                db=db, owner_id=project.owner_id if project else None, project_id=project_id,
             )
             if not utm_result.is_valid:
                 return await self._reject(
@@ -462,14 +462,7 @@ class LeadValidator:
         
         logger.info(f"Lead rejected: {lead.phone} - {reason}")
         
-        # Записываем в аналитику
-        analytics_service.record_lead(
-            utm_source=lead.utm_source,
-            utm_campaign=lead.utm_campaign,
-            utm_content=lead.utm_content,
-            rejected=True,
-            rejection_reason=reason
-        )
+        # Scoped analytics uses persisted project leads, not an unbounded global map.
         
         # Логируем в Airtable/файл (async, не блокируем ответ)
         rejected = RejectedLead(
@@ -562,13 +555,7 @@ class LeadValidator:
         
         logger.info(f"Lead accepted: {lead.phone}")
         
-        # Записываем в аналитику (принятый лид)
-        analytics_service.record_lead(
-            utm_source=lead.utm_source,
-            utm_campaign=lead.utm_campaign,
-            utm_content=lead.utm_content,
-            rejected=False
-        )
+        # Scoped analytics uses persisted project leads, not an unbounded global map.
         
         # Сохраняем хеш телефона для дедупликации
         await redis_service.mark_phone(lead.phone)
@@ -913,4 +900,3 @@ class LeadValidator:
 
 # Глобальный экземпляр
 lead_validator = LeadValidator()
-

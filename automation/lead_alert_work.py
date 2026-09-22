@@ -23,7 +23,7 @@ from core.job_fence import current_fence, LeaseLost
 from lead_validator.config import settings
 
 PAGE_SIZE = 100
-PARENTS = {"lead.daily", "lead.weekly"}
+PARENTS = {"lead.daily", "lead.weekly", "lead.blacklist"}
 CHILDREN = {"lead.daily.project", "lead.weekly.project"}
 
 
@@ -46,13 +46,15 @@ def plan_page(factory, kind, payload):
     owner = uuid.UUID(payload["owner_id"]) if payload.get("owner_id") else None
     days = 7 if kind == "lead.weekly" else settings.ALERT_LOOKBACK_DAYS
     minimum, threshold = settings.ALERT_MIN_LEADS, settings.ALERT_THRESHOLD_PERCENT
-    if not (1 <= days <= 90 and minimum >= 1 and 0 <= threshold <= 100):
+    if kind != 'lead.blacklist' and not (1 <= days <= 90 and minimum >= 1 and 0 <= threshold <= 100):
         raise RejectedBeforeExternalIO("Invalid lead alert thresholds")
     p = models.PhoneProject
     with factory.begin() as db:
         if expired(scheduled, db.scalar(sa.select(sa.func.clock_timestamp()))):
             return {"planned": 0, "skipped": "expired_occurrence"}
-        query = sa.select(p).where(p.is_active.is_(True), sa.func.length(sa.func.trim(p.telegram_chat_id)) > 0)
+        query = sa.select(p).where(p.is_active.is_(True))
+        if kind != 'lead.blacklist':
+            query = query.where(sa.func.length(sa.func.trim(p.telegram_chat_id)) > 0)
         if owner:
             query = query.where(p.owner_id == owner)
         if upper is None:
@@ -66,6 +68,13 @@ def plan_page(factory, kind, payload):
         rows = db.scalars(query.order_by(p.id).limit(PAGE_SIZE + 1)).all()
         child_kind = kind + ".project"
         for project in rows[:PAGE_SIZE]:
+            if kind == 'lead.blacklist':
+                from automation.lead_placement_work import scope as placement_scope, parameters
+                submit(db, kind=child_kind, queue='maintenance', key=f'{child_kind}:{project.id}:{stamp}',
+                    resource=f'lead-blacklist:{project.id}', tenant=project.owner_id, replay_safe=True,
+                    payload={'project_id': str(project.id), 'owner_id': str(project.owner_id),
+                        'scope_digest': placement_scope(project), 'scheduled_at': stamp, **parameters()})
+                continue
             submit(db, kind=child_kind, queue="reports", key=f"{child_kind}:{project.id}:{stamp}",
                 resource=f"lead-alert:{project.id}", tenant=project.owner_id, replay_safe=False,
                 payload={"project_id": str(project.id), "owner_id": str(project.owner_id),

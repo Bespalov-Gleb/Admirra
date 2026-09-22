@@ -1642,6 +1642,22 @@ class Lead(Base):
     project = relationship("PhoneProject", back_populates="leads")
 
 
+class LeadPlacementBlock(Base):
+    """Project-bound, expiring decisions; legacy global Redis keys are never imported."""
+    __tablename__ = "lead_placement_blocks"
+    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("phone_projects.id", ondelete="CASCADE"), primary_key=True)
+    placement_key = Column(String(64), primary_key=True)
+    source = Column(String(200), nullable=False)
+    campaign = Column(String(200), nullable=False)
+    content = Column(String(200), nullable=False)
+    reason = Column(String(200), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    __table_args__ = (Index("ix_lead_placement_owner_expiry", "owner_id", "expires_at"),
+                     Index("ix_lead_placement_project", "project_id"))
+
+
 class AiConversation(Base):
     """Диалог AI-ассистента (роут /ai). Привязан к пользователю и, как правило,
     к проекту (client_id) — именно его данные Директа/Метрики читает ассистент."""
