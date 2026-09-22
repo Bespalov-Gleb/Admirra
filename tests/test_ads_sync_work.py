@@ -290,3 +290,14 @@ async def test_direct_keywords_replace_legacy_rows_with_stable_campaign_fk(adver
     with g.factory() as db:
         rows = list(db.scalars(sa.select(models.YandexKeywords)))
         assert len(rows) == 1 and rows[0].campaign_id == g.campaign and rows[0].impressions == 10
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("advertising", [models.IntegrationPlatform.VK_ADS], indirect=True)
+async def test_vk_provider_rates_survive_apply(advertising):
+    g = advertising
+    g.row.update(cpc=Decimal("1.91"), cpa=Decimal("3.82"))
+    await run(g)
+    with g.factory() as db:
+        row = db.scalar(sa.select(models.VKStats).where(models.VKStats.campaign_id == g.campaign))
+        assert row.cpc == Decimal("1.91") and row.cpa == Decimal("3.82")

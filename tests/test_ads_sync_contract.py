@@ -77,6 +77,17 @@ def test_vk_zero_nested_goal_is_not_overridden_and_empty_is_explicit():
             vk_statistics(invalid, {"42": "Test"}, "2026-09-10", "2026-09-10", {"42"})
 
 
+def test_vk_provider_rates_are_preserved_with_calculation_only_as_fallback():
+    base = dict(shows=10, clicks=2, spent=100, cpc="48.52", vk=dict(goals=1, cpa="98.21"))
+    payload = {"items": [{"id": 42, "rows": [{"date": "2026-09-10", "base": base}]}]}
+    def parse(): return vk_statistics(payload, {"42": "Test"}, "2026-09-10", "2026-09-10", {"42"})[0]
+    row = parse()
+    assert row["cpc"] == Decimal("48.52") and row["cpa"] == Decimal("98.21")
+    base.pop("cpc")
+    base["vk"]["cpa"] = 0
+    assert parse()["cpc"] == 50 and parse()["cpa"] == 100
+
+
 @pytest.mark.asyncio
 async def test_avito_mixed_children_fetch_missing_not_synthetic_zero():
     api = AvitoAdsAPI(credential_type="client_credentials", client_id="test", client_secret="test", account_id="1")

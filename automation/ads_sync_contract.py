@@ -153,10 +153,14 @@ def vk_statistics(payload, names, start, end, allowed):
                 raise IncompleteAdsSnapshot("Malformed VK objective metrics")
             clicks, cost = number(base.get("clicks"), integer=True), number(base.get("spent"))
             conversions = number(vk.get("goals", base.get("goals", 0)), integer=True)
+            cpc = number(base["cpc"]) if base.get("cpc") is not None else cost / clicks if clicks else None
+            raw_cpa = vk.get("cpa") if vk.get("cpa") is not None else base.get("cpa")
+            cpa = number(raw_cpa) if raw_cpa is not None else None
+            if not cpa and conversions:
+                cpa = cost / conversions
             result.append(dict(campaign_id=campaign, campaign_name=names[campaign], date=day,
                 impressions=number(base.get("shows"), integer=True), clicks=clicks, cost=cost,
-                conversions=conversions, cpc=cost / clicks if clicks else None,
-                cpa=cost / conversions if conversions else None))
+                conversions=conversions, cpc=cpc, cpa=cpa))
     return bounded(result)
 
 

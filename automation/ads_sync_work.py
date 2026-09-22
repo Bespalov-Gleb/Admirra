@@ -228,6 +228,9 @@ def validate(plan, snapshot):
             for metric in ("impressions", "clicks", "conversions"):
                 number(row.get(metric), integer=True)
             number(row.get("cost"))
+            for rate in ("cpc", "cpa"):
+                if row.get(rate) is not None:
+                    number(row[rate])
             child = (identifier(row.get("group_id")) if level == "groups" else
                      identifier(row.get("creative_id")) if level == "creatives" else
                      row.get("name") if level == "keywords" else None)
@@ -298,9 +301,9 @@ def apply(db, plan, snapshot, *, historical=False):
             elif level == "creatives":
                 value.update(creative_id=str(row["creative_id"]), creative_name=row.get("creative_name"), group_id=row.get("group_id"))
             if hasattr(model, "cpc"):
-                value["cpc"] = row["cost"] / row["clicks"] if row["clicks"] else None
+                value["cpc"] = row.get("cpc") if row.get("cpc") is not None else row["cost"] / row["clicks"] if row["clicks"] else None
             if hasattr(model, "cpa"):
-                value["cpa"] = row["cost"] / row["conversions"] if row["conversions"] else None
+                value["cpa"] = row.get("cpa") if row.get("cpa") is not None else row["cost"] / row["conversions"] if row["conversions"] else None
             if hasattr(model, "ctr"):
                 value["ctr"] = row["clicks"] * 100 / row["impressions"] if row["impressions"] else None
             values.append(value)
