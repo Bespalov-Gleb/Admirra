@@ -85,6 +85,7 @@ Candidate mode: `QA_CANDIDATE_IMAGE=1`. Создаётся временная к
 - Проверки: 9 JS-тестов passed, scoped production build passed; визуально проверены светлая/тёмная мобильные плашки, закрытие с перезагрузкой и синяя карточка цены. Chrome пользователя был занят другой работой, изолированная визуальная проверка проведена в Safari.
 - Выложен только frontend: image `5e4c43b88ba4b73f1a3a5342b996fc02602c124ea64f23986918a9788901983c`, entry `/assets/index-DzjHwxdo.js`. Конфигурация `/etc/admirra/releases/signup-ui-20260922T130203Z/frontend-active.json`; откат — соседний `frontend-previous.json`. Backend, automation, БД, Check и флаги скидки не менялись. Доступны новый и предыдущий JS entry для уже открытых вкладок.
 - `ops/signup-discount/refresh_frontend.py` привязан к предыдущему image ID; повторять без проверки состояния нельзя. Пользовательские незавершённые правки в MainLayout, мобильных карточках и лендинге не включены.
+- Postflight: frontend running, restarts=0; у frontend/backend/automation с момента UI-релиза нет error-like строк. Общая проверка `postflight.py` за весь срок работы backend остановилась на более ранней диагностике отсутствующих кампаний (12:51 UTC, до UI-релиза); это не новая ошибка обновления плашки. Подтверждены публичный новый entry и доступность прежнего entry.
 
 ### История подготовки (до активации)
 
