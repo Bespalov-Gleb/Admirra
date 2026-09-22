@@ -72,7 +72,8 @@ async def generate_dashboard_comments() -> None:
                 # не тратим вызов модели. Отсекает дремлющие/паузнутые проекты.
                 fp = data_fingerprint(db, [client.id], start, end)
                 entry = cache.get(key)
-                if entry and entry.get("text") and entry.get("fingerprint") == fp:
+                from ai import freshness
+                if not freshness.enabled() and entry and entry.get("text") and entry.get("fingerprint") == fp:
                     continue
                 try:
                     text = await do_generate(
@@ -88,6 +89,15 @@ async def generate_dashboard_comments() -> None:
                     logger.error("dashboard_comment autogen failed %s/%s: %s", client.id, key, e)
                     continue
                 if text:
+                    if freshness.enabled():
+                        from ai.router import _save_comment_cache
+                        try:
+                            _save_comment_cache(db, client.id, start, end, text, fingerprint=fp)
+                            db.commit()
+                            generated += 1
+                        except freshness.DataNotReady:
+                            db.rollback()
+                        continue
                     cache[key] = {
                         "text": text,
                         "generated_at": datetime.utcnow().isoformat(),

@@ -152,6 +152,8 @@ async def get_report_pdf(
                 use_comment = "AI не удалось сформировать комментарий. Проверьте настройки OPENAI_API_KEY в .env и доступность API."
             else:
                 logger.info("PDF report: AI comment received, length=%d", len(str(use_comment)))
+        except DataNotReady as exc:
+            raise _data_not_ready(exc) from None
         except Exception as e:
             logger.exception("AI report generation failed: %s", e)
             raise HTTPException(status_code=500, detail="Не удалось сформировать AI-отчёт")
@@ -213,6 +215,8 @@ async def get_report_png(
             )
             if not use_comment or not str(use_comment).strip():
                 use_comment = "AI не удалось сформировать комментарий."
+        except DataNotReady as exc:
+            raise _data_not_ready(exc) from None
         except Exception as e:
             logger.exception("AI report failed: %s", e)
             raise HTTPException(status_code=500, detail="Не удалось сформировать AI-отчёт")
@@ -268,6 +272,8 @@ async def get_report_docx(
             )
             if not use_comment or not str(use_comment).strip():
                 use_comment = "AI не удалось сформировать комментарий."
+        except DataNotReady as exc:
+            raise _data_not_ready(exc) from None
         except Exception as e:
             logger.exception("AI report failed: %s", e)
             raise HTTPException(status_code=500, detail="Не удалось сформировать AI-отчёт")
@@ -336,6 +342,8 @@ async def _resolve_report_comment(
             if user and charge_visible_quota:
                 SubscriptionService.increment_ai_usage(db, user, requested=1)
                 db.commit()
+        except DataNotReady as exc:
+            raise _data_not_ready(exc) from None
         except Exception as e:
             logger.exception("AI report failed: %s", e)
             raise HTTPException(status_code=500, detail="Не удалось сформировать AI-отчёт")

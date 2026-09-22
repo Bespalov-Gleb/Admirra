@@ -6,13 +6,12 @@ Do not enable until durable writers exclusively maintain source coverage.
 """
 from datetime import date, timedelta
 from contextlib import contextmanager
-import uuid
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
-from core import models, sync_coverage
-from core.data_requirements import requirements, DataNotReady
-from core.runtime import env_bool, env_int
+from core import models
+from core.data_requirements import DataNotReady
+from core.runtime import env_bool
 from backend_api.reports import freshness
 from backend_api.stats_service import StatsService
 
@@ -62,7 +61,7 @@ def _read_session(bind):
         raise
 
 
-def capture(db, user_id, client_id, folder_id, start, end, reader, *, dynamics=False):
+def capture(db, user_id, client_id, folder_id, start, end, reader, *, dynamics=False, return_evidence=False):
     first, last = period(start, end, dynamics)
     bind = db.get_bind()
     # A Connection-bound Session may share a caller's transaction and locks.
@@ -70,20 +69,13 @@ def capture(db, user_id, client_id, folder_id, start, end, reader, *, dynamics=F
         raise DataNotReady("isolated_read_unavailable")
     with _read_session(bind) as read:
         ids = scope(read, user_id, client_id, folder_id)
-        required = requirements(read, ids, first, last)
-        now = read.scalar(sa.select(sa.func.clock_timestamp()))
-        threshold = now - timedelta(minutes=env_int("REPORT_DATA_MAX_AGE_MINUTES", 1440, 1, 1440))
-        for req in required:
-            result = sync_coverage.assess(read, integration_id=uuid.UUID(req["integration_id"]),
-                client_id=uuid.UUID(req["client_id"]), owner_id=uuid.UUID(req["owner_id"]),
-                stages=req["stages"], start=first, end=last, not_before=threshold)
-            if not result.ready:
-                raise DataNotReady(result.reason)
+        from core.consumer_freshness import verify
+        evidence = verify(read, ids, first, last)
         value = reader(read, ids)
         read.expire_all()
         if scope(read, user_id, client_id, folder_id) != ids:
             raise DataNotReady("scope_unavailable")
-        return value
+        return (value, evidence) if return_evidence else value
 
 
 def preflight(db, user_id, client_id, folder_id, start, end, *, dynamics=False):

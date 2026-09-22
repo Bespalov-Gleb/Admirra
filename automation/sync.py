@@ -520,8 +520,8 @@ def _run_detector_after_sync(db: Session, client_id: uuid.UUID) -> bool:
         with db.begin_nested():
             from backend_api.services.detector import run_detector_for_client
 
-            run_detector_for_client(db, client_id)
-        return True
+            result = run_detector_for_client(db, client_id)
+        return result is not False
     except Exception as det_err:
         logger.exception("Detector failed for client %s: %s", client_id, det_err)
         return False

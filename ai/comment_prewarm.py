@@ -210,7 +210,9 @@ async def prewarm_warm_project_comments() -> None:
                 from ai.comment_periods import period_key_for
                 pk = period_key_for(start_s, end_s)
                 entry = cache.get(pk) if isinstance(cache, dict) and pk else None
-                if entry and fp and entry.get("fingerprint") == fp:
+                from ai import freshness
+                revision = freshness.revision(db, account_user.id, client.id, start_s, end_s)
+                if entry and fp and entry.get("fingerprint") == fp and freshness.cache_matches(entry, revision):
                     continue
 
                 text = await generate_report(

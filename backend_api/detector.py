@@ -400,6 +400,14 @@ def get_detector_summary(
         .all()
     )
 
+    from backend_api.services.detector_freshness import status, issue
+    proof = status(db, client_id, now.date())
+    held = False
+    if proof is not None:
+        held = proof["status"] != "ready" or any(
+            (a.meta or {}).get("data_revision") != proof.get("revision") for a in alerts + hidden_alerts)
+        if held:
+            alerts, hidden_alerts = [], []
     warning_count = sum(1 for a in alerts if a.severity == "warning")
     problem_count = sum(1 for a in alerts if a.severity == "problem")
     max_severity = "problem" if problem_count > 0 else ("warning" if warning_count > 0 else None)
@@ -432,7 +440,7 @@ def get_detector_summary(
         "plan_status": plan_status,
         "plan_completion_pct": _plan_completion_pct(db, client_id, plan_status, now.date()),
         "plan_summary": _plan_summary(db, client_id, plan_status, now.date()),
-        "sync_issues": sync_issues_for_client(db, client_id, now.date()),
+        "sync_issues": [issue()] if held else sync_issues_for_client(db, client_id, now.date()),
         "onboarding_dismissed_until": _effective_onboarding_dismissed(db, client, now.date()),
         "visible_from": visible_from,
         "metric_plan": _metric_plan(db, client_id, now.date()),

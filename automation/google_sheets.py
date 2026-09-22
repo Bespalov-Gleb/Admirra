@@ -85,6 +85,18 @@ class GoogleSheetsService:
         }
 
     def export_all(self, spreadsheet_id: str, client_id: str, db: Session) -> dict:
+        from core.consumer_freshness import enabled
+        if enabled("sheets"):
+            from automation.sheets_freshness import prepare, recheck, session_factory, SheetDataNotReady
+            client = db.get(models.Client, client_id)
+            if client is None:
+                raise SheetDataNotReady("Проект недоступен")
+            factory = session_factory(db)
+            target, snapshot, proof = prepare(factory, client.id, client.owner_id)
+            if target != spreadsheet_id:
+                raise SheetDataNotReady("Таблица проекта изменилась")
+            recheck(factory, client.id, client.owner_id, target, proof)
+            return self.write_snapshot(target, snapshot)
         self._require_service()
         spreadsheet_id = extract_spreadsheet_id(spreadsheet_id)
         return {
@@ -95,6 +107,9 @@ class GoogleSheetsService:
         }
 
     def export_raw_data(self, spreadsheet_id: str, client_id: str, db: Session) -> int:
+        from core.consumer_freshness import enabled
+        if enabled("sheets"):
+            return self.export_all(spreadsheet_id, client_id, db)["raw_rows"]
         self._require_service()
         rows = self.raw_rows(client_id, db)
         self._write_to_sheet(spreadsheet_id, "Raw Data", rows)
@@ -165,12 +180,19 @@ class GoogleSheetsService:
         """
         Backward-compatible helper used by older sync code.
         """
+        from core.consumer_freshness import enabled
+        if enabled("sheets"):
+            result = self.export_all(spreadsheet_id, client_id, db)
+            return {key: result[key] for key in ("weekly_rows", "monthly_rows")}
         return {
             "weekly_rows": self.export_weekly_reports(spreadsheet_id, client_id, db),
             "monthly_rows": self.export_monthly_reports(spreadsheet_id, client_id, db),
         }
 
     def export_weekly_reports(self, spreadsheet_id: str, client_id: str, db: Session) -> int:
+        from core.consumer_freshness import enabled
+        if enabled("sheets"):
+            return self.export_all(spreadsheet_id, client_id, db)["weekly_rows"]
         self._require_service()
         rows = self.weekly_rows(client_id, db)
         self._write_to_sheet(spreadsheet_id, "Weekly Reports", rows)
@@ -199,6 +221,9 @@ class GoogleSheetsService:
         return rows
 
     def export_monthly_reports(self, spreadsheet_id: str, client_id: str, db: Session) -> int:
+        from core.consumer_freshness import enabled
+        if enabled("sheets"):
+            return self.export_all(spreadsheet_id, client_id, db)["monthly_rows"]
         self._require_service()
         rows = self.monthly_rows(client_id, db)
         self._write_to_sheet(spreadsheet_id, "Monthly Report", rows)
@@ -236,6 +261,12 @@ class GoogleSheetsService:
         """
         Export Metrika goals data. Optionally filter by integration_id.
         """
+        from core.consumer_freshness import enabled
+        if enabled("sheets"):
+            if integration_id:
+                from automation.sheets_freshness import SheetDataNotReady
+                raise SheetDataNotReady("Частичная выгрузка целей отключена: используйте полный экспорт проекта")
+            return self.export_all(spreadsheet_id, client_id, db)["goals_rows"]
         self._require_service()
         rows = self.goal_rows(client_id, db, integration_id=integration_id)
         self._write_to_sheet(spreadsheet_id, "Goals", rows)

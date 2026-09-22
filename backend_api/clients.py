@@ -324,9 +324,20 @@ def export_google_sheets_now(
     if not client.spreadsheet_id:
         raise HTTPException(status_code=400, detail="Сначала подключите Google таблицу")
 
-    gs = GoogleSheetsService()
     try:
-        export_summary = gs.export_all(client.spreadsheet_id, client.id, db)
+        from core.consumer_freshness import enabled
+        from automation.sheets_freshness import prepare, recheck, session_factory, SheetDataNotReady
+        if enabled("sheets"):
+            factory = session_factory(db)
+            target, snapshot, proof = prepare(factory, client.id, client.owner_id)
+            gs = GoogleSheetsService()
+            recheck(factory, client.id, client.owner_id, target, proof)
+            export_summary = gs.write_snapshot(target, snapshot)
+        else:
+            gs = GoogleSheetsService()
+            export_summary = gs.export_all(client.spreadsheet_id, client.id, db)
+    except SheetDataNotReady as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:

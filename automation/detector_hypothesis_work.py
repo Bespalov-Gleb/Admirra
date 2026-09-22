@@ -55,13 +55,17 @@ def prepare(db, client_id, now):
     owner = db.get(models.User, client.owner_id) if client else None
     if not enabled(client, owner):
         return []
+    from backend_api.services.detector_freshness import status
+    proof = status(db, client_id, now.date())
+    if proof is not None and proof["status"] != "ready":
+        return []
     alerts = db.scalars(select(models.DetectorAlert).where(
         models.DetectorAlert.client_id == client_id,
         models.DetectorAlert.status == "open",
         ~models.DetectorAlert.mode.in_(DETERMINISTIC_MODES),
     ).order_by(models.DetectorAlert.id)).all()
     return [Hypothesis(a.id, client.id, owner.id, _build_prompt(a), signature(a))
-        for a in alerts if not fresh(a, now)]
+        for a in alerts if not fresh(a, now) and (proof is None or (a.meta or {}).get("data_revision") == proof["revision"])]
 
 
 def apply(db, plan, text, now):
@@ -71,9 +75,15 @@ def apply(db, plan, text, now):
     owner = db.scalar(select(models.User).where(models.User.id == plan.owner_id).with_for_update())
     if not enabled(client, owner):
         return False
+    from backend_api.services.detector_freshness import status
+    proof = status(db, plan.client_id, now.date())
+    if proof is not None and proof["status"] != "ready":
+        return False
     alert = db.scalar(select(models.DetectorAlert).where(
         models.DetectorAlert.id == plan.id, models.DetectorAlert.client_id == plan.client_id).with_for_update())
     if alert is None or signature(alert) != plan.signature:
+        return False
+    if proof is not None and (alert.meta or {}).get("data_revision") != proof["revision"]:
         return False
     alert.hypothesis_text = text
     alert.meta = {**(alert.meta or {}), "llm_hypothesis_at": now.isoformat()}

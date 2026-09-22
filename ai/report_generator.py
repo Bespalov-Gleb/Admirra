@@ -8,7 +8,7 @@ import hashlib
 import json
 import os
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Optional
 import uuid
@@ -297,7 +297,39 @@ def _fallback_dashboard_comment(context: dict) -> str:
     return _flatten_comment(obj)
 
 
-async def generate_report(
+async def generate_report(db, user_id, client_id, start_date, end_date, report_type="full",
+                          folder_id=None, platform="all", trigger="refresh") -> str:
+    from ai import freshness
+    kwargs = dict(db=db, user_id=user_id, client_id=client_id, start_date=start_date, end_date=end_date,
+                  report_type=report_type, folder_id=folder_id, platform=platform, trigger=trigger)
+    if not freshness.enabled():
+        return await _generate_report(**kwargs)
+    first, last = date.fromisoformat(start_date), date.fromisoformat(end_date)
+    captured_ids = []
+    def reader(read, ids):
+        captured_ids[:] = ids
+        if report_type == "dashboard_comment":
+            context = _build_comment_context(read, ids, first, last, start_date, end_date, platform)
+            # Legacy memory/snapshots have no source revision; never promote them
+            # to verified facts merely because today's DB slice is complete.
+            context.pop("since_last_visit", None)
+            context.pop("previous_case", None)
+            if context.get("detector"):
+                context["detector"] = {"enabled": True, "status": "not_verified", "flags": []}
+            return context
+        return (StatsService.aggregate_summary(read, ids, first, last, platform, None, None),
+                StatsService.get_campaign_stats(read, ids, first, last, platform, None, None))
+    prepared, proof = freshness.capture(db, user_id, client_id, folder_id, start_date, end_date,
+                                       reader, return_evidence=True)
+    text = await _generate_report(**kwargs, _prepared=prepared, _prepared_ids=list(captured_ids))
+    current, after = freshness.capture(db, user_id, client_id, folder_id, start_date, end_date,
+                                      reader, return_evidence=True)
+    if after["revision"] != proof["revision"] or current != prepared:
+        raise freshness.DataNotReady("data_changed_during_generation")
+    return freshness.VerifiedText(text, proof)
+
+
+async def _generate_report(
     db: Session,
     user_id: uuid.UUID,
     client_id: Optional[uuid.UUID],
@@ -307,6 +339,8 @@ async def generate_report(
     folder_id=None,
     platform: str = "all",
     trigger: str = "refresh",
+    _prepared=None,
+    _prepared_ids=None,
 ) -> str:
     """
     Генерирует текстовый отчёт на основе данных дашборда.
@@ -317,7 +351,9 @@ async def generate_report(
         logger.error("generate_report: OPENAI_API_KEY не настроен")
         raise ValueError("OPENAI_API_KEY не настроен")
 
-    if folder_id and not client_id:
+    if _prepared_ids is not None:
+        effective_client_ids = _prepared_ids
+    elif folder_id and not client_id:
         effective_client_ids = StatsService.resolve_folder_client_ids(db, user_id, folder_id)
     else:
         effective_client_ids = StatsService.get_effective_client_ids(db, user_id, client_id)
@@ -334,14 +370,15 @@ async def generate_report(
     # JSON-контекст, структурный ответ модели, программная пост-валидация.
     if report_type == "dashboard_comment":
         return await _generate_dashboard_comment(
-            db, effective_client_ids, d_start, d_end, start_date, end_date, platform or "all", trigger=trigger
+            db, effective_client_ids, d_start, d_end, start_date, end_date, platform or "all", trigger=trigger,
+            _context=_prepared,
         )
 
     # Собираем контекст
-    summary = StatsService.aggregate_summary(
+    summary = _prepared[0] if _prepared is not None else StatsService.aggregate_summary(
         db, effective_client_ids, d_start, d_end, platform or "all", None, None
     )
-    campaigns = StatsService.get_campaign_stats(
+    campaigns = _prepared[1] if _prepared is not None else StatsService.get_campaign_stats(
         db, effective_client_ids, d_start, d_end, platform or "all", None, None
     )
 
@@ -570,6 +607,9 @@ def _build_comment_context(db: Session, effective_client_ids: list, d_start, d_e
                     "cpl": _num(float(it.get("cpl") or 0) * vat_k),
                 })
         except Exception as _e:
+            from ai.freshness import enabled
+            if enabled():
+                raise
             logger.warning("comment context: directions skipped: %s", _e)
 
     # Режим бюджета направлений — настройка проекта (правило 10). Если направлений
@@ -1027,10 +1067,10 @@ def _ai_error_is_non_retryable(exc: Exception) -> bool:
 
 async def _generate_dashboard_comment(db: Session, effective_client_ids: list, d_start, d_end,
                                       start_date: str, end_date: str, platform: str,
-                                      trigger: str = "refresh") -> str:
+                                      trigger: str = "refresh", _context=None) -> str:
     """Конвейер AI-комментария: контекст → модель (JSON) → пост-валидация → текст."""
     import json
-    context = _build_comment_context(db, effective_client_ids, d_start, d_end, start_date, end_date, platform)
+    context = _context if _context is not None else _build_comment_context(db, effective_client_ids, d_start, d_end, start_date, end_date, platform)
     context_json = json.dumps(context, ensure_ascii=False, separators=(",", ":"))
     allowed_numbers = _collect_context_numbers(context)
     directions_fixed = context.get("directions_mode") == "fixed"
@@ -1233,6 +1273,11 @@ def _log_comment_generation(
 
 def _update_comment_memory(db: Session, effective_client_ids: list, context: dict, obj: dict) -> None:
     """Закладывает журнал «аномалия → действие → исход» без вывода мемуаров в UI."""
+    from ai.freshness import enabled
+    if enabled():
+        # Legacy memory has no revision field. Do not persist a speculative
+        # result before the outer post-generation evidence check.
+        return
     if len(effective_client_ids) != 1:
         return
     client = db.query(models.Client).filter(models.Client.id == effective_client_ids[0]).first()
@@ -1548,9 +1593,11 @@ async def chat(
     # Чат ассистента всегда привязан к конкретному проекту (роутер требует
     # client_id). Ветки по folder_id в chat() нет — из-за неё падал NameError
     # (folder_id не определён) → все запросы к ассистенту отдавали 503.
-    effective_client_ids = StatsService.get_effective_client_ids(db, user_id, client_id)
-    if not effective_client_ids:
-        return "Нет доступа к данным проектов."
+    from ai import freshness
+    if not freshness.enabled():
+        effective_client_ids = StatsService.get_effective_client_ids(db, user_id, client_id)
+        if not effective_client_ids:
+            return "Нет доступа к данным проектов."
 
     try:
         d_end = datetime.strptime(end_date, "%Y-%m-%d").date()
@@ -1558,7 +1605,18 @@ async def chat(
     except ValueError:
         raise ValueError("Неверный формат дат. Используйте YYYY-MM-DD.")
 
-    context = assistant_context_to_text(build_assistant_context(db, user_id, client_id, start_date, end_date))
+    from ai import freshness
+    def read_context(read, _ids):
+        data = build_assistant_context(read, user_id, client_id, start_date, end_date)
+        # Alerts are derived separately, not proved by this period's coverage.
+        data["alerts"] = []
+        return assistant_context_to_text(data)
+    proof = None
+    if freshness.enabled():
+        context, proof = freshness.capture(db, user_id, client_id, None, start_date, end_date,
+                                          read_context, return_evidence=True)
+    else:
+        context = assistant_context_to_text(build_assistant_context(db, user_id, client_id, start_date, end_date))
     client = _create_anthropic_client()
 
     system_prompt = f"""Ты — аналитик рекламных кампаний. Отвечай на вопросы пользователя на основе данных дашборда.
@@ -1591,6 +1649,11 @@ async def chat(
             output_config=_ai_output_config("AI_ASSISTANT_EFFORT"),
         )
         text = response.content[0].text if response.content else ""
+        if proof is not None:
+            latest, after = freshness.capture(db, user_id, client_id, None, start_date, end_date,
+                                              read_context, return_evidence=True)
+            if latest != context or after["revision"] != proof["revision"]:
+                raise freshness.DataNotReady("data_changed_during_generation")
         return text.strip()
     except Exception as e:
         logger.exception("Anthropic API error: %s", e)

@@ -17,6 +17,7 @@ from backend_api.services.history import log_history_event
 from backend_api.services.subscription import SubscriptionService
 from core import models, security
 from core.database import get_db
+from core.data_requirements import DataNotReady
 
 logger = logging.getLogger(__name__)
 
@@ -305,6 +306,8 @@ def _comment_fingerprint(db: Session, user_id: uuid.UUID, client_id: uuid.UUID, 
 
 def _save_comment_cache(db: Session, client_id: uuid.UUID, start_date, end_date, text: str,
                         fingerprint: str | None = None) -> None:
+    from ai.freshness import validate_publication
+    validate_publication(db, client_id, start_date, end_date, text)
     client = db.query(models.Client).filter(models.Client.id == client_id).first()
     if not client:
         return
@@ -316,6 +319,7 @@ def _save_comment_cache(db: Session, client_id: uuid.UUID, start_date, end_date,
         "start": str(start_date) if start_date else None,
         "end": str(end_date) if end_date else None,
         "fingerprint": fingerprint,
+        "data_revision": getattr(text, "data_revision", None),
     }
     client.ai_comment_cache = cache
     # Обратная совместимость: последний сгенерированный комментарий.
@@ -424,8 +428,19 @@ async def get_context(
 
     from ai.report_generator import build_assistant_context
 
-    context = build_assistant_context(db, current_user.id, project_id, start_date, end_date)
-    alerts = [_alert_to_dict(alert) for alert in context.get("alerts", [])]
+    from ai import freshness
+    if freshness.enabled():
+        def reader(read, ids):
+            value = build_assistant_context(read, current_user.id, project_id, start_date, end_date)
+            return {"has_data": bool(value.get("has_data")), "integrations": bool(value.get("integrations"))}
+        try:
+            context = freshness.capture(db, current_user.id, project_id, None, start_date, end_date, reader)
+        except DataNotReady as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from None
+        alerts = []  # Legacy alert rows do not carry this context's evidence.
+    else:
+        context = build_assistant_context(db, current_user.id, project_id, start_date, end_date)
+        alerts = [_alert_to_dict(alert) for alert in context.get("alerts", [])]
     suggestions = []
     if alerts:
         first = alerts[0]
@@ -683,6 +698,8 @@ async def chat(
                 user_message=message_text,
                 history=previous_messages,
             )
+        except DataNotReady as e:
+            raise HTTPException(status_code=409, detail=str(e))
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except Exception as e:
@@ -758,14 +775,16 @@ async def generate_report(
     report_kind = body.report_type or "full"
     is_dashboard_comment = report_kind == "dashboard_comment"
     is_system_comment = report_kind in {"dashboard_comment", "comment"}
+    from ai import freshness
     try:
+        data_revision = freshness.revision(db, current_user.id, client_id, body.start_date, body.end_date)
         # Троттл по отпечатку: если данные периода И контекст проекта не менялись
         # с прошлой генерации — новый вызов даст то же самое, деньги зря → отдаём
         # кэш. Изменилось что-то (синхрон, правка «Контекста для AI») → генерим
         # заново. Так правка контекста применяется сразу, а не режется троттлом.
         if is_dashboard_comment and client_id:
             cached = _get_cached_comment(db, client_id, body.start_date, body.end_date)
-            if cached and cached.get("text") and cached.get("fingerprint"):
+            if cached and cached.get("text") and cached.get("fingerprint") and freshness.cache_matches(cached, data_revision):
                 current_fp = _comment_fingerprint(db, current_user.id, client_id, body.start_date, body.end_date)
                 if current_fp and cached.get("fingerprint") == current_fp:
                     return GenerateReportResponse(text=cached["text"])
@@ -814,6 +833,8 @@ async def generate_report(
         )
         db.commit()
         return GenerateReportResponse(text=text)
+    except freshness.DataNotReady as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     except HTTPException:
         # Штатные API-ответы (в частности 429 троттла комментария) должны
         # доходить до клиента без подмены на общий 500.
@@ -849,9 +870,18 @@ async def get_ai_comment(
     if not client:
         return {"text": None}
 
+    from ai import freshness
+    proof_revision = None
+    if freshness.enabled():
+        try:
+            proof_revision = freshness.revision(db, current_user.id, cid, start_date, end_date)
+        except freshness.DataNotReady:
+            return {"text": None, "stale": True, "standard": None, "data_readiness": "waiting_data"}
     if start_date and end_date:
         _key, is_standard = _comment_cache_key(start_date, end_date)
         entry = _get_cached_comment(db, cid, start_date, end_date)
+        if not freshness.cache_matches(entry, proof_revision):
+            return {"text": None, "stale": True, "standard": is_standard, "data_readiness": "regenerate"}
         if entry:
             # §6: отпечаток данных — если срез изменился после генерации
             # (синхронизация, смена НДС), помечаем stale, фронт пересчитает.

@@ -115,12 +115,22 @@ class AiYandexClient:
         raise YandexApiError(f"Metrika {endpoint}: авторизация не удалась")
 
 
+class ReportRows(list):
+    """List-compatible bounded report that retains the untruncated row count."""
+    source_row_count = 0
+
+
 def _parse_tsv(text: str, max_rows: int = 200) -> list[dict]:
-    lines = [ln for ln in text.strip().split("\n") if ln.strip()]
+    lines = [ln.rstrip("\r") for ln in text.split("\n") if ln.strip()]
     if len(lines) < 1:
-        return []
+        return ReportRows()
     header = lines[0].split("\t")
-    rows: list[dict] = []
-    for line in lines[1:max_rows + 1]:
-        rows.append(dict(zip(header, line.split("\t"))))
+    rows = ReportRows()
+    for line in lines[1:]:
+        cells = line.split("\t")
+        if len(cells) != len(header):
+            raise ValueError("Некорректная строка отчёта Директа")
+        rows.source_row_count += 1
+        if len(rows) < max_rows:
+            rows.append(dict(zip(header, cells)))
     return rows

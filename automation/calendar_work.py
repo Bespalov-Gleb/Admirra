@@ -117,6 +117,17 @@ def export_project(factory, payload, *, service_factory=None):
     from automation.google_sheets import GoogleSheetsService
     target = scheduled_time(payload).date()
     client_id, owner_id = uuid.UUID(payload["client_id"]), uuid.UUID(payload["owner_id"])
+    from core.consumer_freshness import enabled
+    if enabled("sheets"):
+        from automation.sheets_freshness import prepare, recheck
+        spreadsheet_id, snapshot, proof = prepare(factory, client_id, owner_id, target)
+        if not spreadsheet_id:
+            return {"reports": "verified_snapshot", "sheets": "not_configured"}
+        service = (service_factory or GoogleSheetsService)()
+        if not service.configured:
+            raise RuntimeError("Project requires Sheets export but credentials are not configured")
+        recheck(factory, client_id, owner_id, spreadsheet_id, proof)
+        return {"reports": "verified_snapshot", "sheets": service.write_snapshot(spreadsheet_id, snapshot)}
     with factory() as db:
         client = db.get(models.Client, client_id)
         if client is None or client.owner_id != owner_id or client.status != models.ClientStatus.ACTIVE:

@@ -4,6 +4,8 @@
 
 ## Новый candidate, не production
 
+**Candidate Sheets / AI / detector, 22.09:** добавлены opt-in проверки покрытия и версии данных для всех трёх consumers: полный Sheets snapshot, detached AI prompt + защита кэша, приостановка detector mutations при неполноте. Live-инструменты ассистента сообщают о неполных/выборочных ответах. Три флага по умолчанию false; production не менялся. До включения остаются bounded refresh для длинной истории/baseline (nightly 7 дней недостаточно), общая нагрузочная/restore-приёмка и cutover. [Контракт, проверки и ограничения](devops-consumer-freshness-2026-09-22.md). Ниже записи предыдущих candidate сохранены как история, а не текущая незавершённость этих guard-правок.
+
 **Candidate direct exports, 22.09:** серверные PDF/PNG/DOCX и создание HTML-ссылки получили opt-in coverage gate и отдельную SQL-фазу до render. Исправлена потеря scope папки при создании ссылки; frontend понимает JSON-ошибки скачивания в Blob. Это не новый async renderer и не перевод Sheets/AI/detектора. [Реализация, проверки и точные границы](devops-direct-export-freshness-2026-09-22.md).
 
 **Candidate report freshness, 22.09:** требования, deadline, revisions и bounded poll `reports.resume` подключены к подготовке ReportDelivery за opt-in флагом. Снимок фиксируется до PDF, renderer не держит SQL; ручная/повторная отправка защищена от гонки с фоновым resume. Candidate schema `f13c4d5e6f70`. Добавлены UI waiting/held/безопасный reset и bounded refresh producer через history queue; 156 backend + 4 frontend tests passed. Другие consumers, общий regression/restore/load и cutover ещё предстоят. [Политика и rollout gates](devops-report-freshness-2026-09-22.md), [refresh и UI, проверки и ограничения](devops-report-refresh-2026-09-22.md).

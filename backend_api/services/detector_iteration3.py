@@ -520,6 +520,9 @@ def _is_sync_stale(integration: models.Integration, reference_date: date, cfg: D
 
 
 def sync_issues_for_client(db: Session, client_id: uuid.UUID, reference_date: date | None = None) -> list[dict]:
+    from .detector_freshness import pending, issue
+    if pending(db, client_id, reference_date):
+        return [issue()]
     ref = reference_date or date.today()
     cfg = get_config().detector
     issues: list[dict] = []
@@ -1189,6 +1192,13 @@ def campaign_highlights(
     конверсий Метрики по расходу здесь запрещена: она делает CPL всех
     кампаний одинаковым и подсвечивает не те строки.
     """
+    from core import consumer_freshness
+    from core.data_requirements import DataNotReady
+    if consumer_freshness.enabled("detector"):
+        try:
+            consumer_freshness.verify(db, [client_id], start, end)
+        except DataNotReady:
+            return {}
     cfg = get_config().detector
     budgets = _latest_budgets(db, client_id, end)
     targets = _latest_targets(db, client_id, end)
@@ -1297,6 +1307,13 @@ def plan_completion(db: Session, client_id: uuid.UUID, today: date | None = None
         if row.period_end == last_end:
             latest.setdefault(row.channel, row)
     total_budget = sum(float(row.amount or 0) for row in latest.values())
+    from core import consumer_freshness
+    from core.data_requirements import DataNotReady
+    if consumer_freshness.enabled("detector"):
+        try:
+            consumer_freshness.verify(db, [client_id], min(row.period_start for row in latest.values()), last_end)
+        except DataNotReady:
+            return None
     if total_budget <= 0:
         return None
     integrations = _ad_integrations(db, client_id)
@@ -1370,6 +1387,9 @@ def metric_plan_context(db: Session, client_id: uuid.UUID, today: date | None = 
     """
     ref = today or date.today()
     plan_warming_up = bool(plan_warmup_state(db, client_id, ref).get("is_warming_up"))
+    from .detector_freshness import pending
+    if pending(db, client_id, ref):
+        return None
     integrations = _ad_integrations(db, client_id)
     if not integrations:
         return None
@@ -1504,7 +1524,7 @@ def run_detector_iteration3(
     reference_date: date | None = None,
     *,
     immediate_plan_recalculation: bool = False,
-) -> None:
+) -> bool | None:
     cfg = get_config().detector
     if not cfg.enabled:
         return
@@ -1512,6 +1532,11 @@ def run_detector_iteration3(
     if not client or _enum(client.status).upper() == "PAUSED":
         return
     ref = reference_date or date.today()
+    from .detector_freshness import status
+    proof = status(db, client_id, ref)
+    if proof is not None and proof["status"] != "ready":
+        # Do not close old alerts, increment recovery, or create notifications.
+        return False
     integrations = _ad_integrations(db, client_id)
     # Preserve baseline calculation in the background; iteration 3 only turns
     # off its alert generation.
@@ -1601,6 +1626,9 @@ def run_detector_iteration3(
     # поэтому снуз/статусы у каждого свои. _collapse_plan_checks намеренно не зовём.
     plan_alerts = plan_checks
     _apply_diagnostics(db, client_id, plan_alerts, ref, cfg, selected, vk_codes)
+    if proof is not None:
+        for candidate in plan_alerts + critical:
+            candidate.meta = {**(candidate.meta or {}), "data_revision": proof["revision"]}
     upsert_alerts(db, client_id, client.owner_id, plan_alerts + critical, cfg,
                   notify=bool(client.detector_enabled) and global_on)
     # Миграция разделения: составные mode='plan' больше не создаются (заменены на
@@ -1640,3 +1668,4 @@ def run_detector_iteration3(
                 alert.closed_at = now
                 alert.meta = {**(alert.meta or {}), "close_reason": "plan_recalculated"}
         db.flush()
+    return True

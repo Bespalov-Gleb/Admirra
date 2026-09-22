@@ -23,6 +23,8 @@ def main():
     os.environ["REPORT_DELIVERY_GUARDS"] = "false"
     os.environ["REPORT_FRESHNESS_GUARDS"] = "false"
     os.environ["DIRECT_EXPORT_FRESHNESS_GUARDS"] = "false"
+    for flag in ("AI_FRESHNESS_GUARDS", "SHEETS_FRESHNESS_GUARDS", "DETECTOR_FRESHNESS_GUARDS"):
+        os.environ[flag] = "false"
     os.environ["SHARED_READ_CACHE"] = "false"
     os.environ["DURABLE_REPORT_LINKS"] = "false"
     os.environ["DURABLE_REPORT_FILES"] = "false"

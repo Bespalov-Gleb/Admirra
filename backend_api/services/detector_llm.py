@@ -74,6 +74,11 @@ def _build_prompt(alert: models.DetectorAlert) -> str:
 
 async def refresh_hypothesis_texts_for_client(db: Session, client_id: uuid.UUID) -> None:
     """Generate/refresh LLM hypothesis text for open alerts lacking fresh text (TZ 3.6)."""
+    from core.consumer_freshness import enabled
+    if enabled("detector"):
+        # Guarded enrichment uses automation.detector_hypothesis_work only:
+        # detached prompt, source revision + alert signature checked on apply.
+        return
     from core.config import get_config
     cfg = get_config()
     api_key = cfg.openai.api_key

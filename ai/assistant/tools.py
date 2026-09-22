@@ -168,7 +168,12 @@ async def _exec_direct_get_statistics(ctx: ToolContext, args: dict) -> str:
             {"Field": "CampaignId", "Operator": "IN", "Values": [str(c) for c in args["campaign_ids"]]}
         ]
     rows = await ctx.client.direct_report(report_def)
-    return _dump({"report_type": report_type, "period": [date_from, date_to], "rows": rows, "row_count": len(rows)})
+    total = getattr(rows, "source_row_count", len(rows))
+    return _dump({"report_type": report_type, "period": [date_from, date_to], "rows": rows, "row_count": len(rows),
+        "source_row_count": total, "truncated": total > len(rows), "source": "live_api",
+        "data_status": "partial" if total > len(rows) else ("available" if rows else "no_rows"),
+        "totals_scope": "returned_rows_only",
+        "note": "При truncated=true строки не являются полным итогом. Уточните период/кампании; no_rows не доказывает нулевую активность."})
 
 
 async def _exec_direct_get_adgroups(ctx: ToolContext, args: dict) -> str:
@@ -281,6 +286,8 @@ async def _exec_metrika_get_report_by_time(ctx: ToolContext, args: dict) -> str:
 
 
 def _slim_metrika(data: dict, by_time: bool = False) -> dict:
+    if not isinstance(data.get("data"), list):
+        return {"error": "Метрика не вернула массив данных", "data_status": "unavailable", "source": "live_api"}
     out: dict = {
         "query": {k: data.get("query", {}).get(k) for k in ("metrics", "dimensions", "date1", "date2")},
         "totals": data.get("totals"),
@@ -290,6 +297,12 @@ def _slim_metrika(data: dict, by_time: bool = False) -> dict:
     for item in (data.get("data", []) or [])[:MAX_ROWS]:
         rows.append({"dimensions": [d.get("name") for d in item.get("dimensions", [])], "metrics": item.get("metrics")})
     out["rows"] = rows
+    count = data.get("total_rows")
+    partial = len(data["data"]) > MAX_ROWS or (isinstance(count, (int, float)) and count > len(rows))
+    sampled = data.get("sampled") is True or (isinstance(data.get("sample_share"), (int, float)) and data["sample_share"] < 1)
+    out.update(source="live_api", truncated=partial, sampled=sampled, sample_share=data.get("sample_share"),
+        returned_row_count=len(rows), data_status="sampled" if sampled else ("partial" if partial else ("available" if rows else "no_rows")),
+        totals_scope="provider_totals_for_query", note="rows — только возвращённая разбивка; sampled — выборочные, не точные показатели. no_rows не доказывает нулевую активность.")
     if by_time:
         out["time_intervals"] = data.get("time_intervals")
     return out
@@ -419,7 +432,12 @@ async def _exec_avito_get_statistics(ctx: ToolContext, args: dict) -> str:
         campaigns = await api.get_campaigns()
         ext_ids = [str(c.get("id") or c.get("external_id") or "") for c in campaigns if (c.get("id") or c.get("external_id"))]
     rows = await api.get_statistics(ext_ids[:MAX_ROWS], args["date_from"], args["date_to"])
-    return _dump({"period": [args["date_from"], args["date_to"]], "rows": _clip(rows), "row_count": len(rows)})
+    partial = len(ext_ids) > MAX_ROWS or len(rows) > MAX_ROWS
+    return _dump({"period": [args["date_from"], args["date_to"]], "rows": _clip(rows), "row_count": len(rows),
+        "source": "live_api", "requested_campaign_count": len(ext_ids), "queried_campaign_count": min(len(ext_ids), MAX_ROWS),
+        "returned_row_count": min(len(rows), MAX_ROWS), "truncated": partial, "totals_scope": "returned_rows_only",
+        "data_status": "partial" if partial else ("available" if rows else "no_rows"),
+        "note": "Усечённая выдача не является итогом проекта; запросите меньший период/набор кампаний. no_rows не доказывает нулевую активность."})
 
 
 async def _exec_avito_get_balance(ctx: ToolContext, args: dict) -> str:
