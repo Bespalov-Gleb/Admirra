@@ -341,6 +341,8 @@ class TelegramNotifier:
             parse_mode: Режим форматирования (Markdown, HTML, или None)
             chat_id: ID чата (если не указан — используется self.chat_id)
         """
+        _set_delivery_error(None)
+        delivery_outcome.rejected()
         if not self.enabled:
             logger.warning("Telegram disabled, message not sent")
             return False
@@ -359,10 +361,12 @@ class TelegramNotifier:
                 if parse_mode:
                     payload["parse_mode"] = parse_mode
                 
+                delivery_outcome.before_send()
                 response = await client.post(
                     self._get_url("sendMessage"),
                     json=payload
                 )
+                delivery_outcome.response_received(response)
                 
                 if response.status_code == 200:
                     result = response.json()
@@ -370,12 +374,13 @@ class TelegramNotifier:
                         logger.info("Message sent successfully")
                         return True
                     else:
-                        logger.error(f"Telegram API error: {result}")
+                        logger.error("Telegram sendMessage returned no success acknowledgement")
                 else:
-                    logger.error(f"Message failed: {response.status_code} - {response.text}")
+                    logger.error("Telegram sendMessage failed: HTTP %s", response.status_code)
                     
         except Exception as e:
-            logger.error(f"Message error: {e}")
+            delivery_outcome.request_failed(e)
+            logger.error("Telegram sendMessage failed: %s", type(e).__name__)
             
         return False
     

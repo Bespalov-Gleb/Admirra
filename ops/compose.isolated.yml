@@ -48,6 +48,7 @@ services:
       - tests/test_calendar_work.py
       - tests/test_sheets_snapshot.py
       - tests/test_billing_work.py
+      - tests/test_lead_alert_work.py
       - tests/test_sync_tenant_scope.py
       - tests/test_integration_work_scope.py
       - tests/test_sync_followup.py

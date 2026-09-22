@@ -32,6 +32,16 @@ def prepare_worker_parent():
     engine.dispose()
 
 
+def check_lead_alert_bindings(db):
+    legacy = db.scalar(sa.text("""
+        SELECT count(*) FROM background_jobs
+        WHERE kind IN ('lead.daily', 'lead.weekly')
+          AND state IN ('queued', 'running', 'uncertain') AND NOT replay_safe
+    """))
+    if legacy:
+        raise RuntimeError("Legacy global lead sends must be reconciled before scoped planners start")
+
+
 def check():
     from core.database import engine
     if (os.getenv("WW_TEST") == "1" and os.getenv("WW_TEST_ID")
@@ -61,3 +71,4 @@ def check():
         if orphaned:
             raise RuntimeError("Legacy sync jobs must be drained/reconciled before durable workers start")
         check_integration_bindings(db)
+        check_lead_alert_bindings(db)

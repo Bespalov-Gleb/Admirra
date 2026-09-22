@@ -12,7 +12,7 @@
     "candidate_commit": "acf6ed8d76ea13436152e8ccc9659346169c7040",
     "candidate_image": "sha256:ad9559725e724789281765526f85839b8b9adf604c114ad25850812b0c544d0a",
     "rollback_image": "sha256:4ca866ebddc4c3af8b1ef4d2905e099453c6e8b6b768192508991b89e8421219",
-    "expected_schema": "cd9e0f1a2b3c",
+    "expected_schema": "de0f1a2b3c4d",
     "tracked_tree_clean": true,
     "tests_passed": true,
     "restore_passed": true,

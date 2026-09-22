@@ -24,16 +24,18 @@ async def _async_run(kind, payload):
     if kind in {"billing.warning", "billing.recurring"}:
         from automation.billing_work import execute
         return await execute(kind, payload)
-    if kind == "lead.daily":
-        from lead_validator.tasks.alert_scheduler import run_daily_alerts
-        return await run_daily_alerts()
-    if kind == "lead.weekly":
-        from lead_validator.tasks.alert_scheduler import run_weekly_report
-        return await run_weekly_report()
+    if kind in {"lead.daily.project", "lead.weekly.project"}:
+        from core.database import SessionLocal
+        from automation.lead_alert_work import execute
+        return await execute(SessionLocal, kind, payload)
     raise ValueError("Unsupported background job kind")
 
 
 def run(kind, payload):
+    if kind in {"lead.daily", "lead.weekly"}:
+        from core.database import SessionLocal
+        from automation.lead_alert_work import plan_page
+        return plan_page(SessionLocal, kind, payload)
     if kind == "billing.maintenance":
         from core.database import SessionLocal
         from automation.billing_work import plan_page

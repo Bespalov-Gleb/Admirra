@@ -44,3 +44,16 @@ schedule_cursor = sa.Table(
     sa.Column("name", sa.String(64), primary_key=True),
     sa.Column("last_tick", sa.DateTime(timezone=True), nullable=False),
 )
+
+# One immutable authorization/receipt per recipient-scoped calendar child.
+# No raw chat IDs, message bodies, tokens or lead personal data are stored here.
+lead_deliveries = sa.Table(
+    "lead_alert_deliveries", metadata,
+    sa.Column("job_id", UUID(as_uuid=True), sa.ForeignKey("background_jobs.id", ondelete="CASCADE"), primary_key=True),
+    sa.Column("scope_digest", sa.String(64), nullable=False),
+    sa.Column("body_digest", sa.String(64), nullable=False),
+    sa.Column("state", sa.String(16), nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("confirmed_at", sa.DateTime(timezone=True)),
+    sa.CheckConstraint("state IN ('sending','sent','rejected')", name="ck_lead_alert_delivery_state"),
+)
