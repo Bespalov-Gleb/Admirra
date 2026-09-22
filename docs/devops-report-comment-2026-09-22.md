@@ -34,7 +34,16 @@ AI без готового снимка, concurrent request/deadline, НДС и 
 Финальный расширенный targeted run: **95 passed, 1 deselected** (тест
 frontend-файла, не включённого в backend archive), 79,82 с. В том числе реальный
 путь подготовки prompt с подменённым транспортом, lost lease, blank approved
-comment и send checkpoint. Полный regression фиксируется отдельно после окончания.
+comment и send checkpoint.
+
+Общий isolated manifest: **1281 passed, 1 skipped, 1 deselected, 209 warnings,
+6 subtests passed**, 725,46 с. Он стартовал до финального расширения проверок
+blank approved/edited; окончательная версия этих guards покрыта targeted run
+95 tests выше. Дополнительно **4 passed, 16 deselected**: AI receipts всех
+статусов не считаются подтверждением доставки. Исключённый из общего manifest
+тест требует frontend-файл, которого нет в backend archive. Пропущенный тест
+не считается выполненной проверкой; 209 предупреждений этим пакетом не устранены.
+Это regression на синтетических данных, не live-provider/load приёмка.
 
 ## Что не закрывается этим пакетом
 

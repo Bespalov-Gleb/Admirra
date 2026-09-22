@@ -97,11 +97,18 @@ report/lead SQL-over-IO пути также не объявляются испр
 ## Остаток по согласованным восьми пунктам
 
 1. Bounded history refresh для consumers реализован в candidate; rollout ещё не выполнен.
-2. Сериализация финансовых операций/неизвестных исходов: остаётся основной пакет BILL-01.
-3. Legacy SQL-over-IO: исправлен email report transport; остаются automatic AI report,
-   immediate lead export/validation и tenant-scoped legacy analytics/blacklist границы.
+2. Сериализация финансовых операций реализована в candidate `f81e774`:
+   account-scoped CP intents, receipts, сверка через CLI и pending/uncertain UI.
+   Перед включением нужны sandbox E2E и операторская приёмка.
+   [Контракт и rollout](devops-billing-order-2026-09-22.md).
+3. Legacy SQL-over-IO: исправлены email report transport и automatic AI report
+   (`14c6131`, immutable snapshot, один AI attempt, release SQL до AI/render).
+   Остаются immediate lead export/validation, tenant-scoped legacy analytics/blacklist,
+   остальные interactive report/AI пути и offline conversion Метрики в billing webhook.
+   [Проверки и границы отчётов](devops-report-comment-2026-09-22.md).
 4. Waiting/error/retry для data readiness реализованы; визуальная приёмка и UI
-   разрешения финансовых/внешних uncertain исходов ещё не пройдены.
+   разрешения финансовых/внешних uncertain исходов ещё не пройдены. Для CP уже есть
+   операторская CLI и ограниченный read-only polling; это не полная UX-приёмка.
 5. Shared state двух API: files/cache/upload/SSE и drain — предпродовая проверка.
 6. Финальные artifact regression, restore/migrations, mixed load/recovery — предпродовая проверка.
 7. Human acceptance алертов, offline recovery key и ответственный — подготовка.

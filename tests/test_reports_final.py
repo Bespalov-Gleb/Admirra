@@ -36,6 +36,17 @@ def test_all_routes_must_succeed_for_sent_status():
     assert delivery_status_from_results({"telegram": True, "email": True}, ["telegram", "email"], []) == "sent"
 
 
+@pytest.mark.parametrize("status", ["sending", "confirmed", "uncertain", "superseded"])
+def test_automatic_comment_receipt_is_not_a_delivery_receipt(status):
+    results = {"automatic_ai_attempt": {"id": "synthetic", "status": status}}
+    assert _delivery_succeeded(results) is False
+    assert delivery_status_from_results(results, [], []) == "failed"
+    assert delivery_status_from_results(results, ["email"], []) == "failed"
+    results["email"] = True
+    assert _delivery_succeeded(results) is True
+    assert delivery_status_from_results(results, ["email"], []) == "sent"
+
+
 def test_target_results_participate_in_overall_status():
     target_ids = ["a", "b"]
     results = {

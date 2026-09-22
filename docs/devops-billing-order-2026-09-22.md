@@ -92,7 +92,9 @@ CP полностью замокан. Пройдены FIFO, atomic rollback, no
 смена условий в полёте, чужой scope, CLI audit/stale observation, миграция,
 preflight и совместимость legacy flag=false. UI: 5 lifecycle tests и Vite build.
 Расширенный backend-прогон: **171 passed**, включая действующий signup-discount
-flow, billing guards и failure tests. Общий manifest проверяется отдельно.
+flow, billing guards и failure tests. Общий isolated manifest после этого пакета:
+**1281 passed, 1 skipped, 1 deselected, 209 warnings, 6 subtests passed**,
+725,46 с; внешние провайдеры заменены тестовыми транспортами.
 
 Не считать этот пакет полным закрытием пунктов 1–4: остаются немедленные lead
 exports/validation, legacy analytics/blacklist scopes, оставшиеся report/AI
