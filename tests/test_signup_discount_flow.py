@@ -145,6 +145,37 @@ def test_pilot_grant_and_mail_do_not_touch_other_accounts(scope,monkeypatch):
         assert db.get(models.User,uid).signup_discount_reminder_claimed_at is None
 
 
+def test_check_existing_slot_purchase(scope,monkeypatch):
+    monkeypatch.setenv('SIGNUP_DISCOUNT_ENABLED','false')
+    factory,uid,_=scope
+    with factory.begin() as db:
+        sub=db.query(models.Subscription).filter_by(user_id=uid).one()
+        sub.status=models.SubscriptionStatus.ACTIVE
+        sub.cloudpayments_subscription_id='legacy-recurring'
+        sub.cancel_at_period_end=False
+    with factory() as db:
+        q=billing.slots_purchase(schemas.BillingSlotQuoteRequest(count=1),db.get(models.User,uid),db)
+    assert q.purpose=='slot_purchase' and not q.signup_discount
+    assert check(scope,q)==0
+    assert check(scope,q,Amount=q.amount+1)==12
+
+
+def test_check_existing_renewal_without_invoice(scope,monkeypatch):
+    monkeypatch.setenv('SIGNUP_DISCOUNT_ENABLED','false')
+    factory,uid,_=scope
+    with factory.begin() as db:
+        sub=db.query(models.Subscription).filter_by(user_id=uid).one()
+        sub.status=models.SubscriptionStatus.ACTIVE
+        sub.cloudpayments_subscription_id='legacy-recurring'
+        sub.plan_code='agency'
+        sub.billing_period='month'
+        sub.cancel_at_period_end=False
+    q=SimpleNamespace(invoice_id='',amount=6900)
+    assert check(scope,q,SubscriptionId='legacy-recurring')==0
+    assert check(scope,q,SubscriptionId='wrong')==10
+    assert check(scope,q,SubscriptionId='legacy-recurring',Amount=5520)==12
+
+
 @pytest.mark.parametrize('period,amount,total,discount_amount',[('month',5520,6900,1380),('year',66240,69000,16560)])
 def test_checkout_receipt_full_renewal_and_confirmation(scope,period,amount,total,discount_amount):
     grant(scope); quote=checkout(scope,period)
