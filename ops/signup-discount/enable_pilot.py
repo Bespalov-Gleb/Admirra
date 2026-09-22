@@ -1,4 +1,4 @@
-"""Enable one eligible test account, only after live Check configuration is ready.
+"""Enable the offer, only after live Check configuration is ready.
 
 Run alongside release.py on API1. Never changes user history, trial or payments.
 """
@@ -15,6 +15,7 @@ from release import compose, env, inspect, literal, private_json, ready, run, st
 parser=argparse.ArgumentParser()
 parser.add_argument('--email',required=True)
 parser.add_argument('--preflight-only',action='store_true')
+parser.add_argument('--all-eligible',action='store_true',help='Explicitly enable for all eligible trial accounts')
 args=parser.parse_args()
 
 probe='''
@@ -61,7 +62,7 @@ with open('/var/lock/admirra-summary-release.lock','w') as lock:
     audit=json.loads(next(line for line in audit_raw.splitlines() if line.startswith('{')))
     assert not any(v for k,v in audit.items() if k!='schema'), 'Retry in a quiet window'
     old={service:inspect(service) for service in ('backend','automation')}
-    directory=Path('/etc/admirra/releases')/('signup-pilot-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ'))
+    directory=Path('/etc/admirra/releases')/(('signup-enabled-' if args.all_eligible else 'signup-pilot-')+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ'))
     directory.mkdir(mode=0o700)
     wanted={}
     for service,row in old.items():
@@ -76,10 +77,11 @@ with open('/var/lock/admirra-summary-release.lock','w') as lock:
         config['services'][service].pop('env_file',None)
         private_json(directory/(service+'-previous.json'),literal(config))
         active=deepcopy(config)
-        active['services'][service]['environment']['SIGNUP_DISCOUNT_PILOT_USER_IDS']=uid
+        active['services'][service]['environment']['SIGNUP_DISCOUNT_ENABLED']='true' if args.all_eligible else 'false'
+        active['services'][service]['environment']['SIGNUP_DISCOUNT_PILOT_USER_IDS']='' if args.all_eligible else uid
         wanted[service]=active['services'][service]['environment']
         private_json(directory/(service+'-active.json'),literal(active))
-    private_json(directory/'metadata.json',{'active':{s:row['Image'] for s,row in old.items()},'pilot_user_id':uid})
+    private_json(directory/'metadata.json',{'active':{s:row['Image'] for s,row in old.items()},'pilot_user_id':None if args.all_eligible else uid,'all_eligible':args.all_eligible})
     try:
         for service in old:
             start(directory/(service+'-active.json'),service)
@@ -91,4 +93,4 @@ with open('/var/lock/admirra-summary-release.lock','w') as lock:
         for service in old:
             start(directory/(service+'-previous.json'),service)
         raise
-    print('Pilot enabled for exactly one account; other accounts stay disabled. Config:',directory,flush=True)
+    print('Offer enabled for all eligible trial accounts.' if args.all_eligible else 'Pilot enabled for exactly one account; other accounts stay disabled.', 'Config:',directory,flush=True)
