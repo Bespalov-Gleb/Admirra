@@ -206,10 +206,13 @@ def test_older_completion_keeps_integration_pending(scope):
         assert integration.sync_status == models.IntegrationSyncStatus.PENDING
 
 
-def test_execution_rechecks_owner_before_legacy_sync(scope, monkeypatch):
+def test_execution_rechecks_owner_before_detached_sync(scope, monkeypatch):
     from backend_api import sync_jobs
+    from automation.integration_work_scope import IntegrationScopeChanged
+    from core.job_fence import fenced_job
     factory, _, client_id, _ = scope
     first = enqueue(scope)
+    execution = start(scope, first)
     payload = transport(factory, first)["payload"]
     with factory.begin() as db:
         user = models.User(email="new@example.test", password_hash="synthetic")
@@ -217,7 +220,8 @@ def test_execution_rechecks_owner_before_legacy_sync(scope, monkeypatch):
         db.flush()
         db.get(models.Client, client_id).owner_id = user.id
     monkeypatch.setattr(sync_jobs, "_run_job_sync", lambda *_: pytest.fail("must not call provider handler"))
-    with pytest.raises(ValueError, match="no longer authorized"):
-        durable_sync.execute(payload)
+    with fenced_job(execution["id"], execution["lease_token"]):
+        with pytest.raises(IntegrationScopeChanged, match="changed owner/project"):
+            durable_sync.execute(payload)
     with factory() as db:
         assert db.get(models.SyncJob, first).status == models.SyncJobStatus.FAILED

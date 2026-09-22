@@ -525,7 +525,16 @@ class VKAdsAPI:
                         raise Exception(f"Failed to fetch VK campaigns: {response.status_code} - {error_text}")
 
                     data = response.json()
-                    items = data.get("items", [])
+                    if getattr(self, "strict_sync", False):
+                        from automation.ads_sync_contract import items as checked_items, identifier, bounded
+                        items = checked_items(data, "items")
+                        previous = {c["id"] for c in campaigns}
+                        ids = [identifier(c.get("id")) for c in items]
+                        if len(ids) != len(set(ids)) or previous.intersection(ids):
+                            raise ValueError("VK campaign pagination repeated identifiers")
+                        bounded(campaigns + items)
+                    else:
+                        items = data.get("items", [])
                     self._push_debug(
                         f"ad_plans.json page -> 200, offset={offset}, limit={limit}, items={len(items)}"
                     )
@@ -1285,7 +1294,12 @@ class VKAdsAPI:
                             )
                         
                             if response.status_code == 200:
-                                all_results.extend(self._parse_response(response.json(), names_map))
+                                if getattr(self, "strict_sync", False):
+                                    from automation.ads_sync_contract import vk_statistics, bounded
+                                    all_results.extend(vk_statistics(response.json(), names_map, d_from, d_to, set(id_chunk)))
+                                    bounded(all_results)
+                                else:
+                                    all_results.extend(self._parse_response(response.json(), names_map))
                                 last_error = None
                                 break
 

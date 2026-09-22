@@ -95,7 +95,8 @@ def execute(payload):
     with SessionLocal() as db:
         platform = db.scalar(select(models.Integration.platform).join(models.SyncJob,
             models.SyncJob.integration_id == models.Integration.id).where(models.SyncJob.id == job_id))
-    if platform == models.IntegrationPlatform.YANDEX_METRIKA:
+    from automation.ads_sync_work import PLATFORMS
+    if platform in PLATFORMS | {models.IntegrationPlatform.YANDEX_METRIKA}:
         from automation.metrika_sync_work import run
         return run(SessionLocal, payload)
     with SessionLocal() as db:

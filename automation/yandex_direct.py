@@ -212,6 +212,9 @@ class YandexDirectAPI:
         """
         Fetches the list of all campaigns using the Campaigns service.
         """
+        if getattr(self, "strict_sync", False):
+            from automation.ads_sync_contract import direct_catalog
+            return await direct_catalog(self)
         log_structured('info', 'Fetching Yandex campaigns',
                      context={'client_login': self.client_login},
                      endpoint='campaigns')
@@ -936,6 +939,9 @@ class YandexDirectAPI:
             raise TimeoutError(f"Maximum retries ({max_retries}) reached for Yandex report generation. Report may be too large or API is overloaded.")
 
     def _parse_tsv(self, tsv_data: str, level: str = "campaign") -> List[Dict[str, Any]]:
+        if getattr(self, "strict_sync", False) and level in {"campaign", "group", "keyword"}:
+            from automation.ads_sync_contract import direct_tsv
+            return direct_tsv(tsv_data, level)
         lines = tsv_data.strip().split('\n')
         if not lines:
             return []

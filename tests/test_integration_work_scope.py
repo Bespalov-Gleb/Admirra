@@ -38,10 +38,11 @@ def source_job(pg, monkeypatch, request):
     with factory.begin() as db:
         claim = work_ledger.claim(db, job_id)
     invoked = []
-    async def collect(db, integration, *args, **kwargs):
-        invoked.append((integration.id, args, kwargs))
+    async def collect(factory, accepted):
+        assert engine.pool.checkedout() == 0
+        invoked.append(dict(accepted))
     provider = AsyncMock(side_effect=collect)
-    monkeypatch.setattr("automation.sync.sync_integration", provider)
+    monkeypatch.setattr("automation.ads_sync_work.execute_history", provider)
     # Goals preparation occurs only after the guard. Record this as the boundary
     # before credential decryption/provider construction, without network work.
     prepared = []
@@ -69,7 +70,7 @@ async def test_valid_authoritative_scope_reaches_only_selected_integration(sourc
         assert g.prepared == [True]
     else:
         g.provider.assert_awaited_once()
-        assert g.invoked == [(g.integration, ("2026-09-01", "2026-09-02"), {"historical": True})]
+        assert g.invoked == [g.payload]
 
 
 @pytest.mark.asyncio

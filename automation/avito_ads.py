@@ -221,6 +221,19 @@ class AvitoAdsAPI:
                 json_data={"filter": {}, "limit": limit, "page": page},
             )
             items = payload.get("campaigns") if isinstance(payload, dict) else None
+            if getattr(self, "strict_sync", False):
+                from automation.ads_sync_contract import items as checked_items, identifier, bounded
+                items = checked_items(payload, "campaigns")
+                previous = {c["id"] for c in campaigns}
+                ids = [identifier(c.get("id")) for c in items]
+                if len(ids) != len(set(ids)) or previous.intersection(ids):
+                    raise ValueError("Avito catalog pagination repeated identifiers")
+                bounded(campaigns + items)
+            if getattr(self, "strict_sync", False) and isinstance(payload, dict) and payload.get("total") is not None:
+                from automation.ads_sync_contract import number, IncompleteAdsSnapshot
+                total_count = number(payload["total"], integer=True)
+                if len(items) < limit and len(campaigns) + len(items) != total_count:
+                    raise IncompleteAdsSnapshot("Avito catalog ended before its declared total")
             if not isinstance(items, list) or not items:
                 break
 
@@ -239,7 +252,7 @@ class AvitoAdsAPI:
                 )
 
             total = int(payload.get("total") or 0)
-            if page * limit >= total or len(items) < limit:
+            if ((total and page * limit >= total) or len(items) < limit):
                 break
             page += 1
 
@@ -275,6 +288,9 @@ class AvitoAdsAPI:
                 continue
             clicks = int(row.get("clicks") or 0)
             spend = float(row.get("spend") or 0)
+            if getattr(self, "strict_sync", False):
+                from automation.ads_sync_contract import number
+                spend = number(row.get("spend"))
             normalized = {
                 "campaign_id": campaign_id,
                 "campaign_name": campaign_name,
@@ -284,6 +300,7 @@ class AvitoAdsAPI:
                 "impressions": int(row.get("views") or 0),
                 "clicks": clicks,
                 "cost": spend,
+                "conversions": 0,
                 "cpc": round(spend / clicks, 2) if clicks > 0 else None,
             }
             if "groupId" in entity:
@@ -334,6 +351,14 @@ class AvitoAdsAPI:
         date_to: str,
     ) -> dict:
         campaign_block = payload.get("campaign") if isinstance(payload, dict) else None
+        if getattr(self, "strict_sync", False):
+            from automation.ads_sync_contract import avito_entity, items, IncompleteAdsSnapshot
+            if not isinstance(campaign_block, dict) or str(campaign_block.get("id")) != str(campaign_external_id):
+                raise IncompleteAdsSnapshot("Avito campaign statistics are missing or mismatched")
+            avito_entity(campaign_block)
+            for key in ("groups", "creatives"):
+                for entity in items(payload, key):
+                    avito_entity(entity, optional_data=True)
         if not isinstance(campaign_block, dict):
             return {"campaigns": [], "groups": [], "creatives": [], "group_ids": [], "creative_ids": []}
 
@@ -375,7 +400,7 @@ class AvitoAdsAPI:
                 campaign_name=campaign_name,
                 default_name_prefix="Группа",
             )
-            if not rows and group_id is not None:
+            if not rows and group_id is not None and not getattr(self, "strict_sync", False):
                 zero_row = self._zero_stats_row_from_entity(
                     group,
                     date_to=date_to,
@@ -409,7 +434,7 @@ class AvitoAdsAPI:
                 campaign_name=campaign_name,
                 default_name_prefix="Креатив",
             )
-            if not rows and creative_id is not None:
+            if not rows and creative_id is not None and not getattr(self, "strict_sync", False):
                 zero_row = self._zero_stats_row_from_entity(
                     creative,
                     date_to=date_to,
@@ -451,6 +476,16 @@ class AvitoAdsAPI:
             json_data={"dateFrom": date_from, "dateTo": date_to},
         )
         parsed = self._parse_campaign_stats_payload(payload, campaign_external_id, date_to)
+
+        if getattr(self, "strict_sync", False):
+            # A mixed response can have daily data for one child and only
+            # aggregate metadata for another. Fetch only the latter explicitly.
+            for key, fetch in (("groups", self.get_group_statistics),
+                               ("creatives", self.get_creative_statistics)):
+                missing = [str(child["id"]) for child in payload[key] if "data" not in child]
+                if missing:
+                    parsed[key].extend(await fetch(campaign_external_id, missing, date_from, date_to, account_id=acc))
+            return parsed
 
         # In regular responses /campaigns/{id}/stats already contains child
         # daily rows. If Avito returns only aggregates, fall back to dedicated
@@ -514,6 +549,15 @@ class AvitoAdsAPI:
                 },
             )
             campaign_name = f"Campaign {campaign_external_id}"
+            if getattr(self, "strict_sync", False):
+                from automation.ads_sync_contract import items, avito_entity, IncompleteAdsSnapshot
+                entities = items(payload, "groups")
+                if sorted(str(e.get("id")) for e in entities) != sorted(group_ids):
+                    raise IncompleteAdsSnapshot("Avito group response is incomplete or duplicated")
+                for entity in entities:
+                    avito_entity(entity)
+                    if str(entity["id"]) not in group_ids:
+                        raise IncompleteAdsSnapshot("Avito returned another group's statistics")
             for group in payload.get("groups", []) if isinstance(payload, dict) else []:
                 if not isinstance(group, dict):
                     continue
@@ -554,6 +598,15 @@ class AvitoAdsAPI:
                 },
             )
             campaign_name = f"Campaign {campaign_external_id}"
+            if getattr(self, "strict_sync", False):
+                from automation.ads_sync_contract import items, avito_entity, IncompleteAdsSnapshot
+                entities = items(payload, "creatives")
+                if sorted(str(e.get("id")) for e in entities) != sorted(creative_ids):
+                    raise IncompleteAdsSnapshot("Avito creative response is incomplete or duplicated")
+                for entity in entities:
+                    avito_entity(entity)
+                    if str(entity["id"]) not in creative_ids:
+                        raise IncompleteAdsSnapshot("Avito returned another creative's statistics")
             for creative in payload.get("creatives", []) if isinstance(payload, dict) else []:
                 if not isinstance(creative, dict):
                     continue
@@ -588,6 +641,8 @@ class AvitoAdsAPI:
                 )
                 normalized.extend(rows)
             except Exception:
+                if getattr(self, "strict_sync", False):
+                    raise
                 continue
         return normalized
 
@@ -605,6 +660,8 @@ class AvitoAdsAPI:
                     external_id, date_from, date_to, account_id=account_id
                 )
             except Exception:
+                if getattr(self, "strict_sync", False):
+                    raise
                 continue
             for key in bundle:
                 bundle[key].extend(campaign_bundle.get(key, []))
