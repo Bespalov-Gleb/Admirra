@@ -1,0 +1,32 @@
+services:
+  notifier:
+    image: ${NOTIFIER_IMAGE:?Use a pinned tested image with Python and psycopg2}
+    container_name: admirra-registration-notifier
+    entrypoint: ["python", "-B", "/opt/registration-notifier/notifier.py"]
+    restart: unless-stopped
+    init: true
+    user: "65534:65534"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 128m
+    cpus: 0.25
+    pids_limit: 32
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=4m,mode=1777"]
+    volumes:
+      - ./notifier.py:/opt/registration-notifier/notifier.py:ro
+      - /etc/admirra/registration-notifier:/run/secrets:ro
+    networks: [database]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,time; assert time.time()-os.stat('/tmp/healthy').st_mtime < 90"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "3"}
+networks:
+  database:
+    external: true
+    name: admirra_default
