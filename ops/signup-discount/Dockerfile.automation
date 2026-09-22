@@ -1,0 +1,5 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG APP_RELEASE
+LABEL ru.admirra.signup-discount.revision=${APP_RELEASE}
+COPY automation/ /app/

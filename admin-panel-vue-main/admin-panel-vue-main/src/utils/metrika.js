@@ -1,6 +1,12 @@
 // Яндекс.Метрика — счётчик 109911357. Хелпер для целей (reachGoal),
 // SPA-хитов на смену роута, получения ClientID и захвата yclid.
 import api from '@/api/axios'
+import { trackPurchase as sendPurchase } from './purchaseAnalytics'
+
+export const trackPurchase = payment => sendPurchase(payment, { goalIds: {
+  payment_success: import.meta.env.VITE_YM_PAYMENT_SUCCESS_GOAL_ID,
+  plan_upgrade: import.meta.env.VITE_YM_PLAN_UPGRADE_GOAL_ID,
+} })
 
 export const YM_COUNTER_ID = 109911357
 

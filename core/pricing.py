@@ -34,6 +34,14 @@ LEGACY_CODE_ALIASES: Dict[str, str] = {"basic": "agency", "standard": "pro"}
 DEFAULT_PLAN_CODE = "start"
 
 
+def analytics_sku(code: str, billing: str) -> str:
+    # Historical product IDs must survive renaming the tariff lineup.
+    code = {"agency": "basic", "pro": "standard"}.get(code, code)
+    if code not in {"start", "basic", "standard", "white_label"} or billing not in {"month", "year"}:
+        raise ValueError("Invalid analytics product")
+    return f"{code}_{billing}"
+
+
 @dataclass(frozen=True)
 class PlanSpec:
     """Строка прайс-бука. Все поля §7.1."""

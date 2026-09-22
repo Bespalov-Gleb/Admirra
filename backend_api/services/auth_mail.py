@@ -45,6 +45,7 @@ def _send_sync(
     body_text: str,
     reply_to: Optional[str] = None,
     attachments: Optional[list] = None,
+    html_body: Optional[str] = None,
 ) -> bool:
     if not smtp_enabled():
         logger.warning("Auth email skipped: SMTP_ENABLED=false")
@@ -60,6 +61,8 @@ def _send_sync(
     if reply_to:
         msg["Reply-To"] = reply_to
     msg.set_content(body_text)
+    if html_body:
+        msg.add_alternative(html_body, subtype="html")
     if attachments:
         for filename, content_type, data in attachments:
             if "/" in (content_type or ""):

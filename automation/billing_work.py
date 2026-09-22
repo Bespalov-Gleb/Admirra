@@ -35,6 +35,10 @@ def plan_page(factory, payload):
         warning = sa.and_(sub.current_period_end >= now + timedelta(days=6),
             sub.current_period_end < now + timedelta(days=8),
             sub.status.in_([models.SubscriptionStatus.ACTIVE, models.SubscriptionStatus.TRIAL]))
+        from backend_api.services.signup_discount import any_enabled as discount_enabled
+        if discount_enabled():
+            warning = sa.or_(warning, sa.and_(sub.status == models.SubscriptionStatus.TRIAL,
+                sub.current_period_end > now + timedelta(days=1), sub.current_period_end <= now + timedelta(days=2)))
         recurring = sa.and_(sub.recurring_sync_required.is_(True), sub.cancel_at_period_end.is_(False),
                            sub.cloudpayments_subscription_id.is_not(None))
         query = sa.select(sub.id, sub.user_id, sub.current_period_end,
@@ -85,6 +89,8 @@ async def execute(kind, payload):
         if period_end.tzinfo is None:
             raise ValueError("Billing period requires a timezone")
         count = await send_overflow_renewal_warnings(**scope, expected_period_end=period_end)
+        from backend_api.services.signup_discount_mail import send_signup_discount_reminders
+        count += await send_signup_discount_reminders(owner_id=scope['owner_id'])
     else:
         count = await reconcile_recurring_totals(**scope)
     return {"completed": count}

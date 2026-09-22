@@ -8,6 +8,7 @@
       <header class="flex-shrink-0">
         <Header />
       </header>
+      <SignupDiscount />
       <main class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden bg-[#F4F6F8] dark:bg-[#232637]">
         <slot />
       </main>
@@ -19,6 +20,7 @@
 import { computed, onBeforeUnmount, onMounted } from 'vue'
 import SidebarV2 from '../components/SidebarV2.vue'
 import Header from '../components/Header.vue'
+import SignupDiscount from '../components/SignupDiscount.vue'
 import { useSidebar } from '../composables/useSidebar'
 
 const { isCollapsed } = useSidebar()

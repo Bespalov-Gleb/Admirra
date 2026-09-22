@@ -1360,6 +1360,8 @@ class BillingRecurrentParams(BaseModel):
 
     interval: str
     period: int = 1
+    amount: Optional[int] = None
+    customerReceipt: Optional[dict] = None
 
 
 class BillingSubscribeResponse(BaseModel):
@@ -1393,6 +1395,7 @@ class BillingSubscribeResponse(BaseModel):
     # Применена персональная win-back скидка (для UI — отдельный «персональный»
     # баннер, а не чип промокода). Код при этом наружу НЕ отдаём.
     winback: bool = False
+    signup_discount: bool = False
 
 
 class BillingWinbackEligibleResponse(BaseModel):

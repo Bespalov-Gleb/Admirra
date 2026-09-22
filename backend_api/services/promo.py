@@ -206,6 +206,9 @@ def ensure_winback_promo(db: Session) -> "models.PromoCode":
 
 def winback_eligible(db: Session, user: "models.User") -> bool:
     """Можно ли ПОКАЗАТЬ баннер: скидку ещё ни разу не предлагали и не гасили."""
+    from backend_api.services.signup_discount import enabled
+    if enabled(user.id):
+        return False
     promo = ensure_winback_promo(db)
     if not promo.active:
         return False

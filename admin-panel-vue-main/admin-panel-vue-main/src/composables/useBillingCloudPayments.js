@@ -57,6 +57,7 @@ export async function payWithCloudPayments(payload) {
       recurrent: {
         interval: payload.recurrent.interval,
         period: Number(payload.recurrent.period) || 1,
+        ...(payload.recurrent.amount ? { amount: normalizeAmount(payload.recurrent.amount) } : {}),
       },
     }
   }
@@ -68,7 +69,7 @@ export async function payWithCloudPayments(payload) {
     data.cloudPayments = data.cloudPayments || {}
     data.cloudPayments.CustomerReceipt = payload.receipt
     if (data.cloudPayments.recurrent) {
-      data.cloudPayments.recurrent.customerReceipt = payload.receipt
+      data.cloudPayments.recurrent.customerReceipt = payload.recurrent?.customerReceipt || payload.receipt
     }
   }
 

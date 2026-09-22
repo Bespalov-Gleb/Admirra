@@ -203,7 +203,8 @@
               </div>
 
               <div class="plan-price">
-                <strong>{{ card.price }}</strong>
+                <del v-if="signupOffer.active && signupOffer.prices?.[card.code]">{{ card.price }}</del>
+                <strong>{{ signupOffer.active && signupOffer.prices?.[card.code] ? formatRub(signupOffer.prices[card.code][billingPeriod].amount) : card.price }}</strong>
                 <span>{{ card.perProject }}</span>
               </div>
 
@@ -215,6 +216,7 @@
               </ul>
 
               <div class="plan-card__footer">
+                <p v-if="signupOffer.active" class="signup-price-note">Скидка 20% до {{ signupExpiry }}</p>
                 <button
                   type="button"
                   class="plan-btn"
@@ -281,6 +283,7 @@
         <div class="billing-modal" role="dialog" aria-modal="true" aria-labelledby="payment-confirm-title">
           <h4 id="payment-confirm-title">{{ paymentConfirm.title }}</h4>
           <p>{{ paymentConfirm.text }}</p>
+          <p v-if="paymentConfirm.discountAmount" class="signup-price-note">Скидка за подключение 20%: −{{ formatRub(paymentConfirm.discountAmount) }}</p>
 
           <div class="billing-confirm-total" :class="{ 'billing-confirm-total--discounted': promoApplied }">
             <span>К списанию сейчас</span>
@@ -406,14 +409,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/api/axios'
 import { useAuth } from '@/composables/useAuth'
 import { useToaster } from '@/composables/useToaster'
 import { payWithCloudPayments } from '@/composables/useBillingCloudPayments'
 import { purchaseSlots } from '@/utils/purchaseSlots'
-import { reachGoal } from '@/utils/metrika'
+import { reachGoal, trackPurchase } from '@/utils/metrika'
 
 // Ранги тарифов для определения апгрейда/понижения. Старые коды (basic/standard)
 // оставлены на время миграции §7.3 — в кэше подписки может быть ещё они.
@@ -486,6 +489,24 @@ function removePromo() {
   if (paymentConfirm.value) paymentConfirm.value.amount = paymentConfirm.value.originalAmount
 }
 
+const signupOffer = ref({})
+let signupExpiryTimer
+let signupDisposed = false
+async function refreshSignupOffer() {
+  clearTimeout(signupExpiryTimer)
+  try {
+    const { data } = await api.get('billing/signup-discount')
+    if (signupDisposed) return
+    signupOffer.value = data
+    const remaining = new Date(data.expires_at).getTime() - Date.now()
+    if (data.active && remaining > 0) signupExpiryTimer = setTimeout(() => {
+      signupOffer.value = { ...signupOffer.value, active: false }
+      refreshSignupOffer()
+    }, Math.min(remaining + 100, 2147483647))
+  } catch { /* optional offer; checkout always revalidates it on the server */ }
+}
+onBeforeUnmount(() => { signupDisposed = true; clearTimeout(signupExpiryTimer) })
+const signupExpiry = computed(() => signupOffer.value.expires_at ? new Date(signupOffer.value.expires_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Moscow' }) : '')
 const subscription = ref({
   plan_code: 'start',
   plan_name: 'Старт',
@@ -808,6 +829,11 @@ onMounted(async () => {
     return
   }
   loading.value = true
+  await refreshSignupOffer()
+  try {
+    const pending = sessionStorage.getItem('admirra:pending-payment')
+    if (pending) confirmPayment(pending)
+  } catch { /* storage unavailable */ }
   try {
     const { data } = await api.get('billing/overview')
     plans.value = normalizePlansFromApi(data?.plans || [])
@@ -855,7 +881,8 @@ async function onSubscribe(planCode, bp = 'month') {
         ? 'При смене тарифа зафиксированная ранее цена заменится актуальной ценой выбранного тарифа.'
         : '',
       // Промокод показываем только для оплаты тарифа.
-      promo: true,
+      promo: !data.signup_discount,
+      discountAmount: data.signup_discount ? data.discount_amount : 0,
       planCode: String(data.plan_code || planCode).toLowerCase(),
       billingPeriod: data.billing_period || bp,
     })
@@ -896,6 +923,7 @@ async function reloadSubscription() {
   try {
     const { data } = await api.get('billing/subscription')
     subscription.value = { ...subscription.value, ...data }
+    await refreshSignupOffer()
   } catch { /* не критично: подтянется при следующем открытии */ }
 }
 
@@ -982,6 +1010,7 @@ function resolveWinback(result) {
 
 // Оплата через виджет CloudPayments + обработка успеха. 'success' | 'cancelled'.
 async function openPaymentWidget(payData, planCode, bp, prevPlanCode) {
+  try { sessionStorage.setItem('admirra:pending-payment', payData.invoice_id) } catch { /* optional */ }
   const result = await payWithCloudPayments({
     public_id: payData.public_id,
     description: payData.description,
@@ -1000,26 +1029,40 @@ async function openPaymentWidget(payData, planCode, bp, prevPlanCode) {
     invoice_id: payData.invoice_id || null,
   })
   if (result.status === 'cancelled') return 'cancelled'
-  // Успешная оплата — денежная цель с суммой и срезами (фактическая сумма — payData)
-  const newPlan = String(payData.plan_code || planCode).toLowerCase()
-  const moneyParams = {
-    order_price: Number(payData.amount) || 0,
-    currency: payData.currency || 'RUB',
-    plan: newPlan,
-    billing: payData.billing_period || bp,
-  }
-  reachGoal('payment_success', moneyParams)
-  // Апгрейд: уже был платный тариф и перешли на старший
-  if ((PLAN_RANK[prevPlanCode] ?? 0) >= 1 && (PLAN_RANK[newPlan] ?? 0) > (PLAN_RANK[prevPlanCode] ?? 0)) {
-    reachGoal('plan_upgrade', moneyParams)
-  }
-  toaster.success('Оплата успешно выполнена')
+  // Widget success is not authoritative: wait for the accepted server webhook.
+  const confirmed = await confirmPayment(payData.invoice_id)
+  if (!confirmed) toaster.success('Платёж отправлен. Ожидаем подтверждения банка.')
   await fetchCurrentUser()
   // Статус/карта приходят вебхуком с задержкой — перечитываем подписку пару раз,
   // чтобы «Карта привязана •••• 1234» и новый тариф появились без перезагрузки.
   reloadSubscription()
   setTimeout(reloadSubscription, 4000)
   return 'success'
+}
+
+const confirmingPayments = new Set()
+async function confirmPayment(invoiceId) {
+  if (!invoiceId || confirmingPayments.has(invoiceId)) return false
+  confirmingPayments.add(invoiceId)
+  try {
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const { data } = await api.get(`billing/payments/${encodeURIComponent(invoiceId)}/confirmation`)
+      if (data.status === 'confirmed') {
+        window.dispatchEvent(new Event('admirra:payment-confirmed'))
+        if (data.purchase) await trackPurchase(data.purchase)
+        try { sessionStorage.removeItem('admirra:pending-payment') } catch { /* optional */ }
+        toaster.success('Оплата подтверждена')
+        await reloadSubscription()
+        return true
+      }
+      await new Promise(resolve => setTimeout(resolve, 1500))
+    }
+  } catch (error) {
+    if (error?.response?.status === 404) {
+      try { sessionStorage.removeItem('admirra:pending-payment') } catch { /* optional */ }
+    }
+  } finally { confirmingPayments.delete(invoiceId) }
+  return false
 }
 
 async function maybeOfferWinback(planCode, bp, prevPlanCode) {
@@ -1135,6 +1178,8 @@ function onContactWl() {
 </script>
 
 <style scoped>
+.plan-price del { color:#8b96a8; font-size:16px }
+.signup-price-note { color:#188a4c; font-size:13px; line-height:1.5; margin:8px 0 }
 .tariffs-page {
   width: 100%;
 }

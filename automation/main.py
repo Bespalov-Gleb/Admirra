@@ -122,6 +122,9 @@ async def main():
         REPORTS_HOUR_MSK,
     )
 
+    from backend_api.services.signup_discount_mail import send_signup_discount_reminders
+    scheduler.add_job(send_signup_discount_reminders, 'interval', minutes=10,
+                      id='signup_discount_reminders', max_instances=1, coalesce=True)
     scheduler.start()
 
     try:

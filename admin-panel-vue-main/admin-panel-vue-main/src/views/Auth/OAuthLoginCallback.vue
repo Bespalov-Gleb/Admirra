@@ -127,6 +127,7 @@ onMounted(async () => {
       const isNewUser = hasNewUserFlag ? data.is_new_user : (createdAt && (Date.now() - createdAt) < 60000)
       if (isNewUser) {
         reachGoal('signup_complete', { method: provider })
+        reachGoal('signup', { method: provider })
         reachGoal('trial_start')
       }
     }

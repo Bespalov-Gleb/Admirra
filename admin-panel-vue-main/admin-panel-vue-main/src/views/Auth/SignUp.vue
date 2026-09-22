@@ -359,6 +359,7 @@ const handleRegister = async () => {
     if (result.success) {
       // Аккаунт создан + триал стартует при регистрации (см. ТЗ)
       reachGoal('signup_complete', { method: 'email' })
+      reachGoal('signup', { method: 'email' })
       reachGoal('trial_start')
       router.push({
         path: '/pending-email-verification',

@@ -16,6 +16,8 @@ from backend_api.services.notifications import create_notification
 from backend_api.services.history import log_history_event
 from backend_api.services.subscription import SubscriptionService
 from backend_api.services import promo as promo_service
+from backend_api.services.purchase_analytics import purchase_snapshot, confirmed_purchase
+from backend_api.services import signup_discount
 from core import models, pricing, schemas, security
 from core.config import get_config
 from core.database import get_db
@@ -878,8 +880,26 @@ async def subscribe(
     # Win-back — персональная скидка по серверному гранту (не промокод, стекать
     # с промокодом нельзя). Применяется тем же путём, что и промокод: скидка
     # ложится в amount/чек/intent, а погашение и сброс рекуррента идут в вебхуке.
+    is_signup_discount = signup_discount.active(db, account_user, sub)
     is_winback = bool(body.winback)
-    if is_winback:
+    if is_winback and signup_discount.enabled(account_user.id):
+        raise HTTPException(status_code=409, detail="Предложение 25% заменено скидкой за подключение кабинета")
+    if is_signup_discount:
+        if (body.promo_code or '').strip():
+            raise HTTPException(status_code=409, detail="Скидка за подключение не суммируется с промокодом")
+        quoted = signup_discount.quote(plan.price_rub, _expected_amount(plan, billing_period), billing_period)
+        slots_amount = target_slots * _slot_period_unit(plan, billing_period)
+        original_amount = quoted['list_price'] + slots_amount
+        amount = quoted['amount'] + slots_amount
+        receipt = _subscription_receipt(plan, billing_period, target_slots, account_user.email or '', cfg)
+        if receipt and receipt.get('items'):
+            receipt['items'][0]['price'] = quoted['amount']
+            receipt['items'][0]['amount'] = quoted['amount']
+            discount_text = f"{original_amount - amount:,.2f} ₽".replace(',', ' ').replace('.', ',')
+            receipt['userRequisiteData'] = {'requisiteKey': 'Скидка за подключение 20%', 'requisiteValue': discount_text}
+            receipt['additionalReceiptInfos'] = [f'Скидка за подключение 20%: {discount_text}']
+            receipt['amounts']['electronic'] = amount
+    elif is_winback:
         try:
             promo_quote = promo_service.validate_winback(
                 db, user=account_user, original_amount=amount,
@@ -918,6 +938,23 @@ async def subscribe(
             "final_amount": promo_quote.final_amount,
             "winback": is_winback,
         }
+    if is_signup_discount:
+        intent_payload['signup_discount'] = True
+        intent_payload['discount_expires_at'] = signup_discount.aware(account_user.signup_discount_expires_at).isoformat()
+        # Once Check authorizes a charge its outcome must be resolved before
+        # another discounted order can be created. Never guess after a timeout.
+        previous = _find_payment_intent(db, user_id=account_user.id,
+                                       invoice_id=account_user.signup_discount_invoice_id)
+        if previous and (previous.payload or {}).get('discount_check_transaction'):
+            raise HTTPException(status_code=409, detail="Предыдущая оплата ещё обрабатывается")
+    intent_payload["analytics"] = purchase_snapshot(
+        plan=plan, billing=billing_period, amount=amount, list_price=original_amount,
+        coupon=(promo_quote.promo.code if promo_quote and not is_winback else None),
+        signup_discount=is_signup_discount,
+        price_book_version=(intent_payload.get('price_book_snapshot') or {}).get('_price_book_version'),
+        goal=("plan_upgrade" if not is_trial and (requested_rank > current_rank or
+              (billing_period == "year" and sub.billing_period != "year")) else "payment_success"),
+    )
     invoice_id = _reuse_or_create_invoice(
         db,
         user=account_user,
@@ -929,8 +966,14 @@ async def subscribe(
         purpose="plan",
         intent_payload=intent_payload,
     )
+    if is_signup_discount:
+        account_user.signup_discount_invoice_id = invoice_id
     db.commit()
 
+    recurrent = _recurrent_for_billing_period(plan, billing_period)
+    if recurrent and is_signup_discount:
+        recurrent.amount = _subscription_total(plan, billing_period, target_slots)
+        recurrent.customerReceipt = _subscription_receipt(plan, billing_period, target_slots, account_user.email or '', cfg)
     # Для фронта готовим данные виджета, включая receipt для автоматической фискализации.
     return schemas.BillingSubscribeResponse(
         public_id=cfg.cloudpayments.public_id,
@@ -942,16 +985,69 @@ async def subscribe(
         plan_code=plan.code,
         billing_period=billing_period,
         trial_days=plan.trial_days,
-        recurrent=_recurrent_for_billing_period(plan, billing_period),
+        recurrent=recurrent,
         receipt=receipt,
         invoice_id=invoice_id,
         # Для win-back код наружу не отдаём — фронт покажет «персональную скидку»,
         # а не чип промокода. Обычный промокод эхоим как раньше.
         promo_code=(None if is_winback else (promo_quote.promo.code if promo_quote else None)),
-        discount_amount=(promo_quote.discount_amount if promo_quote else 0),
+        discount_amount=(original_amount - amount),
         original_amount=original_amount,
+        signup_discount=is_signup_discount,
         winback=bool(is_winback and promo_quote is not None),
     )
+
+
+@router.get("/signup-discount")
+def signup_discount_status(current_user: models.User = Depends(security.get_current_user), db: Session = Depends(get_db)):
+    owner = SubscriptionService.get_billing_account_user(db, current_user)
+    if owner.id != current_user.id:
+        return {"eligible": False, "active": False}
+    sub = SubscriptionService.get_user_subscription(db, owner.id)
+    result = signup_discount.status(db, owner, sub)
+    if result['active']:
+        result['prices'] = {spec.code: {
+            period: signup_discount.quote(spec.price_month, spec.price_year if period == 'year' else spec.price_month, period)
+            for period in ('month', 'year')
+        } for spec in pricing.list_plans(billing_cfg=get_config().billing) if not spec.white_label}
+    return result
+
+
+@router.post("/signup-discount/claim-display")
+def signup_discount_claim_display(kind: str, current_user: models.User = Depends(security.get_current_user), db: Session = Depends(get_db)):
+    if kind not in {'modal', 'toast'}:
+        raise HTTPException(status_code=400, detail="Неверный тип уведомления")
+    owner = SubscriptionService.get_billing_account_user(db, current_user)
+    if owner.id != current_user.id:
+        return {"show": False}
+    sub = SubscriptionService.get_user_subscription(db, owner.id, for_update=True)
+    owner = db.query(models.User).filter(models.User.id == owner.id).with_for_update().first()
+    state = signup_discount.status(db, owner, sub)
+    field = f'signup_discount_{kind}_seen_at'
+    show = bool(state['eligible'] and (kind != 'toast' or state['active']) and not getattr(owner, field))
+    if show:
+        setattr(owner, field, signup_discount.now())
+    db.commit()
+    return {"show": show, **state}
+
+
+@router.get("/payments/{invoice_id}/confirmation")
+def payment_confirmation(
+    invoice_id: str,
+    current_user: models.User = Depends(security.get_current_user),
+    db: Session = Depends(get_db),
+):
+    account = SubscriptionService.get_billing_account_user(db, current_user)
+    intent = _find_payment_intent(db, user_id=account.id, invoice_id=invoice_id)
+    if intent is None:
+        raise HTTPException(status_code=404, detail="Платёж не найден")
+    payment = db.query(models.BillingEvent).filter(
+        models.BillingEvent.user_id == account.id,
+        models.BillingEvent.invoice_id == invoice_id,
+        models.BillingEvent.event_type == "pay",
+    ).order_by(models.BillingEvent.created_at.asc()).first()
+    payload = confirmed_purchase(intent, payment) if payment else None
+    return {"status": "confirmed" if payment else "pending", "purchase": payload}
 
 
 @router.post("/promo/validate", response_model=schemas.BillingPromoValidateResponse)
@@ -1378,6 +1474,64 @@ async def cancel_autorenew(
     }
 
 
+@router.post("/cloudpayments/check", response_model=schemas.CloudPaymentsWebhookResponse)
+async def cloudpayments_check(request: Request, db: Session = Depends(get_db)):
+    raw = await request.body()
+    if not CloudPaymentsService.validate_webhook_signature(raw, request.headers.get('Content-HMAC') or request.headers.get('X-Content-HMAC')):
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
+    data = _parse_webhook_payload(raw, request.headers.get('Content-Type', ''))
+    try:
+        user_id = uuid.UUID(str(data.get('AccountId')))
+    except (ValueError, TypeError):
+        return schemas.CloudPaymentsWebhookResponse(code=11)
+    sub = SubscriptionService.get_user_subscription(db, user_id, for_update=True)
+    user = db.query(models.User).filter(models.User.id == user_id).with_for_update().first()
+    if not user or not sub:
+        return schemas.CloudPaymentsWebhookResponse(code=11)
+    intent = _find_payment_intent(db, user_id=user_id, invoice_id=str(data.get('InvoiceId') or ''))
+    prior_payment = db.query(models.BillingEvent).filter(
+        models.BillingEvent.user_id == user_id,
+        models.BillingEvent.invoice_id == intent.invoice_id,
+        models.BillingEvent.event_type == 'pay',
+    ).first() if intent else None
+    if prior_payment and str(prior_payment.transaction_id) == str(data.get('TransactionId') or ''):
+        return schemas.CloudPaymentsWebhookResponse(code=13)
+    if not intent or prior_payment:
+        # CP renewals can inherit the first, discounted InvoiceId. Validate the
+        # current recurring price rather than that historical first-payment price.
+        cp_subscription = str(data.get('SubscriptionId') or '')
+        if not cp_subscription or cp_subscription != sub.cloudpayments_subscription_id:
+            return schemas.CloudPaymentsWebhookResponse(code=13 if prior_payment else 10)
+        period = _normalize_billing_period(sub.pending_billing_period or sub.billing_period)
+        spec = pricing.resolve_plan(sub.pending_plan_code or sub.plan_code or 'start', get_config().billing)
+        spec = pricing.plan_from_snapshot(sub.pending_price_book_snapshot or sub.price_book_snapshot, spec)
+        plan = SubscriptionService.get_plan_from_config(spec.code, spec=spec, price_fixed=True)
+        slots = sub.pending_purchased_project_slots
+        if slots is None:
+            slots = SubscriptionService._purchased_slots(sub)
+        expected = Decimal(_subscription_total(plan, period, slots))
+        code = 0 if (_paid_amount(data) == expected and str(data.get('Currency') or '') == get_config().cloudpayments.currency) else 12
+        return schemas.CloudPaymentsWebhookResponse(code=code)
+    if _paid_amount(data) != intent.amount or str(data.get('Currency') or '') != intent.currency:
+        return schemas.CloudPaymentsWebhookResponse(code=12)
+    if db.query(models.BillingEvent.id).filter(models.BillingEvent.invoice_id == intent.invoice_id,
+                                             models.BillingEvent.event_type == 'pay').first():
+        return schemas.CloudPaymentsWebhookResponse(code=13)
+    meta = dict(intent.payload or {})
+    if meta.get('signup_discount'):
+        transaction = str(data.get('TransactionId') or '')
+        existing = meta.get('discount_check_transaction')
+        if (not transaction or user.signup_discount_invoice_id != intent.invoice_id
+                or (existing and existing != transaction)):
+            return schemas.CloudPaymentsWebhookResponse(code=13)
+        if not signup_discount.active(db, user, sub):
+            return schemas.CloudPaymentsWebhookResponse(code=20)
+        meta['discount_check_transaction'] = transaction
+        intent.payload = meta
+    db.commit()
+    return schemas.CloudPaymentsWebhookResponse(code=0)
+
+
 @router.post("/cloudpayments/webhook", response_model=schemas.CloudPaymentsWebhookResponse)
 async def cloudpayments_webhook(
     request: Request,
@@ -1504,6 +1658,12 @@ async def cloudpayments_webhook(
             or paid != expected_amount
             or got_currency != expected_currency
         )
+        if intent_payload.get('signup_discount'):
+            amount_mismatch = amount_mismatch or bool(
+                user.signup_discount_used_at
+                or user.signup_discount_invoice_id != invoice_id
+                or intent_payload.get('discount_check_transaction') != str(data.get('TransactionId') or '')
+            )
         if amount_mismatch:
             logger.error(
                 "CloudPayments webhook rejected: invoice=%s purpose=%s paid=%s/%s expected=%s/%s user=%s",
@@ -1520,6 +1680,10 @@ async def cloudpayments_webhook(
         logger.warning("CloudPayments: invoice %s уже погашен, повтор не применяется", invoice_id)
         db.commit()
         return schemas.CloudPaymentsWebhookResponse(code=0)
+
+    if outcome == 'fail' and intent_payload.get('signup_discount'):
+        if intent_payload.get('discount_check_transaction') == str(data.get('TransactionId') or ''):
+            intent.payload = {k: v for k, v in intent_payload.items() if k != 'discount_check_transaction'}
 
     # Идемпотентность. CloudPayments повторяет доставку, пока не получит code 0,
     # и без этой проверки повтор заново продлевал подписку. Запись в журнал —
@@ -1701,6 +1865,9 @@ async def cloudpayments_webhook(
     now = SubscriptionService._now()
 
     if outcome == "pay":
+        if intent_payload.get('signup_discount') and not is_recurrent_report:
+            user.signup_discount_used_at = now
+            sub.recurring_sync_required = True
         # Recurrent(Active) — только статус подписки, период НЕ продлеваем: продление
         # периода происходит по реальному списанию (уведомление Pay).
         extend_period = not is_recurrent_report or not sub.current_period_end
@@ -1774,6 +1941,12 @@ async def cloudpayments_webhook(
         # на первый платёж, поднимаем рекуррент CloudPayments до полной цены, чтобы
         # автопродления шли без скидки.
         promo_meta = intent_payload.get("promo") if intent else None
+        if intent_payload.get('signup_discount'):
+            try:
+                await _update_recurrent_total(sub, plan, billing_period,
+                                              int(intent_payload.get('target_slots') or 0), user.email or '')
+            except Exception:
+                logger.warning('Signup discount recurring update requires reconciliation')
         if intent and purpose == "plan" and isinstance(promo_meta, dict):
             try:
                 promo_service.record_redemption(
@@ -1808,8 +1981,7 @@ async def cloudpayments_webhook(
             _currency = str(data.get("Currency") or "RUB")
             _cid = getattr(user, "metrika_client_id", None)
             _yclid = getattr(user, "metrika_yclid", None)
-            _is_recurring_charge = bool(data.get("SubscriptionId")) or "recurrent" in event_name
-            if _is_recurring_charge and extend_period:
+            if is_recurring_charge and extend_period:
                 await upload_offline_conversion(target="subscription_renewal", price=_amount,
                                                 currency=_currency, client_id=_cid, yclid=_yclid)
                 await upload_offline_conversion(target="payment_success", price=_amount,
@@ -1851,7 +2023,15 @@ async def cloudpayments_webhook(
             meta={"plan_code": plan.code},
         )
     else:
-        sub.status = models.SubscriptionStatus.PAST_DUE
+        # Failed first payment must not consume the still-valid trial or its
+        # first-payment discount. Paid renewals retain the existing debt state.
+        trial_still_active = (
+            sub.status == models.SubscriptionStatus.TRIAL
+            and bool(sub.current_period_end)
+            and sub.current_period_end >= now
+        )
+        if not trial_still_active:
+            sub.status = models.SubscriptionStatus.PAST_DUE
         # Неудачное списание не отбирает уже оплаченный период. Обычно неудача
         # приходит уже после его конца, но если период ещё идёт — доступ остаётся.
         user.is_subscribed = bool(sub.current_period_end) and sub.current_period_end >= now

@@ -3709,6 +3709,9 @@ async def update_integration(
     if integration_in.get("is_active") is True and integration.platform == models.IntegrationPlatform.VK_ADS:
         integration.connection_status = "active"
     
+    if integration_in.get("is_active") is True:
+        from backend_api.services.signup_discount import grant_for_integration
+        grant_for_integration(db, integration, finalized=True)
     log_event("backend", f"updated integration {integration_id}", integration_in)
     log_history_event(
         db,
@@ -4784,6 +4787,9 @@ async def import_yandex_clients(db: Session, user_id: uuid.UUID, access_token: s
             last_sync_at=datetime.utcnow()
         )
         db.add(new_integration)
+        from backend_api.services.signup_discount import grant_for_integration
+        db.flush()
+        grant_for_integration(db, new_integration, finalized=True)
         db.commit()
         
         # 3. Trigger initial sync в фоне (не блокируем запрос)

@@ -5,6 +5,8 @@
     <meta name="robots" content="noindex, nofollow" />
     <!-- Yandex.Metrika counter -->
     <script type="text/javascript">
+      if (['admirra.ru', 'www.admirra.ru'].includes(location.hostname)) {
+        window.dataLayer = window.dataLayer || [];
         (function(m,e,t,r,i,k,a){
             m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
             m[i].l=1*new Date();
@@ -18,6 +20,7 @@
         ym(109911357, 'init', {ssr:true, webvisor:true, clickmap:true,
             ecommerce:"dataLayer", referrer: document.referrer,
             url: location.href, accurateTrackBounce:true, trackLinks:true});
+      }
     </script>
     <!-- /Yandex.Metrika counter (noscript-фолбэк — в <body>) -->
     <!-- Шрифт Inter — локально (без Google Fonts): не блокирует рендер и не
@@ -35,8 +38,6 @@
     <title>AdMirra</title>
   </head>
   <body>
-    <noscript><div><img src="https://mc.yandex.ru/watch/109911357"
-        style="position:absolute; left:-9999px;" alt="" /></div></noscript>
     <div id="app"></div>
     <script type="module" src="/src/main.js"></script>
     <script src="/admirra/js/darkmode.js" defer></script>

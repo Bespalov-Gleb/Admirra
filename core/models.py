@@ -84,6 +84,14 @@ class User(Base):
     # при отказе от оплаты. NULL — ещё не показывали. Одноразовость держим на
     # сервере, чтобы её нельзя было обойти чисткой браузера/другим устройством.
     winback_offered_at = Column(DateTime(timezone=True), nullable=True)
+    signup_discount_granted_at = Column(DateTime(timezone=True), nullable=True)
+    signup_discount_expires_at = Column(DateTime(timezone=True), nullable=True)
+    signup_discount_used_at = Column(DateTime(timezone=True), nullable=True)
+    signup_discount_modal_seen_at = Column(DateTime(timezone=True), nullable=True)
+    signup_discount_toast_seen_at = Column(DateTime(timezone=True), nullable=True)
+    signup_discount_reminder_claimed_at = Column(DateTime(timezone=True), nullable=True)
+    signup_discount_reminder_sent_at = Column(DateTime(timezone=True), nullable=True)
+    signup_discount_invoice_id = Column(String(64), nullable=True)
     ai_requests_used = Column(Integer, nullable=False, default=0)
     ai_requests_period_started_at = Column(DateTime(timezone=True), nullable=True)
     # Поля админ-панели (internal_admin): последний вход, UTM регистрации,
