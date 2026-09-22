@@ -1,13 +1,11 @@
 <template>
   <div v-if="state.eligible && !stripHidden" class="signup-strip" role="region" aria-label="Скидка на первую оплату">
-    <span class="signup-strip__badge" aria-hidden="true">−20%</span>
     <div class="signup-strip__copy">
-      <strong>{{ state.active ? 'Ваша скидка 20% готова' : 'Первый кабинет — первая скидка' }}</strong>
-      <span>{{ state.active ? `На первую оплату тарифа до ${expiry}.` : 'Подключите рекламный кабинет и получите 20% на первую оплату.' }}</span>
+      <strong>−20% на первую оплату</strong>
+      <span>{{ state.active ? `до ${expiry}` : 'за подключение кабинета' }}</span>
     </div>
     <button class="signup-strip__action" type="button" @click="go">
-      {{ state.active ? 'Выбрать тариф' : 'Подключить кабинет' }}
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" /></svg>
+      {{ state.active ? 'Выбрать тариф' : 'Подключить' }}
     </button>
     <button class="signup-strip__close" type="button" aria-label="Скрыть плашку скидки" title="Скрыть плашку — скидка останется в тарифах" @click="dismissStrip">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" /></svg>
@@ -95,15 +93,13 @@ onBeforeUnmount(() => { generation++; clearTimeout(expiryTimer); close(); window
 </script>
 
 <style scoped>
-.signup-strip { flex-shrink:0; display:grid; grid-template-columns:auto minmax(0,1fr) auto auto; align-items:center; gap:16px; padding:12px 24px; background:#f8faff; color:#263650; border-bottom:1px solid #e3e9f3 }
+.signup-strip { flex-shrink:0; display:grid; grid-template-columns:minmax(0,1fr) auto 32px; align-items:center; gap:12px; padding:3px 20px; background:#f8faff; color:#263650; border-bottom:1px solid #e3e9f3 }
 .signup-strip button, .signup-modal button { color:#2f6bea; font:inherit; cursor:pointer; background:none; border:0 }
-.signup-strip__badge { display:grid; place-items:center; min-width:56px; height:40px; padding:0 8px; border:1px solid #dce6fd; border-radius:12px; background:#edf2ff; color:#315fc5; font-size:16px; font-weight:700; letter-spacing:-0.4px }
-.signup-strip__copy { display:grid; gap:3px; min-width:0; line-height:1.45; overflow-wrap:anywhere }
-.signup-strip__copy strong { font-size:14px; font-weight:600 }
-.signup-strip__copy > span { color:#617087; font-size:13px }
-.signup-strip .signup-strip__action { display:inline-flex; align-items:center; justify-content:center; gap:10px; min-height:40px; padding:8px 14px; border:1px solid #d7e1f3; border-radius:10px; background:#fff; color:#315fc5; font-size:13px; font-weight:600; line-height:1.4; text-align:left }
-.signup-strip__action svg { flex-shrink:0 }
-.signup-strip .signup-strip__close { display:grid; place-items:center; width:40px; height:40px; padding:0; border-radius:10px; color:#66758a }
+.signup-strip__copy { min-width:0; font-size:13px; line-height:1.5; overflow-wrap:anywhere }
+.signup-strip__copy strong { font-weight:600 }
+.signup-strip__copy > span { margin-left:6px; color:#617087 }
+.signup-strip .signup-strip__action { min-height:32px; padding:4px 6px; border-radius:6px; color:#315fc5; font-size:13px; font-weight:600; line-height:1.4; white-space:nowrap }
+.signup-strip .signup-strip__close { display:grid; place-items:center; width:32px; height:32px; padding:0; border-radius:6px; color:#66758a }
 .signup-strip button { transition:background-color .15s ease, border-color .15s ease }
 .signup-strip .signup-strip__action:hover { background:#edf2ff; border-color:#b7caf3 }
 .signup-strip .signup-strip__close:hover { background:#eaf0f8; color:#263650 }
@@ -118,19 +114,18 @@ onBeforeUnmount(() => { generation++; clearTimeout(expiryTimer); close(); window
 .signup-request { user-select:text; white-space:pre-wrap }
 :global(.dark .signup-strip) { background:#232b3c; color:#edf2fb; border-color:#354056 }
 :global(.dark .signup-strip__copy > span) { color:#b6c4da }
-:global(.dark .signup-strip__badge) { background:#2d3c5b; border-color:#415578; color:#cedeff }
-:global(.dark .signup-strip .signup-strip__action) { background:#2b3850; border-color:#455573; color:#d3e2ff }
+:global(.dark .signup-strip .signup-strip__action) { color:#d3e2ff }
 :global(.dark .signup-strip .signup-strip__close) { color:#bdcbe0 }
 :global(.dark .signup-strip button:hover) { background:#354660 }
 :global(.dark .signup-strip button:focus-visible) { outline-color:#a7c4ff }
 :global(.dark .signup-modal) { background:#232637; color:#fff }
 :global(.dark .signup-modal p) { color:#bec9dd }
 @media(max-width:640px) {
-  .signup-strip { grid-template-columns:minmax(0,1fr) 40px; gap:8px 12px; padding:12px 16px }
-  .signup-strip__badge { display:none }
-  .signup-strip__copy { grid-column:1; grid-row:1 }
-  .signup-strip .signup-strip__close { grid-column:2; grid-row:1; align-self:start }
-  .signup-strip .signup-strip__action { grid-column:1; grid-row:2; justify-self:start; min-height:44px }
+  .signup-strip { grid-template-columns:minmax(0,1fr) auto 36px; gap:4px; padding:4px 12px }
+  .signup-strip__copy { font-size:12px }
+  .signup-strip__copy > span { display:block; margin-left:0 }
+  .signup-strip .signup-strip__close { width:36px; height:36px }
+  .signup-strip .signup-strip__action { min-height:36px; font-size:12px }
 }
 @media(prefers-reduced-motion:reduce) { .signup-strip button { transition:none } }
 </style>

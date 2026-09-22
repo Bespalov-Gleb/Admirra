@@ -14,9 +14,9 @@ import time
 
 from release import compose, inspect, literal, private_json, run, start
 
-EXPECTED = 'sha256:fc325ba628421515f6b1fe3ab1d84b94f98da20447114996354abe8c67e37d31'
+EXPECTED = 'sha256:5e4c43b88ba4b73f1a3a5342b996fc02602c124ea64f23986918a9788901983c'
 CONTEXT = Path(__file__).resolve().parents[2]
-TAG = 'admirra-frontend:signup-ui-20260922'
+TAG = 'admirra-frontend:signup-ui-compact-20260922'
 
 
 def containers():
@@ -34,7 +34,7 @@ def main():
     assert assets[0] != assets[1], 'No frontend change'
     run(['docker', 'tag', EXPECTED, 'admirra-signup-ui-base:frontend'])
     run(['docker', 'build', '--network=none', '--pull=false', '--build-arg', 'BASE_IMAGE=admirra-signup-ui-base:frontend',
-         '--build-arg', 'APP_RELEASE=signup-ui-20260922', '-t', TAG,
+         '--build-arg', 'APP_RELEASE=signup-ui-compact-20260922', '-t', TAG,
          '-f', str(CONTEXT / 'ops/signup-discount/Dockerfile.frontend'), str(CONTEXT)])
     image = run(['docker', 'image', 'inspect', '--format', '{{.Id}}', TAG]).strip()
     assert inspect('frontend')['Image'] == EXPECTED
