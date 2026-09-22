@@ -25,7 +25,7 @@ NEW = (
 FRONT = Path('admin-panel-vue-main/admin-panel-vue-main')
 FRONT_FILES = (
     'index.html', 'src/composables/useBillingCloudPayments.js', 'src/layouts/MockupLayout.vue',
-    'src/utils/metrika.js', 'src/utils/purchaseAnalytics.js', 'src/components/SignupDiscount.vue',
+    'src/utils/metrika.js', 'src/utils/purchaseAnalytics.js', 'src/utils/discountStrip.js', 'src/components/SignupDiscount.vue',
     'src/views/Auth/OAuthLoginCallback.vue', 'src/views/Auth/SignUp.vue', 'src/views/Tariffs/TariffsPage.vue',
 )
 

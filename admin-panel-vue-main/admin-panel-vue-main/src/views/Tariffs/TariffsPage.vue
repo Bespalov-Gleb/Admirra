@@ -1178,7 +1178,8 @@ function onContactWl() {
 </script>
 
 <style scoped>
-.plan-price del { color:#8b96a8; font-size:16px }
+.plan-price del { color:#66758a; font-size:16px; font-weight:500; text-decoration-thickness:1.5px }
+.plan-card--recommended .plan-price del { color:#fff; opacity:1 }
 .signup-price-note { color:#188a4c; font-size:13px; line-height:1.5; margin:8px 0 }
 .tariffs-page {
   width: 100%;
