@@ -1682,6 +1682,7 @@ import { refreshReportsQueue } from '@/composables/useReportsQueue'
 import { useToaster } from '@/composables/useToaster'
 import api from '@/api/axios'
 import { createLatestRequest } from '@/utils/latestRequest'
+import { reportExportError } from '@/utils/reportExportError'
 import DateRangePicker from '@/components/ui/DateRangePicker.vue'
 import { projectPeriodOptions, getProjectPeriodLabel, getProjectPeriodRange, DEFAULT_PROJECT_PERIOD, loadSavedProjectPeriod, saveProjectPeriod } from '@/utils/projectPeriods'
 import { VueDraggable } from 'vue-draggable-plus'
@@ -5500,7 +5501,7 @@ const handleDownloadPdf = async () => {
     downloadBlob(response.data, `report_${filters.start_date}_${filters.end_date}.pdf`)
     toaster.success('Отчет скачан')
   } catch (err) {
-    toaster.error(err.response?.data?.detail || 'Не удалось скачать PDF')
+    toaster.error(await reportExportError(err, 'Не удалось скачать PDF'))
   } finally {
     sendingExport.value = false
   }
@@ -5525,7 +5526,7 @@ const handleDownloadPng = async () => {
       toaster.success('PNG скачан')
     }
   } catch (err) {
-    toaster.error(err.response?.data?.detail || 'Не удалось скачать PNG')
+    toaster.error(await reportExportError(err, 'Не удалось скачать PNG'))
   } finally {
     sendingExport.value = false
   }
@@ -5540,7 +5541,8 @@ const handleGetLink = async () => {
     const { data } = await api.post('reports/link', {
       start_date: filters.start_date,
       end_date: filters.end_date,
-      client_id: filters.client_id || null,
+      client_id: filters.folder_id ? null : (filters.client_id || null),
+      folder_id: filters.folder_id || null,
       comment: reportComment.value?.trim() || null
     })
     const base = window.location.origin

@@ -4,6 +4,8 @@
 
 ## Новый candidate, не production
 
+**Candidate direct exports, 22.09:** серверные PDF/PNG/DOCX и создание HTML-ссылки получили opt-in coverage gate и отдельную SQL-фазу до render. Исправлена потеря scope папки при создании ссылки; frontend понимает JSON-ошибки скачивания в Blob. Это не новый async renderer и не перевод Sheets/AI/detектора. [Реализация, проверки и точные границы](devops-direct-export-freshness-2026-09-22.md).
+
 **Candidate report freshness, 22.09:** требования, deadline, revisions и bounded poll `reports.resume` подключены к подготовке ReportDelivery за opt-in флагом. Снимок фиксируется до PDF, renderer не держит SQL; ручная/повторная отправка защищена от гонки с фоновым resume. Candidate schema `f13c4d5e6f70`. Добавлены UI waiting/held/безопасный reset и bounded refresh producer через history queue; 156 backend + 4 frontend tests passed. Другие consumers, общий regression/restore/load и cutover ещё предстоят. [Политика и rollout gates](devops-report-freshness-2026-09-22.md), [refresh и UI, проверки и ограничения](devops-report-refresh-2026-09-22.md).
 
 **Candidate coverage, 22.09:** добавлена сохраняемая подтверждённая полнота date/stage/settings для durable sync и fail-closed reader. Старый SUCCESS/last_sync_at не считается покрытием; missing goals не подтверждают полноту. Это основа, а не включённый freshness barrier: report requirements/wait deadline, per-stage outcomes и consumers отчётов/AI/детектора ещё предстоят. Миграция candidate head `f02b3c4d5e6f`; production этим этапом не меняется. [Контракт и ограничения](devops-sync-coverage-2026-09-22.md).

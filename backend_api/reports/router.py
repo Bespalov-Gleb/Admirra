@@ -5,7 +5,7 @@ import logging
 from typing import Optional, List
 from datetime import date, datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import or_
@@ -30,6 +30,8 @@ from backend_api.reports.export_service import (
 )
 from backend_api.reports.report_html import render_report_html
 from backend_api.reports import public_links, freshness
+from backend_api.reports import direct_freshness
+from core.data_requirements import DataNotReady
 from core.runtime import env_bool
 
 logger = logging.getLogger(__name__)
@@ -45,6 +47,32 @@ def _wants_dynamics(user) -> bool:
         return False
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
+
+
+def _data_not_ready(exc):
+    return HTTPException(status_code=409, detail=str(exc), headers={"Cache-Control": "no-store"})
+
+
+async def _export_readiness(request: Request,
+    current_user: models.User = Depends(security.get_current_user), db: Session = Depends(get_db)):
+    if not direct_freshness.enabled():
+        return
+    values = dict(request.query_params) if request.method == "GET" else await request.json()
+    if not isinstance(values, dict):
+        return  # Body validation supplies the normal 422.
+    # Direct downloads without AI are checked by their capture. The legacy
+    # send route also needs a gate before screenshot/fallback/recipient IO.
+    wants_ai = str(values.get("ai", "")).lower() in {"true", "1", "on", "yes"} and not str(values.get("comment") or "").strip()
+    if not wants_ai and not request.url.path.endswith("/send"):
+        return
+    try:
+        client = uuid.UUID(values["client_id"]) if values.get("client_id") else None
+        direct_freshness.preflight(db, current_user.id, client, values.get("folder_id"),
+            values.get("start_date"), values.get("end_date"), dynamics=_wants_dynamics(current_user))
+    except DataNotReady as exc:
+        raise _data_not_ready(exc) from None
+    except (ValueError, TypeError):
+        raise HTTPException(400, "Проверьте проект и период отчёта") from None
 
 
 def _log_report_export(
@@ -83,7 +111,7 @@ class SendReportRequest(BaseModel):
     screenshot_base64: Optional[str] = None  # PNG скриншот дашборда (base64)
 
 
-@router.get("/pdf")
+@router.get("/pdf", dependencies=[Depends(_export_readiness)])
 async def get_report_pdf(
     start_date: str = Query(...),
     end_date: str = Query(...),
@@ -149,12 +177,14 @@ async def get_report_pdf(
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except DataNotReady as exc:
+        raise _data_not_ready(exc) from None
     except Exception as e:
         logger.exception("PDF generation failed: %s", e)
         raise HTTPException(status_code=500, detail="Не удалось сформировать PDF")
 
 
-@router.get("/png")
+@router.get("/png", dependencies=[Depends(_export_readiness)])
 async def get_report_png(
     start_date: str = Query(...),
     end_date: str = Query(...),
@@ -202,12 +232,14 @@ async def get_report_png(
         )
     except ImportError as e:
         raise HTTPException(status_code=503, detail="PNG-экспорт недоступен. Установите pymupdf.")
+    except DataNotReady as exc:
+        raise _data_not_ready(exc) from None
     except Exception as e:
         logger.exception("PNG generation failed: %s", e)
         raise HTTPException(status_code=500, detail="Не удалось сформировать PNG")
 
 
-@router.get("/docx")
+@router.get("/docx", dependencies=[Depends(_export_readiness)])
 async def get_report_docx(
     start_date: str = Query(...),
     end_date: str = Query(...),
@@ -255,6 +287,8 @@ async def get_report_docx(
         )
     except ImportError as e:
         raise HTTPException(status_code=503, detail="DOCX-экспорт недоступен. Установите python-docx.")
+    except DataNotReady as exc:
+        raise _data_not_ready(exc) from None
     except Exception as e:
         logger.exception("DOCX generation failed: %s", e)
         raise HTTPException(status_code=500, detail="Не удалось сформировать DOCX")
@@ -308,7 +342,7 @@ async def _resolve_report_comment(
     return use_comment
 
 
-@router.post("/docx")
+@router.post("/docx", dependencies=[Depends(_export_readiness)])
 async def post_report_docx(
     req: DownloadReportRequest,
     current_user: models.User = Depends(security.get_current_user),
@@ -342,12 +376,14 @@ async def post_report_docx(
         )
     except ImportError as e:
         raise HTTPException(status_code=503, detail="DOCX-экспорт недоступен. Установите python-docx.")
+    except DataNotReady as exc:
+        raise _data_not_ready(exc) from None
     except Exception as e:
         logger.exception("DOCX generation failed: %s", e)
         raise HTTPException(status_code=500, detail="Не удалось сформировать DOCX")
 
 
-@router.post("/pdf")
+@router.post("/pdf", dependencies=[Depends(_export_readiness)])
 async def post_report_pdf(
     req: DownloadReportRequest,
     current_user: models.User = Depends(security.get_current_user),
@@ -380,12 +416,14 @@ async def post_report_pdf(
             media_type="application/pdf",
             headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
+    except DataNotReady as exc:
+        raise _data_not_ready(exc) from None
     except Exception as e:
         logger.exception("PDF generation failed: %s", e)
         raise HTTPException(status_code=500, detail="Не удалось сформировать PDF")
 
 
-@router.post("/png")
+@router.post("/png", dependencies=[Depends(_export_readiness)])
 async def post_report_png(
     req: DownloadReportRequest,
     current_user: models.User = Depends(security.get_current_user),
@@ -419,6 +457,8 @@ async def post_report_png(
         )
     except ImportError as e:
         raise HTTPException(status_code=503, detail="PNG-экспорт недоступен. Установите pymupdf.")
+    except DataNotReady as exc:
+        raise _data_not_ready(exc) from None
     except Exception as e:
         logger.exception("PNG generation failed: %s", e)
         raise HTTPException(status_code=500, detail="Не удалось сформировать PNG")
@@ -428,6 +468,7 @@ class CreateLinkRequest(BaseModel):
     start_date: str
     end_date: str
     client_id: Optional[str] = None
+    folder_id: Optional[str] = None
     comment: Optional[str] = None  # Готовый комментарий из localStorage — не перегенерируем
 
 
@@ -461,7 +502,7 @@ def create_report_link(
     try:
         result = _get_report_data(
             db, current_user.id, u_client_id,
-            req.start_date, req.end_date, use_comment, include_scope=True,
+            req.start_date, req.end_date, use_comment, folder_id=req.folder_id, include_scope=True,
         )
         summary, top_campaigns, client_name, _, sd, ed, scope_ids = result
         if use_durable:
@@ -479,6 +520,9 @@ def create_report_link(
             ttl_seconds=86400,
         )
         return {"url": f"/api/reports/view/{token}", "token": token}
+    except DataNotReady as exc:
+        db.rollback()
+        raise _data_not_ready(exc) from None
     except public_links.LinkUnavailable:
         db.rollback()
         raise HTTPException(status_code=403, detail="Нет доступа к данным отчёта", headers=public_links.PRIVATE_HEADERS) from None
@@ -579,7 +623,7 @@ def get_report_file(token: str, db: Session = Depends(get_db)):
     )
 
 
-@router.post("/send")
+@router.post("/send", dependencies=[Depends(_export_readiness)])
 async def send_report(
     req: SendReportRequest,
     current_user: models.User = Depends(security.get_current_user),
@@ -649,6 +693,8 @@ async def send_report(
                 include_dynamics=_wants_dynamics(current_user),
                 folder_id=req.folder_id,
             )
+        except DataNotReady as exc:
+            raise _data_not_ready(exc) from None
         except Exception as e:
             logger.exception("PDF generation failed: %s", e)
 
@@ -675,8 +721,12 @@ async def send_report(
                     )
                     _safe = "".join(ch if ch.isalnum() else "_" for ch in (_client.name or "branch"))[:40]
                     branch_attachments.append((f"report_{_safe}_{req.start_date}_{req.end_date}.pdf", _pdf))
+                except DataNotReady as exc:
+                    raise _data_not_ready(exc) from None
                 except Exception as _branch_err:
                     logger.warning("Branch report failed for %s: %s", _bid, _branch_err)
+        except HTTPException:
+            raise
         except Exception as _kit_err:
             logger.warning("Folder per-branch kit failed: %s", _kit_err)
 

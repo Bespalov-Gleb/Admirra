@@ -22,6 +22,7 @@ def main():
     os.environ["DURABLE_TASKS"] = "false"
     os.environ["REPORT_DELIVERY_GUARDS"] = "false"
     os.environ["REPORT_FRESHNESS_GUARDS"] = "false"
+    os.environ["DIRECT_EXPORT_FRESHNESS_GUARDS"] = "false"
     os.environ["SHARED_READ_CACHE"] = "false"
     os.environ["DURABLE_REPORT_LINKS"] = "false"
     os.environ["DURABLE_REPORT_FILES"] = "false"

@@ -11,6 +11,7 @@ import uuid
 
 import sqlalchemy as sa
 from core import models, sync_coverage
+from core.data_requirements import requirements, DataNotReady
 from core.runtime import env_bool, env_int
 
 
@@ -95,43 +96,11 @@ def prepare(db, delivery, user):
     if now >= datetime.fromisoformat(state["deadline"]):
         _stop(delivery, state, "deadline_expired", terminal=True)
     ids = client_ids(db, delivery)
-    if not ids or len(ids) > 200:
-        _stop(delivery, state, "scope_unavailable_or_too_large", terminal=True)
-    clients = list(db.scalars(sa.select(models.Client).where(models.Client.id.in_(ids))
-        .order_by(models.Client.id).execution_options(populate_existing=True).with_for_update()))
-    if len(clients) != len(ids) or any(c.status != models.ClientStatus.ACTIVE for c in clients):
-        _stop(delivery, state, "scope_unavailable", terminal=True)
-    integrations = list(db.scalars(sa.select(models.Integration).where(models.Integration.client_id.in_(ids))
-        .order_by(models.Integration.id).limit(513).execution_options(populate_existing=True).with_for_update()))
-    if len(integrations) > 512:
-        _stop(delivery, state, "source_limit", terminal=True)
-    owners = {c.id: c for c in clients}
-    required = []
     start = delivery.start_date - timedelta(days=(delivery.end_date - delivery.start_date).days + 1)
-    for integration in integrations:
-        platform = integration.platform
-        # Login-level Metrika integration is an OAuth link, not a statistical source.
-        if platform == models.IntegrationPlatform.YANDEX_METRIKA and not str(integration.account_id).isdigit():
-            continue
-        stages = ["metrika_goals"] if platform == models.IntegrationPlatform.YANDEX_METRIKA else ["campaigns"]
-        if platform not in {models.IntegrationPlatform.YANDEX_DIRECT, models.IntegrationPlatform.VK_ADS,
-                            models.IntegrationPlatform.AVITO_ADS, models.IntegrationPlatform.YANDEX_METRIKA}:
-            _stop(delivery, state, "unsupported_source", terminal=True)
-        if platform in {models.IntegrationPlatform.YANDEX_DIRECT, models.IntegrationPlatform.AVITO_ADS}:
-            try:
-                selected = json.loads(integration.selected_goals or "[]")
-            except (TypeError, ValueError):
-                _stop(delivery, state, "invalid_goal_settings", terminal=True)
-            if not isinstance(selected, list):
-                _stop(delivery, state, "invalid_goal_settings", terminal=True)
-            if selected or integration.primary_goal_id:
-                stages.append("metrika_goals")
-        client = owners[integration.client_id]
-        required.append(dict(integration_id=str(integration.id), client_id=str(client.id), owner_id=str(client.owner_id),
-            stages=stages, settings=sync_coverage.settings_digest(integration, client),
-            date_from=start.isoformat(), date_to=delivery.end_date.isoformat()))
-    if not required:
-        _stop(delivery, state, "no_statistical_sources", terminal=True)
+    try:
+        required = requirements(db, ids, start, delivery.end_date)
+    except DataNotReady as exc:
+        _stop(delivery, state, exc.reason, terminal=True)
     request = dict(client_ids=[str(v) for v in ids], required=required,
         start=str(delivery.start_date), end=str(delivery.end_date))
     digest = _digest(request)

@@ -87,11 +87,23 @@ def generate_report_pdf(
     return_data: bool = False,
     render_pdf: bool = True,
     _resolved_client_ids: list | None = None,
+    _strict_data: bool = False,
 ) -> bytes | tuple[bytes, dict]:
     """
     Генерирует PDF-отчёт на основе данных дашборда.
     folder_id — скоуп «папка»: сводный отчёт по всем вложенным проектам.
     """
+    from backend_api.reports import direct_freshness
+    if _resolved_client_ids is None and direct_freshness.enabled():
+        _, data = direct_freshness.capture(db, user_id, client_id, folder_id, start_date, end_date,
+            lambda read, ids: generate_report_pdf(read, user_id, client_id, start_date, end_date,
+                comment, include_dynamics, folder_id, platform, layout, sections, chart_metrics,
+                dynamics_metrics, return_data=True, render_pdf=False, _resolved_client_ids=ids,
+                _strict_data=True), dynamics=include_dynamics)
+        if return_data and not render_pdf:
+            return b"", data
+        pdf = generate_report_pdf_from_snapshot(data, comment)
+        return (pdf, data) if return_data else pdf
     if _resolved_client_ids is not None:
         effective_client_ids = _resolved_client_ids
     elif folder_id and not client_id:
@@ -163,6 +175,8 @@ def generate_report_pdf(
         try:
             data["daily"] = _daily_series(db, effective_client_ids, d_start, d_end, platform or "all")
         except Exception as e:
+            if _strict_data:
+                raise
             logger.warning("Daily series skipped: %s", e)
 
     # Разбивка по рекламным каналам (блок «Каналы» как канальные карточки дашборда)
@@ -175,6 +189,8 @@ def generate_report_pdf(
                     channels_breakdown.append({"code": ch, **ch_summary})
             data["channels"] = channels_breakdown
         except Exception as e:
+            if _strict_data:
+                raise
             logger.warning("Channels breakdown skipped: %s", e)
 
     # Опциональный блок «Динамика по месяцам» (трейлинг 6 календарных месяцев до end_date).
@@ -188,6 +204,8 @@ def generate_report_pdf(
                 db, effective_client_ids, dyn_from, d_end, "all", None, "month"
             )
         except Exception as e:
+            if _strict_data:
+                raise
             logger.warning("Dynamics block skipped: %s", e)
 
     # Queue creation freezes four template data sets. Only the selected one

@@ -62,9 +62,16 @@ def _summary_platform(campaigns: list) -> str:
     return ""
 
 
-def _get_report_data(db, user_id, client_id, start_date, end_date, comment, folder_id=None, platform="all", *, include_scope=False):
+def _get_report_data(db, user_id, client_id, start_date, end_date, comment, folder_id=None, platform="all", *, include_scope=False, _resolved_client_ids=None):
     """Общие данные для отчёта (из pdf_service). folder_id — скоуп «папка»."""
-    if folder_id and not client_id:
+    from backend_api.reports import direct_freshness
+    if _resolved_client_ids is None and direct_freshness.enabled():
+        return direct_freshness.capture(db, user_id, client_id, folder_id, start_date, end_date,
+            lambda read, ids: _get_report_data(read, user_id, client_id, start_date, end_date, comment,
+                folder_id, platform, include_scope=include_scope, _resolved_client_ids=ids))
+    if _resolved_client_ids is not None:
+        effective_client_ids = _resolved_client_ids
+    elif folder_id and not client_id:
         effective_client_ids = StatsService.resolve_folder_client_ids(db, user_id, folder_id)
     else:
         effective_client_ids = StatsService.get_effective_client_ids(db, user_id, client_id)

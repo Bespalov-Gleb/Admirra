@@ -100,6 +100,7 @@ services:
       - tests/test_sync_coverage.py
       - tests/test_report_freshness.py
       - tests/test_report_refresh.py
+      - tests/test_direct_export_freshness.py
       - tests/test_metrika_api_failure.py
       - tests/test_postgres_runtime_health.py
       - tests/test_economics_master.py

@@ -54,4 +54,6 @@ def get_runtime(env: Mapping[str, str] | None = None) -> Runtime:
     if env_bool("REPORT_FRESHNESS_GUARDS", False, values) and (
             not env_bool("DURABLE_TASKS", False, values) or not env_bool("REPORT_DELIVERY_GUARDS", True, values)):
         raise ValueError("Report freshness requires durable tasks and delivery guards")
+    if env_bool("DIRECT_EXPORT_FRESHNESS_GUARDS", False, values) and not env_bool("REPORT_FRESHNESS_GUARDS", False, values):
+        raise ValueError("Direct export freshness requires report freshness")
     return Runtime(role, bootstrap, sync, scheduler)
