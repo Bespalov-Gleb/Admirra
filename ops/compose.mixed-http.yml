@@ -1,0 +1,10 @@
+# Two API subprocesses plus the test driver; synthetic data/internal network.
+# Combine with compose.isolated.yml and compose.artifact-tests.yml.
+services:
+  tests:
+    mem_limit: 2g
+    pids_limit: 256
+    command:
+      - -s
+      - --disable-warnings
+      - tests/test_two_api_read_workload.py

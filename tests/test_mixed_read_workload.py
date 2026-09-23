@@ -1,22 +1,29 @@
 """Bounded offline concurrency rehearsal, NOT a production capacity estimate.
 
 Real PostgreSQL, production dashboard routes, durable sync apply and automatic
-report receipts run together. Auth is fixture-scoped; vendor/LLM/render are
-controlled slow stubs. HTTP uses ASGI TestClient, not two deployed API replicas.
-No Celery/broker/cache/real provider acceptance is claimed by this test.
+report receipts run together. Vendor/LLM/render are controlled slow stubs.
+Default mode uses fixture auth and ASGI TestClient; the separate two-API test
+uses JWT and two localhost HTTP processes. Neither is a multi-host deployment.
+No Celery/broker/cache/real provider acceptance is claimed by these tests.
 """
 import asyncio
+from contextlib import contextmanager, nullcontext
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 import json
 import math
+import os
+import socket
+import subprocess
+import sys
 import threading
 import time
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.testclient import TestClient
 import sqlalchemy as sa
+import httpx
 from sqlalchemy.orm import sessionmaker
 
 from automation import ads_sync_work as ads, metrika_sync_work as sync, work_ledger as ledger
@@ -32,7 +39,53 @@ from tests.test_durable_work import pg
 DAY = date(2026, 9, 10)
 
 
-def test_dashboard_reads_during_sync_and_report_generation(pg, monkeypatch):
+@contextmanager
+def http_apis(engine, schema, tmp_path):
+    """Two real API processes, no external network or production credentials."""
+    from urllib.parse import urlsplit
+    assert os.getenv('WW_TEST') == '1' and urlsplit(str(engine.url)).hostname == 'test-db'
+    processes, ports = [], []
+    try:
+        for number in range(2):
+            with socket.socket() as reservation:
+                reservation.bind(('127.0.0.1', 0))
+                port = reservation.getsockname()[1]
+            ports.append(port)
+            url = engine.url.update_query_dict({'options': f'-csearch_path={schema} -capplication_name=mixed-api-{number}'})
+            env = {**os.environ, 'DATABASE_URL': url.render_as_string(hide_password=False),
+                'APP_PROCESS_ROLE': 'api', 'DB_POOL_SIZE': '2', 'DB_MAX_OVERFLOW': '0',
+                'DB_POOL_TIMEOUT': '5', 'DB_AUTO_BOOTSTRAP': 'false', 'RUN_SYNC_WORKER': 'false',
+                'RUN_API_SCHEDULER': 'false', 'DURABLE_TASKS': 'false'}
+            log_path = tmp_path / f'api-{number}.log'
+            with log_path.open('w') as log:
+                process = subprocess.Popen([sys.executable, '-m', 'uvicorn', 'backend_api.main:app',
+                    '--host', '127.0.0.1', '--port', str(port), '--no-access-log'],
+                    env=env, stdout=log, stderr=log)
+            processes.append(process)
+            deadline = time.monotonic() + 40
+            while True:
+                assert process.poll() is None, log_path.read_text()[-3000:]
+                try:
+                    response = httpx.get(f'http://127.0.0.1:{port}/api/health/live', timeout=1, trust_env=False)
+                    if response.status_code == 200: break
+                except httpx.TransportError:
+                    pass
+                if time.monotonic() >= deadline:
+                    raise AssertionError('Isolated HTTP API startup timed out')
+                time.sleep(.1)
+        yield ports
+        assert all(process.poll() is None for process in processes)
+    finally:
+        for process in processes:
+            process.terminate()
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
+
+
+def run_mixed_read_workload(pg, monkeypatch, tmp_path, *, http_replicas=False):
     factory, engine = pg
     models.Base.metadata.create_all(engine)
     with engine.connect() as db:
@@ -168,11 +221,15 @@ def test_dashboard_reads_during_sync_and_report_generation(pg, monkeypatch):
             asyncio.run(generate())
             asyncio.run(generate())  # replay must not buy/generate twice
 
+    ports = []
     def read_lane(lane):
         assert io_started.wait(10)
         owner = owners[lane % 2]
-        with TestClient(app) as browser:
-            headers = {'X-Test-Owner': str(owner)}
+        browser_context = (httpx.Client(base_url=f'http://127.0.0.1:{ports[lane % 2]}', timeout=20, trust_env=False)
+                           if http_replicas else TestClient(app))
+        with browser_context as browser:
+            headers = ({'Authorization': 'Bearer ' + security.create_access_token(
+                {'sub': f'mixed-{lane % 2}@example.test'})} if http_replicas else {'X-Test-Owner': str(owner)})
             records = []
             for iteration in range(30):
                 previous = iteration % 3 == 0
@@ -213,11 +270,18 @@ def test_dashboard_reads_during_sync_and_report_generation(pg, monkeypatch):
             return records
     started = time.perf_counter()
     try:
-        with ThreadPoolExecutor(max_workers=6) as pool:
-            writers = [pool.submit(synchronise), pool.submit(reports)]
-            readers = [pool.submit(read_lane, n) for n in range(4)]
-            timings = [value for reader in readers for value in reader.result(timeout=120)]
-            for writer in writers: writer.result(timeout=120)
+        with http_apis(engine, schema, tmp_path) if http_replicas else nullcontext([]) as ports:
+            started = time.perf_counter()  # exclude API process boot from load timing
+            with ThreadPoolExecutor(max_workers=6) as pool:
+                writers = [pool.submit(synchronise), pool.submit(reports)]
+                readers = [pool.submit(read_lane, n) for n in range(4)]
+                timings = [value for reader in readers for value in reader.result(timeout=120)]
+                for writer in writers: writer.result(timeout=120)
+            duration = time.perf_counter() - started
+            if http_replicas:
+                with factory() as db:
+                    assert db.scalar(sa.text("SELECT count(*) FROM pg_stat_activity WHERE "
+                        "application_name IN ('mixed-api-0', 'mixed-api-1') AND state LIKE 'idle in transaction%'") ) == 0
         assert overlap['sync'] > 0 and overlap['report'] > 0
         assert calls['report'] == 12  # One model call per delivery despite replay.
         with factory() as db:
@@ -229,8 +293,15 @@ def test_dashboard_reads_during_sync_and_report_generation(pg, monkeypatch):
                 assert row.comment == 'Synthetic fixed snapshot' and row.pdf_snapshot == b'synthetic-pdf'
         assert all(e.pool.checkedout() == 0 for e in engines)
         print('MIXED_READ_EVIDENCE ' + json.dumps(dict(requests=len(timings), readers=4, sync_jobs=12,
-            reports=12, auth_denials=4, duration_seconds=round(time.perf_counter() - started, 3),
+            reports=12, auth_denials=4, api_processes=2 if http_replicas else 0,
+            auth='jwt' if http_replicas else 'fixture', duration_seconds=round(duration, 3),
             p95_ms=round(sorted(timings)[math.ceil(len(timings) * .95) - 1], 2),
-            max_ms=round(max(timings), 2), overlap_reads=dict(overlap), pool_peaks=dict(peak))))
+            max_ms=round(max(timings), 2), overlap_reads=dict(overlap),
+            parent_pool_peaks=dict(peak), api_pool_size=2 if http_replicas else 5,
+            api_pool_peaks_measured=not http_replicas)))
     finally:
         for e in engines: e.dispose()
+
+
+def test_dashboard_reads_during_sync_and_report_generation(pg, monkeypatch, tmp_path):
+    run_mixed_read_workload(pg, monkeypatch, tmp_path)
