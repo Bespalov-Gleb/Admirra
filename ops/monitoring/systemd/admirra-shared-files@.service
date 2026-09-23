@@ -1,0 +1,14 @@
+[Unit]
+Description=AdMirra shared file transport health
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/admirra-file-ops
+ExecStart=/usr/bin/python3 -m ops.file_service_health --node %i
+TimeoutStartSec=20
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/admirra-api2-monitor

@@ -6,6 +6,16 @@
 
 Документ должен позволить другому разработчику продолжить работу без чтения переписки. Пароли, токены, содержимое `.env`, персональные данные и ключи WireGuard намеренно не включены.
 
+**Подготовка 24.09.2026:** role-scoped worker/scheduler env, Sheets credentials,
+ресурсные лимиты и mounts установлены/проверены; private mTLS artifact service
+и NFSv4 legacy uploads bridge работают между узлами без S3. 84 isolated tests,
+cross-host read/write/restart/permissions, encrypted backup contents и мониторинг
+прошли. Production consumers, schema, API routing не переключались. Владелец
+подтвердил четыре Telegram уведомления; offline recovery key пока не подтверждён.
+[Полный отчёт и границы](devops-worker-files-2026-09-24.md). Далее — общая
+межсерверная mixed-load/recovery приёмка и затем cutover. Старые отметки ниже
+об отсутствии worker.env/storage относятся к прежним этапам.
+
 **Consumer freshness, 22.09.2026:** локально подготовлены opt-in guards для Google Sheets, DB-backed AI и детектора, revision-aware публикация AI-кэша и признаки неполных live-ответов ассистента. Общий completion не объявляется: refresh-бюджет длинных периодов, финальный artifact/restore/mixed-load и cutover остаются. Production-флаги не включались. [Детали и границы](devops-consumer-freshness-2026-09-22.md).
 
 **Изменение приёмки владельцем 21.09.2026:** S3 и ожидание двух ночей наблюдения пока отложены. Требование длительного наблюдения ниже остаётся непроверенным follow-up, но не условием ожидания перед отдельной безопасной выкладкой ускорения read-path. Это не отменяет проверки чисел/доступа/нагрузки/бэкапа и не разрешает автоматически включать незавершённые обработчики.

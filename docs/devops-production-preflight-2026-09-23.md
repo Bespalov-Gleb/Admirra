@@ -83,24 +83,19 @@ Ops fixes/первичная инвентаризация: commit `6ef1ce0`. Run
 
 ## Что реально мешает полному переключению
 
-1. **Runtime deployment не завершён:** на server 2 нет `/etc/admirra/worker.env`
-   и `/srv/admirra/worker-data`; production consumers/scheduler ещё legacy.
-   Нужны versioned, проверенные env/mounts/permissions/roles, явная карта
-   остановки старого scheduler и запуска единственного нового. Не генерировать
-   значения секретов, не включать календарь «для проверки» на живой БД.
-2. **Общие файлы не развёрнуты:** приватный artifact service пока только в коде.
-   На server 1 нет `/etc/admirra/artifact-server` и `/srv/admirra/artifacts`,
-   runtime контейнера нет. Подготовить private CA/principals/storage, проверить
-   cross-host upload/read и сохранение текущих ссылок/files. Это не покупка S3;
-   S3 отложен. Без этого нельзя расширять API-2 на весь трафик или переносить
-   файловые consumers и утверждать, что файлы доступны с обоих узлов.
+1. **Подготовка runtime закрыта 24.09:** worker/scheduler env, роли, secrets,
+   лимиты и file mounts проверены; consumers/scheduler ещё legacy до cutover.
+2. **Файловая инфраструктура развёрнута 24.09:** private mTLS artifact service,
+   общий legacy uploads/rejected каталог, cross-host проверки, backup/monitoring.
+   [Точный состав и границы готовности](devops-worker-files-2026-09-24.md).
+   API2 override и report artifact flags подключаются при общем cutover, не сейчас.
 3. **Интеграционная приёмка:** финальный mixed-load/recovery с реальными
    service roles, двумя узлами, cache revisions/SSE/files/drain и безопасными
    provider/report/AI/billing сценариями. Проверенные unit/PG/image restore
    не являются этим тестом. Нужен совместимый rollback после новых durable jobs.
-4. **Подтверждения владельца:** получение обеих тестовых пар в AdMirra Alerts,
-   ответственный за реакцию, отдельная копия recovery key вне обоих серверов.
-   Запрошено в текущем диалоге; без ответа не ставить true в evidence.
+4. **Подтверждения владельца:** получение всех четырёх сообщений уже подтверждено.
+   Ответственный за реакцию и отдельная копия recovery key вне обоих серверов
+   остаются неподтверждёнными; без ответа не ставить true в evidence.
 
 После закрытия этих пунктов: свежий bounded preflight → admission/drain →
 миграции → single-API + минимальные workers → проверенный тестовый job →

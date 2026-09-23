@@ -32,4 +32,7 @@ services:
     networks: [storage]
 networks:
   storage:
-    internal: true
+    # Docker 29 does not publish ports of an internal bridge. Private bind +
+    # host ingress/egress guard replace internal:true for cross-host transport.
+    driver_opts:
+      com.docker.network.bridge.name: admrfiles0

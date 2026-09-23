@@ -66,8 +66,15 @@ for path in \
   /etc/letsencrypt; do
   test -e "$path"
 done
+shared_paths=()
+# Additive runtime storage: objects are immutable/tombstoned and copied AFTER
+# the SQL snapshot. Never remove referenced bytes during a backup/PITR window.
+# The uploads bind has the same bytes as root/Admirra/uploads; do not duplicate.
+for path in srv/admirra/artifacts srv/admirra/rejected-leads; do
+  if [ -d "/$path" ]; then shared_paths+=("$path"); fi
+done
 runtime_receipt=$(
-  tar --create --file=- --numeric-owner --one-file-system --directory=/ \
+  tar --create --file=- --numeric-owner --acls --one-file-system --directory=/ \
     root/Admirra/.env \
     root/Admirra/secrets \
     root/Admirra/uploads \
@@ -77,6 +84,7 @@ runtime_receipt=$(
     etc/nginx \
     etc/wireguard \
     etc/letsencrypt \
+    "${shared_paths[@]}" \
   | age --encrypt --recipient "$recipient" \
   | ssh "${ssh_options[@]}" "$repository_user@$repository_host" "put $backup_id runtime"
 )

@@ -39,6 +39,7 @@ services:
     command:
       - --disable-warnings
       - tests/test_runtime_roles.py
+      - tests/test_runtime_preparation.py
       - tests/test_worker_pool_lifecycle.py
       - tests/test_worker_capacity.py
       - tests/test_db_read_audit.py

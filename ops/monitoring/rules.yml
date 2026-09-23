@@ -1,6 +1,33 @@
 groups:
   - name: admirra-production
     rules:
+      - alert: AdMirraSharedFilesUnavailable
+        expr: admirra_shared_files_up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "AdMirra private file transport is unavailable"
+          runbook: "docs/devops-worker-files-2026-09-24.md"
+
+      - alert: AdMirraSharedFilesMonitorStale
+        expr: time() - admirra_shared_files_last_check_timestamp_seconds > 180
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "AdMirra file health monitor stopped updating"
+          runbook: "docs/devops-worker-files-2026-09-24.md"
+
+      - alert: AdMirraArtifactCertificateExpiring
+        expr: admirra_shared_files_certificate_not_after_timestamp_seconds - time() < 2592000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AdMirra file-service certificate expires in less than 30 days"
+          runbook: "docs/devops-worker-files-2026-09-24.md"
+
       - alert: AdMirraNodeExporterDown
         expr: up{job="nodes"} == 0
         for: 2m

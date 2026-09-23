@@ -1,13 +1,16 @@
 # AdMirra DevOps — актуальный остаток до полного переключения
 
-Обновлено 23.09.2026 после scoped quality report/placement blacklist. Это **не** утверждение, что весь DevOps-проект готов: ниже три крупных этапа, внутри которых остаётся существенная работа. Полное ТЗ: [admirra_devops_completion_tz_2026-09-11.md](admirra_devops_completion_tz_2026-09-11.md). [Изменения и проверки 21 сентября](devops-progress-2026-09-21.md), [уведомления о качестве лидов 22 сентября](devops-lead-alerts-2026-09-22.md).
+Обновлено 24.09.2026: [окружение воркеров и общие файлы подготовлены и проверены](devops-worker-files-2026-09-24.md).
+Ближайшие этапы — общая межсерверная нагрузочная/recovery приёмка, затем управляемое переключение.
+Ниже сохранена история этапов; старые утверждения «worker.env/storage отсутствуют» заменены новым отчётом.
+Полное ТЗ: [admirra_devops_completion_tz_2026-09-11.md](admirra_devops_completion_tz_2026-09-11.md).
 
 ## Новый candidate, не production
 
 **Предрелизная инвентаризация 23.09:** [фактический runtime и обязательный остаток](devops-production-preflight-2026-09-23.md).
-Не путать готовые исходники с развёрнутыми сервисами: worker runtime/env/data
-и private artifact service ещё не установлены, финальная multi-host/mixed-load
-приёмка не выполнена. Сохранён актуальный rollback baseline со скидочным релизом,
+24.09 worker env/roles/mounts подготовлены, private artifact service и legacy
+shared-file bridge установлены. Production workers ещё не запущены, финальная
+multi-host/mixed-load приёмка не выполнена. Сохранён актуальный rollback baseline со скидочным релизом,
 создан свежий backup `20260923T202713Z-ebc64797`, его restore — 65 s, migration/
 API/workers boot и 64/64 HTTP passed; полный immutable-image regression —
 **1606 passed**. Admission
@@ -227,7 +230,7 @@ deadline, объединением совпадающих consumer jobs, общ�
 - Реализовать scoped provider peak launcher, а не только validator/observer: разрешённый test owner/project/integration, жёсткие лимиты внешних запросов/стоимости, без реальных клиентских отправок и банковских списаний. Тестовый аккаунт уже предоставлен, повторно спрашивать его не нужно.
 - Прогнать одновременно чтение дашборда, manual/night sync, подготовку отчёта, AI и billing sandbox. Замерить память, DB pools/locks, latency, очереди, cache и поведение отказов. 40/40 HTTP 200 с idle workers — не real-provider peak acceptance.
 - Проверить rollback с новыми child kinds, неопределёнными side effects и свежей БД. Не возвращать legacy consumer к незнакомым durable jobs.
-- Получить подтверждение владельца, что тестовые уведомления «проблема → восстановлено» обоих путей видны в Telegram, и определить ответственного за реакцию. Одного HTTP/API success недостаточно для human acceptance.
+- Получение всех четырёх Telegram уведомлений обоих путей **подтверждено владельцем**. Ответственный за реакцию остаётся организационным пунктом; повторять тест ради HTTP success не нужно.
 - Подтвердить offline-копию recovery key. Новые notifications/SQL success не заменяют эту проверку.
 
 ## 3. Контролируемое переключение и наблюдение

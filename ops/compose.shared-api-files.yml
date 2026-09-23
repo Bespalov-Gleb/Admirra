@@ -1,0 +1,24 @@
+# PREPARED override for the new API2 release only. Do not apply to live canary.
+# Merge with the reviewed release's API compose; legacy uploads stay at /uploads.
+services:
+  api:
+    volumes:
+      - type: volume
+        source: shared-api-uploads
+        target: /app/uploads
+        volume: {nocopy: true}
+      - /etc/admirra/artifact-api2:/run/artifact:ro
+    environment:
+      UPLOADS_DIR: /app/uploads
+      ARTIFACT_BASE_URL: https://10.77.0.1:9443
+      ARTIFACT_CA_FILE: /run/artifact/ca.crt
+      ARTIFACT_CERT_FILE: /run/artifact/client.crt
+      ARTIFACT_KEY_FILE: /run/artifact/client.key
+      ARTIFACT_TOKEN_FILE: /run/artifact/token
+volumes:
+  shared-api-uploads:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=10.77.0.1,nfsvers=4.2,proto=tcp,hard,nosuid,nodev,noexec
+      device: ":/uploads"

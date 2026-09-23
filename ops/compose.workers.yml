@@ -4,8 +4,10 @@ name: admirra-workers
 x-worker: &worker
   image: ${ADMIRRA_IMAGE:?Set a tested immutable image digest}
   env_file:
-    - /etc/admirra/worker.env
-    - /etc/admirra/redis-worker.env
+    - path: /etc/admirra/worker.env
+      format: raw
+    - path: /etc/admirra/redis-worker.env
+      format: raw
   environment: &runtime
     APP_PROCESS_ROLE: worker
     DURABLE_TASKS: "true"
@@ -26,12 +28,27 @@ x-worker: &worker
     LOG_TO_STDOUT: "true"
     UPLOADS_DIR: /data/uploads
     REJECTED_LEADS_DIR: /data/rejected-leads
+    ARTIFACT_BASE_URL: https://10.77.0.1:9443
+    ARTIFACT_CA_FILE: /run/artifact/ca.crt
+    ARTIFACT_CERT_FILE: /run/artifact/client.crt
+    ARTIFACT_KEY_FILE: /run/artifact/client.key
+    ARTIFACT_TOKEN_FILE: /run/artifact/token
   user: "10001:10001"
   init: true
   read_only: true
   tmpfs: [/tmp:size=256m]
   volumes:
-    - /srv/admirra/worker-data:/data
+    - type: volume
+      source: shared-uploads
+      target: /data/uploads
+      read_only: true
+      volume: {nocopy: true}
+    - type: volume
+      source: shared-rejected
+      target: /data/rejected-leads
+      volume: {nocopy: true}
+    - /etc/admirra/worker-secrets:/app/secrets:ro
+    - /etc/admirra/artifact-worker:/run/artifact:ro
   cap_drop: [ALL]
   security_opt: [no-new-privileges:true]
   restart: unless-stopped
@@ -105,6 +122,12 @@ services:
   scheduler:
     <<: *worker
     command: [python, -m, automation.work_control]
+    env_file:
+      - path: /etc/admirra/scheduler.env
+        format: raw
+      - path: /etc/admirra/redis-worker.env
+        format: raw
+    volumes: []
     environment:
       <<: *runtime
       APP_PROCESS_ROLE: scheduler
@@ -117,5 +140,19 @@ services:
 
 volumes:
   broker-data:
+  # Docker must mount NFS before starting a consumer: never fall back to an
+  # empty local directory when the host mount/network is unavailable.
+  shared-uploads:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=10.77.0.1,nfsvers=4.2,proto=tcp,hard,nosuid,nodev,noexec,ro
+      device: ":/uploads"
+  shared-rejected:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: addr=10.77.0.1,nfsvers=4.2,proto=tcp,hard,nosuid,nodev,noexec
+      device: ":/rejected-leads"
 networks:
   work:
