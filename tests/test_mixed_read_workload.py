@@ -85,7 +85,8 @@ def http_apis(engine, schema, tmp_path):
                 process.wait(timeout=5)
 
 
-def run_mixed_read_workload(pg, monkeypatch, tmp_path, *, http_replicas=False):
+def run_mixed_read_workload(pg, monkeypatch, tmp_path, *, http_replicas=False, iterations=30):
+    assert type(iterations) is int and 1 <= iterations <= 150
     factory, engine = pg
     models.Base.metadata.create_all(engine)
     with engine.connect() as db:
@@ -225,13 +226,15 @@ def run_mixed_read_workload(pg, monkeypatch, tmp_path, *, http_replicas=False):
     def read_lane(lane):
         assert io_started.wait(10)
         owner = owners[lane % 2]
-        browser_context = (httpx.Client(base_url=f'http://127.0.0.1:{ports[lane % 2]}', timeout=20, trust_env=False)
+        address = ports[lane % 2] if http_replicas else None
+        base_url = address if isinstance(address, str) else f'http://127.0.0.1:{address}'
+        browser_context = (httpx.Client(base_url=base_url, timeout=20, trust_env=False)
                            if http_replicas else TestClient(app))
         with browser_context as browser:
             headers = ({'Authorization': 'Bearer ' + security.create_access_token(
                 {'sub': f'mixed-{lane % 2}@example.test'})} if http_replicas else {'X-Test-Owner': str(owner)})
             records = []
-            for iteration in range(30):
+            for iteration in range(iterations):
                 previous = iteration % 3 == 0
                 day = DAY - timedelta(days=1) if previous else DAY
                 params = [('start_date', str(day)), ('end_date', str(day))]

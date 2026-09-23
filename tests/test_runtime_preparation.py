@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from ops.prepare_worker_runtime import select, env_text, install
+from ops.prepare_worker_runtime import select, env_text, install, runtime_payload, refresh_ai
 from ops.shared_files_host import server_files, client_files, firewall_rules
 
 
@@ -31,6 +31,36 @@ def test_worker_secret_allowlist_and_literal_values():
     assert "OPENAI_API_KEY=abc$def#ghi\n" in env_text(values)
     with pytest.raises(ValueError):
         env_text({"SECRET_KEY": "a\nBAD=true"})
+
+
+def test_worker_provider_export_uses_backend_and_rejects_auth_drift():
+    old = {"SECRET_KEY": "test", "ENCRYPTION_KEY": "test", "OPENROUTER_API_KEY": "stale"}
+    live = {**old, "OPENROUTER_API_KEY": "current", "OPENROUTER_BASE_URL": "http://private.example"}
+    assert runtime_payload(old, live, "{}")['env']['OPENROUTER_API_KEY'] == 'current'
+    with pytest.raises(ValueError, match="auth material"):
+        runtime_payload(old, {**live, 'SECRET_KEY': 'different'}, '{}')
+    with pytest.raises(ValueError, match="not configured"):
+        runtime_payload(old, old, '{}')
+
+
+def test_ai_refresh_is_scoped_and_preserves_recovery_copy(tmp_path):
+    original = 'SECRET_KEY=test\nENCRYPTION_KEY=test\nDATABASE_URL=unchanged\nSMTP_PASSWORD=unchanged\n'
+    path = tmp_path / 'worker.env'
+    path.write_text(original)
+    payload = {'env': {'SECRET_KEY': 'test', 'ENCRYPTION_KEY': 'test',
+        'SMTP_PASSWORD': 'must-not-change', 'OPENROUTER_API_KEY': 'test$#key',
+        'OPENROUTER_BASE_URL': 'http://private.example'}, 'google': '{}'}
+    refresh_ai(payload, tmp_path)
+    refresh_ai(payload, tmp_path)
+    text = path.read_text()
+    assert 'DATABASE_URL=unchanged' in text and 'SMTP_PASSWORD=unchanged' in text
+    assert 'OPENROUTER_API_KEY=test$#key' in text
+    assert path.stat().st_mode & 0o777 == 0o600
+    assert next(tmp_path.glob('worker.env.before-ai-*')).read_text() == original
+    payload['env']['ENCRYPTION_KEY'] = 'different'
+    with pytest.raises(ValueError, match='mismatch'):
+        refresh_ai(payload, tmp_path)
+    assert path.read_text() == text
 
 
 def test_runtime_install_separates_scheduler_and_preserves_existing(tmp_path):
