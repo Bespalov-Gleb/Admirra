@@ -1,0 +1,4 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+LABEL ru.admirra.ai-legal.revision="2b6f9ad"
+COPY backend/ /app/

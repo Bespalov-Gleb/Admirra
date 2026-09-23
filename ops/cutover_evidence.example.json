@@ -11,7 +11,7 @@
     "production_commit": "cdf0a4d3c9dee66722219d7e7e2924d5475c0044",
     "candidate_commit": "acf6ed8d76ea13436152e8ccc9659346169c7040",
     "candidate_image": "sha256:ad9559725e724789281765526f85839b8b9adf604c114ad25850812b0c544d0a",
-    "rollback_image": "sha256:d497fa5d99258cf7cb36858984bdd1f18d0371a2e368807972cecfedfb613a93",
+    "rollback_image": "sha256:875ab667e2c62e95b703654f9ea6419118668d14a4b16cf5b19c4f356d153264",
     "expected_schema": "f68b92a3b4c5",
     "tracked_tree_clean": true,
     "tests_passed": true,

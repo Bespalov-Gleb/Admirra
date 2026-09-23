@@ -5,6 +5,12 @@
 Ниже сохранена история этапов; старые утверждения «worker.env/storage отсутствуют» заменены новым отчётом.
 Полное ТЗ: [admirra_devops_completion_tz_2026-09-11.md](admirra_devops_completion_tz_2026-09-11.md).
 
+**24.09, точечный production hotfix:** [детектор → AI, OpenRouter-комментарии и документы](ai-detector-legal-fixes-2026-09-24.md)
+выложены поверх legacy runtime, без DevOps cutover/миграций. Актуальные rollback
+images обновлены в `ops/rollback_images.json`; старый candidate `a5635d5` перед
+финальной нагрузкой нужно пересобрать с этими правками. Все утверждения ниже о
+неизменённых production image IDs относятся к моменту соответствующей проверки.
+
 ## Новый candidate, не production
 
 **Предрелизная инвентаризация 23.09:** [фактический runtime и обязательный остаток](devops-production-preflight-2026-09-23.md).

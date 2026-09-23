@@ -1,27 +1,27 @@
 {
   "format": "admirra-rollback-images-v1",
-  "captured_at": "2026-09-23T20:26:55Z",
+  "captured_at": "2026-09-23T22:31:58Z",
   "host": "server-1",
   "images": {
     "backend": {
       "container": "admirra-backend-1",
-      "image": "sha256:d497fa5d99258cf7cb36858984bdd1f18d0371a2e368807972cecfedfb613a93",
-      "tag": "admirra-rollback/backend:pre-cutover-20260923"
+      "image": "sha256:875ab667e2c62e95b703654f9ea6419118668d14a4b16cf5b19c4f356d153264",
+      "tag": "admirra-rollback/backend:pre-cutover-ai-legal-20260924"
     },
     "automation": {
       "container": "admirra-automation-1",
       "image": "sha256:e6f8ebec4a2de0e780bb7d867a783448377409a44f0758af59a17f15bccdf1bc",
-      "tag": "admirra-rollback/automation:pre-cutover-20260923"
+      "tag": "admirra-rollback/automation:pre-cutover-ai-legal-20260924"
     },
     "frontend": {
       "container": "admirra-frontend-1",
-      "image": "sha256:09aaa07dec7a855b98bdc52007b3e1838b925ba2c3167192242f81395663e929",
-      "tag": "admirra-rollback/frontend:pre-cutover-20260923"
+      "image": "sha256:c66a5778d2cebb2d834ae5521e37c049618292f8162818cbb6a6b66e147a43be",
+      "tag": "admirra-rollback/frontend:pre-cutover-ai-legal-20260924"
     },
     "admin_frontend": {
       "container": "admirra-admin_frontend-1",
       "image": "sha256:3023714f37d9bc7f675db78085068a4a200a78690f588751cd768555196aaa5e",
-      "tag": "admirra-rollback/admin-frontend:pre-cutover-20260923"
+      "tag": "admirra-rollback/admin-frontend:pre-cutover-ai-legal-20260924"
     }
   }
 }

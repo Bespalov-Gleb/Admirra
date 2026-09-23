@@ -1,0 +1,7 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+LABEL ru.admirra.ai-legal.revision="2b6f9ad"
+# Keep the deployed landing and old hashed chunks for already-open tabs.
+COPY dist/assets/ /usr/share/nginx/html/assets/
+COPY dist/index.html /usr/share/nginx/html/index.html
+COPY legal/ /usr/share/nginx/html/admirra/
