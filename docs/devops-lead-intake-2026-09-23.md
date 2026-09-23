@@ -84,17 +84,21 @@ python -m ops.lead_status --owner-id <UUID> --limit 50
 1. Legacy `/lead/`, `/webhook/tilda/`, `/webhook/marquiz/` без project binding
    ещё не переведены. Нужен inventory действующих URL и миграция на signed
    project endpoint без отключения модуля/потери заявок.
-2. `enable_bitrix_check=true` на guarded intake пока даёт явный 409:
-   существующий global Bitrix нельзя использовать между владельцами.
-   Нужна проектная credential binding и проверка совместимости.
-3. После прерванной validation сохраняется PENDING/processing; после истечения
+2. После прерванной validation сохраняется PENDING/processing; после истечения
    deadline тот же key не запускает её повторно. Read-only evidence готова,
    но операторское завершение/reconciliation, audit trail, UI pending/uncertain,
    retention и alerts по зависшим admissions ещё нужны.
-4. Business/provider sandbox acceptance (включая доступы Метрики/SMTP/CRM),
+3. Business/provider sandbox acceptance (включая доступы Метрики/SMTP/CRM),
    оценка admission limits и mixed-load на окончательном артефакте.
-5. Общие AI/report/billing SQL-over-IO, двухсерверная приёмка, restore/load,
+4. Общие AI/report/billing SQL-over-IO, двухсерверная приёмка, restore/load,
    operator cutover из основного плана этим пакетом не закрываются.
+
+**Уточнение владельца 23.09:** Bitrix не используется; проектную интеграцию
+Bitrix разрабатывать для релиза не требуется. Остались legacy service, env key,
+поле enable_bitrix_check и переключатели старых экранов. Этот документ не
+утверждает, что реальные production-настройки проверены. При инвентаризации
+проверить остаточные флаги: guarded path по-прежнему возвращает 409 для
+enable_bitrix_check=true. Очистка legacy — отдельная задача, не новая интеграция.
 
 Ни production env, ни реальные кабинеты/рассылки в ходе этих тестов не менялись.
 

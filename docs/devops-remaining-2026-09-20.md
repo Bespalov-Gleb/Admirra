@@ -9,8 +9,12 @@
 idempotency/dedup, detached validation/enrichment и атомарной очередью отправок.
 Для каждой отправки — fenced receipt, без blind retry после неизвестного
 результата. Schema head `f57a8192a3b4`. Production не менялся. **Остаются**
-legacy unbound endpoints, project Bitrix binding, operator reconciliation/UI,
+legacy unbound endpoints, operator reconciliation/UI,
 sandbox/mixed-load и общий cutover. [Контракт и точные границы](devops-lead-intake-2026-09-23.md).
+**Уточнение владельца 23.09:** Bitrix в продукте не используется. Разработка
+проектной интеграции Bitrix исключена из release scope; наличие legacy-кода
+не является требованием реализовать эту интеграцию. Остаточные настройки
+проверить при инвентаризации, без подключения CRM и удаления данных.
 Изолированная regression этого пакета: **228 passed, 29 warnings, 132.41s**;
 реальных provider sends/платежей не выполнялось.
 
