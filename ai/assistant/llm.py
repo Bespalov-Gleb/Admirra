@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+from contextlib import aclosing
 from typing import Any, AsyncGenerator, Optional
 
 import httpx
@@ -78,37 +79,31 @@ async def stream_completion(
     runs.before_provider()
     try:
         if protocol == "anthropic":
-            async for ev in wire_anthropic.stream(
+            source = wire_anthropic.stream(
                 base_url=base_url, api_key=key, headers_extra={}, timeout=cfg.openrouter.request_timeout,
                 model_name=wire_name, messages=messages, tools=tools, effort=eff,
-            ):
-                runs.record_usage(ev, provider=cfg.openrouter.provider, model=wire_name)
-                yield ev
-            return
-        if protocol == "responses":
-            async for ev in wire_responses.stream(
+            )
+        elif protocol == "responses":
+            source = wire_responses.stream(
                 base_url=base_url, api_key=key, headers_extra=_openai_headers(),
                 timeout=cfg.openrouter.request_timeout,
                 model_name=wire_name, messages=messages, tools=tools, effort=eff,
-            ):
-                runs.record_usage(ev, provider=cfg.openrouter.provider, model=wire_name)
-                yield ev
-            return
-        if protocol == "google":
-            async for ev in wire_google.stream(
+            )
+        elif protocol == "google":
+            source = wire_google.stream(
                 base_url=base_url, api_key=key, headers_extra={},
                 timeout=cfg.openrouter.request_timeout,
                 model_name=wire_name, messages=messages, tools=tools, effort=eff,
-            ):
+            )
+        else:
+            source = _stream_openai_compat(
+                base_url=base_url, key=key, model_slug=wire_name,
+                messages=messages, tools=tools, effort=eff,
+            )
+        async with aclosing(source):
+            async for ev in source:
                 runs.record_usage(ev, provider=cfg.openrouter.provider, model=wire_name)
                 yield ev
-            return
-        async for ev in _stream_openai_compat(
-            base_url=base_url, key=key, model_slug=wire_name,
-            messages=messages, tools=tools, effort=eff,
-        ):
-            runs.record_usage(ev, provider=cfg.openrouter.provider, model=wire_name)
-            yield ev
     except LLMError:
         raise
     except httpx.HTTPError as exc:

@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from core import models
 
 from . import projects, wordstat_client, vk_reporting
+from .db_lifecycle import AccessChanged, Snapshot, authorize, release_reads
 from .token_provider import (
     AvitoAccess, AvitoAccessError, VkAccess, VkAccessError,
     YandexAccess, YandexAccessError,
@@ -52,6 +53,20 @@ class ToolContext:
     _vk: Optional[VkAccess] = None
     _avito: Optional[AvitoAccess] = None
 
+    def __post_init__(self):
+        # Commit/rollback expires ORM instances. Keep only identities across IO.
+        self.user = Snapshot(id=self.user.id)
+        if self.conversation is not None:
+            self.conversation = Snapshot(id=self.conversation.id)
+
+    def check_access(self, client_id=None):
+        try:
+            authorize(self.db, self.user.id,
+                conversation_id=self.conversation.id if self.conversation else None,
+                client_id=self.client_id if client_id is None else client_id)
+        finally:
+            release_reads(self.db)
+
     @property
     def client(self) -> Optional[AiYandexClient]:
         if self.access is not None and self._client is None:
@@ -67,6 +82,7 @@ class ToolContext:
     def set_project(self, client_id) -> None:
         """Переключает текущий проект и резолвит доступ по каждой платформе
         независимо (недоступная платформа → None, не ошибка)."""
+        self.check_access(client_id)
         self.client_id = str(client_id)
         self._client = None
         try:
@@ -81,6 +97,10 @@ class ToolContext:
             self._avito = resolve_avito(self.db, client_id)
         except AvitoAccessError:
             self._avito = None
+        for access in (self.access, self._vk):
+            if access is not None:
+                access.actor_id = self.user.id
+        release_reads(self.db)
 
     def platforms(self) -> dict:
         return {"yandex": self.access is not None, "vk": self._vk is not None, "avito": self._avito is not None}
@@ -117,11 +137,11 @@ async def _exec_use_project(ctx: ToolContext, args: dict) -> str:
     ctx.set_project(p["id"])
     # Запоминаем выбор на весь диалог, чтобы следующие сообщения не переспрашивали.
     if ctx.conversation is not None:
-        ctx.conversation.client_id = p["id"]
-        try:
-            ctx.db.commit()
-        except Exception:
-            ctx.db.rollback()
+        ctx.db.query(models.AiConversation).filter(
+            models.AiConversation.id == ctx.conversation.id,
+            models.AiConversation.user_id == ctx.user.id,
+        ).update({'client_id': p['id']}, synchronize_session=False)
+        ctx.db.commit()
     return _dump({
         "selected_project": {"id": p["id"], "name": p["name"]},
         "platforms": ctx.platforms(),
@@ -660,10 +680,24 @@ async def execute_tool(name: str, args: dict, ctx: ToolContext) -> str:
         return _dump({"error": f"Неизвестный инструмент: {name}"})
     _, executor = entry
     try:
+        if isinstance(ctx, ToolContext):
+            # Re-resolve credentials/settings before each live tool, not once
+            # for the entire (potentially long) model conversation.
+            if ctx.client_id and name not in {'list_projects', 'use_project'}:
+                ctx.set_project(ctx.client_id)
+            else:
+                ctx.check_access()
         return await executor(ctx, args or {})
+    except AccessChanged as exc:
+        return _dump({'error': str(exc)})
     except (YandexApiError, wordstat_client.WordstatError) as exc:
         return _dump({"error": str(exc)})
     except KeyError as exc:
         return _dump({"error": f"Не хватает обязательного параметра: {exc}"})
-    except Exception as exc:  # noqa: BLE001
-        return _dump({"error": f"Ошибка инструмента {name}: {exc}"})
+    except ValueError as exc:
+        return _dump({"error": f"Ошибка параметров инструмента {name}: {exc}"})
+    except Exception:  # noqa: BLE001
+        return _dump({"error": f"Источник инструмента {name} временно недоступен."})
+    finally:
+        if isinstance(ctx, ToolContext):
+            ctx.db.rollback()

@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from core import models, security
 from core.config import get_config
+from .db_lifecycle import AccessChanged, authorize, integration_snapshot, release_reads
 
 logger = logging.getLogger("ai_assistant.token_provider")
 cfg = get_config()
@@ -89,16 +90,42 @@ def _goal_ids(integration: models.Integration) -> list[str]:
     return goals
 
 
+def _save_refreshed(access, data):
+    """Short guarded apply; a reconnect/sync must not be overwritten by late IO."""
+    from automation.ads_sync_work import save_credentials
+    original = access.integration
+    guarded = ('client_id', 'platform', 'access_token', 'refresh_token', 'expires_at',
+               'account_id', 'platform_client_id', 'platform_client_secret', 'oauth_app',
+               'is_agency', 'agency_client_login', 'connection_status',
+               'selected_counters', 'selected_goals', 'primary_goal_id')
+    try:
+        if access.actor_id is None:
+            raise AccessChanged('Не задан пользователь для обновления подключения.')
+        authorize(access.db, access.actor_id, client_id=original.client_id)
+        current = access.db.query(models.Integration).filter(
+            models.Integration.id == original.id).populate_existing().with_for_update().first()
+        if current is None or any(getattr(current, key) != getattr(original, key) for key in guarded):
+            raise AccessChanged('Подключение изменилось во время запроса. Повторите анализ.')
+        save_credentials(current, data)
+        updated = integration_snapshot(current)
+        access.db.commit()
+        access.integration = updated
+    except BaseException:
+        access.db.rollback()
+        raise
+
+
 @dataclass
 class YandexAccess:
     """Живой доступ к Яндекс API одного проекта. Держит расшифрованный токен и
     умеет рефрешить его при истечении."""
-    db: Session
-    integration: models.Integration
+    db: Session = field(repr=False)
+    integration: object = field(repr=False)
     client_login: Optional[str]
     counter_ids: list[str] = field(default_factory=list)
     goal_ids: list[str] = field(default_factory=list)  # отслеживаемые цели (дашборд)
-    _token: Optional[str] = None
+    _token: Optional[str] = field(default=None, repr=False)
+    actor_id: Optional[UUID] = None
 
     @property
     def account_name(self) -> Optional[str]:
@@ -122,17 +149,11 @@ class YandexAccess:
             raise YandexAccessError("Нет refresh_token — токен не обновить")
         rt = security.decrypt_token(enc_rt)
         app_id, app_secret = _app_credentials(self.integration)
+        release_reads(self.db)
         data = await IntegrationService.refresh_yandex_token(rt, app_id, app_secret)
         if not data or "access_token" not in data:
             raise YandexAccessError("Не удалось обновить токен Яндекса")
-        self.integration.access_token = security.encrypt_token(data["access_token"])
-        if data.get("refresh_token"):
-            self.integration.refresh_token = security.encrypt_token(data["refresh_token"])
-        try:
-            self.db.commit()
-        except Exception:
-            self.db.rollback()
-            logger.exception("Failed to persist refreshed Yandex token")
+        _save_refreshed(self, data)
         self._token = data["access_token"]
         return self._token
 
@@ -162,7 +183,7 @@ def resolve_yandex(db: Session, client_id: UUID | str) -> YandexAccess:
         )
     return YandexAccess(
         db=db,
-        integration=integration,
+        integration=integration_snapshot(integration),
         client_login=_selected_profile(integration),
         counter_ids=_counter_ids(integration),
         goal_ids=_goal_ids(integration),
@@ -195,8 +216,9 @@ def _active_integration(db: Session, client_id, platform: "models.IntegrationPla
 class VkAccess:
     """Живой доступ к VK Ads одного проекта. VK access-токен живёт ~1 час,
     поэтому перед вызовом обновляем его по refresh_token, если истёк."""
-    db: Session
-    integration: models.Integration
+    db: Session = field(repr=False)
+    integration: object = field(repr=False)
+    actor_id: Optional[UUID] = None
 
     @property
     def account_name(self) -> Optional[str]:
@@ -211,19 +233,11 @@ class VkAccess:
         from backend_api.integrations import VK_CLIENT_ID, VK_CLIENT_SECRET
         from backend_api.services import IntegrationService
         rt = security.decrypt_token(self.integration.refresh_token)
+        release_reads(self.db)
         data = await IntegrationService.refresh_vk_token(rt, VK_CLIENT_ID, VK_CLIENT_SECRET)
         if not data or not data.get("access_token"):
-            return
-        self.integration.access_token = security.encrypt_token(data["access_token"])
-        if data.get("refresh_token"):
-            self.integration.refresh_token = security.encrypt_token(data["refresh_token"])
-        if data.get("expires_in"):
-            self.integration.expires_at = _now() + timedelta(seconds=int(data["expires_in"]))
-        try:
-            self.db.commit()
-        except Exception:
-            self.db.rollback()
-            logger.exception("Failed to persist refreshed VK token")
+            raise VkAccessError('Не удалось обновить подключение VK.')
+        _save_refreshed(self, data)
 
     async def api(self):
         """Свежий VKAdsAPI проекта (с актуальным токеном)."""
@@ -237,7 +251,7 @@ def resolve_vk(db: Session, client_id: UUID | str) -> VkAccess:
     integration = _active_integration(db, client_id, models.IntegrationPlatform.VK_ADS)
     if integration is None or not integration.access_token:
         raise VkAccessError("К проекту не подключён VK Ads")
-    return VkAccess(db=db, integration=integration)
+    return VkAccess(db=db, integration=integration_snapshot(integration))
 
 
 # ── Avito Ads ────────────────────────────────────────────────────────────────
@@ -245,8 +259,8 @@ def resolve_vk(db: Session, client_id: UUID | str) -> VkAccess:
 class AvitoAccess:
     """Живой доступ к Avito Ads одного проекта. AvitoAdsAPI сам держит bearer по
     client_credentials, отдельный рефреш не нужен."""
-    db: Session
-    integration: models.Integration
+    db: Session = field(repr=False)
+    integration: object = field(repr=False)
 
     @property
     def account_name(self) -> Optional[str]:
@@ -264,7 +278,7 @@ def resolve_avito(db: Session, client_id: UUID | str) -> AvitoAccess:
     integration = _active_integration(db, client_id, models.IntegrationPlatform.AVITO_ADS)
     if integration is None or not (integration.platform_client_id and integration.platform_client_secret):
         raise AvitoAccessError("К проекту не подключён Avito Ads")
-    return AvitoAccess(db=db, integration=integration)
+    return AvitoAccess(db=db, integration=integration_snapshot(integration))
 
 
 def available_platforms(db: Session, client_id: UUID | str) -> dict:

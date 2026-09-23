@@ -95,6 +95,7 @@ services:
       - tests/test_assistant_files.py
       - tests/test_assistant_runs.py
       - tests/test_assistant_streaming.py
+      - tests/test_assistant_db_lifecycle.py
       - tests/test_assistant_provider_limits.py
       - tests/test_assistant_vk_reporting.py
       - tests/test_billing_slot_purchase.py

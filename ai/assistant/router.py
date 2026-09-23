@@ -312,6 +312,7 @@ async def chat(
         raise HTTPException(503, "AI-ассистент временно недоступен. Лимит запроса возвращён.")
     conv = db.get(models.AiConversation, row["conversation_id"])
     conversation_id = str(conv.id)
+    db.rollback()  # Never hold auth/conversation SQL while SSE waits for its consumer.
 
     async def event_stream():
         # Мультиплексируем поток агента с heartbeat: при долгом думании/медленных

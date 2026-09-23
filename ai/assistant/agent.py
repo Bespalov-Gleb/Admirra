@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+from contextlib import aclosing
 from datetime import datetime, timezone
 from typing import AsyncGenerator, Optional
 
@@ -71,18 +72,34 @@ def _history_to_messages(conversation: models.AiConversation) -> list[dict]:
 
 def _persist(db: Session, conversation_id, role: str, *, content: Optional[str] = None,
              tool_calls=None, tool_call_id: Optional[str] = None, name: Optional[str] = None,
-             tokens_in: Optional[int] = None, tokens_out: Optional[int] = None) -> models.AiMessage:
+             tokens_in: Optional[int] = None, tokens_out: Optional[int] = None):
     msg = models.AiMessage(
         conversation_id=conversation_id, role=role, content=content,
         tool_calls=tool_calls, tool_call_id=tool_call_id, name=name,
         tokens_in=tokens_in, tokens_out=tokens_out,
     )
     db.add(msg)
+    db.flush()
+    identifier = msg.id
     db.commit()
-    return msg
+    return identifier  # Reading msg.id after commit would start another SQL transaction.
 
 
 async def run(
+    db: Session, conversation: models.AiConversation, user_text: str,
+    model: ModelSpec, effort: Optional[str], user: models.User,
+    attachments: Optional[list] = None,
+) -> AsyncGenerator[dict, None]:
+    # Covers failures during preparation too (before the first provider call).
+    try:
+        async with aclosing(_run(db, conversation, user_text, model, effort, user, attachments)) as events:
+            async for event in events:
+                yield event
+    finally:
+        db.rollback()
+
+
+async def _run(
     db: Session,
     conversation: models.AiConversation,
     user_text: str,
@@ -95,63 +112,68 @@ async def run(
 
     События: text / reasoning / tool / done / error (см. router)."""
     if not llm.is_configured():
+        db.rollback()
         yield {"type": "error", "error": "AI-ассистент ещё не подключён (нет ключа провайдера)."}
         return
 
     # Контекст инструментов. Проект НЕ берётся из шапки: предвыбираем только тот,
     # что агент сам выбрал ранее в этом диалоге (сохранён в conversation.client_id).
-    # set_project резолвит каждую платформу независимо и не бросает исключений.
-    ctx = ToolContext(db=db, user=user, conversation=conversation)
-    if conversation.client_id:
-        ctx.set_project(conversation.client_id)
-
-    tool_schemas = tools.tool_schemas()
-
+    # set_project резолвит платформы независимо и повторно проверяет доступ.
+    conversation_id, client_id = conversation.id, conversation.client_id
     history = _history_to_messages(conversation)
     attachments = attachments or []
-    _persist(db, conversation.id, "user", content=user_text,
-             tool_calls={"attachments": [files.attachment_public(a) for a in attachments]} if attachments else None)
+    attachment_metadata = {"attachments": [files.attachment_public(a) for a in attachments]} if attachments else None
+    user_content = files.message_content(user_text, attachments)
+    ctx = ToolContext(db=db, user=user, conversation=conversation)
+    ctx.check_access(client_id)
+    if client_id:
+        ctx.set_project(client_id)
+    tool_schemas = tools.tool_schemas()
+    system_prompt = _system_prompt(ctx)
     if not conversation.title:
         conversation.title = (user_text[:60] + "…") if len(user_text) > 60 else user_text
     conversation.model = model.id
     conversation.effort = effort
-    db.commit()
+    _persist(db, conversation_id, "user", content=user_text, tool_calls=attachment_metadata)
 
-    messages: list[dict] = [{"role": "system", "content": _system_prompt(ctx)}]
+    messages: list[dict] = [{"role": "system", "content": system_prompt}]
     messages.extend(history)
-    messages.append({"role": "user", "content": files.message_content(user_text, attachments)})
+    messages.append({"role": "user", "content": user_content})
 
     final_text = ""
     tool_limit_exhausted = False
     try:
         for _iteration in range(max(1, cfg.openrouter.max_tool_iterations)):
+            ctx.check_access()
             assistant_msg: Optional[dict] = None
             usage: Optional[dict] = None
-            async for ev in llm.stream_completion(
+            async with aclosing(llm.stream_completion(
                 model=model, effort=effort, messages=messages, tools=tool_schemas,
-            ):
-                if ev["type"] == "text":
-                    final_text += ev["delta"]
-                    yield ev
-                elif ev["type"] == "reasoning":
-                    yield ev
-                elif ev["type"] == "message":
-                    assistant_msg = ev["message"]
-                    usage = ev.get("usage")
+            )) as completion:
+                async for ev in completion:
+                    if ev["type"] == "text":
+                        final_text += ev["delta"]
+                        yield ev
+                    elif ev["type"] == "reasoning":
+                        yield ev
+                    elif ev["type"] == "message":
+                        assistant_msg = ev["message"]
+                        usage = ev.get("usage")
 
             if assistant_msg is None:
                 break
 
             tool_calls = assistant_msg.get("tool_calls")
+            ctx.check_access()
             if not tool_calls:
-                saved = _persist(db, conversation.id, "assistant", content=assistant_msg.get("content", ""),
+                saved = _persist(db, conversation_id, "assistant", content=assistant_msg.get("content", ""),
                          tokens_out=(usage or {}).get("completion_tokens"),
                          tokens_in=(usage or {}).get("prompt_tokens"))
-                yield {"type": "done", "content": assistant_msg.get("content", ""), "message_id": str(saved.id)}
+                yield {"type": "done", "content": assistant_msg.get("content", ""), "message_id": str(saved)}
                 return
 
             messages.append(assistant_msg)
-            _persist(db, conversation.id, "assistant",
+            _persist(db, conversation_id, "assistant",
                      content=assistant_msg.get("content") or "", tool_calls=tool_calls)
 
             for call in tool_calls:
@@ -165,7 +187,8 @@ async def run(
                 result = await tools.execute_tool(name, args, ctx)
                 yield {"type": "tool", "name": name, "status": "done"}
                 messages.append({"role": "tool", "tool_call_id": call.get("id"), "name": name, "content": result})
-                _persist(db, conversation.id, "tool", content=result, tool_call_id=call.get("id"), name=name)
+                ctx.check_access()
+                _persist(db, conversation_id, "tool", content=result, tool_call_id=call.get("id"), name=name)
 
         else:
             # Модель могла корректно собрать несколько источников, но не успеть
@@ -190,37 +213,44 @@ async def run(
             })
             forced_message: Optional[dict] = None
             forced_usage: Optional[dict] = None
-            async for ev in llm.stream_completion(
+            ctx.check_access()
+            async with aclosing(llm.stream_completion(
                 model=model, effort=effort, messages=messages, tools=None,
-            ):
-                if ev["type"] == "text":
-                    final_text += ev["delta"]
-                    yield ev
-                elif ev["type"] == "reasoning":
-                    yield ev
-                elif ev["type"] == "message":
-                    forced_message = ev["message"]
-                    forced_usage = ev.get("usage")
+            )) as completion:
+                async for ev in completion:
+                    if ev["type"] == "text":
+                        final_text += ev["delta"]
+                        yield ev
+                    elif ev["type"] == "reasoning":
+                        yield ev
+                    elif ev["type"] == "message":
+                        forced_message = ev["message"]
+                        forced_usage = ev.get("usage")
 
             if forced_message and (forced_message.get("content") or "").strip():
+                ctx.check_access()
                 saved = _persist(
-                    db, conversation.id, "assistant", content=forced_message["content"],
+                    db, conversation_id, "assistant", content=forced_message["content"],
                     tokens_out=(forced_usage or {}).get("completion_tokens"),
                     tokens_in=(forced_usage or {}).get("prompt_tokens"),
                 )
-                yield {"type": "done", "content": forced_message["content"], "message_id": str(saved.id)}
+                yield {"type": "done", "content": forced_message["content"], "message_id": str(saved)}
                 return
 
-        saved = _persist(db, conversation.id, "assistant", content=final_text) if final_text else None
+        ctx.check_access()
+        saved = _persist(db, conversation_id, "assistant", content=final_text) if final_text else None
         fallback = (
             "Не удалось завершить анализ после получения данных. "
             "Попробуйте сузить период или выбрать конкретный проект."
             if tool_limit_exhausted else "Не удалось получить ответ модели. Попробуйте ещё раз."
         )
-        yield {"type": "done", "content": final_text or fallback, "message_id": str(saved.id) if saved else None}
+        yield {"type": "done", "content": final_text or fallback, "message_id": str(saved) if saved else None}
     except llm.LLMError as exc:
         logger.warning("LLM request failed (%s)", type(exc).__name__)
         yield {"type": "error", "error": "Модель временно недоступна. Попробуйте ещё раз позже."}
     except Exception as exc:  # noqa: BLE001
+        db.rollback()
         logger.error("Assistant agent failed (%s)", type(exc).__name__)
         yield {"type": "error", "error": "Не удалось завершить анализ. Попробуйте ещё раз."}
+    finally:
+        db.rollback()

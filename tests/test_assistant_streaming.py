@@ -1,7 +1,34 @@
 import asyncio
 import unittest
+import pytest
 
 from ai.assistant.streaming import stream_events
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('protocol', ['anthropic', 'responses', 'google', 'openai_compat'])
+async def test_llm_wrapper_closes_selected_wire_on_disconnect(monkeypatch, protocol):
+    from ai.assistant import llm
+    closed = asyncio.Event()
+    async def wire(**kwargs):
+        try:
+            yield {'type': 'text', 'delta': 'First'}
+            await asyncio.Event().wait()
+        finally:
+            closed.set()
+    monkeypatch.setattr(llm, '_route', lambda model: (protocol, 'https://unused.invalid', 'synthetic'))
+    monkeypatch.setattr(llm, '_key', lambda: 'synthetic')
+    monkeypatch.setattr(llm, 'normalize_effort', lambda *args: None)
+    monkeypatch.setattr(llm.runs, 'before_provider', lambda: None)
+    monkeypatch.setattr(llm.runs, 'record_usage', lambda *args, **kwargs: None)
+    if protocol == 'openai_compat':
+        monkeypatch.setattr(llm, '_stream_openai_compat', wire)
+    else:
+        monkeypatch.setattr(getattr(llm, 'wire_' + protocol), 'stream', wire)
+    stream = llm.stream_completion(model=None, effort=None, messages=[])
+    assert (await anext(stream))['type'] == 'text'
+    await stream.aclose()
+    assert closed.is_set()
 
 
 class StreamingTests(unittest.IsolatedAsyncioTestCase):
