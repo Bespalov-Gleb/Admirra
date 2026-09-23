@@ -1,6 +1,6 @@
 # Dashboard attribution: SQL отдельно от Метрики
 
-23.09.2026. Локальный candidate, **не production deployment**.
+23.09.2026. Код `f460f81`, сборка `e7aaafb`, **не production deployment**.
 Production env, ingress, БД и scheduler не изменялись.
 
 ## Что исправлено
@@ -55,6 +55,15 @@ daily/period dynamics, карточки направлений, campaign highlig
 
 ## Проверки и границы
 
+Чистый image `admirra-devops:e7aaafb`:
+`sha256:3c89e79d6eaa14ef1e7505a4607ee5d1e54ab87e2cc10eb881e5c1a56307b2c5`.
+Архив содержит 601 allowlisted файл из Git, без `.env`, uploads и пользовательских
+незакоммиченных изменений. Первая artifact-проверка выявила каталоги с mode 700
+после распаковки с umask 077: непривилегированный процесс не мог импортировать
+`ops`. В `e7aaafb` Dockerfile нормализует read/traverse права исходников через
+`chmod -R a+rX /app`, без новых прав записи и без переноса secrets в образ.
+Предыдущий image `f460f81` не принят, в cutover его использовать нельзя.
+
 `tests/test_attribution_read.py`: настоящая isolated PostgreSQL, обычный ORM,
 pool_size=1, max_overflow=0, timeout=0,3 s. В проверяемых provider await точках
 другой читатель занимает единственное соединение и выполняет SELECT 1.
@@ -63,8 +72,36 @@ pool_size=1, max_overflow=0, timeout=0,3 s. В проверяемых provider a
 Проверяются оба канала, несколько интеграций, предыдущий CPL, сценарий 34/65
 на шести consumers, mixed table с одинаковыми goal IDs, смена настроек/доступа,
 отмена/ошибка, pending writes, неоднозначные имена, отсутствие vs нулевые
-конверсии и постоянное число запросов подготовки. Финальные результаты
-artifact-only регрессии/restore фиксируются после сборки проверенного commit.
+конверсии и постоянное число запросов подготовки.
+
+Финальная artifact-only регрессия `e7aaafb`: **211 passed, 1 skipped,
+1 deselected, 53 warnings**, 107,03 s, exit 0. В образе, без source bind,
+проверены новые attribution tests, summary/Avito, read snapshot/mixed workload,
+assistant VK/DB lifecycle, detector iteration3, Metrika failure/shared cache,
+reports, backend packaging и API-role boot. Новых attribution cases — 36.
+Skip — опциональное сравнение с previous-release implementation; deselect —
+frontend source assertion из `test_reports_final.py`, поскольку backend artifact
+намеренно не содержит frontend. Полный isolated manifest не повторялся.
+
+Первая source-overlay попытка: 188 passed, 1 skipped, один отказ из-за того же
+отсутствующего frontend-файла (а не backend-ошибки). После нормализации прав
+image окончательный целевой прогон выше завершился успешно.
+
+Restore acceptance этого же image: backup `20260922T221413Z-b1eea7ec`,
+миграция до `f68b92a3b4c5`, **67 s**, network=none. Worker preflight/boot,
+application smoke и **64/64 HTTP 200** прошли. Compact/full metadata contract
+совпадает; summary batch — 64 проекта × 4 канала, 12 сравнений с отдельными
+чтениями, access guards passed (752,38 ms). Это не проверка реального vendor
+API и не рабочая нагрузка Celery: внешние отправки отключены, workers только
+запускаются/проверяются. Короткий read smoke: 12,495 s, aggregate p95 1789,94 ms,
+по 8 запросов на маршрут, concurrency 4 — недостаточно для принятия SLO.
+
+Логи на сервере 2, root-only:
+`/opt/admirra-staging/e7aaafb/attribution-tests.log` и
+`/opt/admirra-staging/e7aaafb/restore.log`.
+Isolated compose-проект `admirra-attribution-io-review` удалён; restore
+containers/volumes и runtime tmpfs отсутствуют. Непринятый image `f460f81`
+удалён, принятый `e7aaafb` и логи сохранены. Production контейнеры не трогались.
 
 Это **не** атомарный snapshot всей страницы вместе с внешней Метрикой:
 provider и локальная витрина обновляются независимо. Проверяется каждый

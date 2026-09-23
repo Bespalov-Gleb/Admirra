@@ -4,11 +4,14 @@
 
 ## Новый candidate, не production
 
-**Продолжение 23.09 — live attribution таблиц/динамики:** три общих builder-а
+**Продолжение 23.09 — live attribution таблиц/динамики:** `f460f81`, сборка
+`e7aaafb` (нормализованы read/traverse права исходников в image). Три общих builder-а
 Яндекс/Авито освобождают SQL на время Метрики; проверяют актуальность настроек
 и доступа перед возвратом. Регрессия обнаружила и исправила дополнительный
 случай 34→65 в фильтрованной таблице и смешение одинаковых goal IDs между
 Яндексом/Авито. [Контракт и приёмка](devops-attribution-io-2026-09-23.md).
+Чистый image: **211 targeted tests passed**, restore 67 s до `f68b92a3b4c5`,
+API/workers boot и **64/64 HTTP read smoke** прошли; полный manifest не повторялся.
 Это частичное закрытие live dashboard IO: lazy hierarchy, audience/top ads
 и остальные legacy paths требуют отдельной работы. Production не переключён.
 
