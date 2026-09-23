@@ -203,13 +203,13 @@ async def test_real_generation_pipeline_does_not_read_live_stats(pg, monkeypatch
         raise AssertionError('Immutable comment must not read live data')
     monkeypatch.setattr(ai.StatsService, 'aggregate_summary', no_stats)
     monkeypatch.setattr(ai.StatsService, 'get_campaign_stats', no_stats)
-    monkeypatch.setattr(ai.settings, 'OPENAI_API_KEY', 'synthetic-not-real')
+    monkeypatch.setattr(ai, 'require_comment_provider', lambda: None)
     async def transport(**kwargs):
         assert pg[1].pool.checkedout() == 0
         assert '34' in kwargs['messages'][0]['content']
         return SimpleNamespace(content=[SimpleNamespace(text='Период ровный. Стоимость заявки остаётся у цели. Настройки стоит сохранить.')])
     create = AsyncMock(side_effect=transport)
-    monkeypatch.setattr(ai, '_create_anthropic_client', lambda: SimpleNamespace(messages=SimpleNamespace(create=create)))
+    monkeypatch.setattr(ai, 'create_comment', create)
     text = await ai.generate_delivery_comment({'_scope_client_ids': [str(uuid.uuid4())],
         'summary': {'leads': 34}, 'top_campaigns': [], 'start_date': '2026-09-01', 'end_date': '2026-09-07'})
     assert 'Период ровный' in text

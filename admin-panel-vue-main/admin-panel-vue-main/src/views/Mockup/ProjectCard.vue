@@ -765,6 +765,8 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { getAccessToken } from '../../utils/authToken'
+import { createDetectorIntent, detectorQuestion } from '../AiAssistant/detectorIntent'
 import api from '../../api/axios'
 import { loadProjectSummaries } from '../../utils/projectSummaries'
 import { useProjects } from '../../composables/useProjects'
@@ -2335,10 +2337,11 @@ const detectorPreviewMore = (project) => {
 }
 const askAiFromPreview = (project) => {
   const top = detectorPreview(project)[0]
-  try {
-    if (top?.id) sessionStorage.setItem('admirra_ai_alert', String(top.id))
-  } catch { /* приватный режим */ }
-  openProject(project)
+  if (!top) return
+  const { startDate, endDate } = getProjectPeriodRange(periodKey.value, customPeriodRange.value)
+  router.push(createDetectorIntent(detectorQuestion({
+    projectId: project.id, projectName: project.name, startDate, endDate, alert: top,
+  }), getAccessToken()))
 }
 
 const detectorBadge = (project) => {

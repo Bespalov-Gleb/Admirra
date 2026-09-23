@@ -219,7 +219,9 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { consumeDetectorIntent } from './detectorIntent'
 import MarkdownIt from 'markdown-it'
 import AttachmentList from './AttachmentList.vue'
 import { useTheme } from '../../composables/useTheme'
@@ -229,6 +231,10 @@ import { identifyRequest, rememberConversation, completeRequest } from './reques
 import yandexMetrikaIcon from '../../assets/icons/yandex-metrika.png'
 
 const { isDarkMode } = useTheme()
+const route = useRoute()
+const router = useRouter()
+let mounted = false
+let disposed = false
 
 const railOpen = ref(false)
 const prompt = ref('')
@@ -692,12 +698,32 @@ const stopGeneration = () => {
   try { abortController?.abort() } catch { /* уже завершён */ }
 }
 
-onMounted(() => {
-  loadModels()
+const acceptDetectorQuestion = async () => {
+  if (!mounted || sending.value || uploading.value) return
+  const id = route.query.detector
+  if (typeof id !== 'string') return
+  const question = consumeDetectorIntent(id, getAccessToken())
+  const { detector, ...query } = route.query
+  await router.replace({ path: route.path, query, hash: route.hash })
+  if (!question || !mounted) return
+  await newChat()
+  prompt.value = question
+  if (configured.value && selectedModelId.value) await sendPrompt()
+  else fileError.value = 'Не удалось загрузить доступные модели. Вопрос сохранён в поле ввода — отправьте его после восстановления соединения.'
+}
+
+watch(() => route.query.detector, acceptDetectorQuestion)
+onMounted(async () => {
   loadConversations()
+  await loadModels()
+  if (disposed) return
+  mounted = true
+  await acceptDetectorQuestion()
 })
 
 onUnmounted(() => {
+  disposed = true
+  mounted = false
   clearTimeout(_copyTimer)
   cancelAnimationFrame(threadScrollFrame)
 })

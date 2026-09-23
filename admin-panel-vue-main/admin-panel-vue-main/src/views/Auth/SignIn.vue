@@ -173,9 +173,9 @@
           </div>
           <div>
             <h3>Документы</h3>
-            <a href="#">Договор оферты</a>
-            <a href="#">Политика конфиденциальности</a>
-            <a href="#">Согласие на обработку персональных данных</a>
+            <a href="/admirra/agreement.html">Договор оферты</a>
+            <a href="/admirra/user-agreement.html">Пользовательское соглашение</a>
+            <a href="/admirra/personal-data.html">Согласие на обработку персональных данных</a>
           </div>
         </div>
       </footer>

@@ -1645,6 +1645,8 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue'
 import { reachGoal } from '@/utils/metrika'
 import { useRoute, useRouter } from 'vue-router'
+import { getAccessToken } from '../../utils/authToken'
+import { createDetectorIntent, detectorQuestion } from '../AiAssistant/detectorIntent'
 import {
   ArrowPathIcon,
   ArrowPathRoundedSquareIcon,
@@ -6495,41 +6497,21 @@ const handleRestoreDetectorAlert = async (alert) => {
 const openAssistantForDetectorAlert = (selectedAlert = null) => {
   const alert = selectedAlert || detectorBannerAlert.value
   if (!alert || !filters.client_id) return
-  const metricLabels = {
-    expenses: 'расходы',
-    impressions: 'показы',
-    clicks: 'клики',
-    cpc: 'CPC',
-    conversions: 'заявки',
-    cpa: 'CPL',
-  }
-  const metric = metricLabels[alert.metric] || String(alert.metric || 'метрику').toUpperCase()
-  const deviation = Number(alert.deviation_pct || 0)
-  const hypothesis = alert.hypothesis_text ? ` Гипотеза: ${alert.hypothesis_text}` : ''
-  const question = `Разбери отклонение ${metric} ${deviation > 0 ? '+' : ''}${deviation.toFixed(0)}% за выбранный период.${hypothesis}`
-  router.push({
-    path: '/ai-analysis',
-    query: {
-      project: filters.client_id,
-      start_date: filters.start_date,
-      end_date: filters.end_date,
-      question,
-    },
-  })
+  router.push(createDetectorIntent(detectorQuestion({
+    projectId: filters.client_id,
+    projectName: clients.value.find(c => c.id === filters.client_id)?.name,
+    startDate: filters.start_date, endDate: filters.end_date, alert,
+  }), getAccessToken()))
 }
 
 const openAssistantForCampaignHighlight = (campaign) => {
   if (!campaign || !filters.client_id) return
-  const text = campaign.alert?.hypothesis_text || 'Заявка по кампании дороже плана.'
-  router.push({
-    path: '/ai-analysis',
-    query: {
-      project: filters.client_id,
-      start_date: filters.start_date,
-      end_date: filters.end_date,
-      question: `Разбери кампанию «${campaign.name}»: ${text}`,
-    },
-  })
+  router.push(createDetectorIntent(detectorQuestion({
+    projectId: filters.client_id,
+    projectName: clients.value.find(c => c.id === filters.client_id)?.name,
+    startDate: filters.start_date, endDate: filters.end_date,
+    campaignName: campaign.name, alert: campaign.alert || { metric: 'cpa' },
+  }), getAccessToken()))
 }
 
 watch(() => [filters.client_id, filters.start_date, filters.end_date], () => {

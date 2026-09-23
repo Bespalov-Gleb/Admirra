@@ -109,7 +109,13 @@ async def test_real_ai_path_releases_capture_connection_before_provider(consumer
     async def create(**kwargs):
         assert g.engine.pool.checkedout() == 0
         return SimpleNamespace(content=[SimpleNamespace(text="34 заявки")])
-    monkeypatch.setattr(ai, "_create_anthropic_client", lambda: SimpleNamespace(messages=SimpleNamespace(create=create)))
+    class Client:
+        messages = SimpleNamespace(create=create)
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, *args):
+            pass
+    monkeypatch.setattr(ai, "_create_anthropic_client", Client)
     with g.factory() as db:
         if kind == "report":
             result = await ai.generate_report(db, g.owner, g.client, str(DAY), str(DAY))

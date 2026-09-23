@@ -574,9 +574,9 @@ app.mount("/uploads", StaticFiles(directory=str(_uploads_dir)), name="uploads")
 logger.info("Uploads static mounted at /uploads/ from %s", _uploads_dir)
 
 # The admin SPA (Vue) is served by Nginx in the frontend container.
-# Лендинг AdMirra: единственный источник — Vue `public/admirra`
-# (Landing.vue: iframe src="/admirra/index.html"). Vite копирует public в dist.
-# Ниже — та же папка на бэкенде для прямого доступа к :8001/admirra/
+# Главная — public/landing-new/index.html, Nginx отдаёт её по /.
+# public/admirra содержит совместимые URL документов и общие ресурсы SPA;
+# старый index.html перенаправляет на /. Ниже — совместимый static mount.
 
 
 def _resolve_admirra_static_dir() -> Optional[Path]:

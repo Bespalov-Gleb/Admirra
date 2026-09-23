@@ -1,7 +1,7 @@
 """Генерация AI-отчётов на основе данных дашборда.
 
-Модель вызывается через Anthropic Messages API; конкретный провайдер,
-base URL, модель и ключ задаются окружением.
+Комментарии вызываются через OpenRouter; остальные legacy-отчёты —
+через Anthropic Messages API. Ключи и модели задаются окружением.
 """
 import logging
 import hashlib
@@ -16,6 +16,7 @@ import uuid
 from sqlalchemy.orm import Session
 
 from core import models, settings
+from ai.comment_llm import create_comment, comment_model, require_comment_provider
 from backend_api.stats_service import StatsService
 logger = logging.getLogger(__name__)
 
@@ -383,7 +384,9 @@ async def _generate_report(
     report_type: "full" — полный отчёт, "recommendations" — только рекомендации,
     "comment" — короткий клиентский вывод для доставки отчёта.
     """
-    if not settings.OPENAI_API_KEY:
+    if report_type in ("comment", "dashboard_comment"):
+        require_comment_provider()
+    elif not settings.OPENAI_API_KEY:
         logger.error("generate_report: OPENAI_API_KEY не настроен")
         raise ValueError("OPENAI_API_KEY не настроен")
 
@@ -461,8 +464,6 @@ async def _generate_report(
 
     context = _build_context(summary, top_campaigns, start_date, end_date, ctx_integrations, ctx_directions)
 
-    client = _create_anthropic_client()
-
     if report_type == "dashboard_comment":
         system_prompt = """Ты — аналитик рекламы. Напиши КОРОТКИЙ комментарий за период к дашборду проекта. Это не отчёт, а выжимка.
 
@@ -535,15 +536,17 @@ async def _generate_report(
     user_message = f"Данные за период {start_date} — {end_date}:\n\n{context}"
 
     try:
-        logger.info("generate_report: calling Anthropic API (model=%s)", settings.OPENAI_MODEL)
-        response = await client.messages.create(
-            model=settings.OPENAI_MODEL,
-            max_tokens=4096,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_message}],
-            temperature=1.0,
-            output_config=_ai_output_config("AI_REPORT_EFFORT"),
-        )
+        if report_type == "comment":
+            response = await create_comment(system=system_prompt,
+                messages=[{"role": "user", "content": user_message}], max_tokens=1100)
+        else:
+            async with _create_anthropic_client() as client:
+                response = await client.messages.create(
+                    model=settings.OPENAI_MODEL, max_tokens=4096,
+                    system=system_prompt,
+                    messages=[{"role": "user", "content": user_message}],
+                    temperature=1.0, output_config=_ai_output_config("AI_REPORT_EFFORT"),
+                )
         text = response.content[0].text if response.content else ""
         if report_type == "dashboard_comment":
             result = _sanitize_dashboard_comment(text)
@@ -553,10 +556,10 @@ async def _generate_report(
             result = text.strip()
         if report_type in ("comment", "dashboard_comment") and not result:
             raise ValueError("AI-комментарий пуст")
-        logger.info("generate_report: Anthropic returned %d chars", len(result))
+        logger.info("generate_report: model returned %d chars", len(result))
         return result
     except Exception as e:
-        logger.exception("Anthropic API error: %s", e)
+        logger.exception("Report model API error: %s", e)
         raise
 
 
@@ -1113,7 +1116,6 @@ async def _generate_dashboard_comment(db: Session, effective_client_ids: list, d
     direction_names = [d.get("name") for d in (context.get("directions") or [])]
     campaign_names = [c.get("name") for c in (context.get("campaigns") or [])]
 
-    client = _create_anthropic_client()
     error_hint = ""
     last_obj = None
     last_error = None
@@ -1127,18 +1129,17 @@ async def _generate_dashboard_comment(db: Session, effective_client_ids: list, d
             )
         if error_hint:
             user_message += "\n\nПредыдущая попытка отклонена: " + error_hint + " Исправь и верни только JSON."
-        logger.info("dashboard_comment %s: attempt %d (model=%s)", COMMENT_PROMPT_VERSION, attempt + 1, settings.OPENAI_MODEL)
+        logger.info("dashboard_comment %s: attempt %d (model=%s)", COMMENT_PROMPT_VERSION, attempt + 1, comment_model())
         started = time.perf_counter()
         try:
-            response = await client.messages.create(
+            response = await create_comment(
                 # Кириллица токеноёмкая: до 1200 знаков текста + JSON-обвязка —
                 # берём запас, чтобы ответ не обрезался (иначе невалидный JSON).
-                model=settings.OPENAI_MODEL,
                 max_tokens=1100,
                 system=_runtime_comment_prompt(context),
                 messages=[{"role": "user", "content": user_message}],
                 temperature=0.35,
-                output_config=_ai_output_config("AI_COMMENT_EFFORT"),
+                json_output=True,
             )
         except Exception as exc:
             last_error = exc
@@ -1152,7 +1153,7 @@ async def _generate_dashboard_comment(db: Session, effective_client_ids: list, d
             # он может повторно списать деньги. Повторяем только ответы,
             # отклонённые нашей пост-валидацией.
             if "timeout" in type(exc).__name__.lower():
-                logger.warning("dashboard_comment: Byesu timeout, using deterministic fallback")
+                logger.warning("dashboard_comment: OpenRouter timeout, using deterministic fallback")
                 return _fallback_dashboard_comment(context)
             raise
         duration_ms = int((time.perf_counter() - started) * 1000)
@@ -1283,7 +1284,7 @@ def _log_comment_generation(
             text=text,
             fingerprint=data_fingerprint(db, effective_client_ids, d_start, d_end),
             prompt_version=COMMENT_PROMPT_VERSION,
-            model=str(settings.OPENAI_MODEL),
+            model=str(getattr(response, "model", None) or comment_model()),
             directions_mode=context.get("directions_mode"),
             vat_mode=context.get("vat_mode"),
             context_hash=hashlib.md5(pc.encode("utf-8")).hexdigest()[:12] if pc else None,
@@ -1291,10 +1292,8 @@ def _log_comment_generation(
             output_tokens=output_tokens,
             cache_creation_input_tokens=cache_creation_tokens,
             cache_read_input_tokens=cache_read_tokens,
-            cost_usd=_model_cost_usd(input_tokens, output_tokens),
-            cost_rub=_model_cost_rub(
-                input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens,
-            ),
+            cost_usd=getattr(response, "cost_usd", None),
+            cost_rub=None,
             duration_ms=duration_ms,
             campaign_count=len(context.get("campaigns") or []),
             attempt=attempt,
