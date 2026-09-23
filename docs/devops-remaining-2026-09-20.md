@@ -4,6 +4,20 @@
 
 ## Новый candidate, не production
 
+**Продолжение 23.09 — интерактивный ассистент без SQL во время IO:** `b8bda45`.
+История/вложения и credentials отделены от ORM-сессии, UUID сообщений берётся
+до commit, SQL освобождается перед LLM/tools/SSE. Доступ перечитывается между
+этапами, поздняя OAuth-запись проверяет актуальность integration. Отмена явно
+закрывает agent/LLM/wire. Реальные PostgreSQL-тесты с одним слотом проверяют
+освобождение соединения, chat ledger/replay, отмену и смену доступа.
+[Контракт, приёмка и ограничения](devops-assistant-io-2026-09-23.md).
+Чистый image: **134 целевых tests passed**, restore до `f68b92a3b4c5`,
+API/четыре группы workers boot и **64/64 read smoke** прошли. Полный manifest
+нового image не повторялся; 1481 ниже относится к предыдущему `5e788f9`.
+Это закрывает проверенные interactive assistant paths, **не** весь пункт
+SQL-over-IO: live dashboard attribution/dynamics и другие legacy paths ещё
+остаются. Полное двухузловое переключение и production этим пакетом не выполнены.
+
 **Продолжение 23.09 — компактные списки и два HTTP API:** `d254266` / `5e788f9`.
 Аудит list consumers завершён: frontend запрашивает `include_campaigns=false`,
 сохраняя полный старый API по умолчанию. Все project/integration metadata и
