@@ -1,11 +1,14 @@
 """Include response serialization in the project/tree SQL query budget."""
 from types import SimpleNamespace
+from copy import deepcopy
+import json
 
 import pytest
 import sqlalchemy as sa
 
 from backend_api import clients, folders
 from core import models, schemas
+from backend_api.project_listing import list_options, compact_projects
 from tests.test_durable_work import pg
 from tests.test_integration_list_queries import listing
 
@@ -80,3 +83,62 @@ def test_real_project_access_still_excludes_other_owner(listing):
         assert {row['id'] for row in serialized(clients.get_clients(current_user=owner, db=db))} == set(map(str, ids[:20]))
     with factory() as db:
         assert {row['id'] for row in serialized(clients.get_clients(current_user=stranger, db=db))} == {str(ids[-1])}
+
+
+def without_campaigns(data):
+    data = deepcopy(data)
+    rows = data if isinstance(data, list) else data['root_projects'] + [
+        p for folder in data['folders'] for p in folder['projects']]
+    for row in rows:
+        for item in row['integrations']:
+            item.pop('campaigns', None)
+    return data
+
+
+def test_compact_serializer_never_loads_or_mutates_relationship(listing):
+    factory, queries, ids, owner, _ = listing
+    with factory() as db:
+        queries.clear()
+        rows = db.query(models.Client).options(list_options(False)).filter(models.Client.id.in_(ids[:20])).all()
+        assert len(queries) == 2
+        payload = json.loads(compact_projects(rows).body)
+        assert len(queries) == 2
+        assert all('campaigns' in sa.inspect(i).unloaded for row in rows for i in row.integrations)
+        assert not db.dirty
+        assert all('campaigns' not in i for row in payload for i in row['integrations'])
+        assert len(payload) == 20 and 'must-not-leak-token' not in str(payload)
+
+
+@pytest.mark.parametrize('path', ['/api/clients/', '/api/clients/stats', '/api/folders/tree'])
+def test_http_opt_in_preserves_every_other_field_and_default(path, listing):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from core import security
+    from core.database import get_db
+    factory, _, ids, owner, _ = listing
+    with factory.begin() as db:
+        folder = models.Folder(account_id=owner.id, name='Synthetic compact folder')
+        db.add(folder); db.flush()
+        db.execute(sa.update(models.Client).where(models.Client.id.in_(ids[:10])).values(folder_id=folder.id))
+    app = FastAPI()
+    app.include_router(clients.router, prefix='/api')
+    app.include_router(folders.router, prefix='/api')
+    def session():
+        with factory() as db: yield db
+    app.dependency_overrides[get_db] = session
+    app.dependency_overrides[security.get_current_user] = lambda: owner
+    params = {'start_date': '2026-09-10', 'end_date': '2026-09-10'}
+    with TestClient(app) as browser:
+        full = browser.get(path, params=params)
+        explicit = browser.get(path, params={**params, 'include_campaigns': 'true'})
+        compact = browser.get(path, params={**params, 'include_campaigns': 'false'})
+        assert full.status_code == explicit.status_code == compact.status_code == 200
+        assert full.json() == explicit.json()
+        assert compact.json() == without_campaigns(full.json())
+        assert len(compact.content) < len(full.content)
+        assert str(ids[-1]) not in compact.text and 'must-not-leak-token' not in compact.text
+        assert browser.get(path, params={'include_campaigns': 'invalid'}).status_code == 422
+    # An authenticated fixture must not accidentally turn these into public APIs.
+    app.dependency_overrides.pop(security.get_current_user)
+    with TestClient(app) as browser:
+        assert browser.get(path, params={'include_campaigns': 'false'}).status_code in (401, 403)

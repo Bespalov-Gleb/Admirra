@@ -413,6 +413,7 @@ else:
     : "${ADMIRRA_TEST_ACCOUNT_EMAIL:?Select the approved test account for read load}"
     docker exec -i -e "ADMIRRA_TEST_ACCOUNT_EMAIL=$ADMIRRA_TEST_ACCOUNT_EMAIL" \
       -e "ADMIRRA_DASHBOARD_BENCHMARK=${ADMIRRA_DASHBOARD_BENCHMARK:-0}" \
+      -e "ADMIRRA_COMPACT_PROJECT_LISTS=${ADMIRRA_COMPACT_PROJECT_LISTS:-0}" \
       "$application_container" python - <"$release_dir/api_load_smoke.py"
     api_load_smoke=passed
   fi

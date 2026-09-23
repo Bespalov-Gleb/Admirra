@@ -63,6 +63,20 @@ def response_profile(label: str, body: bytes) -> dict:
         campaign_json_bytes=len(json.dumps(campaigns, ensure_ascii=False, separators=(',', ':')).encode()))
 
 
+def project_metadata_digest(label: str, body: bytes) -> str | None:
+    """Compare compact/full responses without exposing either response body."""
+    if label not in {'clients', 'project_cards', 'project_tree'}:
+        return None
+    data = json.loads(body)
+    rows = data if isinstance(data, list) else data['root_projects'] + [
+        p for folder in data['folders'] for p in folder['projects']]
+    for row in rows:
+        for item in row.get('integrations', []):
+            item.pop('campaigns', None)
+    return hashlib.sha256(json.dumps(data, sort_keys=True, ensure_ascii=False,
+                                    separators=(',', ':')).encode()).hexdigest()
+
+
 def main() -> None:
     assert_isolated_restore()
     token = security.create_access_token({"sub": selected_user_email()})
@@ -82,6 +96,11 @@ def main() -> None:
             "project_tree": f"/api/folders/tree?{period}&with_stats=true",
             "top_projects": f"/api/folders/top-projects?{period}&limit=5",
         })
+    compact = os.getenv('ADMIRRA_COMPACT_PROJECT_LISTS') == '1'
+    if compact:
+        for label in ('clients', 'project_cards', 'project_tree'):
+            if label in paths:
+                paths[label] += ('&' if '?' in paths[label] else '?') + 'include_campaigns=false'
     requests = list(paths.items()) * 8
 
     def fetch(item):
@@ -106,14 +125,21 @@ def main() -> None:
         if len(body) > 10 * 1024 * 1024:
             raise RuntimeError("Restore API response exceeded load-smoke limit")
         digest = hashlib.sha256(body).hexdigest() if status == 200 else None
-        return label, status, elapsed, len(body), digest, response_profile(label, body) if status == 200 else {}
+        return (label, status, elapsed, len(body), digest,
+                response_profile(label, body) if status == 200 else {},
+                project_metadata_digest(label, body) if status == 200 else None)
 
     cold = {}
     for label, path in paths.items():
-        _, status, elapsed, size, digest, profile = fetch((label, path))
+        _, status, elapsed, size, digest, profile, metadata_digest = fetch((label, path))
         if status != 200:
             raise RuntimeError(f"Restore API warm-up failed: route={label} status={status}")
         cold[label] = {"first_ms": round(elapsed * 1000, 2), "bytes": size, "sha256": digest, **profile}
+        if compact and metadata_digest is not None:
+            full = fetch((label, path.replace('include_campaigns=false', 'include_campaigns=true')))
+            if full[1] != 200 or full[6] != metadata_digest:
+                raise RuntimeError(f'Compact project contract differs: route={label}')
+            cold[label]['full_contract_equivalent'] = True
 
     started = time.perf_counter()
     with ThreadPoolExecutor(max_workers=4) as pool:
@@ -121,10 +147,11 @@ def main() -> None:
     duration = time.perf_counter() - started
     statuses: dict[int, int] = {}
     latencies = []
-    for _, status, elapsed, _, _, _ in results:
+    for _, status, elapsed, _, _, _, _ in results:
         statuses[status] = statuses.get(status, 0) + 1
         latencies.append(elapsed)
     evidence = {
+        "compact_project_lists": compact,
         "requests": len(results),
         "concurrency": 4,
         "statuses": statuses,

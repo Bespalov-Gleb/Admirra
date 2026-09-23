@@ -26,6 +26,17 @@ async function setup() {
   return { state, calls, cleanup: () => cleanup.forEach(fn => fn()), resolveAll: (from = 0, data = {}) => calls.slice(from).forEach(c => c.resolve({ data })) }
 }
 
+test('project selector uses compact metadata while campaign selectors stay separate', async () => {
+  const f = await setup()
+  const run = f.state.fetchClients()
+  await tick()
+  assert.equal(f.calls[0].path, 'clients/')
+  assert.deepEqual(f.calls[0].config.params, { include_campaigns: false })
+  f.resolveAll(0, [{ id: 'project-a', integrations: [] }])
+  await run
+  f.cleanup()
+})
+
 test('KPI commits without waiting for slow campaigns; duplicate calls share one generation', async () => {
   const f = await setup()
   const run = f.state.fetchStats()

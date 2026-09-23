@@ -34,7 +34,8 @@ export function useProjects() {
     if (projectsRequest) return projectsRequest
 
     isLoading.value = true
-    projectsRequest = axios.get('/clients/')
+    // List consumers need integration metadata; campaign pickers use /campaigns/.
+    projectsRequest = axios.get('/clients/', { params: { include_campaigns: false } })
       .then(({ data }) => {
         projects.value = Array.isArray(data) ? data : []
         projectsLoadedAt = Date.now()

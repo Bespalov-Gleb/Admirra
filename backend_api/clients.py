@@ -3,7 +3,7 @@ from io import BytesIO
 from pathlib import Path
 from os import getenv
 from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile, status
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session
 from core.database import get_db
 from core import models, schemas, security
 from datetime import datetime, date, timedelta
@@ -14,6 +14,7 @@ from backend_api.stats_service import StatsService
 from backend_api.summary_scope import SummaryScope
 from backend_api.summary_facts import SummaryFacts
 from backend_api.read_snapshot import begin_read_snapshot
+from backend_api.project_listing import list_options, compact_projects
 from backend_api.services.subscription import SubscriptionService
 from backend_api.services.project_settings import get_detector_state, get_integration_state
 from backend_api.services.directions import normalize_label
@@ -51,6 +52,7 @@ def _remove_old_avatar(avatar_url: str | None) -> None:
 def get_clients_with_stats(
     start_date: str = None,
     end_date: str = None,
+    include_campaigns: bool = True,
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -64,7 +66,7 @@ def get_clients_with_stats(
     
     accessible_ids = get_accessible_client_ids(db, current_user)
     user_clients = db.query(models.Client).options(
-        selectinload(models.Client.integrations).selectinload(models.Integration.campaigns)
+        list_options(include_campaigns)
     ).filter(models.Client.id.in_(accessible_ids)).all() if accessible_ids else []
     integration_scope = SummaryScope.load(db, [client.id for client in user_clients])
     summary_facts = SummaryFacts(integration_scope)
@@ -77,10 +79,11 @@ def get_clients_with_stats(
         client.summary = summary_data
         results.append(client)
         
-    return results
+    return results if include_campaigns else compact_projects(results)
 
 @router.get("/", response_model=List[schemas.ClientResponse])
 def get_clients(
+    include_campaigns: bool = True,
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -93,9 +96,9 @@ def get_clients(
         return []
     # ClientResponse includes integration/campaign lists. Load them in batches
     # before serialization instead of one lazy SELECT per project/cabinet.
-    return db.query(models.Client).options(
-        selectinload(models.Client.integrations).selectinload(models.Integration.campaigns)
-    ).filter(models.Client.id.in_(accessible_ids)).all()
+    rows = db.query(models.Client).options(list_options(include_campaigns)).filter(
+        models.Client.id.in_(accessible_ids)).all()
+    return rows if include_campaigns else compact_projects(rows)
 
 @router.post("/", response_model=schemas.ClientResponse, status_code=status.HTTP_201_CREATED)
 def create_client(

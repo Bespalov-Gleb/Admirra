@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session
 
 from backend_api.access_control import get_accessible_client_ids, get_team_context
 from backend_api.services.history import log_history_event
@@ -19,6 +19,7 @@ from backend_api.stats_service import StatsService
 from backend_api.summary_scope import SummaryScope
 from backend_api.summary_facts import SummaryFacts
 from backend_api.read_snapshot import begin_read_snapshot
+from backend_api.project_listing import list_options, project_response, compact_tree
 from core import models, schemas, security
 from core.database import get_db
 
@@ -70,13 +71,14 @@ def _folder_to_schema(folder: models.Folder, counts: dict) -> schemas.FolderResp
     )
 
 
-def _accessible_clients(db: Session, current_user: models.User, *, include_relations=False) -> List[models.Client]:
+def _accessible_clients(db: Session, current_user: models.User, *, include_relations=False,
+                        include_campaigns=True) -> List[models.Client]:
     ids = get_accessible_client_ids(db, current_user)
     if not ids:
         return []
     query = db.query(models.Client).filter(models.Client.id.in_(ids))
     if include_relations:
-        query = query.options(selectinload(models.Client.integrations).selectinload(models.Integration.campaigns))
+        query = query.options(list_options(include_campaigns))
     return query.all()
 
 
@@ -359,6 +361,7 @@ def projects_tree(
     start_date: Optional[str] = Query(None),
     end_date: Optional[str] = Query(None),
     with_stats: bool = Query(True),
+    include_campaigns: bool = True,
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -378,7 +381,7 @@ def projects_tree(
     )
     folder_ids = {f.id for f in folders}
     counts = _folder_counts(db, list(folder_ids))
-    clients = _accessible_clients(db, current_user, include_relations=True)
+    clients = _accessible_clients(db, current_user, include_relations=True, include_campaigns=include_campaigns)
     integration_scope = SummaryScope.load(db, [c.id for c in clients]) if with_stats else None
     summary_facts = SummaryFacts(integration_scope) if with_stats else None
 
@@ -386,7 +389,7 @@ def projects_tree(
         if with_stats:
             c.summary = StatsService.aggregate_summary(db, [c.id], d_start, d_end,
                 integration_scope=integration_scope, summary_facts=summary_facts)
-        return schemas.ClientResponse.model_validate(c)
+        return project_response(c, include_campaigns)
 
     root_projects = []
     by_folder: dict = {fid: [] for fid in folder_ids}
@@ -415,10 +418,11 @@ def projects_tree(
             )
         )
 
-    return schemas.ProjectsTreeResponse(
+    tree = schemas.ProjectsTreeResponse(
         folders=tree_folders,
         root_projects=[client_resp(c) for c in root_projects],
     )
+    return tree if include_campaigns else compact_tree(tree)
 
 
 @router.get("/{folder_id}/breakdown")

@@ -489,7 +489,7 @@ const fetchProjectTree = async ({ silent = false } = {}) => {
   folderTreeRequestInFlight.value = true
   if (!silent) folderTreeLoading.value = true
   try {
-    const { data } = await api.get('folders/tree', { params: { with_stats: false } })
+    const { data } = await api.get('folders/tree', { params: { with_stats: false, include_campaigns: false } })
     folderTree.value = {
       folders: Array.isArray(data?.folders) ? data.folders : [],
       root_projects: Array.isArray(data?.root_projects) ? data.root_projects : [],

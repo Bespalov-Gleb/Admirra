@@ -1,6 +1,6 @@
 import pytest
 
-from ops.backup.api_load_smoke import assert_isolated_restore, selected_user_email, response_profile
+from ops.backup.api_load_smoke import assert_isolated_restore, selected_user_email, response_profile, project_metadata_digest
 import json
 
 
@@ -42,3 +42,15 @@ def test_profile_outputs_counts_not_customer_data(label):
     assert result['campaign_json_bytes'] > 0
     assert 'private' not in str(result)
     assert response_profile('auth', b'not parsed') == {}
+
+
+@pytest.mark.parametrize('label', ['clients', 'project_cards', 'project_tree'])
+def test_compact_digest_ignores_only_campaigns(label):
+    rows = [{'id': 'test', 'summary': {'leads': 34}, 'integrations': [{'id': 'i', 'campaigns': [{'id': 'c'}]}]}]
+    def encode():
+        return json.dumps({'root_projects': rows, 'folders': []} if label == 'project_tree' else rows).encode()
+    full = project_metadata_digest(label, encode())
+    rows[0]['integrations'][0].pop('campaigns')
+    assert project_metadata_digest(label, encode()) == full
+    rows[0]['summary']['leads'] = 65
+    assert project_metadata_digest(label, encode()) != full

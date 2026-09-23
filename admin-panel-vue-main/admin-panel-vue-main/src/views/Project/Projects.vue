@@ -156,6 +156,7 @@ const fetchProjects = async () => {
     
     const response = await api.get('clients/stats', {
       params: {
+        include_campaigns: false,
         start_date: formatDate(start),
         end_date: formatDate(end)
       }

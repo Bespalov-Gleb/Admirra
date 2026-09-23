@@ -189,7 +189,7 @@ export function useDashboardStats({ overviewProjects = false } = {}) {
 
     loadingClients.value = true
     try {
-      const { data } = await api.get('clients/')
+      const { data } = await api.get('clients/', { params: { include_campaigns: false } })
       clients.value = data
     } catch (err) {
       // Игнорируем 401 ошибки (неавторизованный пользователь)
