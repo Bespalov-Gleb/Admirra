@@ -84,3 +84,34 @@ recovery-копия на server 1 обновлена до нового backup. W
 
 S3 и ожидание двух ночей остаются отложенными владельцем. Не ослаблять
 fail-closed preflight ради формального завершения выкладки.
+
+## Реальные API: найденные и исправленные несовместимости
+
+Ограниченный read-only probe `ops/provider_read_peak.py` запускался на server 2
+в сети будущих workers, с их provider/Redis конфигурацией и серверным PostgreSQL
+`default_transaction_read_only=on`. Только два маленьких подключения разрешённого
+тестового владельца, один день, максимум 40 внешних read-запросов. `collect` и
+validation выполняются реально; production `apply`, рассылки и банковские вызовы
+запрещены. Это не массовый пик всех кабинетов.
+
+- Первый запуск с host network остановился на недоступных Docker DNS broker/cache;
+  последующие используют `admirra-workers_work`, как реальные будущие workers.
+- Первое VK-подключение вернуло `401 expired_token`; credentials не изменялись.
+  Другое подключение того же владельца прошло: 4 кампании, 4 строки статистики.
+- Выявлены реальные дефекты нового strict Direct parser: quoted report title,
+  скрытые ID/названия групп Campaign Wizard и повторяющиеся названия Criteria,
+  которые провайдер неявно группирует по CriteriaId. До исправления новый sync
+  отклонял корректные ответы HTTP 200. Эти кандидаты нельзя выпускать.
+- Исправление сохраняет суммы всех исходных строк, проверяет исходный footer count
+  ДО агрегации, не придумывает group IDs. Неизвестная группа хранится SQL NULL,
+  а не строкой `None`; прочие invalid IDs и duplicate snapshot keys отклоняются.
+  Основание: https://yandex.ru/dev/direct/doc/ru/report-format.
+- После исправлений parallel VK + Direct/Metrica read прошёл за 7.747 s:
+  12 read-запросов; Direct 1 campaign / 1 opaque group / 12 keyword rows,
+  186 goal rows. Production DB writes = 0, customer sends = 0, bank calls = 0.
+- OpenRouter со второго сервера: два маленьких успешных запроса
+  `anthropic/claude-sonnet-5`, суммарно $0.00038. Повторные ads-проверки запускались
+  с `--ads-only`, без повторных платных запросов. PDF in-memory 13 272 bytes успешен.
+- Новые регрессии покрывают parser, суммы, NULL group ID и idempotent apply/replay
+  на изолированном PostgreSQL. Targeted ads/Direct набор прошёл; финальный новый
+  immutable artifact ещё требует сборки и полной проверки.

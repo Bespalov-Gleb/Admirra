@@ -71,7 +71,10 @@ def direct_tsv(text, level):
             continue
         if not header and not result and len(columns) == 1:
             # Reports may include their generated name before the column header.
-            if line.startswith("AgencyStats_"):
+            # Direct wraps this metadata row in quotes in real TSV responses.
+            # Do not strip quotes from campaign names/data or relax row coverage.
+            title = line[1:-1] if line.startswith('"') and line.endswith('"') else line
+            if title.startswith("AgencyStats_"):
                 continue
         if len(columns) != expected:
             raise IncompleteAdsSnapshot("Truncated Direct report row")
@@ -83,7 +86,11 @@ def direct_tsv(text, level):
             cost=number(columns[offset + 2]) / 1_000_000,
             conversions=number(columns[offset + 3], integer=True, missing=True))
         if level == "group":
-            row.update(group_id=identifier(columns[3]), name=columns[4])
+            # Campaign Wizard deliberately hides BOTH fields, sometimes in
+            # several rows for one campaign/day. Preserve metrics, not fake IDs.
+            # https://yandex.ru/dev/direct/doc/ru/report-format
+            hidden = columns[3] == "--" and columns[4] == "--"
+            row.update(group_id=None if hidden else identifier(columns[3]), name=columns[4])
         if level == "ad":
             row.update(group_id=identifier(columns[3]), ad_id=identifier(columns[4]))
         if level == "keyword":
@@ -93,6 +100,25 @@ def direct_tsv(text, level):
             raise IncompleteAdsSnapshot("Direct report exceeds row budget")
     if (not header and not result) or (total is not None and total != len(result)):
         raise IncompleteAdsSnapshot("Direct report coverage is unconfirmed")
+    if level in {"group", "keyword"}:
+        # Validate the provider's ORIGINAL row count before coalescing opaque
+        # groups into the only available storage identity: campaign + day.
+        grouped, opaque = [], {}
+        for row in result:
+            if level == 'group' and row['group_id'] is not None:
+                grouped.append(row)
+                continue
+            # Criteria is implicitly grouped by CriteriaId by Direct; several
+            # criteria (e.g. autotargeting) can have identical displayed text.
+            # Our keyword table stores that text, not the hidden criteria ID.
+            key = row['campaign_id'], row['date'], row.get('name')
+            if key not in opaque:
+                opaque[key] = row
+                grouped.append(row)
+            else:
+                for metric in ('impressions', 'clicks', 'cost', 'conversions'):
+                    opaque[key][metric] += row[metric]
+        result = grouped
     return result
 
 

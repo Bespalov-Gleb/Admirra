@@ -114,6 +114,27 @@ async def test_all_platforms_commit_complete_snapshot_and_replay_without_io(adve
 
 
 @pytest.mark.asyncio
+async def test_wizard_groups_store_null_id_and_replay_preserves_totals(advertising):
+    g = advertising
+    if g.platform != models.IntegrationPlatform.YANDEX_DIRECT:
+        return
+    async def report(*a, level='campaign', **kw):
+        assert g.engine.pool.checkedout() == 0
+        if level == 'campaign':
+            return [deepcopy(g.row)]
+        if level == 'group':
+            return [dict(g.row, group_id=None, name='--')]
+        return []
+    g.api.get_report.side_effect = report
+    assert await run(g) == 'updated'
+    assert await run(g) == 'already-complete'
+    with g.factory() as db:
+        rows = list(db.scalars(sa.select(models.YandexGroups).where(models.YandexGroups.campaign_id == g.campaign)))
+        assert len(rows) == 1 and rows[0].group_id is None
+        assert rows[0].cost == 4 and rows[0].conversions == 1
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("bad", ["duplicate", "outside", "metric", "details", "goals"])
 async def test_failed_required_source_keeps_all_previous_data_and_watermark(advertising, bad, monkeypatch):
     g = advertising

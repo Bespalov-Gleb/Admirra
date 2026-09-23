@@ -38,11 +38,69 @@ def test_direct_explicit_empty_and_keyword_campaign_binding():
     assert row["campaign_id"] == "42" and row["name"] == "keyword"
 
 
+@pytest.mark.parametrize('quoted', [False, True])
+def test_direct_real_report_title_before_columns(quoted):
+    title = 'AgencyStats_campaign_2026-09-10_2026-09-10_123 (2026-09-10 - 2026-09-10)'
+    if quoted:
+        title = '"' + title + '"'
+    assert direct_tsv(title + '\n' + HEADER + '\n' + ROW + '\nTotal rows: 1', 'campaign')[0]['cost'] == 1
+    assert direct_tsv(title + '\n' + HEADER + '\nTotal rows: 0', 'campaign') == []
+    with pytest.raises(IncompleteAdsSnapshot):
+        direct_tsv(title + '\n' + HEADER + '\n' + ROW + '\nTotal rows: 2', 'campaign')
+    with pytest.raises(IncompleteAdsSnapshot):
+        direct_tsv(title, 'campaign')
+
+
 @pytest.mark.parametrize("response", ["", "upstream error", HEADER + "\ntruncated",
     HEADER + "\n" + ROW + "\nTotal rows: 2", ROW.replace("1000000", "NaN")])
 def test_direct_truncation_fails(response):
     with pytest.raises((IncompleteAdsSnapshot, ValueError)):
         direct_tsv(response, "campaign")
+
+
+def test_direct_campaign_wizard_groups_preserve_all_metrics_without_invented_ids():
+    header = HEADER.replace('CampaignName', 'CampaignName\tAdGroupId\tAdGroupName')
+    row = ROW.replace('42\tTest', '42\tTest\t--\t--')
+    numeric = ROW.replace('42\tTest', '42\tTest\t123\tGroup')
+    rows = direct_tsv('\n'.join([header, row, row, numeric, 'Total rows: 3']), 'group')
+    assert len(rows) == 2
+    assert rows[0]['group_id'] is None
+    assert rows[0]['cost'] == 2 and rows[0]['conversions'] == 2
+    assert sum(r['clicks'] for r in rows) == 6
+    assert rows[1]['group_id'] == '123'
+    with pytest.raises(IncompleteAdsSnapshot):
+        direct_tsv('\n'.join([header, row, row, 'Total rows: 1']), 'group')
+    for bad in ('\tbad\t--', '\t--\tNamed', '\t\t--'):
+        with pytest.raises(IncompleteAdsSnapshot):
+            direct_tsv(header + '\n' + row.replace('\t--\t--', bad), 'group')
+
+
+def test_opaque_groups_are_only_allowed_for_direct_and_still_reject_duplicates():
+    from automation.ads_sync_work import validate
+    from core import models
+    plan = SimpleNamespace(start='2026-09-10', end='2026-09-10', platform=models.IntegrationPlatform.YANDEX_DIRECT)
+    row = dict(date=plan.start, campaign_id='42', group_id=None, name='--',
+               impressions=10, clicks=2, cost=Decimal('1'), conversions=1)
+    snapshot = {'data': {'groups': [row]}}
+    validate(plan, snapshot)
+    snapshot['data']['groups'].append(dict(row))
+    with pytest.raises(IncompleteAdsSnapshot):
+        validate(plan, snapshot)
+    snapshot['data']['groups'].pop()
+    plan.platform = models.IntegrationPlatform.AVITO_ADS
+    with pytest.raises(IncompleteAdsSnapshot):
+        validate(plan, snapshot)
+
+
+def test_direct_same_criteria_text_is_coalesced_only_within_campaign_and_day():
+    header = HEADER.replace('CampaignId\t', 'CampaignId\tCriteria\t')
+    row = ROW.replace('42\tTest', '42\t---autotargeting\tTest')
+    rows = direct_tsv('\n'.join([header, row, row, row.replace('\t42\t', '\t43\t'),
+                               row.replace('2026-09-10', '2026-09-11'), 'Total rows: 4']), 'keyword')
+    assert len(rows) == 3 and rows[0]['cost'] == 2 and rows[0]['conversions'] == 2
+    assert sum(r['cost'] for r in rows) == 4
+    with pytest.raises(IncompleteAdsSnapshot):
+        direct_tsv('\n'.join([header, row, row, 'Total rows: 1']), 'keyword')
 
 
 @pytest.mark.asyncio

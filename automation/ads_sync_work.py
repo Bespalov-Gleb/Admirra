@@ -232,7 +232,9 @@ def validate(plan, snapshot):
             for rate in ("cpc", "cpa"):
                 if row.get(rate) is not None:
                     number(row[rate])
-            child = (identifier(row.get("group_id")) if level == "groups" else
+            opaque_direct_group = (level == "groups" and plan.platform == models.IntegrationPlatform.YANDEX_DIRECT
+                and "group_id" in row and row["group_id"] is None and row.get("name") == "--")
+            child = (None if opaque_direct_group else identifier(row.get("group_id")) if level == "groups" else
                      identifier(row.get("creative_id")) if level == "creatives" else
                      row.get("name") if level == "keywords" else None)
             if level == "keywords" and not isinstance(child, str):
@@ -298,7 +300,8 @@ def apply(db, plan, snapshot, *, historical=False):
             if level == "keywords":
                 value["keyword"] = row["name"]
             elif level == "groups":
-                value.update(group_id=str(row["group_id"]), group_name=row.get("group_name") or row.get("name"))
+                value.update(group_id=str(row["group_id"]) if row["group_id"] is not None else None,
+                             group_name=row.get("group_name") or row.get("name"))
             elif level == "creatives":
                 value.update(creative_id=str(row["creative_id"]), creative_name=row.get("creative_name"), group_id=row.get("group_id"))
             if hasattr(model, "cpc"):
