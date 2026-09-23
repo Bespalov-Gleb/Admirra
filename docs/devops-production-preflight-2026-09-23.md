@@ -43,10 +43,16 @@ Manifest и пример preflight обновлены по фактическо�
 ## Подготовлено этим этапом
 
 1. Создан новый encrypted backup `20260923T202713Z-ebc64797`, schema
-   `cc3d4e5f6a7b`; sender systemd job success. Restore нового backup записывается
-   ниже после завершения (успех создания не подменяет восстановление).
-2. Полный isolated backend manifest запущен на immutable `a5635d5`, без bind
-   исходников и без внешней сети. Результат записывается после завершения.
+   `cc3d4e5f6a7b`; sender systemd job success. Этот же backup восстановлен в
+   network=none с image a5635d5: миграции до `f68b92a3b4c5`, worker preflight/boot,
+   API startup и **64/64 HTTP 200** прошли, **65 s**, exit 0 с cleanup.
+   Summary batch — 64 проекта × 4 канала, 12 индивидуальных сравнений,
+   access guards passed, 802,31 ms. Это smoke, не полная mixed-load приёмка.
+2. Полный isolated backend manifest на immutable `a5635d5`, без bind исходников
+   и без внешней сети: **1606 passed, 1 skipped, 1 deselected, 281 warnings,
+   6 subtests passed**, 963,08 s, exit 0. Skip — optional previous-release
+   comparison; deselect — frontend source assertion вне backend artifact.
+   Это полный указанный manifest, не заявление «все возможные тесты продукта».
 3. Исправлен stale `EXPECTED_SCHEMA_REVISION` в `ops/compose.workers.yml`:
    вместо старого `de0f1a2b3c4d` теперь обязательный release input
    `ADMIRRA_SCHEMA_REVISION`. Без выбранного проверенного head Compose не разрешает запуск.
@@ -55,6 +61,9 @@ Manifest и пример preflight обновлены по фактическо�
    без добавления runtime-зависимости. Реальный Docker Compose capacity parser
    также пройден: cap 6144 MiB с API-2, OS headroom 1796 MiB, worker SQL max 14
    при role limit 20. `load_accepted=false`: арифметика не заменяет mixed-load.
+   Дополнительно реальный Compose render с `--no-env-resolution` проверил,
+   что все пять процессов получили указанный immutable digest и f68b92a3b4c5.
+   Секретные env этим render не проверялись и в вывод не попадали.
 5. Повторные тестовые пары Alertmanager и внешнего heartbeat отправлены для
    свежей проверки доставки: Alertmanager notifications 14 → 16, все failure
    counters Telegram 0; внешний heartbeat вернул sent для critical и ok.
@@ -62,6 +71,15 @@ Manifest и пример preflight обновлены по фактическо�
 6. Immutable `admirra-devops:a5635d5` доставлен на server 1; digest на обоих
    узлах `sha256:5642c39fa1134a840e4b3f3657ffb2c77de232c8ed6e631c21a353189cc2075c`.
    Образ не запущен с production credentials/traffic. Старые runtime не тронуты.
+
+Логи root-only на server 2 в `/opt/admirra-staging/a5635d5/`:
+`release-full-tests.log`, `release-preflight-tests.log`, `release-fresh-restore.log`,
+`release-test-cleanup.log`. Test compose project, restore containers/volumes и
+runtime tmpfs удалены; inventory пуст. После проверок реальные production
+digests прежние, restart counters 0, сайт HTTP 200, Prometheus alerts пуст.
+
+Ops fixes/первичная инвентаризация: commit `6ef1ce0`. Runtime artifact остаётся
+`a5635d5` (новый ops commit не выдается за повторно собранный backend image).
 
 ## Что реально мешает полному переключению
 

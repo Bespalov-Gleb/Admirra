@@ -8,7 +8,9 @@
 Не путать готовые исходники с развёрнутыми сервисами: worker runtime/env/data
 и private artifact service ещё не установлены, финальная multi-host/mixed-load
 приёмка не выполнена. Сохранён актуальный rollback baseline со скидочным релизом,
-создан свежий backup, запускается полный immutable-image regression. Admission
+создан свежий backup `20260923T202713Z-ebc64797`, его restore — 65 s, migration/
+API/workers boot и 64/64 HTTP passed; полный immutable-image regression —
+**1606 passed**. Admission
 open, production schema/API/automation не переключались.
 
 **Продолжение 23.09 — раскрытие групп/объявлений VK:** `a5635d5`, detached collection и
