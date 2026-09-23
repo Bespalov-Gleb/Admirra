@@ -253,13 +253,13 @@ async def get_direction_stats(
         prev_start = d_start - timedelta(days=delta)
         prev_end = d_start - timedelta(days=1)
     if platform in ("all", "yandex"):
-        y_ov = await _build_yandex_campaign_conversion_overrides(db, client_ids, d_start, d_end)
+        y_ov = await _build_yandex_campaign_conversion_overrides(db, client_ids, d_start, d_end, user_id=current_user.id)
         if prev_start:
-            y_prev = await _build_yandex_campaign_conversion_overrides(db, client_ids, prev_start, prev_end)
+            y_prev = await _build_yandex_campaign_conversion_overrides(db, client_ids, prev_start, prev_end, user_id=current_user.id)
     if platform in ("all", "avito"):
-        a_ov = await _build_avito_campaign_conversion_overrides(db, client_ids, d_start, d_end)
+        a_ov = await _build_avito_campaign_conversion_overrides(db, client_ids, d_start, d_end, user_id=current_user.id)
         if prev_start:
-            a_prev = await _build_avito_campaign_conversion_overrides(db, client_ids, prev_start, prev_end)
+            a_prev = await _build_avito_campaign_conversion_overrides(db, client_ids, prev_start, prev_end, user_id=current_user.id)
 
     return direction_service.direction_stats(
         db, client, d_start, d_end, platform=platform,

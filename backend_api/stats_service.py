@@ -1050,6 +1050,22 @@ class StatsService:
         if not client_ids:
             return []
 
+        # Metrika totals do not carry campaign_id. Allocate on the complete
+        # project rows FIRST, then filter the display. Reallocating a project's
+        # 65 leads over its selected 34-lead campaign invents 31 extra leads.
+        # Keep VK's native objective/campaign filtering unchanged.
+        if campaign_ids and platform in ("all", "yandex", "avito"):
+            rows = StatsService.get_campaign_stats(
+                db, client_ids, d_start, d_end, platform=platform,
+                vk_goal_action_ids=vk_goal_action_ids,
+                yandex_conversion_overrides=yandex_conversion_overrides,
+                yandex_prev_conversion_overrides=yandex_prev_conversion_overrides,
+                avito_conversion_overrides=avito_conversion_overrides,
+                avito_prev_conversion_overrides=avito_prev_conversion_overrides,
+            )
+            selected_ids = {str(cid) for cid in campaign_ids}
+            return [row for row in rows if str(row.get("id")) in selected_ids]
+
         def calc_trend(c, p):
             if p is None or p == 0:
                 return 0.0
@@ -1067,7 +1083,6 @@ class StatsService:
         # Campaign.is_active: остановленные/архивные кампании должны оставаться
         # в исторической статистике выбранного периода.
         integration_ids_filter = None
-        selected_campaign_platforms = []
         if campaign_ids:
             campaign_integrations = db.query(models.Campaign.integration_id).filter(
                 models.Campaign.id.in_(campaign_ids)
@@ -1075,13 +1090,6 @@ class StatsService:
             aid_list = [r[0] for r in campaign_integrations if r[0]]
             if aid_list:
                 integration_ids_filter = aid_list
-                selected_campaign_platforms = [
-                    row[0]
-                    for row in db.query(models.Integration.platform)
-                    .filter(models.Integration.id.in_(aid_list))
-                    .distinct()
-                    .all()
-                ]
         elif len(client_ids) == 1:
             project_integrations = db.query(models.Integration.id).filter(
                 models.Integration.client_id.in_(client_ids)
@@ -1187,7 +1195,8 @@ class StatsService:
                 scope_q = scope_q.filter(models.AvitoStats.date <= end)
             return float((scope_q.scalar() or 0) or 0)
 
-        def get_metrika_convs(start, end, *, filter_by_campaign_integrations: bool = True):
+        def get_metrika_convs(start, end, *, metrika_goal_platform: str,
+                              filter_by_campaign_integrations: bool = True):
             m_q = db.query(
                 func.sum(models.MetrikaGoals.conversion_count).label("total")
             ).filter(
@@ -1197,12 +1206,12 @@ class StatsService:
 
             # Mirror the selected_goals filter from aggregate_summary so Metrika
             # conversions only count goals the user actually configured.
-            metrika_goal_platform = platform
-            if platform == "all" and selected_campaign_platforms:
-                if all(p == models.IntegrationPlatform.AVITO_ADS for p in selected_campaign_platforms):
-                    metrika_goal_platform = "avito"
-                elif all(p == models.IntegrationPlatform.YANDEX_DIRECT for p in selected_campaign_platforms):
-                    metrika_goal_platform = "yandex"
+            # Goal ids can be identical in two integrations. Scope by channel
+            # even on the mixed table; otherwise Avito visits become Direct's
+            # residual leads (and vice versa).
+            channel_ids = StatsService.get_metrika_goal_integration_ids(db, client_ids, metrika_goal_platform)
+            m_q = m_q.filter(models.MetrikaGoals.integration_id.in_(channel_ids)) if channel_ids else m_q.filter(
+                models.MetrikaGoals.integration_id.is_(None))
             selected_goal_ids = set(
                 StatsService.get_selected_metrika_goal_ids(db, client_ids, metrika_goal_platform)
             )
@@ -1334,7 +1343,7 @@ class StatsService:
             y_hierarchy_unavailable_campaign_ids = y_group_any_campaign_ids - y_group_campaign_ids
             yandex_conversion_overrides = yandex_conversion_overrides or {}
             yandex_prev_conversion_overrides = yandex_prev_conversion_overrides or {}
-            total_yandex_metrika_convs = get_metrika_convs(d_start, d_end)
+            total_yandex_metrika_convs = get_metrika_convs(d_start, d_end, metrika_goal_platform="yandex")
             yandex_conv_allocations = allocate_metrika_convs(
                 y_results,
                 total_yandex_metrika_convs,
@@ -1348,7 +1357,7 @@ class StatsService:
             if prev_start is not None:
                 prev_y_list = run_yandex_query(prev_start, prev_end)
                 prev_y_rows = {str(r.campaign_id): r for r in prev_y_list}
-                prev_total_yandex_metrika_convs = get_metrika_convs(prev_start, prev_end)
+                prev_total_yandex_metrika_convs = get_metrika_convs(prev_start, prev_end, metrika_goal_platform="yandex")
                 prev_yandex_conv_allocations = allocate_metrika_convs(
                     prev_y_list,
                     prev_total_yandex_metrika_convs,
@@ -1532,6 +1541,7 @@ class StatsService:
             total_avito_metrika_convs = get_metrika_convs(
                 d_start,
                 d_end,
+                metrika_goal_platform="avito",
                 filter_by_campaign_integrations=False,
             )
             total_avito_cost = get_avito_scope_cost(d_start, d_end)
@@ -1563,6 +1573,7 @@ class StatsService:
                 prev_total_avito_metrika_convs = get_metrika_convs(
                     prev_start,
                     prev_end,
+                    metrika_goal_platform="avito",
                     filter_by_campaign_integrations=False,
                 )
                 prev_total_avito_cost = get_avito_scope_cost(prev_start, prev_end)

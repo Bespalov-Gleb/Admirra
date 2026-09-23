@@ -491,7 +491,11 @@ async def get_campaign_highlights(
     yandex_overrides = None
     try:
         from backend_api.stats import _build_yandex_campaign_conversion_overrides
-        yandex_overrides = await _build_yandex_campaign_conversion_overrides(db, [client_id], start, end)
+        yandex_overrides = await _build_yandex_campaign_conversion_overrides(db, [client_id], start, end, user_id=current_user.id)
+    except HTTPException:
+        # A changed/revoked project is not a provider outage; don't turn it into
+        # a successful response with a different source of conversions.
+        raise
     except Exception:
         yandex_overrides = None  # Метрика недоступна — считаем по данным Директа
     return {"items": campaign_highlights(db, client_id, start, end, yandex_overrides=yandex_overrides)}

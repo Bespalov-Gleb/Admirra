@@ -9,6 +9,7 @@ import uuid
 from time import monotonic
 from backend_api.stats_service import StatsService, resolve_previous_period
 from backend_api.read_snapshot import begin_read_snapshot
+from backend_api.attribution_read import attribution_read
 from backend_api.top_ads_service import get_top_ads_with_images
 import csv
 import io
@@ -388,40 +389,27 @@ async def _build_yandex_campaign_conversion_overrides(
     d_start: Optional[date],
     d_end: date,
     campaign_ids: Optional[List[uuid.UUID]] = None,
+    *, user_id: Optional[uuid.UUID] = None,
 ) -> dict:
-    campaign_q = (
-        db.query(models.Campaign)
-        .join(models.Integration, models.Campaign.integration_id == models.Integration.id)
-        .filter(
-            models.Integration.client_id.in_(client_ids),
-            models.Integration.platform == models.IntegrationPlatform.YANDEX_DIRECT,
-        )
-    )
-    if campaign_ids:
-        campaign_q = campaign_q.filter(models.Campaign.id.in_(campaign_ids))
-
-    campaigns = campaign_q.all()
-    campaigns_by_integration: dict = {}
-    for campaign in campaigns:
-        if campaign.integration:
-            campaigns_by_integration.setdefault(campaign.integration.id, []).append(campaign)
-
     overrides: dict = {}
-    for grouped_campaigns in campaigns_by_integration.values():
-        integration = grouped_campaigns[0].integration
-        conv_map, available = await _metrika_campaign_conv_map(integration, d_start, d_end)
-        if not available:
-            continue
+    with attribution_read(db, client_ids, models.IntegrationPlatform.YANDEX_DIRECT,
+                          campaign_ids, user_id=user_id) as plan:
+        for integration, grouped_campaigns in plan.groups():
+            if not grouped_campaigns:
+                continue
+            conv_map, available = await _metrika_campaign_conv_map(integration, d_start, d_end)
+            if not available:
+                continue
 
-        name_counts: dict = {}
-        for campaign in grouped_campaigns:
-            key = _normalize_direct_name(campaign.name)
-            name_counts[key] = name_counts.get(key, 0) + 1
+            name_counts: dict = {}
+            for campaign in grouped_campaigns:
+                key = _normalize_direct_name(campaign.name)
+                name_counts[key] = name_counts.get(key, 0) + 1
 
-        for campaign in grouped_campaigns:
-            key = _normalize_direct_name(campaign.name)
-            if name_counts.get(key, 0) == 1:
-                overrides[str(campaign.id)] = int(round(conv_map.get(key, 0)))
+            for campaign in grouped_campaigns:
+                key = _normalize_direct_name(campaign.name)
+                if name_counts.get(key, 0) == 1:
+                    overrides[str(campaign.id)] = int(round(conv_map.get(key, 0)))
     return overrides
 
 
@@ -430,43 +418,34 @@ async def _build_yandex_campaign_daily_conversion_overrides(
     client_ids: List[uuid.UUID],
     d_start: Optional[date],
     d_end: date,
+    *, user_id: Optional[uuid.UUID] = None,
 ) -> tuple[dict[date, dict[str, int]], bool]:
     """Campaign attribution for the compact daily dashboard chart.
 
     Unlike the old cost-share calculation, this preserves the same Metrika
     DirectClickOrder attribution as a direction card for every day.
     """
-    campaigns = (
-        db.query(models.Campaign)
-        .join(models.Integration, models.Campaign.integration_id == models.Integration.id)
-        .filter(
-            models.Integration.client_id.in_(client_ids),
-            models.Integration.platform == models.IntegrationPlatform.YANDEX_DIRECT,
-        )
-        .all()
-    )
-    campaigns_by_integration: dict = {}
-    for campaign in campaigns:
-        if campaign.integration:
-            campaigns_by_integration.setdefault(campaign.integration.id, []).append(campaign)
-
     result: dict[date, dict[str, int]] = {}
     any_available = False
-    for grouped_campaigns in campaigns_by_integration.values():
-        daily_map, available = await _metrika_campaign_daily_conv_map(grouped_campaigns[0].integration, d_start, d_end)
-        any_available = any_available or available
-        if not available:
-            continue
-        name_counts: dict[str, int] = {}
-        for campaign in grouped_campaigns:
-            key = _normalize_direct_name(campaign.name)
-            name_counts[key] = name_counts.get(key, 0) + 1
-        for day, by_name in daily_map.items():
-            overrides = result.setdefault(day, {})
+    with attribution_read(db, client_ids, models.IntegrationPlatform.YANDEX_DIRECT,
+                          user_id=user_id) as plan:
+        for integration, grouped_campaigns in plan.groups():
+            if not grouped_campaigns:
+                continue
+            daily_map, available = await _metrika_campaign_daily_conv_map(integration, d_start, d_end)
+            any_available = any_available or available
+            if not available:
+                continue
+            name_counts: dict[str, int] = {}
             for campaign in grouped_campaigns:
                 key = _normalize_direct_name(campaign.name)
-                if name_counts.get(key, 0) == 1:
-                    overrides[str(campaign.id)] = int(round(by_name.get(key, 0)))
+                name_counts[key] = name_counts.get(key, 0) + 1
+            for day, by_name in daily_map.items():
+                overrides = result.setdefault(day, {})
+                for campaign in grouped_campaigns:
+                    key = _normalize_direct_name(campaign.name)
+                    if name_counts.get(key, 0) == 1:
+                        overrides[str(campaign.id)] = int(round(by_name.get(key, 0)))
     return result, any_available
 
 
@@ -476,21 +455,17 @@ async def _build_avito_campaign_conversion_overrides(
     d_start: Optional[date],
     d_end: date,
     campaign_ids: Optional[List[uuid.UUID]] = None,
+    *, user_id: Optional[uuid.UUID] = None,
 ) -> dict:
-    integration_q = db.query(models.Integration).filter(
-        models.Integration.client_id.in_(client_ids),
-        models.Integration.platform == models.IntegrationPlatform.AVITO_ADS,
-    )
-    if campaign_ids:
-        integration_q = integration_q.join(models.Campaign).filter(models.Campaign.id.in_(campaign_ids))
-
     overrides: dict = {}
-    for integration in integration_q.distinct().all():
-        campaign_map, _, available = await _avito_metrika_utm_conv_maps(db, integration, d_start, d_end)
-        if not available:
-            continue
-        for external_id, conversions in campaign_map.items():
-            overrides[str(external_id)] = int(round(float(conversions or 0)))
+    with attribution_read(db, client_ids, models.IntegrationPlatform.AVITO_ADS,
+                          campaign_ids, user_id=user_id) as plan:
+        for integration, _campaigns in plan.groups():
+            campaign_map, _, available = await _avito_metrika_utm_conv_maps(db, integration, d_start, d_end)
+            if not available:
+                continue
+            for external_id, conversions in campaign_map.items():
+                overrides[str(external_id)] = int(round(float(conversions or 0)))
     return overrides
 
 
@@ -501,6 +476,7 @@ async def _campaign_scope_lead_overrides(
     d_end: date,
     campaign_ids: Optional[List[uuid.UUID]],
     platform: str = "all",
+    *, user_id: Optional[uuid.UUID] = None,
 ) -> dict:
     """Exact lead totals for a selected campaign/direction scope.
 
@@ -517,7 +493,7 @@ async def _campaign_scope_lead_overrides(
     selected_rows = (
         db.query(models.Campaign.id, models.Integration.platform)
         .join(models.Integration, models.Campaign.integration_id == models.Integration.id)
-        .filter(models.Campaign.id.in_(campaign_ids))
+        .filter(models.Campaign.id.in_(campaign_ids), models.Integration.client_id.in_(client_ids))
         .all()
     )
     selected_by_platform = {
@@ -528,12 +504,12 @@ async def _campaign_scope_lead_overrides(
         return {}
 
     yandex_overrides = (
-        await _build_yandex_campaign_conversion_overrides(db, client_ids, d_start, d_end)
+        await _build_yandex_campaign_conversion_overrides(db, client_ids, d_start, d_end, user_id=user_id)
         if selected_by_platform["yandex"] and platform in ("all", "yandex")
         else None
     )
     avito_overrides = (
-        await _build_avito_campaign_conversion_overrides(db, client_ids, d_start, d_end)
+        await _build_avito_campaign_conversion_overrides(db, client_ids, d_start, d_end, user_id=user_id)
         if selected_by_platform["avito"] and platform in ("all", "avito")
         else None
     )
@@ -1331,7 +1307,8 @@ async def get_summary(
     previous_campaign_lead_overrides = {}
     if u_campaign_ids:
         campaign_lead_overrides = await _campaign_scope_lead_overrides(
-            db, effective_client_ids, d_start, d_end, u_campaign_ids, platform or "all"
+            db, effective_client_ids, d_start, d_end, u_campaign_ids, platform or "all",
+            user_id=current_user.id,
         )
         delta = (d_end - d_start).days + 1
         previous_campaign_lead_overrides = await _campaign_scope_lead_overrides(
@@ -1341,6 +1318,7 @@ async def get_summary(
             d_start - timedelta(days=1),
             u_campaign_ids,
             platform or "all",
+            user_id=current_user.id,
         )
 
     result = StatsService.aggregate_summary(
@@ -1502,7 +1480,7 @@ async def get_dynamics(
     if u_campaign_ids and platform in ["all", "yandex"]:
         exact_yandex_daily_overrides, exact_yandex_daily_available = (
             await _build_yandex_campaign_daily_conversion_overrides(
-                db, effective_client_ids, d_start, d_end
+                db, effective_client_ids, d_start, d_end, user_id=current_user.id
             )
         )
     
@@ -1912,6 +1890,7 @@ async def get_dynamics_series_endpoint(
                     period_end,
                     u_campaign_ids,
                     platform or "all",
+                    user_id=current_user.id,
                 )
             )
     return get_dynamics_series(
@@ -2150,7 +2129,7 @@ async def get_campaign_stats(
             effective_client_ids,
             d_start,
             d_end,
-            u_campaign_ids,
+            user_id=current_user.id,
         )
         if d_start:
             delta = (d_end - d_start).days + 1
@@ -2161,7 +2140,7 @@ async def get_campaign_stats(
                 effective_client_ids,
                 prev_start,
                 prev_end,
-                u_campaign_ids,
+                user_id=current_user.id,
             )
 
     if platform in ["all", "avito"]:
@@ -2170,7 +2149,7 @@ async def get_campaign_stats(
             effective_client_ids,
             d_start,
             d_end,
-            u_campaign_ids,
+            user_id=current_user.id,
         )
         if d_start:
             delta = (d_end - d_start).days + 1
@@ -2181,7 +2160,7 @@ async def get_campaign_stats(
                 effective_client_ids,
                 prev_start,
                 prev_end,
-                u_campaign_ids,
+                user_id=current_user.id,
             )
 
     return StatsService.get_campaign_stats(
@@ -2270,6 +2249,7 @@ async def get_campaign_children(
                     d_start,
                     d_end,
                     campaign_ids=[campaign.id],
+                    user_id=current_user.id,
                 )
                 if str(campaign.id) in campaign_overrides:
                     conv_map["__campaign_total__"] = int(campaign_overrides[str(campaign.id)] or 0)
@@ -2885,6 +2865,7 @@ async def get_goals(
             date_to_obj,
             u_campaign_ids,
             platform_key,
+            user_id=current_user.id,
         )
         prev_date_from, prev_date_to = resolve_previous_period(date_from_obj, date_to_obj, period_preset)
         previous_campaign_lead_overrides = await _campaign_scope_lead_overrides(
@@ -2894,6 +2875,7 @@ async def get_goals(
             prev_date_to,
             u_campaign_ids,
             platform_key,
+            user_id=current_user.id,
         )
         current_summary = StatsService.aggregate_summary(
             db,
