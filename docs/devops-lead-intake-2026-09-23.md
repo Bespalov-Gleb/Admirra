@@ -4,6 +4,12 @@
 Lead Validator. Старый production path остаётся при `LEAD_DELIVERY_GUARDS=false`.
 Бот регистраций AdMirra и рекламные лиды дашбордов не изменены.
 
+**Дополнение 23.09:** legacy URL adapters, операторский CLI/audit и pending UI
+доработаны следующим пакетом; актуальный head `f68b92a3b4c5`.
+[Новый контракт, инвентаризация и нагрузочный smoke](devops-lead-reconciliation-2026-09-23.md).
+Раздел «Незакрытые границы» ниже описывает состояние исходного intake commit,
+а не повторное открытие adapters/reconciliation.
+
 ## Реализованный контракт
 
 - `POST /api/webhook/phone/{project_id}` при включённом guard требует секрет

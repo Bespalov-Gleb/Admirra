@@ -67,5 +67,21 @@ lead_exports = sa.Table(
     sa.Column("provider_ref", sa.String(128)),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
     sa.Column("confirmed_at", sa.DateTime(timezone=True)),
-    sa.CheckConstraint("state IN ('sending','sent','rejected')", name="ck_lead_export_receipt_state"),
+    sa.CheckConstraint("state IN ('sending','sent','rejected','closed')", name="ck_lead_export_receipt_state"),
+)
+
+lead_resolutions = sa.Table(
+    'lead_operation_resolutions', metadata,
+    sa.Column('subject_type', sa.String(16), primary_key=True),
+    sa.Column('subject_id', UUID(as_uuid=True), primary_key=True),
+    sa.Column('owner_id', UUID(as_uuid=True), nullable=False),
+    sa.Column('project_id', UUID(as_uuid=True), nullable=False),
+    sa.Column('version', sa.String(64), nullable=False),
+    sa.Column('decision', sa.String(32), nullable=False),
+    sa.Column('actor', sa.String(128), nullable=False),
+    sa.Column('reason', sa.String(1000), nullable=False),
+    sa.Column('evidence_ref', sa.String(255), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.CheckConstraint("subject_type IN ('intake','export')", name='ck_lead_resolution_subject'),
+    sa.CheckConstraint("decision IN ('close_unverified','confirm_delivered','close_without_resend')", name='ck_lead_resolution_decision'),
 )

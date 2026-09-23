@@ -56,6 +56,8 @@ services:
       - tests/test_lead_diagnostics.py
       - tests/test_lead_intake.py
       - tests/test_lead_export_work.py
+      - tests/test_lead_legacy_binding.py
+      - tests/test_lead_reconciliation.py
       - tests/test_sync_tenant_scope.py
       - tests/test_integration_work_scope.py
       - tests/test_sync_followup.py

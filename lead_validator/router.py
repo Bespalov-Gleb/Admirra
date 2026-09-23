@@ -52,7 +52,10 @@ router = APIRouter(tags=["Lead Validator"])
 async def validate_lead(
     lead: LeadInput,
     request: Request,
-    background_tasks: BackgroundTasks
+    background_tasks: BackgroundTasks,
+    project_id: Optional[uuid.UUID] = None,
+    secret: Optional[str] = None,
+    db: Session = Depends(get_db),
 ) -> ValidationResult:
     """
     Основной эндпоинт валидации лида.
@@ -60,6 +63,13 @@ async def validate_lead(
     Принимает JSON с данными формы и возвращает результат валидации.
     Время обработки включено в ответ для мониторинга латентности.
     """
+    from core.runtime import env_bool
+    if env_bool('LEAD_DELIVERY_GUARDS', False):
+        from lead_validator.services.webhook_scope import authorize
+        bound = authorize(db, request, project_id, secret)
+        return await lead_validator.validate(lead, client_ip=_get_client_ip(request),
+            user_agent=request.headers.get('user-agent'), referer=request.headers.get('referer'),
+            db=db, **bound)
     # Получаем реальный IP клиента
     client_ip = _get_client_ip(request)
     

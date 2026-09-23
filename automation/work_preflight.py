@@ -63,12 +63,15 @@ def check_lead_delivery_bindings(db):
     enabled = env_bool('LEAD_DELIVERY_GUARDS', False)
     intake = db.scalar(sa.text("SELECT to_regclass('lead_intakes')"))
     receipts = db.scalar(sa.text("SELECT to_regclass('lead_export_receipts')"))
-    if enabled and (not intake or not receipts):
+    resolutions = db.scalar(sa.text("SELECT to_regclass('lead_operation_resolutions')"))
+    if enabled and (not intake or not receipts or not resolutions):
         raise RuntimeError('Lead delivery guards require their additive schema migration')
     if not enabled:
         pending = db.scalar(sa.text("SELECT count(*) FROM background_jobs WHERE kind = 'lead.export' AND state IN ('queued','running','uncertain')"))
-        if pending or intake and db.scalar(sa.text("SELECT count(*) FROM lead_intakes WHERE state IN ('processing','held')")):
-            raise RuntimeError('Cannot disable lead delivery guards with unresolved intakes or exports')
+        if pending or intake and db.scalar(sa.text("SELECT EXISTS (SELECT 1 FROM lead_intakes)")):
+            # Even completed keys must remain authoritative: a rollback to the
+            # global legacy path would bypass idempotency on provider retries.
+            raise RuntimeError('Cannot disable lead delivery guards after persisted admissions; use a compatible release')
 
 
 def check():

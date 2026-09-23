@@ -4,6 +4,18 @@
 
 ## Новый candidate, не production
 
+**Продолжение 23.09 — legacy intake и операторская сверка:** старые URL теперь
+поддерживают явный signed project scope в guarded режиме; добавлены auditable
+close/confirm без resend, terminal closed и честные pending/held/closed подписи.
+Новый schema head `f68b92a3b4c5`. Read-only production inventory: **0 phone projects,
+0 leads**, при этом **94 рекламных проекта** — другой модуль. Предварительный
+синтетический load 2/8 threads прошёл без потерь/дублей; это **не** общий
+dashboard/mixed-load. [Контракт, операторская процедура и замеры](devops-lead-reconciliation-2026-09-23.md).
+Старые пункты про отсутствие project adapters/CLI ниже заменены этим пакетом.
+Регрессия: 260 passed; после последней защиты отката — 70 passed в целевом
+перекрывающемся наборе. Frontend: 2 unit tests и production build прошли.
+Это локальный candidate, не deployment; общая нагрузка/restore/cutover остаются.
+
 **Продолжение 23.09 — проектный lead intake/exports:** добавлен opt-in
 `LEAD_DELIVERY_GUARDS` с предварительным сохранением заявки, project-scoped
 idempotency/dedup, detached validation/enrichment и атомарной очередью отправок.

@@ -5,7 +5,7 @@ import uuid
 
 import sqlalchemy as sa
 from core import models
-from automation.work_tables import jobs, lead_exports
+from automation.work_tables import jobs, lead_exports, lead_resolutions
 
 
 def snapshot(db, *, owner_id=None, limit=50):
@@ -21,7 +21,9 @@ def snapshot(db, *, owner_id=None, limit=50):
     exports = sa.select(jobs.c.id, jobs.c.state.label('job_state'), jobs.c.created_at,
         lead_exports.c.state.label('receipt_state'), lead_exports.c.provider_ref).outerjoin(
         lead_exports, lead_exports.c.job_id == jobs.c.id).where(jobs.c.kind == 'lead.export',
-        jobs.c.state.in_(['queued', 'running', 'uncertain', 'failed']))
+        jobs.c.state.in_(['queued', 'running', 'uncertain', 'failed']),
+        ~sa.exists(sa.select(lead_resolutions.c.subject_id).where(
+            lead_resolutions.c.subject_type == 'export', lead_resolutions.c.subject_id == jobs.c.id)))
     if owner_id: exports = exports.where(jobs.c.tenant == str(owner_id))
     deliveries = db.execute(exports.order_by(jobs.c.created_at, jobs.c.id).limit(limit + 1)).mappings().all()
     return {'intakes': [dict(row) for row in rows[:limit]], 'intakes_truncated': len(rows) > limit,

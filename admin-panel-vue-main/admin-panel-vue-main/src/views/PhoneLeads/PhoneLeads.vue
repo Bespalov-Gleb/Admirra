@@ -16,7 +16,7 @@
           <div class="flex items-center gap-1.5 mt-0.5">
             <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse flex-shrink-0"></div>
             <p class="text-[0.625rem] font-bold text-gray-400 uppercase tracking-wider truncate">
-              Все заявки, прошедшие валидацию
+              Заявки и результаты проверки
             </p>
           </div>
         </div>
@@ -136,10 +136,10 @@
                 <span
                   :class="[
                     'px-3 py-1 text-xs font-semibold rounded-full',
-                    lead.is_accepted ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                    leadStatus(lead).className
                   ]"
                 >
-                  {{ lead.is_accepted ? 'Принят' : 'Отклонён' }}
+                  {{ leadStatus(lead).text }}
                 </span>
               </td>
               <td class="px-6 py-4 text-sm text-gray-600">
@@ -161,6 +161,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { UserGroupIcon, ArrowPathIcon } from '@heroicons/vue/24/outline'
 import api from '@/api/axios'
 import { useToaster } from '@/composables/useToaster'
+import { leadStatus } from './leadStatus'
 
 const toaster = useToaster()
 const loading = ref(false)
@@ -234,5 +235,3 @@ const getProjectName = (projectId) => {
   return project?.name || '-'
 }
 </script>
-
-

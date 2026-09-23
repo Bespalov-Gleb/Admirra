@@ -292,9 +292,14 @@ def parse_timezone_offset(tz_str: str) -> Optional[str]:
     3. Формат: JSON
     """
 )
-async def tilda_webhook(data: TildaWebhookData, request: Request) -> ValidationResult:
+async def tilda_webhook(data: TildaWebhookData, request: Request,
+    project_id: Optional[uuid.UUID] = None, secret: Optional[str] = None,
+    db: Session = Depends(get_db)) -> ValidationResult:
     """Обработка webhook от Tilda."""
-    logger.info(f"Tilda webhook received: phone={data.phone}, form={data.formid}")
+    bound = None
+    if _env_bool('LEAD_DELIVERY_GUARDS'):
+        from lead_validator.services.webhook_scope import authorize
+        bound = authorize(db, request, project_id, secret)
     
     # Извлекаем UTM из referer
     utm = extract_utm_from_url(data.referer or "")
@@ -315,6 +320,9 @@ async def tilda_webhook(data: TildaWebhookData, request: Request) -> ValidationR
     client_ip = _get_client_ip(request)
     
     # Валидируем
+    if bound is not None:
+        return await lead_validator.validate(lead, client_ip=client_ip, db=db,
+            form_data=data.model_dump(), skip_request_validation=True, skip_antibot_validation=True, **bound)
     result = await lead_validator.validate(lead, client_ip)
     
     logger.info(f"Tilda lead result: success={result.success}, phone={data.phone}")
@@ -338,9 +346,14 @@ async def tilda_webhook(data: TildaWebhookData, request: Request) -> ValidationR
     3. Формат: JSON
     """
 )
-async def marquiz_webhook(data: MarquizWebhookData, request: Request) -> ValidationResult:
+async def marquiz_webhook(data: MarquizWebhookData, request: Request,
+    project_id: Optional[uuid.UUID] = None, secret: Optional[str] = None,
+    db: Session = Depends(get_db)) -> ValidationResult:
     """Обработка webhook от Marquiz."""
-    logger.info(f"Marquiz webhook received: phone={data.phone}, quiz={data.quiz}")
+    bound = None
+    if _env_bool('LEAD_DELIVERY_GUARDS'):
+        from lead_validator.services.webhook_scope import authorize
+        bound = authorize(db, request, project_id, secret)
     
     # UTM может быть в отдельных полях или в source URL
     utm_source = data.utm_source
@@ -386,6 +399,9 @@ async def marquiz_webhook(data: MarquizWebhookData, request: Request) -> Validat
     # User-Agent из данных
     user_agent = data.userAgent
     
+    if bound is not None:
+        return await lead_validator.validate(lead, client_ip=client_ip, db=db,
+            form_data=data.model_dump(), skip_request_validation=True, skip_antibot_validation=True, **bound)
     # Валидируем
     result = await lead_validator.validate(
         lead, 

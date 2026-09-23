@@ -6,11 +6,19 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+import sqlalchemy as sa
 
 from core import models, security
 from core.database import get_db
+from core.runtime import env_bool
 
 router = APIRouter(prefix="/phone-leads", tags=["Phone Leads"])
+
+
+def _intake_state():
+    intake = models.LeadIntake
+    return sa.case((sa.and_(intake.state == 'processing', intake.deadline <= sa.func.clock_timestamp()), 'held'),
+                   else_=intake.state)
 
 
 class PhoneLeadListItem(BaseModel):
@@ -20,6 +28,8 @@ class PhoneLeadListItem(BaseModel):
     name: Optional[str] = None
     created_at: Optional[datetime] = None
     is_accepted: bool
+    status: Optional[str] = None
+    validation_state: Optional[str] = None
     rejection_reason: Optional[str] = None
     phone_project_id: uuid.UUID
     lead_score: Optional[int] = None
@@ -36,6 +46,7 @@ class PhoneLeadDetail(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     status: Optional[str] = None
+    validation_state: Optional[str] = None
     is_accepted: bool
     rejection_reason: Optional[str] = None
 
@@ -111,8 +122,11 @@ def list_phone_leads(
 
     if project_id:
         query = query.filter(models.Lead.project_id == project_id)
-    if is_accepted is not None:
-        query = query.filter(models.Lead.is_valid == is_accepted)
+    accepted = sa.and_(models.Lead.status == models.LeadStatus.VALID, models.Lead.is_spam.is_(False))
+    if is_accepted is True:
+        query = query.filter(accepted)
+    elif is_accepted is False:
+        query = query.filter(models.Lead.status.in_([models.LeadStatus.VALID, models.LeadStatus.INVALID, models.LeadStatus.SPAM]), ~accepted)
     if start_date:
         start_dt = datetime.combine(start_date, time.min)
         query = query.filter(models.Lead.created_at >= start_dt)
@@ -120,6 +134,11 @@ def list_phone_leads(
         end_dt = datetime.combine(end_date, time.max)
         query = query.filter(models.Lead.created_at <= end_dt)
 
+    if env_bool('LEAD_DELIVERY_GUARDS', False):
+        query = query.outerjoin(models.LeadIntake, sa.and_(models.LeadIntake.lead_id == models.Lead.id,
+            models.LeadIntake.owner_id == current_user.id)).add_columns(_intake_state())
+    else:
+        query = query.add_columns(sa.literal(None))
     leads = query.order_by(models.Lead.created_at.desc()).all()
 
     return [
@@ -129,14 +148,16 @@ def list_phone_leads(
             email=lead.email,
             name=lead.name,
             created_at=lead.created_at,
-            is_accepted=bool(lead.is_valid),
+            is_accepted=lead.status == models.LeadStatus.VALID and not lead.is_spam,
+            status=lead.status.value if lead.status else None,
+            validation_state=intake_state,
             rejection_reason=lead.validation_reason,
             phone_project_id=lead.project_id,
             lead_score=getattr(lead, "lead_score", None),
             qualification_tier=getattr(lead, "qualification_tier", None),
             has_viber=getattr(lead, "has_viber", None),
         )
-        for lead in leads
+        for lead, intake_state in leads
     ]
 
 
@@ -178,13 +199,18 @@ def get_phone_lead_detail(
                 return {"raw": raw_value}
         return {"value": raw_value}
 
+    intake_state = None
+    if env_bool('LEAD_DELIVERY_GUARDS', False):
+        intake_state = db.scalar(sa.select(_intake_state()).where(
+            models.LeadIntake.lead_id == lead.id, models.LeadIntake.owner_id == current_user.id))
     return PhoneLeadDetail(
         id=lead.id,
         phone_project_id=lead.project_id,
         created_at=lead.created_at,
         updated_at=lead.updated_at,
         status=str(lead.status.value if getattr(lead.status, "value", None) else lead.status) if lead.status is not None else None,
-        is_accepted=bool(lead.is_valid),
+        is_accepted=lead.status == models.LeadStatus.VALID and not lead.is_spam,
+        validation_state=intake_state,
         rejection_reason=lead.validation_reason,
         phone=lead.phone,
         email=lead.email,
@@ -227,4 +253,3 @@ def get_phone_lead_detail(
         exported_to_metrica=lead.exported_to_metrica,
         export_timestamp=lead.export_timestamp,
     )
-

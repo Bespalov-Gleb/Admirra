@@ -55,7 +55,13 @@ class Snapshot:
 
 def prepare(db, payload):
     project, lead = require_scope(db, payload)
-    channel = payload['channel']
+    return snapshot_for(db, project, lead, payload['channel'])
+
+
+def snapshot_for(db, project, lead, channel):
+    """SQL-only payload construction shared with operator evidence verification."""
+    if channel not in CHANNELS:
+        raise RejectedBeforeExternalIO('Unsupported lead export channel')
     if getattr(lead, 'exported_to_' + channel):
         return None
     data = {column.name: getattr(lead, column.name) for column in models.Lead.__table__.columns

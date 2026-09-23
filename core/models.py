@@ -1658,7 +1658,7 @@ class LeadIntake(Base):
     deadline = Column(DateTime(timezone=True), nullable=False)
     __table_args__ = (
         UniqueConstraint("project_id", "owner_id", "key_digest", name="uq_lead_intake_key"),
-        CheckConstraint("state IN ('processing','done','held')", name="ck_lead_intake_state"),
+        CheckConstraint("state IN ('processing','done','held','closed')", name="ck_lead_intake_state"),
         Index("ix_lead_intake_pending", "state", "deadline"),
     )
 

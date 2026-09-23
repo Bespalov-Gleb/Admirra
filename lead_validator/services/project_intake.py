@@ -195,7 +195,7 @@ def begin(db, project_id, lead, *, form_data, user_agent, referer, key=None, aut
         if current:
             if current.payload_digest != fingerprint:
                 raise HTTPException(409, 'Idempotency-Key уже использован для другого запроса')
-            if current.state == 'done':
+            if current.state in ('done', 'closed'):
                 return ValidationResult.model_validate(current.result)
             raise HTTPException(409, 'Проверка выполняется или требует сверки; повторная обработка запрещена')
         snapshot = SimpleNamespace(**{c.name: getattr(project, c.name) for c in models.PhoneProject.__table__.columns})
