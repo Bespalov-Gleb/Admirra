@@ -120,7 +120,8 @@ validation выполняются реально; production `apply`, рассы
 `sha256:57ac503afcdf6136a90d4bbb9903975ed98cefd9c1ca927a465f4d085930a8dd`.
 В этом immutable image parallel VK/Direct/Metrica/OpenRouter/PDF probe прошёл
 за 7.897 s (13 запросов, один AI за $0.00019). Итого AI-проверки этого этапа
-$0.00057. Полный manifest запущен повторно; результат пока ожидается.
+$0.00057. Полный immutable manifest повторён: **1623 passed, 1 skipped,
+1 deselected, 6 subtests passed**, 882.55 s. Ошибок нет.
 Production images/schema/workers не переключались.
 
 Подготовлен [единый launch profile и границы rollback](devops-cutover-launch-profile-2026-09-24.md).
@@ -154,3 +155,26 @@ Profile/provider-budget проверки: **8 passed**, network=none. Этот s
 подтверждением отдельного хранения recovery key и наблюдением canary.
 В 03:00/05:00 МСК переключение запрещено; approval владельца «выкатываем»
 не является доказательством сохранённой им офлайн-копии ключа.
+
+## Итог остановки перед production mutation
+
+Закрыты scoped two-host mixed/recovery, provider IO + AI/PDF, полный image
+regression и restore с launch flags. Артефакт присутствует на обоих узлах.
+Подготовлен и проверен compatible API-only degraded rollback; полноценный
+возврат новых durable consumers к legacy не допускается.
+
+Последний read-only production audit: schema `cc3d4e5f6a7b`, queued/running sync=0,
+sending reports=0, recent AI=0, recent payment intents=0. Public `/` и SMTP
+readiness — 200, private API2 readiness — 200; Prometheus active alerts пуст.
+Не путать отсутствующий legacy `/api/health` (404) с readiness endpoint.
+
+**Не выложено:** candidate API/frontend, новые worker consumers/calendar,
+production migrations и расширение доли API2. Admission остаётся open.
+Офлайн-копия ключа владельцем пока не подтверждена; отправлен отдельный вопрос.
+До ответа и свежего window/preflight mutation не выполнялась. Подготовка
+профиля не заменяет реальный render/проверку role configs перед cutover.
+
+Raw sanitized evidence: server2 `/opt/admirra-staging/24f58b7/final-*.log`,
+`final-provider-read.jsonl`; локальная копия
+`/private/tmp/admirra-final-acceptance-20260924/`. Операционные исходники
+restore/rollback/profile тестировались отдельно от immutable application image.

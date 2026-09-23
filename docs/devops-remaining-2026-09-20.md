@@ -1,9 +1,12 @@
 # AdMirra DevOps — актуальный остаток до полного переключения
 
 **24.09, финальная приёмка:** [межсерверные 600 reads + recovery, новый restore и worker AI env](devops-final-load-2026-09-24.md).
-Два synthetic прогона и 44 recovery/contract теста прошли. Единственное падение
-полного manifest — старый ожидаемый rollback digest; исправлено, 25 gate tests
-прошли повторно. Live-provider peak и сам cutover пока **не выполнены**.
+Два synthetic прогона и 44 recovery/contract теста прошли. Финальный application
+image `24f58b7`: **1623 tests passed**, реальный scoped VK/Direct/Metrica + AI/PDF
+probe прошёл. Restore с полным launch profile и API-only degraded rollback
+проверены; ключевые ограничения описаны в отчёте. Сам cutover **не выполнен**:
+ждём подтверждения отдельного хранения recovery key, затем свежий preflight,
+render role configs, admission/drain, migrations и наблюдаемый rollout.
 
 Обновлено 24.09.2026: [окружение воркеров и общие файлы подготовлены и проверены](devops-worker-files-2026-09-24.md).
 Ближайшие этапы — общая межсерверная нагрузочная/recovery приёмка, затем управляемое переключение.
