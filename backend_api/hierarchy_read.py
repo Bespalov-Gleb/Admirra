@@ -1,4 +1,4 @@
-"""Detached Direct hierarchy collection with a guarded, short SQL apply.
+"""Detached Direct collection and shared Direct/VK guarded, short SQL apply.
 
 No schema or provider mutation. Client/integration locks use the same order as
 ads_sync_work.apply; an intervening sync/config change rejects the late result.
@@ -22,12 +22,13 @@ from core import models, security
 
 
 TABLES = (models.YandexStats, models.YandexGroups, models.YandexAds)
+VK_TABLES = (models.VKStats, models.VKGroups, models.VKBanners)
 logger = logging.getLogger(__name__)
 
 
-def _rows(db, campaign_id, client_id, start, end):
+def _rows(db, campaign_id, client_id, start, end, tables=TABLES):
     result = {}
-    for model in TABLES:
+    for model in tables:
         query = db.query(*model.__table__.columns).filter(model.campaign_id == campaign_id,
                                                        model.client_id == client_id, model.date <= end)
         if start:
@@ -51,21 +52,27 @@ class Plan:
     end: date
     user_id: object
     need_ads: bool
+    need_groups: bool = True
 
 
-def prepare(db, campaign_id, client_id, start, end, include_ads, user_id):
+def prepare(db, campaign_id, client_id, start, end, include_ads, user_id,
+            *, platform=models.IntegrationPlatform.YANDEX_DIRECT):
     _require_read_only(db)
+    if platform not in (models.IntegrationPlatform.YANDEX_DIRECT, models.IntegrationPlatform.VK_ADS):
+        raise ValueError("Unsupported hierarchy platform")
     try:
         begin_read_snapshot(db)
-        contract = _load(db, [client_id], models.IntegrationPlatform.YANDEX_DIRECT, [campaign_id], user_id)
+        contract = _load(db, [client_id], platform, [campaign_id], user_id)
         groups = list(contract.groups())
         if len(groups) != 1 or len(groups[0][1]) != 1:
             raise AttributionChanged()
         integration, campaigns = groups[0]
         campaign = campaigns[0]
-        rows = _rows(db, campaign_id, client_id, start, end)
+        tables = VK_TABLES if platform == models.IntegrationPlatform.VK_ADS else TABLES
+        rows = _rows(db, campaign_id, client_id, start, end, tables)
         return Plan(contract, campaign, integration, _digest(rows), start, end, user_id,
-                    bool(include_ads and not rows[models.YandexAds]))
+                    bool(include_ads and not rows[tables[2]]),
+                    not rows[tables[1]] if platform == models.IntegrationPlatform.VK_ADS else True)
     finally:
         db.rollback()
 
@@ -163,26 +170,30 @@ async def collect(plan):
 
 def apply(db, plan, operations):
     _require_read_only(db)
+    platform = plan.integration.platform
+    tables = VK_TABLES if platform == models.IntegrationPlatform.VK_ADS else TABLES
     try:
         db.rollback()
         # Match sync's lock order. Locks exist only while applying, not in IO.
         db.scalar(select(models.Client).where(models.Client.id == plan.integration.client_id).with_for_update())
         db.scalar(select(models.Integration).where(models.Integration.id == plan.integration.id).with_for_update())
         db.scalar(select(models.Campaign).where(models.Campaign.id == plan.campaign.id).with_for_update())
-        current = _load(db, [plan.integration.client_id], models.IntegrationPlatform.YANDEX_DIRECT,
+        current = _load(db, [plan.integration.client_id], platform,
                         [plan.campaign.id], plan.user_id)
         if current != plan.contract or _digest(_rows(db, plan.campaign.id, plan.integration.client_id,
-                                                     plan.start, plan.end)) != plan.baseline:
+                                                     plan.start, plan.end, tables)) != plan.baseline:
             raise AttributionChanged()
         # One read per table, not one SELECT per row. Natural keys deliberately
         # exclude mutable campaign/group names (renames must not add duplicates).
         existing = {}
-        for model in TABLES:
+        for model in tables:
             rows = db.query(model).filter(model.campaign_id == plan.campaign.id,
                                          model.client_id == plan.integration.client_id, model.date <= plan.end)
             if plan.start:
                 rows = rows.filter(model.date >= plan.start)
-            entity_key = "group_id" if model is models.YandexGroups else "ad_id" if model is models.YandexAds else None
+            entity_key = ("group_id" if model in (models.YandexGroups, models.VKGroups)
+                          else "ad_id" if model is models.YandexAds
+                          else "banner_id" if model is models.VKBanners else None)
             indexed = {}
             for row in rows:
                 key = (row.date, getattr(row, entity_key) if entity_key else None)

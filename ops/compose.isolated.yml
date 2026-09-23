@@ -48,6 +48,7 @@ services:
       - tests/test_read_snapshot.py
       - tests/test_attribution_read.py
       - tests/test_hierarchy_read.py
+      - tests/test_vk_hierarchy_read.py
       - tests/test_mixed_read_workload.py
       - tests/test_durable_work.py
       - tests/test_calendar_work.py
