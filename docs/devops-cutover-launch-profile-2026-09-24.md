@@ -63,10 +63,17 @@ report/AI, остановить новый scheduler, дать running consumers
 доказывает, что сообщение или платёж не отправлены. API, callbacks и финансовые
 guards остаются на совместимом runtime; unknown требует reconciliation, не replay.
 
-Это **containment/degraded mode**, не доказательство полного обратного cutover.
-До activation требуется репетиция совместимого rollback либо проверенного bridge
-на isolated migrated DB. Crash/recovery Celery и старые image tags этот gate
-сами по себе не закрывают.
+Это **containment/degraded mode**, не полный возврат на legacy runtime.
+Репетиция такого API-only rollback выполнена на isolated migrated DB:
+candidate `24f58b7` создал synthetic queued/uncertain jobs, API `eb9550c`
+(`sha256:b959c09111a5278493e072452cec334bce7be4dda6e250a72c29be716eda1482`)
+прошёл startup с launch guards и 40/40 HTTP reads. Старый compatible ledger
+сохранил queued/uncertain и отказал в replay; повторный candidate check прошёл.
+Network=none; production DB не использовалась. Этот резервный image отличается
+в business source только parser/sync исправлениями: из-за известных Direct
+ошибок на нём запрещён запуск sync consumers. При таком rollback фоновые работы
+ждут forward fix, а API/очередь сохраняются. Это не полнофункциональный worker
+rollback и не повод запускать legacy consumers.
 
 ## Что не выполнено этим файлом
 

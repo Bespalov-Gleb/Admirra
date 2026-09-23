@@ -9,6 +9,16 @@ backup_id=$1
 migration_image=${2:-}
 expected_head=${3:-}
 current_schema_only=${ADMIRRA_RESTORE_CURRENT_SCHEMA:-0}
+launch_profile=${ADMIRRA_LAUNCH_PROFILE:-0}
+rollback_probe=${ADMIRRA_ROLLBACK_LEDGER_SMOKE:-0}
+if [ "$launch_profile" = 1 ] && [ "$current_schema_only" = 1 ]; then
+  echo "launch profile cannot run on the legacy schema" >&2
+  exit 2
+fi
+if [ "$rollback_probe" = 1 ] && [ "$launch_profile" != 1 ]; then
+  echo "rollback ledger smoke requires launch guards" >&2
+  exit 2
+fi
 if [ "$current_schema_only" = 1 ]; then
   : "${ADMIRRA_APPLICATION_IMAGE:?Current-schema smoke requires a separate application image}"
   if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" != 1 ] || [ "${ADMIRRA_WORKER_SMOKE:-0}" = 1 ]; then
@@ -195,6 +205,32 @@ if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
   test -d "$runtime_directory/root/Admirra/uploads"
   test -d "$runtime_directory/root/Admirra/secrets"
   chown -R 10001:10001 "$runtime_directory/root/Admirra"
+  launch_args=()
+  if [ "$launch_profile" = 1 ]; then
+    # Only this ephemeral decrypted COPY changes ownership, never live PKI.
+    test -s "$runtime_directory/etc/admirra/artifact-api1/client.crt"
+    chown -R 10001:10001 "$runtime_directory/etc/admirra/artifact-api1"
+    flags=$(python3 -c 'import json,re,sys
+data=json.load(open(sys.argv[1]))
+assert data and all(re.fullmatch("[A-Z][A-Z0-9_]*", k) and v in ("true", "false") for k,v in data.items())
+print("\n".join(k+"="+v for k,v in sorted(data.items())))' "$release_dir/../launch_flags.json")
+    while IFS= read -r flag; do launch_args+=(-e "$flag"); done <<< "$flags"
+    launch_args+=(-v "$runtime_directory/etc/admirra/artifact-api1:/run/artifact:ro"
+      -e ARTIFACT_BASE_URL=https://10.77.0.1:9443 -e ARTIFACT_CA_FILE=/run/artifact/ca.crt
+      -e ARTIFACT_CERT_FILE=/run/artifact/client.crt -e ARTIFACT_KEY_FILE=/run/artifact/client.key
+      -e ARTIFACT_TOKEN_FILE=/run/artifact/token)
+  fi
+
+  ledger_probe() {
+    docker run --rm -i --network "container:$container" --read-only --tmpfs /tmp:size=64m \
+      --user 10001:10001 --memory 512m --cpus 1 --pids-limit 128 --cap-drop ALL \
+      --security-opt no-new-privileges:true \
+      -e DATABASE_URL=postgresql://postgres:isolated-restore-only@127.0.0.1:5432/restore \
+      -e WW_TEST=1 -e "WW_TEST_ID=restore-$suffix" -e APP_PROCESS_ROLE=api \
+      -e "EXPECTED_SCHEMA_REVISION=$expected_head" -e LOG_TO_STDOUT=true \
+      -v "$runtime_directory/root/Admirra/.env:/app/.env:ro" \
+      "${launch_args[@]}" "$1" python - "$2" < "$release_dir/rollback_ledger_smoke.py"
+  }
 
   if [ "$current_schema_only" != 1 ]; then
   docker run --rm \
@@ -224,6 +260,7 @@ if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
     -v "$runtime_directory/root/Admirra/.env:/app/.env:ro" \
     -v "$runtime_directory/root/Admirra/secrets:/app/secrets:ro" \
     --entrypoint python \
+    "${launch_args[@]}" \
     "$migration_image" -c 'from automation.work_preflight import check; check()'
   worker_preflight=passed
   fi
@@ -292,6 +329,7 @@ if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
         -v "$runtime_directory/root/Admirra/.env:/app/.env:ro" \
         -v "$runtime_directory/root/Admirra/uploads:/app/uploads:ro" \
         -v "$runtime_directory/root/Admirra/secrets:/app/secrets:ro" \
+        "${launch_args[@]}" \
         "$migration_image" python -m automation.work_worker \
         "--concurrency=$concurrency" "--queues=$queues" "--hostname=$role@restore" >/dev/null
       worker_containers+=("$worker")
@@ -348,6 +386,10 @@ if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
   fi
   application_image=${ADMIRRA_APPLICATION_IMAGE:-$migration_image}
   docker image inspect "$application_image" >/dev/null
+  if [ "$rollback_probe" = 1 ]; then
+    ledger_probe "$migration_image" seed
+    ledger_probe "$application_image" check
+  fi
   docker run -d \
     --name "$application_container" \
     --network "container:$container" \
@@ -382,6 +424,7 @@ if [ "${ADMIRRA_APPLICATION_SMOKE:-0}" = 1 ]; then
     -v "$runtime_directory/root/Admirra/.env:/app/.env:ro" \
     -v "$runtime_directory/root/Admirra/uploads:/app/uploads:ro" \
     -v "$runtime_directory/root/Admirra/secrets:/app/secrets:ro" \
+    "${launch_args[@]}" \
     "$application_image" >/dev/null
 
   ready=0
@@ -421,6 +464,9 @@ else:
     : "${ADMIRRA_TEST_ACCOUNT_EMAIL:?Select the approved test account}"
     docker exec -i "$application_container" python - --email "$ADMIRRA_TEST_ACCOUNT_EMAIL" \
       <"$release_dir/../performance/smoke.py"
+  fi
+  if [ "$rollback_probe" = 1 ]; then
+    ledger_probe "$migration_image" check
   fi
 fi
 

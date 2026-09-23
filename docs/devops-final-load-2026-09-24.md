@@ -72,7 +72,7 @@ recovery-копия на server 1 обновлена до нового backup. W
 в исходниках, документах, test artifacts или deployment evidence. Передача
 в чат сама по себе не доказывает отдельное офлайн-хранение.
 
-## Ещё не принятые gates
+## Gates на момент первого прогона (обновления ниже)
 
 - Scoped live-provider peak (manual/nightly provider IO + report render + AI,
   с жёстким budget и без customer sends/charges). Выполненные 44 теста этого
@@ -126,3 +126,31 @@ Production images/schema/workers не переключались.
 Подготовлен [единый launch profile и границы rollback](devops-cutover-launch-profile-2026-09-24.md).
 Profile/provider-budget проверки: **8 passed**, network=none. Этот source-overlay
 тест не выдаётся за часть полного immutable manifest или включённый production env.
+
+## Launch flags, восстановление и совместимый API-only rollback
+
+- `restore_logical_backup.sh` получил opt-in `ADMIRRA_LAUNCH_PROFILE=1` и
+  `ADMIRRA_ROLLBACK_LEDGER_SMOKE=1`. Проверки работают только на isolated restore
+  DB, сохраняют network=none; launch profile запрещён для старой схемы. Копия
+  mTLS credentials берётся из расшифрованного backup в временном каталоге;
+  live PKI и live env не меняются. Credentials удаляются штатной cleanup.
+- Candidate мигрировал копию до `f68b92a3b4c5`, создал synthetic queued/uncertain
+  admissions. Совместимый резервный API `eb9550c` с полным launch profile прошёл
+  startup и **40/40 HTTP 200**, p95 215.07 ms. Ledger не потерял очередь,
+  dedupe остался действующим, unknown не replay; повторный candidate check прошёл.
+  Весь restore/rollback smoke — **42 s**. Consumers в этом rollback выключены.
+- Этот резервный API не является прежним legacy backend `875ab667…`; это
+  durable-compatible API. Из-за известных Direct parser багов старта workers
+  из `eb9550c` при rollback не допускаем. Режим — обслуживать чтения и сохранять
+  backlog до forward fix, без возобновления внешних side effects.
+- Повторный restore с новым `24f58b7`, полным launch profile на API/четырёх
+  worker-группах и ledger markers: **passed, 71 s**, **64/64 HTTP 200**,
+  p95 1641.8 ms, max 1781.39 ms. Summary 64 × 4: 848.45 ms, 12 сравнений совпали.
+  Параллельно выполнялась полная регрессия. Это изолированная приёмка, не скорость
+  страницы в публичном production. Расписания/рассылки не запускались.
+- Дополнительные safety tests restore/rollback script: **16 passed**, 1.37 s.
+
+Остаётся фактическое контролируемое переключение с актуальным preflight,
+подтверждением отдельного хранения recovery key и наблюдением canary.
+В 03:00/05:00 МСК переключение запрещено; approval владельца «выкатываем»
+не является доказательством сохранённой им офлайн-копии ключа.
