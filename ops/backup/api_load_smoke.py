@@ -48,6 +48,21 @@ def percentile(values: list[float], fraction: float) -> float:
     return sorted(values)[max(0, math.ceil(len(values) * fraction) - 1)]
 
 
+def response_profile(label: str, body: bytes) -> dict:
+    """Aggregate size only; never output names, identifiers or field values."""
+    if label not in {'clients', 'project_cards', 'project_tree'}:
+        return {}
+    data = json.loads(body)
+    if label == 'project_tree':
+        rows = data.get('root_projects', []) + [p for f in data.get('folders', []) for p in f.get('projects', [])]
+    else:
+        rows = data
+    integrations = [item for row in rows for item in row.get('integrations', [])]
+    campaigns = [item for row in integrations for item in row.get('campaigns', [])]
+    return dict(projects=len(rows), integrations=len(integrations), campaigns=len(campaigns),
+        campaign_json_bytes=len(json.dumps(campaigns, ensure_ascii=False, separators=(',', ':')).encode()))
+
+
 def main() -> None:
     assert_isolated_restore()
     token = security.create_access_token({"sub": selected_user_email()})
@@ -91,14 +106,14 @@ def main() -> None:
         if len(body) > 10 * 1024 * 1024:
             raise RuntimeError("Restore API response exceeded load-smoke limit")
         digest = hashlib.sha256(body).hexdigest() if status == 200 else None
-        return label, status, elapsed, len(body), digest
+        return label, status, elapsed, len(body), digest, response_profile(label, body) if status == 200 else {}
 
     cold = {}
     for label, path in paths.items():
-        _, status, elapsed, size, digest = fetch((label, path))
+        _, status, elapsed, size, digest, profile = fetch((label, path))
         if status != 200:
             raise RuntimeError(f"Restore API warm-up failed: route={label} status={status}")
-        cold[label] = {"first_ms": round(elapsed * 1000, 2), "bytes": size, "sha256": digest}
+        cold[label] = {"first_ms": round(elapsed * 1000, 2), "bytes": size, "sha256": digest, **profile}
 
     started = time.perf_counter()
     with ThreadPoolExecutor(max_workers=4) as pool:
@@ -106,7 +121,7 @@ def main() -> None:
     duration = time.perf_counter() - started
     statuses: dict[int, int] = {}
     latencies = []
-    for _, status, elapsed, _, _ in results:
+    for _, status, elapsed, _, _, _ in results:
         statuses[status] = statuses.get(status, 0) + 1
         latencies.append(elapsed)
     evidence = {

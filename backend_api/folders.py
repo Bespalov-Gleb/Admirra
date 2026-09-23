@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from backend_api.access_control import get_accessible_client_ids, get_team_context
 from backend_api.services.history import log_history_event
@@ -18,6 +18,7 @@ from backend_api.services.subscription import SubscriptionService
 from backend_api.stats_service import StatsService
 from backend_api.summary_scope import SummaryScope
 from backend_api.summary_facts import SummaryFacts
+from backend_api.read_snapshot import begin_read_snapshot
 from core import models, schemas, security
 from core.database import get_db
 
@@ -69,11 +70,14 @@ def _folder_to_schema(folder: models.Folder, counts: dict) -> schemas.FolderResp
     )
 
 
-def _accessible_clients(db: Session, current_user: models.User) -> List[models.Client]:
+def _accessible_clients(db: Session, current_user: models.User, *, include_relations=False) -> List[models.Client]:
     ids = get_accessible_client_ids(db, current_user)
     if not ids:
         return []
-    return db.query(models.Client).filter(models.Client.id.in_(ids)).all()
+    query = db.query(models.Client).filter(models.Client.id.in_(ids))
+    if include_relations:
+        query = query.options(selectinload(models.Client.integrations).selectinload(models.Integration.campaigns))
+    return query.all()
 
 
 def _summary_with_combined_leads_cpl(
@@ -361,6 +365,7 @@ def projects_tree(
     """Дерево списка проектов: корень = папки + проекты вне папок.
     Сводка папки — сумма по вложенным ДОСТУПНЫМ проектам (member видит только свою часть).
     """
+    begin_read_snapshot(db)
     ctx = get_team_context(db, current_user)
     d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else d_end - timedelta(days=6)
@@ -373,7 +378,7 @@ def projects_tree(
     )
     folder_ids = {f.id for f in folders}
     counts = _folder_counts(db, list(folder_ids))
-    clients = _accessible_clients(db, current_user)
+    clients = _accessible_clients(db, current_user, include_relations=True)
     integration_scope = SummaryScope.load(db, [c.id for c in clients]) if with_stats else None
     summary_facts = SummaryFacts(integration_scope) if with_stats else None
 
@@ -425,6 +430,7 @@ def folder_breakdown(
     db: Session = Depends(get_db),
 ):
     """Разбивка сводки папки по филиалам (для аналитики папки: уровень «по филиалам»)."""
+    begin_read_snapshot(db)
     ctx = get_team_context(db, current_user)
     folder = _get_folder(db, ctx, folder_id)
     d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
@@ -475,6 +481,7 @@ def top_projects(
     Проекты без лидов остаются в самом конце и не могут попасть в список, пока
     есть проекты с рассчитанным CPL. Это исключает ложное «лучшее» значение 0 ₽.
     """
+    begin_read_snapshot(db)
     d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else d_end - timedelta(days=6)
     members = _accessible_clients(db, current_user)

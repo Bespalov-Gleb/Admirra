@@ -200,7 +200,10 @@ def test_top_projects_loads_metadata_once_after_access_resolution(summary_db, mo
                 for cid, name in ((a, "A"), (b, "B"))]
     monkeypatch.setattr(folders, "_accessible_clients", accessible)
     def checked(conn, cursor, sql, params, context, many):
-        assert access_checked, "metadata queried before resolving access"
+        # Transaction controls establish the snapshot before access resolution;
+        # actual metadata/fact reads must still follow the access check.
+        if sql.lstrip().upper().startswith("SELECT"):
+            assert access_checked, "metadata queried before resolving access"
     sa.event.listen(engine, "before_cursor_execute", checked)
     try:
         with statements(engine) as queries:

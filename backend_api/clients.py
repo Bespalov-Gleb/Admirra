@@ -3,7 +3,7 @@ from io import BytesIO
 from pathlib import Path
 from os import getenv
 from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from core.database import get_db
 from core import models, schemas, security
 from datetime import datetime, date, timedelta
@@ -13,6 +13,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from backend_api.stats_service import StatsService
 from backend_api.summary_scope import SummaryScope
 from backend_api.summary_facts import SummaryFacts
+from backend_api.read_snapshot import begin_read_snapshot
 from backend_api.services.subscription import SubscriptionService
 from backend_api.services.project_settings import get_detector_state, get_integration_state
 from backend_api.services.directions import normalize_label
@@ -56,12 +57,15 @@ def get_clients_with_stats(
     """
     Get all clients with aggregated statistics for a specified period.
     """
+    begin_read_snapshot(db)
     d_end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else datetime.utcnow().date()
     # Default to 7 days if no start_date provided
     d_start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else d_end - timedelta(days=6)
     
     accessible_ids = get_accessible_client_ids(db, current_user)
-    user_clients = db.query(models.Client).filter(models.Client.id.in_(accessible_ids)).all() if accessible_ids else []
+    user_clients = db.query(models.Client).options(
+        selectinload(models.Client.integrations).selectinload(models.Integration.campaigns)
+    ).filter(models.Client.id.in_(accessible_ids)).all() if accessible_ids else []
     integration_scope = SummaryScope.load(db, [client.id for client in user_clients])
     summary_facts = SummaryFacts(integration_scope)
     
@@ -83,10 +87,15 @@ def get_clients(
     """
     Get all clients owned by the current user.
     """
+    begin_read_snapshot(db)
     accessible_ids = get_accessible_client_ids(db, current_user)
     if not accessible_ids:
         return []
-    return db.query(models.Client).filter(models.Client.id.in_(accessible_ids)).all()
+    # ClientResponse includes integration/campaign lists. Load them in batches
+    # before serialization instead of one lazy SELECT per project/cabinet.
+    return db.query(models.Client).options(
+        selectinload(models.Client.integrations).selectinload(models.Integration.campaigns)
+    ).filter(models.Client.id.in_(accessible_ids)).all()
 
 @router.post("/", response_model=schemas.ClientResponse, status_code=status.HTTP_201_CREATED)
 def create_client(

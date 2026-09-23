@@ -8,6 +8,7 @@ from typing import List, Optional
 import uuid
 from time import monotonic
 from backend_api.stats_service import StatsService, resolve_previous_period
+from backend_api.read_snapshot import begin_read_snapshot
 from backend_api.top_ads_service import get_top_ads_with_images
 import csv
 import io
@@ -1310,6 +1311,11 @@ async def get_summary(
         if not u_goal_action_ids:
             u_goal_action_ids = None
 
+    # Campaign attribution still has a legacy live-provider path; do not hold
+    # a repeatable-read snapshot across that IO. Whole-project/folder reads are
+    # SQL-only and must not mix pre-sync cost with post-sync leads.
+    consistent_snapshot = begin_read_snapshot(db) if not u_campaign_ids else False
+
     if folder_id and not u_client_id:
         # Сводка папки: агрегат по вложенным проектам (member — только доступная часть)
         effective_client_ids = StatsService.resolve_folder_client_ids(db, current_user.id, folder_id)
@@ -1349,6 +1355,11 @@ async def get_summary(
         previous_campaign_lead_overrides=previous_campaign_lead_overrides,
         period_preset=period_preset,
     )
+
+    if consistent_snapshot:
+        # Visit bookkeeping is a separate short write, never part of the
+        # read-only metrics snapshot. The pool isolation is reset on return.
+        db.rollback()
 
     # §9.2/§9.5: метку просмотра и snapshot пишем ТОЛЬКО после проверки доступа.
     # Раньше достаточно было знать UUID чужого проекта, чтобы пометить его тёплым
@@ -1407,6 +1418,7 @@ def get_project_summaries(
     from backend_api.access_control import get_accessible_client_ids
     from backend_api.summary_scope import SummaryScope
     from backend_api.summary_facts import SummaryFacts
+    begin_read_snapshot(db)
     if not client_ids or len(client_ids) > 64:
         raise HTTPException(422, "Выберите от 1 до 64 проектов")
     ids = list(dict.fromkeys(client_ids))
