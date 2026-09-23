@@ -4,6 +4,13 @@
 
 ## Новый candidate, не production
 
+**Предрелизная инвентаризация 23.09:** [фактический runtime и обязательный остаток](devops-production-preflight-2026-09-23.md).
+Не путать готовые исходники с развёрнутыми сервисами: worker runtime/env/data
+и private artifact service ещё не установлены, финальная multi-host/mixed-load
+приёмка не выполнена. Сохранён актуальный rollback baseline со скидочным релизом,
+создан свежий backup, запускается полный immutable-image regression. Admission
+open, production schema/API/automation не переключались.
+
 **Продолжение 23.09 — раскрытие групп/объявлений VK:** `a5635d5`, detached collection и
 shared guarded apply; ошибка API больше не считается успешной пустой
 статистикой, unknown token context отклоняется. Catalog scope/pagination,

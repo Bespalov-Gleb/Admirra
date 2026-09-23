@@ -1,27 +1,27 @@
 {
   "format": "admirra-rollback-images-v1",
-  "captured_at": "2026-09-20T23:18:00Z",
+  "captured_at": "2026-09-23T20:26:55Z",
   "host": "server-1",
   "images": {
     "backend": {
       "container": "admirra-backend-1",
-      "image": "sha256:4ca866ebddc4c3af8b1ef4d2905e099453c6e8b6b768192508991b89e8421219",
-      "tag": "admirra-rollback/backend:summary-df31bc8"
+      "image": "sha256:d497fa5d99258cf7cb36858984bdd1f18d0371a2e368807972cecfedfb613a93",
+      "tag": "admirra-rollback/backend:pre-cutover-20260923"
     },
     "automation": {
       "container": "admirra-automation-1",
-      "image": "sha256:33b4ca03408c55cd11093fa3c4f9b86ecf1f323f50636222a43ea71bb4217ab8",
-      "tag": "admirra-rollback/automation:pre-cutover-20260920"
+      "image": "sha256:e6f8ebec4a2de0e780bb7d867a783448377409a44f0758af59a17f15bccdf1bc",
+      "tag": "admirra-rollback/automation:pre-cutover-20260923"
     },
     "frontend": {
       "container": "admirra-frontend-1",
-      "image": "sha256:274aad1d3027412d1a600927f0a388c02f76b487cbeee8ce3670804f73c28a1a",
-      "tag": "admirra-rollback/frontend:reads-c39e7e2"
+      "image": "sha256:09aaa07dec7a855b98bdc52007b3e1838b925ba2c3167192242f81395663e929",
+      "tag": "admirra-rollback/frontend:pre-cutover-20260923"
     },
     "admin_frontend": {
       "container": "admirra-admin_frontend-1",
       "image": "sha256:3023714f37d9bc7f675db78085068a4a200a78690f588751cd768555196aaa5e",
-      "tag": "admirra-rollback/admin-frontend:pre-cutover-20260920"
+      "tag": "admirra-rollback/admin-frontend:pre-cutover-20260923"
     }
   }
 }

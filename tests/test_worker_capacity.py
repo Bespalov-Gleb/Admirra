@@ -21,6 +21,14 @@ def prepared():
     return {"services": services}, budget
 
 
+def test_worker_schema_expectation_requires_release_input():
+    text = (Path(__file__).parents[1] / 'ops/compose.workers.yml').read_text()
+    values = [line.strip() for line in text.splitlines() if 'EXPECTED_SCHEMA_REVISION:' in line]
+    assert values == ['EXPECTED_SCHEMA_REVISION: ${ADMIRRA_SCHEMA_REVISION:?Set the tested migration head}']
+    # One runtime anchor inherited by workers and scheduler; no old fixed head.
+    assert 'environment: &runtime' in text and '<<: *runtime' in text
+
+
 def test_worker_child_parent_heartbeat_budget():
     compose, budget = prepared()
     result = assess(compose, budget)
