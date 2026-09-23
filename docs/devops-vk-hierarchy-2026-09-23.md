@@ -1,6 +1,6 @@
 # VK hierarchy: detached fetch и атомарное сохранение
 
-23.09.2026. Локальный candidate, **не production deployment**.
+23.09.2026. Локальный candidate `a5635d5`, **не production deployment**.
 
 ## Что изменено
 
@@ -46,8 +46,33 @@ legacy foreign-client rows, duplicate keys, pending edits, настоящий ro
 тесте: выбранный диапазон поместился в один интервал существующего helper-а).
 Тестовый диапазон увеличен на день, чтобы фактически пересечь границу.
 После этого добавлены foreign-client и malformed normalized payload cases.
-Окончательные image regression/restore результаты фиксируются ниже после
-завершения, не считаются выполненными заранее.
+Расширенный source-overlay прогон: **272 passed, 1 skipped, 164 warnings**,
+178,22 s, exit 0. В новом VK hierarchy файле — 42 cases.
+Проверены VK/Direct hierarchy, attribution, ads sync contract/work,
+VK/Direct API, transport, summary/Avito, assistant VK reporting, API-role boot.
+Skip — optional previous-release differential comparison, не ошибка.
+
+Чистый image `admirra-devops:a5635d5`:
+`sha256:5642c39fa1134a840e4b3f3657ffb2c77de232c8ed6e631c21a353189cc2075c`.
+606 allowlisted Git-файлов, без secrets/uploads/dirty frontend.
+Artifact-only regression: **272 passed, 1 skipped, 164 warnings**, 175,21 s,
+exit 0. Mounts=[]; Docker test network internal=true. Полный isolated manifest
+не повторялся.
+
+Restore того же image: backup `20260922T221413Z-b1eea7ec`, head
+`f68b92a3b4c5`, **65 s**, network=none, exit 0 (включая cleanup).
+Worker preflight/boot, application smoke и **64/64 HTTP 200** прошли.
+Compact/full metadata эквивалентны. Summary batch: 64 проекта × 4 канала,
+12 индивидуальных сравнений, access guards passed, 781,37 ms.
+Read smoke: 12,036 s, concurrency 4, по 8 запросов на маршрут,
+aggregate p95 1590,47 ms. Это короткий smoke, **не SLO/capacity acceptance**.
+Workers проходят startup/ping, не реальную нагрузку очередей; внешние
+отправки/платежи/LLM в restored окружении отключены.
+
+Root-only логи сервера 2: `/opt/admirra-staging/a5635d5/source-tests.log`,
+`artifact-tests.log`, `restore.log`. Isolated compose project
+`admirra-vk-hierarchy-review`, restore containers/volumes и runtime tmpfs
+удалены; image/логи сохранены. Production не изменён.
 
 ## Границы
 

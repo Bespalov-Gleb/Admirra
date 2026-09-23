@@ -4,12 +4,13 @@
 
 ## Новый candidate, не production
 
-**Продолжение 23.09 — раскрытие групп/объявлений VK:** detached collection и
+**Продолжение 23.09 — раскрытие групп/объявлений VK:** `a5635d5`, detached collection и
 shared guarded apply; ошибка API больше не считается успешной пустой
 статистикой, unknown token context отклоняется. Catalog scope/pagination,
 смена доступа/настроек, параллельный sync и отмена покрываются isolated тестами.
-[Контракт и приёмка](devops-vk-hierarchy-2026-09-23.md). Окончательные результаты
-регрессии/image/restore ещё фиксируются; production не изменён. Historical
+[Контракт и приёмка](devops-vk-hierarchy-2026-09-23.md). Чистый image:
+**272 targeted tests passed**, restore 65 s до `f68b92a3b4c5`, API/workers boot,
+**64/64 HTTP 200**; полный manifest не повторялся. Production не изменён. Historical
 coverage/watermark и оставшиеся live paths остаются отдельными задачами.
 
 **Продолжение 23.09 — раскрытие кампаний Direct:** `9e54bb8`. Отчёты и каталоги групп/
