@@ -9,6 +9,7 @@ import re
 import json
 import uuid
 import os
+import hmac
 from urllib.parse import urlparse, parse_qs
 from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, Request, HTTPException, Depends, Body, Body
@@ -454,9 +455,17 @@ async def phone_project_webhook(
 
     # Проверяем секрет (header или query)
     provided_secret = request.headers.get("x-webhook-secret") or secret
-    if project.webhook_secret and PHONE_WEBHOOK_SECRET_CHECK_ENABLED:
-        if not provided_secret or provided_secret != project.webhook_secret:
+    from core.runtime import env_bool
+    guarded = env_bool('LEAD_DELIVERY_GUARDS', False)
+    authorization_digest = None
+    if guarded and not project.webhook_secret:
+        raise HTTPException(status_code=503, detail="Webhook secret must be configured")
+    if project.webhook_secret and (guarded or PHONE_WEBHOOK_SECRET_CHECK_ENABLED):
+        if not provided_secret or not hmac.compare_digest(provided_secret.encode(), project.webhook_secret.encode()):
             raise HTTPException(status_code=401, detail="Invalid webhook secret")
+    if guarded:
+        from lead_validator.services.project_intake import scope
+        authorization_digest = scope(project)
     
     # Извлекаем основные поля (поддерживаем плоский формат и вложенный Marquiz: contacts, extra)
     contacts = data.get("contacts") or {}
@@ -544,6 +553,8 @@ async def phone_project_webhook(
         form_data=data,  # Сохраняем все данные формы
         skip_request_validation=True,
         skip_antibot_validation=True,
+        idempotency_key=request.headers.get('idempotency-key'),
+        authorization_digest=authorization_digest,
     )
     
     logger.info(f"Phone project lead result: success={result.success}, phone={phone}")
@@ -778,4 +789,3 @@ def _get_client_ip(request: Request) -> str:
         return request.client.host
     
     return "unknown"
-

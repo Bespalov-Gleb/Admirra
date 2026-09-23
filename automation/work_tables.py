@@ -57,3 +57,15 @@ lead_deliveries = sa.Table(
     sa.Column("confirmed_at", sa.DateTime(timezone=True)),
     sa.CheckConstraint("state IN ('sending','sent','rejected')", name="ck_lead_alert_delivery_state"),
 )
+
+lead_exports = sa.Table(
+    "lead_export_receipts", metadata,
+    sa.Column("job_id", UUID(as_uuid=True), sa.ForeignKey("background_jobs.id", ondelete="CASCADE"), primary_key=True),
+    sa.Column("scope_digest", sa.String(64), nullable=False),
+    sa.Column("body_digest", sa.String(64), nullable=False),
+    sa.Column("state", sa.String(16), nullable=False),
+    sa.Column("provider_ref", sa.String(128)),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    sa.Column("confirmed_at", sa.DateTime(timezone=True)),
+    sa.CheckConstraint("state IN ('sending','sent','rejected')", name="ck_lead_export_receipt_state"),
+)

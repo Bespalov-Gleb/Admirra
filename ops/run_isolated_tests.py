@@ -25,6 +25,7 @@ def main():
     os.environ["DIRECT_EXPORT_FRESHNESS_GUARDS"] = "false"
     os.environ["CONSUMER_REFRESH_ENABLED"] = "false"
     os.environ["BILLING_PROVIDER_QUEUE"] = "false"
+    os.environ["LEAD_DELIVERY_GUARDS"] = "false"
     for flag in ("AI_FRESHNESS_GUARDS", "SHEETS_FRESHNESS_GUARDS", "DETECTOR_FRESHNESS_GUARDS"):
         os.environ[flag] = "false"
     os.environ["SHARED_READ_CACHE"] = "false"

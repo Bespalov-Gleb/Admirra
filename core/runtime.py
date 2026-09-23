@@ -62,4 +62,6 @@ def get_runtime(env: Mapping[str, str] | None = None) -> Runtime:
         raise ValueError("Consumer refresh requires durable report freshness")
     if env_bool("BILLING_PROVIDER_QUEUE", False, values) and not env_bool("DURABLE_TASKS", False, values):
         raise ValueError("Billing provider queue requires durable tasks")
+    if env_bool("LEAD_DELIVERY_GUARDS", False, values) and not env_bool("DURABLE_TASKS", False, values):
+        raise ValueError("Lead delivery guards require durable tasks")
     return Runtime(role, bootstrap, sync, scheduler)

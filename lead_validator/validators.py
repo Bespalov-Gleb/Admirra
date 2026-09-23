@@ -4,6 +4,7 @@
 """
 
 import logging
+import asyncio
 import time
 import json
 import uuid
@@ -145,6 +146,7 @@ class LeadValidator:
         form_data: Optional[dict] = None,
         skip_request_validation: bool = False,
         skip_antibot_validation: bool = False,
+        *, _context=None, idempotency_key: Optional[str] = None, authorization_digest: Optional[str] = None,
     ) -> ValidationResult:
         """
         Главный метод валидации лида.
@@ -156,11 +158,19 @@ class LeadValidator:
         Returns:
             ValidationResult с результатом проверки
         """
+        from core.runtime import env_bool
+        if _context is None and project_id and env_bool("LEAD_DELIVERY_GUARDS", False):
+            from lead_validator.services.project_intake import run
+            return await run(self, lead, client_ip, user_agent, referer, project_id, db,
+                             form_data, skip_request_validation, skip_antibot_validation, idempotency_key,
+                             authorization_digest=authorization_digest)
         start_time = time.time()
-        
+        reject = _context.reject if _context else self._reject
+        accept = _context.accept if _context else self._accept
+
         # Загружаем project для проектных настроек (spam/bitrix gating)
-        project = None
-        if project_id and db:
+        project = _context.project if _context else None
+        if project_id and db and _context is None:
             project = db.query(models.PhoneProject).filter_by(id=project_id).first()
         
         # Сохраняем IP в lead для логирования
@@ -168,64 +178,65 @@ class LeadValidator:
             lead.client_ip = client_ip
         
         # === Уровень 0: CAPTCHA (Yandex SmartCaptcha) ===
-        captcha_passed, captcha_error = await captcha_validator.validate(
-            lead.smart_token or "", 
-            client_ip
-        )
+        if _context:
+            from lead_validator.services.project_captcha import validate as project_captcha
+            captcha_passed, captcha_error = await project_captcha(project, lead.smart_token or "", client_ip)
+        else:
+            captcha_passed, captcha_error = await captcha_validator.validate(lead.smart_token or "", client_ip)
         if not captcha_passed:
-            return await self._reject(lead, f"captcha_failed: {captcha_error}", start_time)
+            return await reject(lead, f"captcha_failed: {captcha_error}", start_time)
         
         # === Уровень 0.5: HTTP заголовки (User-Agent, Referer) ===
         # Пропускаем для webhook (Marquiz, Tilda) — запрос приходит с серверов, авторизация по X-Webhook-Secret
         if not skip_request_validation and user_agent is not None:
             request_check = request_validator.validate(user_agent, referer)
             if not request_check.is_valid:
-                return await self._reject(lead, request_check.rejection_reason or "request_invalid", start_time)
+                return await reject(lead, request_check.rejection_reason or "request_invalid", start_time)
         
         # === Уровень 1: Антибот ===
         if not skip_antibot_validation:
             rejection = await self._check_antibot(lead)
             if rejection:
-                return await self._reject(lead, rejection, start_time)
+                return await reject(lead, rejection, start_time)
         
         # === Уровень 2: Качество данных ===
         rejection = self._check_data_quality(lead)
         if rejection:
-            return await self._reject(lead, rejection, start_time)
+            return await reject(lead, rejection, start_time)
         
         # === Уровень 3: Rate Limiting по IP ===
-        if client_ip:
+        if client_ip and _context is None:
             allowed = await redis_service.check_rate_limit(client_ip)
             if not allowed:
-                return await self._reject(
+                return await reject(
                     lead, 
                     "rate_limit_exceeded_ip", 
                     start_time
                 )
         
         # === Уровень 3.5: Rate Limiting по телефону ===
-        allowed_phone = await redis_service.check_phone_rate_limit(lead.phone)
+        allowed_phone = True if _context else await redis_service.check_phone_rate_limit(lead.phone)
         if not allowed_phone:
-            return await self._reject(
+            return await reject(
                 lead,
                 "rate_limit_exceeded_phone",
                 start_time
             )
         
         # === Уровень 4: Дедупликация телефона ===
-        is_duplicate = await redis_service.is_duplicate(lead.phone)
+        is_duplicate = False if _context else await redis_service.is_duplicate(lead.phone)
         if is_duplicate:
-            return await self._reject(lead, "duplicate_phone", start_time)
+            return await reject(lead, "duplicate_phone", start_time)
         
         # === Уровень 4.5: Дедупликация email ===
-        if lead.email:
+        if lead.email and _context is None:
             is_email_dup = await redis_service.is_email_duplicate(lead.email)
             if is_email_dup:
-                return await self._reject(lead, "duplicate_email", start_time)
+                return await reject(lead, "duplicate_email", start_time)
         
         # === Уровень 4.6: Проверка в CRM (Bitrix24) ===
         # Информационная проверка - не отклоняем, но логируем если контакт найден
-        run_bitrix = (project is None or getattr(project, "enable_bitrix_check", False)) and bitrix_service.enabled
+        run_bitrix = _context is None and (project is None or getattr(project, "enable_bitrix_check", False)) and bitrix_service.enabled
         if run_bitrix:
             bitrix_duplicate = await bitrix_service.find_duplicates(phone=lead.phone, email=lead.email)
         else:
@@ -240,9 +251,10 @@ class LeadValidator:
         
         # === Уровень 4.6: MX-записи email домена ===
         if lead.email and settings.MX_CHECK_ENABLED:
-            mx_result = email_mx_validator.check_mx(lead.email)
+            mx_result = (await asyncio.to_thread(email_mx_validator.check_mx, lead.email)
+                         if _context else email_mx_validator.check_mx(lead.email))
             if not mx_result.has_mx:
-                return await self._reject(
+                return await reject(
                     lead, 
                     f"email_no_mx:{mx_result.error or 'no_records'}", 
                     start_time
@@ -263,10 +275,12 @@ class LeadValidator:
         
         if dadata_result is None:
             # DaData недоступен
-            if settings.FAIL_OPEN_MODE:
+            if settings.FAIL_OPEN_MODE and _context:
+                pass  # Continue the remaining checks; do not bypass spam/UTM policy.
+            elif settings.FAIL_OPEN_MODE:
                 logger.warning(f"DaData unavailable, fail-open for: {lead.phone}")
                 # Пропускаем но помечаем
-                return await self._accept(
+                return await accept(
                     lead, 
                     dadata_result, 
                     start_time,
@@ -278,14 +292,14 @@ class LeadValidator:
                     referer=referer
                 )
             else:
-                return await self._reject(
+                return await reject(
                     lead, 
                     "dadata_unavailable", 
                     start_time
                 )
         
-        if not dadata_service.is_phone_valid(dadata_result):
-            return await self._reject(
+        if dadata_result is not None and not dadata_service.is_phone_valid(dadata_result):
+            return await reject(
                 lead, 
                 f"invalid_phone_qc_{dadata_result.qc}",
                 start_time,
@@ -299,7 +313,7 @@ class LeadValidator:
             if email_result:
                 # Проверяем qc-код
                 if not dadata_service.is_email_valid(email_result):
-                    return await self._reject(
+                    return await reject(
                         lead,
                         f"invalid_email_qc_{email_result.get('qc')}",
                         start_time,
@@ -308,7 +322,7 @@ class LeadValidator:
                 
                 # Проверяем на одноразовый email
                 if dadata_service.is_email_disposable(email_result):
-                    return await self._reject(
+                    return await reject(
                         lead,
                         "email_disposable",
                         start_time,
@@ -326,7 +340,7 @@ class LeadValidator:
         else:
             spam_result = SpamCheckResult()
         if spam_result.is_spam:
-            return await self._reject(
+            return await reject(
                 lead,
                 f"spam_phone:{spam_result.category or 'unknown'}",
                 start_time,
@@ -351,10 +365,12 @@ class LeadValidator:
                 utm_data, 
                 client_ip=client_ip,
                 geo_country=lead.geo_country,
-                db=db, owner_id=project.owner_id if project else None, project_id=project_id,
+                db=None if _context else db, owner_id=project.owner_id if project else None, project_id=project_id,
             )
+            if _context and _context.blocked:
+                return await reject(lead, "utm_invalid:blacklisted_placement", start_time, dadata=dadata_result)
             if not utm_result.is_valid:
-                return await self._reject(
+                return await reject(
                     lead, 
                     f"utm_invalid:{utm_result.reason}",
                     start_time,
@@ -364,7 +380,7 @@ class LeadValidator:
                 logger.warning(f"UTM warning for {lead.phone}: {utm_result.warning}")
         
         # === ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ ===
-        return await self._accept(
+        return await accept(
             lead, 
             dadata_result, 
             start_time,

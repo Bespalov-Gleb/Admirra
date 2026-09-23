@@ -48,6 +48,13 @@ def recover_expired(db):
                 # Business confirmation and receipt were committed atomically.
                 # Recover acknowledgement, not the external request itself.
                 state = "succeeded"
+        if job["kind"] == "lead.export":
+            from automation.work_tables import lead_exports
+            receipt = db.scalar(sa.select(lead_exports.c.state).where(lead_exports.c.job_id == job['id']))
+            if receipt == 'sent':
+                state = 'succeeded'
+            elif receipt == 'rejected':
+                state = 'failed'
         db.execute(jobs.update().where(jobs.c.id == job["id"]).values(
             state=state, lease_token=None, lease_until=None,
             error_type=None if state == "succeeded" else "WorkerLeaseExpired",
@@ -146,7 +153,7 @@ def prune_completed(db):
     """Bound retention; never delete queued, running, or uncertain work."""
     cutoff = _clock(db) - timedelta(days=env_int("TASK_RETENTION_DAYS", 30, 7, 365))
     old = sa.select(jobs.c.id).where(jobs.c.state.in_(["succeeded", "failed"]), jobs.c.finished_at < cutoff,
-                                  jobs.c.kind.not_in(["history.backfill", "billing.provider"]))
+                                  jobs.c.kind.not_in(["history.backfill", "billing.provider", "lead.export"]))
     old = old.order_by(jobs.c.finished_at).limit(500).with_for_update(skip_locked=True)
     return db.execute(jobs.delete().where(jobs.c.id.in_(old))).rowcount
 

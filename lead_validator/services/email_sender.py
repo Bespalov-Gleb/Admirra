@@ -58,6 +58,8 @@ class EmailSender:
         return msg
 
     def _send_sync(self, recipients: List[str], payload: Dict[str, Any]) -> bool:
+        from core import delivery_outcome
+        delivery_outcome.rejected()
         if not self.enabled:
             return False
         if not recipients:
@@ -70,14 +72,21 @@ class EmailSender:
                 server.starttls()
             if self.user and self.password:
                 server.login(self.user, self.password)
-            server.send_message(msg)
-        return True
+            delivery_outcome.before_send()
+            try:
+                refused = server.send_message(msg)
+            except (smtplib.SMTPRecipientsRefused, smtplib.SMTPSenderRefused, smtplib.SMTPDataError):
+                delivery_outcome.rejected()
+                raise
+        # Partial acceptance must never trigger a resend to every recipient.
+        return not refused
 
     async def send_lead_notification(self, recipients: List[str], payload: Dict[str, Any]) -> bool:
         try:
-            return await asyncio.to_thread(self._send_sync, recipients, payload)
+            from core import delivery_outcome
+            return await delivery_outcome.in_thread(self._send_sync, recipients, payload)
         except Exception as e:
-            logger.error(f"Email send failed: {e}")
+            logger.error("Lead email send failed (%s)", type(e).__name__)
             return False
 
     def _send_report_sync(

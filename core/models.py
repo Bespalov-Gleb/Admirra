@@ -1642,6 +1642,27 @@ class Lead(Base):
     project = relationship("PhoneProject", back_populates="leads")
 
 
+class LeadIntake(Base):
+    """Project-bound admission/result ledger; no replay after interrupted validation."""
+    __tablename__ = "lead_intakes"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("phone_projects.id", ondelete="CASCADE"), nullable=False)
+    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id", ondelete="CASCADE"), nullable=False, unique=True)
+    key_digest = Column(String(64), nullable=False)
+    payload_digest = Column(String(64), nullable=False)
+    scope_digest = Column(String(64), nullable=False)
+    state = Column(String(16), nullable=False, default="processing")
+    result = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    deadline = Column(DateTime(timezone=True), nullable=False)
+    __table_args__ = (
+        UniqueConstraint("project_id", "owner_id", "key_digest", name="uq_lead_intake_key"),
+        CheckConstraint("state IN ('processing','done','held')", name="ck_lead_intake_state"),
+        Index("ix_lead_intake_pending", "state", "deadline"),
+    )
+
+
 class LeadPlacementBlock(Base):
     """Project-bound, expiring decisions; legacy global Redis keys are never imported."""
     __tablename__ = "lead_placement_blocks"

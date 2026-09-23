@@ -4,6 +4,16 @@
 
 ## Новый candidate, не production
 
+**Продолжение 23.09 — проектный lead intake/exports:** добавлен opt-in
+`LEAD_DELIVERY_GUARDS` с предварительным сохранением заявки, project-scoped
+idempotency/dedup, detached validation/enrichment и атомарной очередью отправок.
+Для каждой отправки — fenced receipt, без blind retry после неизвестного
+результата. Schema head `f57a8192a3b4`. Production не менялся. **Остаются**
+legacy unbound endpoints, project Bitrix binding, operator reconciliation/UI,
+sandbox/mixed-load и общий cutover. [Контракт и точные границы](devops-lead-intake-2026-09-23.md).
+Изолированная regression этого пакета: **228 passed, 29 warnings, 132.41s**;
+реальных provider sends/платежей не выполнялось.
+
 **Продолжение 23.09 — диагностика Lead Validator:** общие probes закрыты internal
 superadmin access, token preview/raw errors убраны, test-validate стал dry-run
 без глобальной CRM/Telegram/dedup. Auth/scope SQL освобождается до HTTP; общий

@@ -10,6 +10,10 @@ async def _goals(payload):
 
 
 async def _async_run(kind, payload):
+    if kind == "lead.export":
+        from core.database import SessionLocal
+        from automation.lead_export_work import execute
+        return await execute(SessionLocal, payload)
     if kind == "billing.provider":
         from automation.billing_provider_work import execute
         from core.database import SessionLocal

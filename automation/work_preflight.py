@@ -58,6 +58,19 @@ def check_billing_bindings(db):
             raise RuntimeError("Reconcile uncertain legacy billing writes before enabling account queue")
 
 
+def check_lead_delivery_bindings(db):
+    from core.runtime import env_bool
+    enabled = env_bool('LEAD_DELIVERY_GUARDS', False)
+    intake = db.scalar(sa.text("SELECT to_regclass('lead_intakes')"))
+    receipts = db.scalar(sa.text("SELECT to_regclass('lead_export_receipts')"))
+    if enabled and (not intake or not receipts):
+        raise RuntimeError('Lead delivery guards require their additive schema migration')
+    if not enabled:
+        pending = db.scalar(sa.text("SELECT count(*) FROM background_jobs WHERE kind = 'lead.export' AND state IN ('queued','running','uncertain')"))
+        if pending or intake and db.scalar(sa.text("SELECT count(*) FROM lead_intakes WHERE state IN ('processing','held')")):
+            raise RuntimeError('Cannot disable lead delivery guards with unresolved intakes or exports')
+
+
 def check():
     from core.database import engine
     if (os.getenv("WW_TEST") == "1" and os.getenv("WW_TEST_ID")
@@ -88,6 +101,7 @@ def check():
             raise RuntimeError("Legacy sync jobs must be drained/reconciled before durable workers start")
         check_integration_bindings(db)
         check_lead_alert_bindings(db)
+        check_lead_delivery_bindings(db)
         check_billing_bindings(db)
         if not db.scalar(sa.text("SELECT to_regclass('lead_placement_blocks')")):
             raise RuntimeError('Scoped lead placements require their additive schema migration')
