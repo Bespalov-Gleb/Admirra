@@ -9,7 +9,7 @@ import uuid
 from time import monotonic
 from backend_api.stats_service import StatsService, resolve_previous_period
 from backend_api.read_snapshot import begin_read_snapshot
-from backend_api.attribution_read import attribution_read
+from backend_api.attribution_read import attribution_read, AttributionChanged
 from backend_api.top_ads_service import get_top_ads_with_images
 import csv
 import io
@@ -541,220 +541,16 @@ async def _ensure_yandex_hierarchy_rows_for_campaign(
     d_end: date,
     *,
     include_ads: bool = False,
+    user_id: Optional[uuid.UUID] = None,
 ) -> None:
-    """
-    Lazy-load Yandex drill-down catalog rows for a single campaign and period.
-    Direct reports remain the source for metrics, but Campaigns/AdGroups/Ads
-    services are needed to show real children that have zero report rows in the
-    selected period.
-    """
+    from backend_api.hierarchy_read import ensure_yandex
     if not campaign or not campaign.integration:
         return
     if campaign.integration.platform != models.IntegrationPlatform.YANDEX_DIRECT:
         return
-    if not campaign.external_id or not str(campaign.external_id).isdigit():
-        return
-
-    integration = campaign.integration
-    selected_profile = _selected_yandex_direct_profile(integration)
-
-    try:
-        access_token = security.decrypt_token(integration.access_token)
-        api = YandexDirectAPI(access_token, client_login=selected_profile)
-    except Exception as err:
-        logger.warning("Failed to initialize Yandex drilldown catalog for campaign %s: %s", campaign.id, err)
-        return
-
-    date_from = (d_start or d_end).strftime("%Y-%m-%d")
-    date_to = d_end.strftime("%Y-%m-%d")
-    catalog_row_date = d_end
-    known_group_ids = set()
-
-    try:
-        campaign_rows = await api.get_report(
-            date_from,
-            date_to,
-            level="campaign",
-            campaign_ids=[int(campaign.external_id)],
-        )
-    except Exception as err:
-        logger.warning("Failed to lazy-load Yandex campaign report for campaign %s: %s", campaign.id, err)
-        campaign_rows = []
-
-    for row in campaign_rows:
-        row_date = datetime.strptime(row["date"], "%Y-%m-%d").date()
-        filters = {
-            "client_id": integration.client_id,
-            "campaign_id": campaign.id,
-            "date": row_date,
-        }
-        existing = db.query(models.YandexStats).filter_by(**filters).first()
-        data = {
-            "campaign_name": row.get("campaign_name") or campaign.name,
-            "impressions": row.get("impressions", 0),
-            "clicks": row.get("clicks", 0),
-            "cost": row.get("cost", 0),
-            "conversions": row.get("conversions", 0),
-        }
-        if existing:
-            for key, value in data.items():
-                setattr(existing, key, value)
-        else:
-            db.add(models.YandexStats(**filters, **data))
-
-    try:
-        group_rows = await api.get_report(
-            date_from,
-            date_to,
-            level="group",
-            campaign_ids=[int(campaign.external_id)],
-        )
-    except Exception as err:
-        logger.warning("Failed to lazy-load Yandex group report for campaign %s: %s", campaign.id, err)
-        group_rows = []
-
-    for row in group_rows:
-        group_id = str(row.get("group_id") or "").strip()
-        if not group_id:
-            continue
-        known_group_ids.add(group_id)
-        row_date = datetime.strptime(row["date"], "%Y-%m-%d").date()
-        filters = {
-            "client_id": integration.client_id,
-            "campaign_id": campaign.id,
-            "date": row_date,
-            "campaign_name": row.get("campaign_name") or campaign.name,
-            "group_id": group_id,
-        }
-        existing = db.query(models.YandexGroups).filter_by(**filters).first()
-        data = {
-            "group_name": row.get("name") or f"Группа {group_id}",
-            "impressions": row.get("impressions", 0),
-            "clicks": row.get("clicks", 0),
-            "cost": row.get("cost", 0),
-            "conversions": row.get("conversions", 0),
-        }
-        if existing:
-            for key, value in data.items():
-                setattr(existing, key, value)
-        else:
-            db.add(models.YandexGroups(**filters, **data))
-
-    try:
-        groups = await api.get_ad_groups_for_campaigns([int(campaign.external_id)])
-        for group in groups:
-            group_id = str(group.get("Id") or "").strip()
-            if not group_id or group_id in known_group_ids:
-                continue
-            filters = {
-                "client_id": integration.client_id,
-                "campaign_id": campaign.id,
-                "date": catalog_row_date,
-                "campaign_name": campaign.name,
-                "group_id": group_id,
-            }
-            existing = db.query(models.YandexGroups).filter_by(**filters).first()
-            data = {
-                "group_name": group.get("Name") or f"Группа {group_id}",
-                "impressions": 0,
-                "clicks": 0,
-                "cost": 0,
-                "conversions": 0,
-            }
-            if existing:
-                for key, value in data.items():
-                    setattr(existing, key, value)
-            else:
-                db.add(models.YandexGroups(**filters, **data))
-    except Exception as err:
-        logger.warning("Failed to lazy-load Yandex group catalog for campaign %s: %s", campaign.id, err)
-
-    if not include_ads:
-        db.commit()
-        return
-
-    ad_exists_q = db.query(models.YandexAds.id).filter(
-        models.YandexAds.campaign_id == campaign.id,
-        models.YandexAds.date <= d_end,
-    )
-    if d_start:
-        ad_exists_q = ad_exists_q.filter(models.YandexAds.date >= d_start)
-    if ad_exists_q.first():
-        db.commit()
-        return
-
-    try:
-        rows = await api.get_report(
-            date_from,
-            date_to,
-            level="ad",
-            campaign_ids=[int(campaign.external_id)],
-        )
-    except Exception as err:
-        logger.warning("Failed to lazy-load Yandex ad report for campaign %s: %s", campaign.id, err)
-        rows = []
-
-    known_ad_ids = set()
-    for row in rows:
-        ad_id = row.get("ad_id")
-        if not ad_id:
-            continue
-        known_ad_ids.add(str(ad_id))
-        row_date = datetime.strptime(row["date"], "%Y-%m-%d").date()
-        filters = {
-            "client_id": integration.client_id,
-            "campaign_id": campaign.id,
-            "date": row_date,
-            "campaign_name": row.get("campaign_name") or campaign.name,
-            "group_id": row.get("group_id"),
-            "ad_id": str(ad_id),
-        }
-        existing = db.query(models.YandexAds).filter_by(**filters).first()
-        data = {
-            "group_name": row.get("ad_group_name"),
-            "impressions": row.get("impressions", 0),
-            "clicks": row.get("clicks", 0),
-            "cost": row.get("cost", 0),
-            "conversions": row.get("conversions", 0),
-        }
-        if existing:
-            for key, value in data.items():
-                setattr(existing, key, value)
-        else:
-            db.add(models.YandexAds(**filters, **data))
-
-    try:
-        ads = await api.get_ads_with_titles_and_images(campaign_ids=[int(campaign.external_id)])
-        for ad in ads:
-            ad_id = str(ad.get("Id") or "").strip()
-            if not ad_id or ad_id in known_ad_ids:
-                continue
-            group_id = str(ad.get("AdGroupId") or "").strip() or None
-            filters = {
-                "client_id": integration.client_id,
-                "campaign_id": campaign.id,
-                "date": catalog_row_date,
-                "campaign_name": campaign.name,
-                "group_id": group_id,
-                "ad_id": ad_id,
-            }
-            existing = db.query(models.YandexAds).filter_by(**filters).first()
-            data = {
-                "group_name": None,
-                "impressions": 0,
-                "clicks": 0,
-                "cost": 0,
-                "conversions": 0,
-            }
-            if existing:
-                for key, value in data.items():
-                    setattr(existing, key, value)
-            else:
-                db.add(models.YandexAds(**filters, **data))
-    except Exception as err:
-        logger.warning("Failed to lazy-load Yandex ad catalog for campaign %s: %s", campaign.id, err)
-
-    db.commit()
+    campaign_id, client_id = campaign.id, campaign.integration.client_id
+    await ensure_yandex(db, campaign_id, client_id, d_start, d_end,
+                        include_ads=include_ads, user_id=user_id)
 
 
 async def _ensure_vk_hierarchy_rows_for_campaign(
@@ -2233,14 +2029,23 @@ async def get_campaign_children(
             d_start,
             d_end,
             include_ads=(level == "group"),
+            user_id=current_user.id,
         )
-        conv_map, conv_available = await _metrika_drill_conv_map(
-            campaign.integration,
-            campaign,
-            level,
-            d_start,
-            d_end,
-        )
+        # Values passed to live Metrika must not be expired ORM objects.
+        with attribution_read(db, effective_client_ids, models.IntegrationPlatform.YANDEX_DIRECT,
+                              [u_campaign_id], user_id=current_user.id) as plan:
+            groups = list(plan.groups())
+            if len(groups) != 1 or len(groups[0][1]) != 1:
+                raise AttributionChanged()
+            integration, scoped_campaigns = groups[0]
+            plain_campaign = scoped_campaigns[0]
+            conv_map, conv_available = await _metrika_drill_conv_map(
+                integration, plain_campaign, level, d_start, d_end)
+            if conv_available and level == "group" and node_id:
+                group_conv_map, group_available = await _metrika_drill_conv_map(
+                    integration, plain_campaign, "campaign", d_start, d_end)
+                if group_available:
+                    conv_map["__parent_total__"] = int(round(float(group_conv_map.get(str(node_id), 0) or 0)))
         if conv_available:
             if level == "campaign":
                 campaign_overrides = await _build_yandex_campaign_conversion_overrides(
@@ -2248,21 +2053,11 @@ async def get_campaign_children(
                     effective_client_ids,
                     d_start,
                     d_end,
-                    campaign_ids=[campaign.id],
+                    campaign_ids=[u_campaign_id],
                     user_id=current_user.id,
                 )
-                if str(campaign.id) in campaign_overrides:
-                    conv_map["__campaign_total__"] = int(campaign_overrides[str(campaign.id)] or 0)
-            elif level == "group" and node_id:
-                group_conv_map, group_available = await _metrika_drill_conv_map(
-                    campaign.integration,
-                    campaign,
-                    "campaign",
-                    d_start,
-                    d_end,
-                )
-                if group_available:
-                    conv_map["__parent_total__"] = int(round(float(group_conv_map.get(str(node_id), 0) or 0)))
+                if str(u_campaign_id) in campaign_overrides:
+                    conv_map["__campaign_total__"] = int(campaign_overrides[str(u_campaign_id)] or 0)
     elif campaign.integration.platform == models.IntegrationPlatform.VK_ADS:
         # VK: конверсии (vk.goals) лежат в родной статистике каждого уровня —
         # ленивo подгружаем группы/баннеры, оверрайды конверсий не нужны.

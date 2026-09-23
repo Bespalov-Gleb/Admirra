@@ -51,6 +51,8 @@ def direct_tsv(text, level):
     fields = ["Date", "CampaignId", "CampaignName", "Impressions", "Clicks", "Cost", "Conversions"]
     if level == "group":
         fields[3:3] = ["AdGroupId", "AdGroupName"]
+    elif level == "ad":
+        fields[3:3] = ["AdGroupId", "AdId"]
     elif level == "keyword":
         fields.insert(2, "Criteria")
     expected = len(fields)
@@ -74,7 +76,7 @@ def direct_tsv(text, level):
         if len(columns) != expected:
             raise IncompleteAdsSnapshot("Truncated Direct report row")
         date.fromisoformat(columns[0])
-        offset = 3 if level == "campaign" else 5 if level == "group" else 4
+        offset = 3 if level == "campaign" else 5 if level in {"group", "ad"} else 4
         row = dict(date=columns[0], campaign_id=identifier(columns[1]),
             campaign_name=columns[3] if level == "keyword" else columns[2],
             impressions=number(columns[offset], integer=True), clicks=number(columns[offset + 1], integer=True),
@@ -82,6 +84,8 @@ def direct_tsv(text, level):
             conversions=number(columns[offset + 3], integer=True, missing=True))
         if level == "group":
             row.update(group_id=identifier(columns[3]), name=columns[4])
+        if level == "ad":
+            row.update(group_id=identifier(columns[3]), ad_id=identifier(columns[4]))
         if level == "keyword":
             row["name"] = columns[2]
         result.append(row)
