@@ -1,6 +1,6 @@
 # Direct hierarchy: detached fetch и короткое сохранение
 
-23.09.2026. Candidate, **не production deployment**. Этот пакет закрывает
+23.09.2026. Candidate `9e54bb8`, **не production deployment**. Этот пакет закрывает
 проверенные Yandex Direct paths раскрытия кампаний, не все рекламные платформы.
 
 ## Изменения
@@ -34,6 +34,9 @@
   проходит наружу без записи; pending ORM writes не отбрасываются helper-ом.
 
 Схема, миграции, креды/env, ingress и worker routing не менялись.
+Контракт каталогов (CampaignIds/FieldNames/Page/LimitedBy) сверен с официальными
+страницами [AdGroups.get](https://yandex.ru/dev/direct/doc/ru/adgroups/get) и
+[Ads.get](https://yandex.ru/dev/direct/doc/ru/ads/get); это не заменяет live smoke.
 
 ## Проверки
 
@@ -48,7 +51,34 @@ SELECT 1 через единственный слот. Provider metrics — си
 старые duplicate natural keys, настоящий children route для групп/объявлений
 с точной Метрикой (34 лида, расход 3400), строгий ad TSV.
 
-Результаты чистого image и restore фиксируются после финальной сборки.
+Чистый image `admirra-devops:9e54bb8`:
+`sha256:6a8149888956ed9889666e4bb458e09a67520c1b843e454cf97f0cf9475a704e`.
+Собран из 603 allowlisted Git-файлов, без secrets, uploads и dirty frontend.
+Предварительная source-overlay регрессия: 224 passed, 1 skipped, 163 warnings,
+144,60 s. После неё дополнительно усилен client_id scope SQL-чтения/записи
+и добавлена проверка неконсистентной legacy-строки другого клиента; окончательные
+результаты artifact-only прогона/restore фиксируются отдельно ниже.
+
+Artifact-only `9e54bb8`, без host source bind: **225 passed, 1 skipped,
+164 warnings**, 145,89 s, exit 0. Новый файл hierarchy — 21 test cases.
+Проверены hierarchy + attribution, ads sync contract/work, Direct API,
+provider transport, summary/Avito, assistant VK reporting и API-role boot.
+Skip — опциональное сравнение с previous-release implementation; весь isolated
+manifest не повторялся. Внешние кабинеты/платные API не вызывались.
+
+Restore этого же image: backup `20260922T221413Z-b1eea7ec`, migration head
+`f68b92a3b4c5`, **66 s**, network=none. Worker preflight/boot, application
+smoke и **64/64 HTTP 200** прошли. Compact/full metadata contract совпадает;
+summary batch — 64 проекта × 4 канала, 12 индивидуальных сравнений,
+access guards passed (758,22 ms). Это не реальная нагрузка очередей: workers
+проходят startup/ping, реальные отправки отключены. Read smoke: 12,782 s,
+aggregate p95 1847,5 ms, concurrency 4, по 8 запросов на маршрут — не SLO.
+
+Root-only логи сервера 2:
+`/opt/admirra-staging/9e54bb8/hierarchy-tests.log`,
+`/opt/admirra-staging/9e54bb8/restore.log`.
+Isolated compose-проект `admirra-hierarchy-io-review`, restore containers/
+volumes и runtime tmpfs удалены; image и логи сохранены. Production не менялся.
 
 ## Границы и следующий участок
 

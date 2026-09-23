@@ -4,10 +4,12 @@
 
 ## Новый candidate, не production
 
-**Продолжение 23.09 — раскрытие кампаний Direct:** отчёты и каталоги групп/
+**Продолжение 23.09 — раскрытие кампаний Direct:** `9e54bb8`. Отчёты и каталоги групп/
 объявлений собираются без занятой SQL-сессии, затем сохраняются коротко и с
 проверкой доступа, настроек и intervening sync. Каталожные нули не стирают
 метрики, late/partial results не применяются. [Контракт и приёмка](devops-direct-hierarchy-2026-09-23.md).
+Чистый image: **225 targeted tests passed**, restore 66 s до `f68b92a3b4c5`,
+API/workers boot и **64/64 HTTP 200** прошли; полный manifest не повторялся.
 VK hierarchy/остальные live paths и полнота исторического ad coverage ещё
 остаются; этот этап не означает полного закрытия hierarchy или production.
 
