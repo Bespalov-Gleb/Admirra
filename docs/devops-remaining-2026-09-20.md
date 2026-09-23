@@ -4,6 +4,20 @@
 
 ## Новый candidate, не production
 
+**Нагрузочная проверка 23.09 — согласованность чтения:** смешанный тест обнаружил
+разрыв между отдельными SELECT расхода и лидов при параллельном sync. В `ed31916`
+SQL-only сводки/карточки/списки переведены на единый read-only snapshot; N+1 при
+сериализации проектов заменён пакетной загрузкой. Добавлены deterministic race
+и mixed regression. [Сценарий, границы и evidence](devops-mixed-read-2026-09-23.md).
+Production не переключён; это не полная двухрепличная/real-provider приёмка.
+Чистые образы: исходный `2db26eb` — 1458 passed; исправленный `ed31916` —
+96 целевых passed (не полный повтор manifest). Оба восстановлены до `f68b92a3b4c5`,
+API/worker boot и 64/64 read requests прошли. Mixed synthetic: 120 чтений,
+12 sync и 12 report receipts без разрыва cost/leads. В list payload обнаружены
+2250 вложенных кампаний (~900 KB), общий response ~1 MB: нужен аудит компактного
+контракта и повторная нагрузка. Лёгкие маршруты не показали общего ускорения;
+SLO/capacity пока не приняты. Новые результаты не отменяют оставшиеся этапы ниже.
+
 **Продолжение 23.09 — legacy intake и операторская сверка:** старые URL теперь
 поддерживают явный signed project scope в guarded режиме; добавлены auditable
 close/confirm без resend, terminal closed и честные pending/held/closed подписи.
