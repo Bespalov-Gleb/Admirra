@@ -106,9 +106,9 @@ report/lead SQL-over-IO пути также не объявляются испр
    Scoped analytics/blacklist закрыты отдельным candidate 23.09
    ([контракт](devops-lead-placements-2026-09-23.md)). Модуль проверки заявок,
    включая immediate lead exports/validation, ранние отказы и его diagnostics,
-   **отложен владельцем 23.09**; до релиза требуется только его безопасная изоляция.
-   В активном плане остаются interactive report/AI пути и offline conversion
-   Метрики в billing webhook, а не доработка отложенной телефонии.
+   **возвращён владельцем в объём релиза 23.09**: не отключать, закончить проверки.
+   В активном плане также interactive report/AI пути и offline conversion
+   Метрики в billing webhook.
    [Проверки и границы отчётов](devops-report-comment-2026-09-22.md).
 4. Waiting/error/retry для data readiness реализованы; визуальная приёмка и UI
    разрешения финансовых/внешних uncertain исходов ещё не пройдены. Для CP уже есть

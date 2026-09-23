@@ -19,7 +19,11 @@ from datetime import date as Date, timezone
 from typing import Optional, Literal
 import uuid
 from sqlalchemy.orm import Session
+import sqlalchemy as sa
 from core.database import get_db
+from lead_validator.services.diagnostics import (
+    diagnostic_admin, diagnostic_user, provider_probe, reserve_check,
+)
 
 logger = logging.getLogger("lead_validator.router")
 
@@ -102,99 +106,22 @@ def get_stats(
     return daily_rejections(db, current_user.id, date or datetime.now(timezone.utc).date())
 
 
-@router.get(
-    "/lead/test-telegram",
-    summary="Тест Telegram уведомлений",
-    description="Проверяет соединение с Telegram и отправляет тестовое сообщение"
-)
-async def test_telegram(
-    current_user: models.User = Depends(security.get_current_user)
-):
-    """
-    Тестовый эндпоинт для отладки Telegram.
-    Проверяет настройки бота и отправляет тестовое сообщение.
-    """
-    result = await telegram_notifier.test_connection()
-    return result
+@router.get("/lead/test-telegram", summary="Проверить доступ к Telegram (без отправки)")
+async def test_telegram(current_user=Depends(diagnostic_admin)):
+    await reserve_check(current_user.id)
+    return await provider_probe("telegram")
 
 
-@router.get(
-    "/lead/test-captcha-api",
-    summary="Тест Yandex SmartCaptcha API",
-    description="Проверяет подключение к Yandex Cloud и возвращает список капч"
-)
-async def test_captcha_api(
-    current_user: models.User = Depends(security.get_current_user)
-):
-    """
-    Тестовый эндпоинт для проверки Yandex Cloud SmartCaptcha API.
-    Использует IAM токен и folder_id из .env для получения списка капч.
-    """
-    import httpx
-    import os
-    from dotenv import load_dotenv
-    
-    # Перезагружаем .env для получения актуальных значений
-    load_dotenv(override=True)
-    
-    iam_token = os.getenv("YANDEX_IAM_TOKEN")
-    folder_id = os.getenv("YANDEX_FOLDER_ID")
-    
-    if not iam_token:
-        return {"error": True, "message": "YANDEX_IAM_TOKEN not set in .env"}
-    if not folder_id:
-        return {"error": True, "message": "YANDEX_FOLDER_ID not set in .env"}
-    
-    # Debug info
-    token_preview = f"{iam_token[:30]}...{iam_token[-20:]}" if len(iam_token) > 50 else iam_token
-    
-    url = f"https://smartcaptcha.api.cloud.yandex.net/smartcaptcha/v1/captchas?folderId={folder_id}"
-    headers = {"Authorization": f"Bearer {iam_token}"}
-    
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(url, headers=headers)
-            data = response.json()
-            
-            if response.status_code == 200:
-                # API возвращает "resources", не "captchas"
-                captchas = data.get("resources", [])
-                return {
-                    "success": True,
-                    "folder_id": folder_id,
-                    "token_preview": token_preview,
-                    "captchas_count": len(captchas),
-                    "captchas": [
-                        {"id": c.get("id"), "name": c.get("name"), "complexity": c.get("complexity"), "clientKey": c.get("clientKey")}
-                        for c in captchas
-                    ]
-                }
-            else:
-                return {
-                    "error": True,
-                    "status_code": response.status_code,
-                    "folder_id": folder_id,
-                    "token_preview": token_preview,
-                    "details": data
-                }
-    except Exception as e:
-        return {"error": True, "message": str(e), "token_preview": token_preview}
+@router.get("/lead/test-captcha-api", summary="Проверить доступ к SmartCaptcha")
+async def test_captcha_api(current_user=Depends(diagnostic_admin)):
+    await reserve_check(current_user.id)
+    return await provider_probe("captcha")
 
 
-@router.get(
-    "/lead/test-metrica",
-    summary="Тест Яндекс.Метрика API",
-    description="Проверяет подключение к Яндекс.Метрике и возвращает информацию о счётчике"
-)
-async def test_metrica(
-    current_user: models.User = Depends(security.get_current_user)
-):
-    """
-    Тестовый эндпоинт для проверки Яндекс.Метрика API.
-    Возвращает информацию о счётчике если настроено.
-    """
-    from lead_validator.services.metrica_service import metrica_service
-    return await metrica_service.test_connection()
+@router.get("/lead/test-metrica", summary="Проверить доступ к Метрике")
+async def test_metrica(current_user=Depends(diagnostic_admin)):
+    await reserve_check(current_user.id)
+    return await provider_probe("metrica")
 
 
 @router.get(
@@ -257,8 +184,8 @@ async def test_utm(
     """
 )
 async def check_phone_manual(
-    phone: str,
-    current_user: models.User = Depends(security.get_current_user)
+    phone: str = Query(..., min_length=10, max_length=32),
+    current_user=Depends(diagnostic_user)
 ):
     """
     Ручная проверка телефона через DaData.
@@ -266,11 +193,13 @@ async def check_phone_manual(
     """
     from lead_validator.services.dadata import dadata_service
     
-    logger.info(f"Manual phone check: {phone}")
+    await reserve_check(current_user.id)
     
     # Нормализуем телефон
     import re
     cleaned_phone = re.sub(r"[^\d+]", "", phone)
+    if not 10 <= len("".join(filter(str.isdigit, cleaned_phone))) <= 15:
+        raise HTTPException(status_code=422, detail="Некорректный формат телефона")
     
     # Проверяем через DaData
     dadata_result = await dadata_service.validate_phone(cleaned_phone)
@@ -315,19 +244,19 @@ async def check_phone_manual(
     - Тестирования формы
     - Проверки перед деплоем
     
-    НЕ ИСПОЛЬЗОВАТЬ В ПРОДАКШЕНЕ!
+    Ограниченный dry-run: без сохранения, экспорта и уведомлений.
     """
 )
 async def test_validate_lead(
-    phone: str,
-    email: str = None,
-    name: str = None,
+    phone: str = Query(..., min_length=10, max_length=32),
+    email: Optional[str] = Query(None, max_length=254),
+    name: Optional[str] = Query(None, max_length=200),
     utm_source: str = None,
     utm_medium: str = None,
     utm_campaign: str = None,
     project_id: Optional[uuid.UUID] = None,
     request: Request = None,
-    current_user: models.User = Depends(security.get_current_user),
+    current_user=Depends(diagnostic_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -335,10 +264,30 @@ async def test_validate_lead(
     Пропускает проверку SmartCaptcha для отладки.
     """
     from lead_validator.services.dadata import dadata_service
-    from lead_validator.services.redis_service import redis_service
     from lead_validator.services.social_checker import social_checker
     
-    logger.info(f"Test validation: phone={phone}")
+    # Resolve scope before any provider/Redis call, then detach settings from SQL.
+    project = None
+    if project_id:
+        from types import SimpleNamespace
+        row = db.query(models.PhoneProject).filter(
+            models.PhoneProject.id == project_id,
+            models.PhoneProject.owner_id == current_user.id,
+            models.PhoneProject.is_active.is_(True),
+            sa.or_(models.PhoneProject.client_id.is_(None), sa.exists(sa.select(models.Client.id).where(
+                models.Client.id == models.PhoneProject.client_id,
+                models.Client.owner_id == current_user.id,
+                models.Client.status == models.ClientStatus.ACTIVE))),
+        ).first()
+        if row is None:
+            db.rollback()
+            raise HTTPException(status_code=404, detail="Проект не найден")
+        project = SimpleNamespace(
+            enable_spam_check=row.enable_spam_check,
+            enable_social_check=row.enable_social_check,
+        )
+    db.rollback()
+    await reserve_check(current_user.id)
     
     result = {
         "phone": phone,
@@ -359,11 +308,15 @@ async def test_validate_lead(
         result["checks"]["phone_format"] = {"passed": False, "reason": "too_many_digits"}
     else:
         result["checks"]["phone_format"] = {"passed": True}
+
+    if not result["checks"]["phone_format"]["passed"]:
+        result["overall_valid"] = False
+        return result
     
-    # 2. Проверка дедупликации
-    is_duplicate = await redis_service.is_duplicate(cleaned_phone)
-    result["checks"]["duplicate"] = {"passed": not is_duplicate, "is_duplicate": is_duplicate}
-    
+    # Dry-run does not expose the shared legacy phone deduplication cache.
+    result["checks"]["duplicate"] = {"passed": True, "skipped": True,
+        "reason": "dry_run_no_deduplication"}
+
     # 3. Проверка через DaData
     dadata_result = await dadata_service.validate_phone(cleaned_phone)
     if dadata_result:
@@ -387,37 +340,20 @@ async def test_validate_lead(
             "reason": email_check.rejection_reason
         }
     
-    # 5. Проектные проверки (spam, bitrix) — при переданном project_id
-    project = None
-    if project_id:
-        project = db.query(models.PhoneProject).filter(
-            models.PhoneProject.id == project_id,
-            models.PhoneProject.owner_id == current_user.id
-        ).first()
-    
-    if project:
+    # Only explicitly enabled project checks; the global CRM is not tenant-owned.
+    if project and project.enable_spam_check:
         from lead_validator.services.spam_checker import spam_checker
-        from lead_validator.services.bitrix_service import bitrix_service
-        
-        if getattr(project, "enable_spam_check", True):
-            spam_result = await spam_checker.check_phone(cleaned_phone)
-            result["checks"]["spam"] = {
-                "passed": not spam_result.is_spam,
-                "is_spam": spam_result.is_spam,
-                "category": spam_result.category
-            }
-        if getattr(project, "enable_bitrix_check", False) and bitrix_service.enabled:
-            bitrix_result = await bitrix_service.find_duplicates(phone=cleaned_phone, email=email)
-            result["checks"]["bitrix"] = {
-                "passed": not bitrix_result.has_duplicate,
-                "has_duplicate": bitrix_result.has_duplicate,
-                "contact_id": bitrix_result.contact_id
-            }
+        spam_result = await spam_checker.check_phone(cleaned_phone)
+        result["checks"]["spam"] = {
+            "passed": not spam_result.is_spam,
+            "is_spam": spam_result.is_spam,
+            "category": spam_result.category,
+        }
 
     # 6. Проверка соцсетей (включая InfoTrackPeople как приоритетного провайдера)
-    social_enabled_for_test = True
+    social_enabled_for_test = False
     if project:
-        # Для проекта уважаем флаг; без project_id — включаем для диагностики по умолчанию
+        # Без проекта нет разрешения на дополнительное обогащение.
         social_enabled_for_test = bool(getattr(project, "enable_social_check", False))
 
     if social_enabled_for_test:
@@ -439,19 +375,11 @@ async def test_validate_lead(
                 "telegram_username": getattr(social_result, "telegram_username", None),
                 "vk_profile_url": getattr(social_result, "vk_profile_url", None),
                 "vk_user_id": getattr(social_result, "vk_user_id", None),
-                "error": getattr(social_result, "error", None),
+                "error": "provider_unavailable" if social_error and not social_passed else None,
             }
-            logger.info(
-                "Test social check for %s: provider=%s tg=%s vk=%s checked=%s",
-                cleaned_phone,
-                result["checks"]["social"]["provider"],
-                result["checks"]["social"]["has_telegram"],
-                result["checks"]["social"]["has_vk"],
-                result["checks"]["social"]["checked"],
-            )
-        except Exception as e:
-            logger.warning(f"Test social check failed for {cleaned_phone}: {e}")
-            result["checks"]["social"] = {"passed": False, "error": str(e)}
+        except Exception:
+            logger.warning("Diagnostic social provider failed")
+            result["checks"]["social"] = {"passed": False, "error": "provider_unavailable"}
     else:
         result["checks"]["social"] = {
             "passed": True,
@@ -467,34 +395,7 @@ async def test_validate_lead(
     )
     result["overall_valid"] = all_passed
     
-    # Отправляем уведомление в Telegram (если валидация пройдена)
-    if all_passed:
-        try:
-            from lead_validator.services.telegram import telegram_notifier
-            from lead_validator.schemas import LeadInput
-            
-            # Создаем объект лида для уведомления
-            test_lead = LeadInput(
-                phone=phone,
-                email=email or None,
-                name=name or None,
-                utm_source=utm_source,
-                utm_medium=utm_medium,
-                utm_campaign=utm_campaign
-            )
-            
-            dadata_info = result["checks"].get("dadata", {})
-            
-            await telegram_notifier.send_new_lead(
-                lead=test_lead,
-                phone_type=dadata_info.get("type"),
-                provider=dadata_info.get("provider"),
-                region=dadata_info.get("region"),
-                is_test=True
-            )
-        except Exception as e:
-            logger.error(f"Failed to send test Telegram notification: {e}")
-    
+    # Diagnostics never persist a lead, mark duplicates or send customer notifications.
     return result
 
 

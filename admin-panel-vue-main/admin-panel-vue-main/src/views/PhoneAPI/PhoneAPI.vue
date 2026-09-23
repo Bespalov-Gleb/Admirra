@@ -149,8 +149,10 @@
               </div>
               <div class="flex-1">
                 <h3 :class="['font-bold text-lg', result.success ? 'text-green-800' : 'text-red-800']">
-                  {{ result.success ? 'Лид прошёл валидацию' : 'Лид отклонён' }}
+                  {{ result.service_error ? 'Проверка не выполнена' : result.success ? 'Лид прошёл валидацию' : 'Лид отклонён' }}
                 </h3>
+                <p v-if="result.service_error" class="text-red-600 text-sm mt-1">{{ result.error_message }}</p>
+                <p v-if="result.diagnostic" class="text-gray-500 text-sm mt-1">Тестовая проверка: заявка не сохранена, уведомления не отправлены.</p>
                 <p v-if="result.rejection_reason" class="text-red-600 text-sm mt-1">
                   Причина: {{ formatReason(result.rejection_reason) }}
                 </p>
@@ -275,6 +277,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import api from '../../api/axios'
+import { diagnosticError } from './diagnosticError'
 import { ClipboardDocumentCheckIcon } from '@heroicons/vue/24/outline'
 
 // API base URL для webhook (полный URL, так как используется вне приложения)
@@ -328,8 +331,10 @@ function generateJsToken() {
 
 // Validate lead
 async function validateLead() {
+  if (loading.value) return
   loading.value = true
   result.value = null
+  const diagnostic = testMode.value
 
   try {
     const payload = {
@@ -347,7 +352,7 @@ async function validateLead() {
     // Выбираем эндпоинт в зависимости от режима
     let data
     
-    if (testMode.value) {
+    if (diagnostic) {
       // test-validate ожидает phone в query params
       const params = { phone: form.value.phone }
       if (form.value.email) params.email = form.value.email
@@ -363,8 +368,11 @@ async function validateLead() {
     }
     
     // Преобразуем ответ test-validate в формат обычного результата
-    if (testMode.value && data.overall_valid !== undefined) {
+    if (diagnostic && data.overall_valid !== undefined) {
       result.value = {
+        diagnostic: true,
+        service_error: Object.values(data.checks || {}).some(check => Boolean(check.error)),
+        error_message: 'Не все проверки завершены: сервис проверки недоступен. Повторите позже.',
         success: data.overall_valid,
         rejection_reason: data.overall_valid ? null : Object.entries(data.checks)
           .filter(([_, v]) => !v.passed)
@@ -379,9 +387,11 @@ async function validateLead() {
       result.value = data
     }
 
+    if (result.value.service_error) return
+
     // Add to history
     const historyItem = {
-      phone: form.value.phone,
+      phone: payload.phone,
       success: result.value.success,
       rejection_reason: result.value.rejection_reason,
       time: new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
@@ -394,13 +404,18 @@ async function validateLead() {
     }
 
     // Save to localStorage
-    localStorage.setItem('leadQualifierHistory', JSON.stringify(history.value))
+    try {
+      localStorage.setItem('leadQualifierHistory', JSON.stringify(history.value))
+    } catch {
+      // Browser storage may be unavailable; do not turn a completed check into a retry.
+    }
 
   } catch (error) {
-    console.error('Validation error:', error)
     result.value = {
       success: false,
-      rejection_reason: `network_error: ${error.message}`
+      diagnostic,
+      service_error: true,
+      error_message: diagnosticError(error),
     }
   } finally {
     loading.value = false
