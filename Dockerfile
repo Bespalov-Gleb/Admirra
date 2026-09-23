@@ -30,6 +30,11 @@ RUN pip install --no-cache-dir -r requirements.txt -c requirements.lock && pip c
 
 # Copy project files
 COPY . .
+# The reviewed source archive can be extracted under a restrictive umask.
+# Source directories must remain traversable by the unprivileged runtime/test
+# user, without granting writes or changing ownership. Secrets are excluded by
+# the build-context allowlist; credentials are injected only at runtime.
+RUN chmod -R a+rX /app
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1
