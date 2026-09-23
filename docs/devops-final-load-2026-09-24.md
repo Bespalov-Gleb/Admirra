@@ -115,3 +115,14 @@ validation выполняются реально; production `apply`, рассы
 - Новые регрессии покрывают parser, суммы, NULL group ID и idempotent apply/replay
   на изолированном PostgreSQL. Targeted ads/Direct набор прошёл; финальный новый
   immutable artifact ещё требует сборки и полной проверки.
+
+Финальный image из `24f58b7` собран и доставлен на оба узла:
+`sha256:57ac503afcdf6136a90d4bbb9903975ed98cefd9c1ca927a465f4d085930a8dd`.
+В этом immutable image parallel VK/Direct/Metrica/OpenRouter/PDF probe прошёл
+за 7.897 s (13 запросов, один AI за $0.00019). Итого AI-проверки этого этапа
+$0.00057. Полный manifest запущен повторно; результат пока ожидается.
+Production images/schema/workers не переключались.
+
+Подготовлен [единый launch profile и границы rollback](devops-cutover-launch-profile-2026-09-24.md).
+Profile/provider-budget проверки: **8 passed**, network=none. Этот source-overlay
+тест не выдаётся за часть полного immutable manifest или включённый production env.
