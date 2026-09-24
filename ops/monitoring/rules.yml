@@ -1,6 +1,24 @@
 groups:
   - name: admirra-production
     rules:
+      - alert: AdMirraDurableRuntimeUnhealthy
+        expr: admirra_runtime_monitor_ok == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "AdMirra worker/scheduler or durable delivery ledger requires attention"
+          runbook: "docs/devops-production-cutover-2026-09-24.md"
+
+      - alert: AdMirraDurableRuntimeMonitorStale
+        expr: time() - admirra_runtime_monitor_timestamp_seconds > 180
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "AdMirra durable runtime monitoring stopped updating"
+          runbook: "docs/devops-production-cutover-2026-09-24.md"
+
       - alert: AdMirraSharedFilesUnavailable
         expr: admirra_shared_files_up == 0
         for: 2m

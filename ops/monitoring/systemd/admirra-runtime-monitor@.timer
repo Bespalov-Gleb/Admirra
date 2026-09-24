@@ -1,0 +1,10 @@
+[Unit]
+Description=Check AdMirra durable runtime every minute (%i)
+
+[Timer]
+OnBootSec=45s
+OnUnitActiveSec=60s
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

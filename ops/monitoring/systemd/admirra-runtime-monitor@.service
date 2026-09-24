@@ -1,0 +1,13 @@
+[Unit]
+Description=AdMirra durable runtime monitor (%i)
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/admirra-runtime-monitor/check_runtime.py %i
+TimeoutStartSec=20
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/admirra-api2-monitor
