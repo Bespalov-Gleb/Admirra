@@ -113,7 +113,13 @@ def check_http_ready(result: Result, url: str, timeout: float) -> None:
         with urllib.request.urlopen(url, timeout=timeout) as response:
             body = response.read(64 * 1024)
             payload = json.loads(body)
-            ok = response.status == 200 and payload.get("status") == "ready" and payload.get("database") == "ok"
+            # The retired canary overlay exposed ready/database. The unified
+            # API endpoint checks SQL and the expected migration head before
+            # returning ok + its explicit role/version (live alone is not used).
+            legacy = payload.get("status") == "ready" and payload.get("database") == "ok"
+            versioned = (payload.get("status") == "ok" and payload.get("role") == "api"
+                         and re.fullmatch(r"[0-9a-f]{7,40}", str(payload.get("release", ""))) is not None)
+            ok = response.status == 200 and (legacy or versioned)
     except (OSError, ValueError, urllib.error.URLError) as exc:
         result.check("api2_ready", False, f"API-2 readiness failed: {type(exc).__name__}")
         return

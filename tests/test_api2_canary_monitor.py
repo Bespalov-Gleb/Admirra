@@ -1,12 +1,15 @@
 import datetime as dt
 import tempfile
 import unittest
+import json
+from unittest.mock import MagicMock, patch
 from pathlib import Path
 
 from ops.api2_canary.check_canary import (
     Result,
     atomic_write,
     check_logical_backups,
+    check_http_ready,
     logical_backup_inventory,
     recent_canary_rows,
     render_metrics,
@@ -14,6 +17,25 @@ from ops.api2_canary.check_canary import (
 
 
 class Api2CanaryMonitorTest(unittest.TestCase):
+    def test_readiness_accepts_legacy_and_explicit_versioned_api_only(self):
+        cases = [
+            ({"status": "ready", "database": "ok"}, True),
+            ({"status": "ok", "role": "api", "release": "2ce9513"}, True),
+            ({"status": "ok"}, False),
+            ({"status": "ok", "role": "worker", "release": "2ce9513"}, False),
+            ({"status": "ok", "role": "api", "release": "unknown"}, False),
+            ({"status": "not_ready", "reason": "schema"}, False),
+            ({"status": "ready", "database": "error"}, False),
+        ]
+        for payload, expected in cases:
+            with self.subTest(payload=payload), patch("urllib.request.urlopen") as opening:
+                response = MagicMock(status=200)
+                response.read.return_value = json.dumps(payload).encode()
+                opening.return_value.__enter__.return_value = response
+                result = Result(role="api2")
+                check_http_ready(result, "http://test/api/health/ready", 2)
+                self.assertEqual(bool(result.checks["api2_ready"]), expected)
+
     def test_recent_canary_rows_filters_old_entries_and_preserves_failover(self):
         now = dt.datetime.now(dt.timezone.utc)
         old = now - dt.timedelta(hours=1)
