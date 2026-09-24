@@ -4,6 +4,7 @@ from typing import List, Optional
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
+from starlette.concurrency import run_in_threadpool
 from sqlalchemy import and_, case, or_
 from sqlalchemy.orm import Session
 
@@ -11,6 +12,7 @@ from core.database import get_db
 from core import models, schemas, security
 from backend_api.access_control import get_accessible_client_ids, assert_project_access, get_team_context
 from backend_api.services.project_settings import get_detector_state
+from backend_api.read_snapshot import begin_read_snapshot
 
 router = APIRouter(prefix="/detector", tags=["Detector"])
 
@@ -334,6 +336,7 @@ def get_detector_summary(
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
+    begin_read_snapshot(db)
     _assert_detector_access(db, current_user, client_id, write=False)
     client = db.query(models.Client).filter(models.Client.id == client_id).first()
     if not client:
@@ -498,7 +501,13 @@ async def get_campaign_highlights(
         raise
     except Exception:
         yandex_overrides = None  # Метрика недоступна — считаем по данным Директа
-    return {"items": campaign_highlights(db, client_id, start, end, yandex_overrides=yandex_overrides)}
+    # Provider IO is finished. Read evidence and highlights from one committed
+    # snapshot, off the event loop, and recheck access in that same snapshot.
+    def read_highlights():
+        begin_read_snapshot(db)
+        _assert_detector_access(db, current_user, client_id, write=False)
+        return {"items": campaign_highlights(db, client_id, start, end, yandex_overrides=yandex_overrides)}
+    return await run_in_threadpool(read_highlights)
 
 
 @router.post("/alerts/{alert_id}/dismiss")
@@ -799,6 +808,7 @@ def get_cross_project_status(
     current_user: models.User = Depends(security.get_current_user),
     db: Session = Depends(get_db),
 ):
+    begin_read_snapshot(db)
     if get_team_context(db, current_user).team_role == models.TeamMemberRole.CLIENT.value:
         return []
     accessible_ids = get_accessible_client_ids(db, current_user)

@@ -48,6 +48,7 @@ services:
       - tests/test_integration_list_queries.py
       - tests/test_project_list_queries.py
       - tests/test_read_snapshot.py
+      - tests/test_dashboard_lock_contention.py
       - tests/test_attribution_read.py
       - tests/test_hierarchy_read.py
       - tests/test_vk_hierarchy_read.py

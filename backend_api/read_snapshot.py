@@ -18,4 +18,5 @@ def begin_read_snapshot(db):
     db.rollback()
     connection = db.connection(execution_options={'isolation_level': 'REPEATABLE READ'})
     connection.exec_driver_sql('SET TRANSACTION READ ONLY')
+    connection.execution_options(admirra_read_snapshot=True)
     return True

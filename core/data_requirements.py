@@ -7,6 +7,7 @@ import json
 
 import sqlalchemy as sa
 from core import models, sync_coverage
+from core.source_read import lock_sources
 
 
 class DataNotReady(RuntimeError):
@@ -23,12 +24,12 @@ def requirements(db, ids, start, end):
     ids = sorted(set(ids), key=str)
     if not ids or len(ids) > 200:
         raise DataNotReady("scope_unavailable_or_too_large")
-    clients = list(db.scalars(sa.select(models.Client).where(models.Client.id.in_(ids))
-        .order_by(models.Client.id).execution_options(populate_existing=True).with_for_update()))
+    clients = list(db.scalars(lock_sources(db, sa.select(models.Client).where(models.Client.id.in_(ids))
+        .order_by(models.Client.id).execution_options(populate_existing=True))))
     if len(clients) != len(ids) or any(c.status != models.ClientStatus.ACTIVE for c in clients):
         raise DataNotReady("scope_unavailable")
-    integrations = list(db.scalars(sa.select(models.Integration).where(models.Integration.client_id.in_(ids))
-        .order_by(models.Integration.id).limit(513).execution_options(populate_existing=True).with_for_update()))
+    integrations = list(db.scalars(lock_sources(db, sa.select(models.Integration).where(models.Integration.client_id.in_(ids))
+        .order_by(models.Integration.id).limit(513).execution_options(populate_existing=True))))
     if len(integrations) > 512:
         raise DataNotReady("source_limit")
     owners = {c.id: c for c in clients}

@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from starlette.concurrency import run_in_threadpool
+from backend_api.dashboard_visit import record_visit
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from core.database import get_db
@@ -955,36 +957,7 @@ async def get_summary(
     # и спровоцировать ночной AI-вызов за счёт владельца.
     if u_client_id and u_client_id in effective_client_ids:
         try:
-            client = db.query(models.Client).filter(models.Client.id == u_client_id).first()
-            if client:
-                now = datetime.now(timezone.utc)
-                previous_view = client.last_dashboard_viewed_at
-                if previous_view and previous_view.tzinfo is None:
-                    previous_view = previous_view.replace(tzinfo=timezone.utc)
-                stored = client.last_dashboard_snapshot if isinstance(client.last_dashboard_snapshot, dict) else {}
-                current = {
-                    "calculation_version": result.get("calculation_version"),
-                    "captured_at": now.isoformat(),
-                    "period_from": d_start.isoformat(),
-                    "period_to": d_end.isoformat(),
-                    "platform": platform or "all",
-                    "expenses": float(result.get("expenses") or 0),
-                    "leads": int(result.get("leads") or 0),
-                    "clicks": int(result.get("clicks") or 0),
-                    "impressions": int(result.get("impressions") or 0),
-                    "cpl": float(result.get("cpa") or 0),
-                }
-                # Один визит может породить несколько запросов из-за фильтров.
-                # Сдвигаем snapshot лишь после 30 минут отсутствия; внутри визита
-                # обновляем current, сохраняя честную предыдущую точку.
-                if previous_view is None or now - previous_view >= timedelta(minutes=30):
-                    previous = stored.get("current") if stored else None
-                else:
-                    previous = stored.get("previous") if stored else None
-                client.last_dashboard_snapshot = {"previous": previous, "current": current}
-                if previous_view is None or now - previous_view >= timedelta(minutes=5):
-                    client.last_dashboard_viewed_at = now
-                db.commit()
+            await run_in_threadpool(record_visit, db, u_client_id, d_start, d_end, platform, result)
         except Exception:
             db.rollback()
             logger.exception("Не удалось сохранить snapshot просмотра проекта %s", u_client_id)

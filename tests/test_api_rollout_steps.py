@@ -8,6 +8,8 @@ class RolloutStepsTest(unittest.TestCase):
         self.assertIn('weight=3',weighted(source,25))
         self.assertEqual(weighted(weighted(source,25),50).count('weight=1'),2)
         with self.assertRaises(ValueError): weighted(source.replace('8001','8002'),25)
+        hardened = source.replace('max_fails=1 fail_timeout=10s', 'max_fails=3 fail_timeout=5s')
+        self.assertEqual(weighted(hardened, 50).count('max_fails=3 fail_timeout=5s'), 2)
 
     def test_mutations_have_no_retries_and_attachment_limit_is_preserved(self):
         source='''location /api/ {

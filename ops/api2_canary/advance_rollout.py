@@ -20,8 +20,8 @@ def weighted(source, stage):
     if stage not in (25, 50):
         raise ValueError('Unsupported rollout step')
     for address, weight in [('127.0.0.1', 3 if stage == 25 else 1), ('10.77.0.2', 1)]:
-        pattern=rf'server {re.escape(address)}:8001 weight=\d+ max_fails=1 fail_timeout=10s;'
-        source,count=re.subn(pattern,f'server {address}:8001 weight={weight} max_fails=1 fail_timeout=10s;',source)
+        pattern=rf'(server {re.escape(address)}:8001 weight=)\d+( max_fails=(?:1|3) fail_timeout=(?:10|5)s;)'
+        source,count=re.subn(pattern,lambda m: m[1]+str(weight)+m[2],source)
         if count!=1:
             raise ValueError('Upstream configuration drift')
     return source

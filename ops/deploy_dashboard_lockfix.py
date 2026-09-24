@@ -1,0 +1,100 @@
+"""API-only rolling patch. Invoke only after removing the target from ingress.
+
+Preserves the running environment (except release), networks, mounts and ports.
+Does not migrate, touch workers, retry business requests or silence alerts.
+Root-only literal rollback configs; no credential output.
+"""
+import argparse
+from copy import deepcopy
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import time
+from ops.render_launch_runtime import capture, inspect_config, literal, private_json, save_checked
+
+BASE = 'sha256:ef9e5c40671bf570671ddf7f890d364f4648cf64ed030a91eedd9923b1dd8cb4'
+
+
+def compose(project, path, service):
+    capture(['docker', 'compose', '-p', project, '-f', str(path), 'up', '-d',
+             '--no-deps', '--no-build', '--pull', 'never', '--timeout', '90', service])
+
+
+def ready(container, release):
+    code = ("import json,urllib.request; "
+            "p=json.load(urllib.request.urlopen('http://127.0.0.1:8001/api/health/ready',timeout=3)); "
+            f"assert p==dict(status='ok',role='api',release={release!r})")
+    for _ in range(30):
+        try:
+            capture(['docker', 'exec', container, 'python', '-c', code])
+            return
+        except subprocess.CalledProcessError:
+            time.sleep(1)
+    raise RuntimeError('API readiness deadline exceeded')
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument('action', choices=['prepare', 'activate', 'rollback'])
+    p.add_argument('--container', choices=['admirra-backend-1', 'admirra-api2-api-1'], required=True)
+    p.add_argument('--root', type=Path, required=True)
+    p.add_argument('--image')
+    p.add_argument('--release', required=True)
+    a = p.parse_args()
+    assert os.geteuid() == 0 and re.fullmatch('[a-f0-9]{7,40}', a.release)
+    a.root.mkdir(parents=True, mode=0o700, exist_ok=True)
+    assert not a.root.is_symlink() and a.root.stat().st_mode & 0o077 == 0
+    if a.action == 'prepare':
+        old, config, service, project = inspect_config(a.container)
+        assert old['Image'] == BASE, 'Runtime image drift'
+        image = capture(['docker', 'image', 'inspect', '--format', '{{.Id}}', a.image]).strip()
+        env = config['services'][service]['environment']
+        assert env['APP_PROCESS_ROLE'] == 'api' and env['APP_RELEASE'] == '2ce9513'
+        private_json(a.root / 'before.json', old)
+        private_json(a.root / 'previous.json', literal(config))
+        active = deepcopy(config)
+        active['services'][service].update(image=image, pull_policy='never')
+        active['services'][service]['environment']['APP_RELEASE'] = a.release
+        save_checked(a.root, 'active', active, service, active['services'][service]['environment'], project)
+        private_json(a.root / 'deployment.json', dict(project=project, service=service, image=image,
+                                                      release=a.release, container=a.container))
+        print('Prepared API-only pinned image and rollback; runtime unchanged')
+        return
+    meta = json.loads((a.root / 'deployment.json').read_text())
+    old = json.loads((a.root / 'before.json').read_text())
+    assert meta['release'] == a.release and meta['container'] == a.container
+    if a.action == 'rollback':
+        compose(meta['project'], a.root / 'previous.json', meta['service'])
+        ready(a.container, '2ce9513')
+        print('Previous API restored')
+        return
+    current = json.loads(capture(['docker', 'inspect', a.container]))[0]
+    assert current['Id'] == old['Id'], 'Prepared runtime changed'
+    try:
+        compose(meta['project'], a.root / 'active.json', meta['service'])
+        ready(a.container, a.release)
+        new = json.loads(capture(['docker', 'inspect', a.container]))[0]
+        expected_env = dict(item.split('=', 1) for item in old['Config']['Env'])
+        expected_env['APP_RELEASE'] = a.release
+        assert dict(item.split('=', 1) for item in new['Config']['Env']) == expected_env
+        assert new['Image'] == meta['image']
+        assert new['HostConfig']['PortBindings'] == old['HostConfig']['PortBindings']
+        assert new['Mounts'] == old['Mounts']
+        assert set(new['NetworkSettings']['Networks']) == set(old['NetworkSettings']['Networks'])
+        private_json(a.root / 'accepted.json', dict(image=new['Image'], started_at=new['State']['StartedAt'],
+                                                   release=a.release, container=a.container))
+    except Exception:
+        compose(meta['project'], a.root / 'previous.json', meta['service'])
+        ready(a.container, '2ce9513')
+        raise
+    print('API ready; only image/release changed; rollback retained')
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as exc:
+        print('Deployment stopped:', type(exc).__name__)
+        raise SystemExit(1)

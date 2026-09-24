@@ -1,0 +1,11 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+WORKDIR /app
+COPY core/source_read.py core/data_requirements.py core/sync_coverage.py /app/core/
+COPY backend_api/read_snapshot.py backend_api/dashboard_visit.py backend_api/stats.py backend_api/detector.py /app/backend_api/
+COPY tests /app/tests
+COPY ops/api2_canary /app/ops/api2_canary
+ARG APP_RELEASE
+ENV APP_RELEASE=${APP_RELEASE}
+LABEL org.opencontainers.image.revision=${APP_RELEASE}
+RUN chmod -R a+rX /app/core /app/backend_api /app/tests /app/ops/api2_canary

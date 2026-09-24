@@ -15,6 +15,7 @@ import json
 from sqlalchemy import select
 from core import models
 from core.job_fence import current_fence, LeaseLost
+from core.source_read import lock_sources
 
 STAGES = frozenset({"campaigns", "groups", "keywords", "creatives", "metrika_goals"})
 MAX_WINDOWS = 4096
@@ -102,12 +103,12 @@ def assess(db, *, integration_id, client_id, owner_id, stages, start, end, not_b
         raise ValueError("Coverage requires at least one stage")
     for stage in stages:
         _validate(stage, start, end, not_before)
-    client = db.scalar(select(models.Client).where(models.Client.id == client_id)
-                       .execution_options(populate_existing=True).with_for_update())
+    client = db.scalar(lock_sources(db, select(models.Client).where(models.Client.id == client_id)
+                       .execution_options(populate_existing=True)))
     if client is None or client.owner_id != owner_id or client.status != models.ClientStatus.ACTIVE:
         return CoverageResult(False, "scope_unavailable")
-    integration = db.scalar(select(models.Integration).where(models.Integration.id == integration_id)
-                            .execution_options(populate_existing=True).with_for_update())
+    integration = db.scalar(lock_sources(db, select(models.Integration).where(models.Integration.id == integration_id)
+                            .execution_options(populate_existing=True)))
     if integration is None or integration.client_id != client.id or integration.connection_status != "active":
         return CoverageResult(False, "scope_unavailable")
     rows = list(db.scalars(select(models.SyncCoverage).where(

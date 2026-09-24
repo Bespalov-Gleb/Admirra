@@ -11,11 +11,15 @@ class Api2CanaryNginxTests(unittest.TestCase):
         config = READ_PROXY.read_text(encoding="utf-8")
 
         self.assertIn("proxy_connect_timeout 1s;", config)
-        self.assertIn("proxy_read_timeout 2s;", config)
+        self.assertIn("proxy_read_timeout 5s;", config)
         self.assertIn("proxy_send_timeout 2s;", config)
         self.assertIn("proxy_next_upstream_tries 2;", config)
-        self.assertIn("proxy_next_upstream_timeout 4s;", config)
+        self.assertIn("proxy_next_upstream_timeout 12s;", config)
         self.assertNotIn("proxy_read_timeout 120s;", config)
+
+    def test_single_timeout_does_not_eject_both_replicas(self):
+        config = READ_PROXY.with_name('admirra-api2-upstream.conf').read_text()
+        self.assertEqual(config.count('max_fails=3 fail_timeout=5s;'), 2)
 
 
 if __name__ == "__main__":
