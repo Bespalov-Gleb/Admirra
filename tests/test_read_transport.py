@@ -118,6 +118,11 @@ error_log {root}/error.log;
 events {{ worker_connections 64; }}
 http {{
     access_log off;
+    client_body_temp_path {root}/body;
+    proxy_temp_path {root}/proxy;
+    fastcgi_temp_path {root}/fastcgi;
+    uwsgi_temp_path {root}/uwsgi;
+    scgi_temp_path {root}/scgi;
     upstream admirra_api_read_canary {{
         server 127.0.0.1:{primary} max_fails=0;
         server 127.0.0.1:{backup} backup;
