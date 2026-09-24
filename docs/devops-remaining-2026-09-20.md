@@ -1,5 +1,13 @@
 # AdMirra DevOps — актуальный остаток до полного переключения
 
+**24.09 утром:** [новый mail candidate и фактические role configs](devops-launch-preparation-2026-09-24.md).
+Коды/ссылки доступа переведены на приоритетный Unisender Web API; тестовое письмо
+доставлено. Candidate `2ce9513` на обоих хостах, подготовлены root-only configs,
+DB/Redis/files probes пройдены. Исправлен локальный путь API1→DB до activation.
+Свежий backup/restore и 64/64 read load passed. Полная регрессия нового image:
+**1639 passed**, 1 skipped, 1 deselected, 6 subtests passed. Production по-прежнему legacy; подтверждение отдельного
+хранения ключа и фактический управляемый cutover остаются.
+
 **24.09, финальная приёмка:** [межсерверные 600 reads + recovery, новый restore и worker AI env](devops-final-load-2026-09-24.md).
 Два synthetic прогона и 44 recovery/contract теста прошли. Финальный application
 image `24f58b7`: **1623 tests passed**, реальный scoped VK/Direct/Metrica + AI/PDF

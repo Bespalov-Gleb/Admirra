@@ -1,5 +1,14 @@
 # Профиль переключения 24.09 — подготовлен, не включён
 
+Обновление 24.09 утром: новый candidate `2ce9513` содержит приоритетные письма
+доступа; он не включён в production. Подготовлены реальные role configs и
+проверены соединения из их Docker networks, см.
+[свежую приёмку](devops-launch-preparation-2026-09-24.md).
+Важное уточнение: API1 использует `db:5432` в своей Docker-сети с ролью
+`admirra_api`, API2 — `10.77.0.1:5432` через WireGuard. Попытка API1 обратиться
+к published private IP собственного хоста завершалась timeout; исправлено
+в renderer, без изменений firewall, паролей, ролей или рабочей БД.
+
 Единый список feature flags: `ops/launch_flags.json`. Применять одинаково к
 API1, API2, workers и scheduler; `APP_PROCESS_ROLE` задавать отдельно. Файл не
 содержит credentials и сам ничего не запускает. Существующий
@@ -27,7 +36,8 @@ API1, API2, workers и scheduler; `APP_PROCESS_ROLE` задавать отдел
   `sha256:57ac503afcdf6136a90d4bbb9903975ed98cefd9c1ca927a465f4d085930a8dd`.
   `APP_RELEASE=24f58b7`, expected schema `f68b92a3b4c5`.
   Captured old runtime env не должен затереть APP_RELEASE нового image.
-- API DB: `/etc/admirra/db-api.env`, pool=5, overflow=0, timeout=5s;
+- API DB credentials: `/etc/admirra/db-api.env`, pool=5, overflow=0, timeout=5s;
+  renderer сохраняет пользователя/пароль, но API1 использует локальный `db`.
   Redis `/etc/admirra/redis-api.env`. Не брать superuser URL из старого .env.
 - Workers: `/etc/admirra/worker.env`, `/etc/admirra/redis-worker.env`, pool=2,
   overflow=0; шесть prefork children суммарно, scheduler ещё два SQL connections.
