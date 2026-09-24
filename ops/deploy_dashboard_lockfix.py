@@ -78,11 +78,15 @@ def main():
         new = json.loads(capture(['docker', 'inspect', a.container]))[0]
         expected_env = dict(item.split('=', 1) for item in old['Config']['Env'])
         expected_env['APP_RELEASE'] = a.release
-        assert dict(item.split('=', 1) for item in new['Config']['Env']) == expected_env
-        assert new['Image'] == meta['image']
-        assert new['HostConfig']['PortBindings'] == old['HostConfig']['PortBindings']
-        assert new['Mounts'] == old['Mounts']
-        assert set(new['NetworkSettings']['Networks']) == set(old['NetworkSettings']['Networks'])
+        checks = {
+            'environment': dict(item.split('=', 1) for item in new['Config']['Env']) == expected_env,
+            'image': new['Image'] == meta['image'],
+            'ports': new['HostConfig']['PortBindings'] == old['HostConfig']['PortBindings'],
+            'mounts': sorted(new['Mounts'], key=lambda m: m['Destination']) == sorted(old['Mounts'], key=lambda m: m['Destination']),
+            'networks': set(new['NetworkSettings']['Networks']) == set(old['NetworkSettings']['Networks']),
+        }
+        print(json.dumps({'runtime_checks': checks}), flush=True)
+        assert all(checks.values()), 'Runtime drift'
         private_json(a.root / 'accepted.json', dict(image=new['Image'], started_at=new['State']['StartedAt'],
                                                    release=a.release, container=a.container))
     except Exception:
