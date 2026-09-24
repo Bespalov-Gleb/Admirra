@@ -9,9 +9,9 @@ S3/PITR вне двух runtime-серверов и две ночи наблюд
 
 ## Артефакты и конфигурации
 
-Позднейший document-only frontend hotfix: `cca1ca7`, image
-`sha256:de7359bb6a79f4b3c729195f4a5dd3ce7c460a1a725fcf20da07fa00e7ec4701`,
-active config `/etc/admirra/releases/legal-brand-cca1ca7/frontend-active.json`.
+Позднейший document-only frontend hotfix: `1deb08b` (branding + sticky), image
+`sha256:f6ffb5227ecc9475cd814ae90d4cb5d006aac9e9f5845c309b8314d9d904c809`,
+active config `/etc/admirra/releases/legal-sticky-1deb08b/frontend-active.json`.
 SPA/landing/API/worker версия осталась прежней; ниже исходные cutover artifacts.
 [Приёмка обновления документов](legal-branding-yandex-check-2026-09-24.md).
 
@@ -181,7 +181,7 @@ JSON содержит credentials: не печатать `docker compose config`
 
 ```sh
 docker compose -f /etc/admirra/releases/cutover-2ce9513-r2/api1-prepared.json up -d --no-deps backend
-docker compose -f /etc/admirra/releases/legal-brand-cca1ca7/frontend-active.json up -d --no-deps frontend
+docker compose -f /etc/admirra/releases/legal-sticky-1deb08b/frontend-active.json up -d --no-deps frontend
 ```
 
 На server2:
