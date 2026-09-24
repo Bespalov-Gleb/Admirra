@@ -1,7 +1,8 @@
 # Production cutover — 24.09.2026
 
-Статус на 10:40 UTC: **API1/API2, frontend, consumers и scheduler переключены**.
-Веса API1/API2 равны 1:1; финальная 30-минутная выдержка ещё идёт.
+Статус на **11:10:55 UTC / 14:10:55 МСК: production cutover завершён**.
+API1/API2, frontend, consumers и единственный scheduler активны.
+Веса API1/API2 равны 1:1; финальная 30-минутная выдержка и итоговые gates пройдены.
 Владелец подтвердил отдельное сохранение AGE recovery key. Сам ключ здесь не хранится.
 S3/PITR вне двух runtime-серверов и две ночи наблюдения отложены владельцем.
 Операционный срок пересмотра временного backup-исключения: 01.10.2026.
@@ -71,6 +72,11 @@ S3/PITR вне двух runtime-серверов и две ночи наблюд
 - Актуальные закрытые credentials/configs/PKI/WireGuard второго сервера сохранены
   через SSH pipe в server1 `worker-host-recovery/cutover-20260924`, включены
   в этот encrypted backup. Offline AGE identity из server2 в копию не включалась.
+- После установки равных весов создан backup `20260924T105320Z-5555006a`,
+  schema `f68b92a3b4c5`. На server2 сверены hashes database/globals/runtime
+  с decrypted manifest и наличие final ingress/API1/worker recovery configs.
+  Restore именно этой последней копии не повторялся: последний полный restore
+  относится к копии `20260924T083852Z-75972c70` той же схемы и приложения.
 - Постоянные runtime monitors установлены на обоих узлах; Prometheus видит
   обе health=1 метрики. Rule validation: **29 rules passed**, reload без restart.
   Три Prometheus behavioral fixtures (healthy, отсутствующий worker probe,
@@ -97,12 +103,43 @@ checks прошли, веса изменены на **1:1**. Предыдущи�
 продолжали работать, но непрерывного synthetic traffic в этот промежуток не было.
 Финальную выдержку считать от 10:40:31, не от начала ступени 25%.
 
+11:10:55 UTC: финальная приёмка после **1824 s**:
+
+- 30 synthetic batches, **720/720 HTTP200**; worst batch p95 **676.44 ms**,
+  slowest controlled read **801.94 ms**. Это согласованный малый controlled
+  профиль, не обещание latency для любого запроса/мобильной сети.
+- **1739 public API requests**, API2 **856 (49.22%)**, **0 final HTTP5xx**.
+  Остальные статусы: 1321×200, 56×401, 360×307, 1×204, 1×400.
+  Не выдавать отсутствие 5xx за отсутствие вообще всех отказов: 4xx были
+  на auth/неавторизованных запросах, 400 — на регистрации.
+- Schema f68, обе API ready, обе runtime probes healthy/fresh, active alerts=0.
+  `uncertain`, expired leases, manual wait, outbox wait, report/AI unknown = 0;
+  scheduler age 56 s. Worker roles проверены отдельно: все running, restarts=0.
+- API1/frontend restarts=0, OOM=false; legacy automation stopped/restart=no.
+  Admission открыт. Повторные seven-route cross-replica comparisons совпали;
+  8 public SSE replay и existing PDF download после установки 1:1 прошли.
+- Protected acceptance evidence: server1 release-root `final-acceptance.json`.
+  Постоянные probes и Telegram alerts остаются активными после этой сессии.
+
 Для общего API/SSE `proxy_next_upstream off`: никакого автоматического
 повтора потенциально уже выполненной операции. Четыре проверенных safe-read
 routes сохраняют короткий bounded failover. Фактическую долю считать по access log:
 least_conn weights не гарантируют точную долю запросов, особенно при SSE.
 
 ## Мониторинг и действия оператора
+
+Во время расширенной ступени 25% зарегистрированы три terminal failures
+`history.backfill` тестового владельца (10:31–10:34 UTC): два
+`IncompleteAdsSnapshot` для 04.08–02.09 и один `IntegrationScopeChanged`
+для 03.09–20.09. Не смешивать их с успешными текущими `sync`: это отдельные
+исторические задания. Ledger хранит тип ошибки, а не её текст, поэтому точная
+исходная причина первых двух не доказана. Scoped read-only повтор первого
+сбора прошёл (92 campaign rows, 211 group rows, 865 keyword rows); проверка
+legacy keyword ambiguity дала 0. Данные/статусы этих failed jobs не переписаны,
+новый enqueue не выполнялся. Это не uncertain external outcome и не зависший
+воркер, но полноту указанных исторических окон считать подтверждённой нельзя.
+При повторении нужен отдельный разбор полноты ответа провайдера с безопасными
+диагностическими кодами; не снимать fail-closed проверки ради зелёного статуса.
 
 `admirra-runtime-monitor@ingress` читает только агрегаты БД: schema, календарь,
 expired leases, uncertain jobs/report/AI, outbox delay. `@workers` проверяет
@@ -161,3 +198,12 @@ gracefully после закрытия admission и остановки един�
 
 Protected evidence/logs: release-root на server1. Локальные незавершённые правки
 владельца mobile/landing не включались в эти образы и остались нетронутыми.
+
+## Остаток после переключения
+
+Блокирующих действий самого cutover не осталось. Отложены владельцем:
+независимый offsite/S3/PITR и две ночи наблюдения. Это не полная отказоустойчивость
+всей платформы: ingress/основная БД остаются на server1, автоматического failover
+БД данным переключением не добавлено. Shared read cache остаётся выключенным
+по принятому launch profile. Отдельный функциональный follow-up — три отказа
+исторической догрузки, описанные выше; не считать их автоматически исправленными.
