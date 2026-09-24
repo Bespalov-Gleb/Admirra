@@ -63,7 +63,7 @@ def inspect_config(name):
     return runtime, config, service, labels['com.docker.compose.project']
 
 
-def api_environment(business, db, redis, flags, release):
+def api_environment(business, db, redis, flags, release, *, local_database=False):
     if set(db) != {'DATABASE_URL'}:
         raise ValueError('Unexpected API DB credential fields')
     url = urlsplit(db['DATABASE_URL'])
@@ -80,6 +80,13 @@ def api_environment(business, db, redis, flags, release):
     if redis['TASK_BROKER_PREFIX'] != 'admirra:task:':
         raise ValueError('Unexpected task prefix')
     env = dict(business, **db, **redis, **flags)
+    if local_database:
+        # API1 and PostgreSQL already share admirra_default. Going out through
+        # this host's published WireGuard address hairpins through Docker and
+        # is not the tested inter-host gateway path. Keep the restricted role,
+        # but use the existing internal DB service, without opening any ports.
+        env['DATABASE_URL'] = url._replace(
+            netloc=url.netloc.rsplit('@', 1)[0] + '@db:5432').geturl()
     env.pop('API_ONLY_REPLICA', None)  # Legacy canary patch is not a new role.
     env.update(APP_PROCESS_ROLE='api', APP_RELEASE=release,
                EXPECTED_SCHEMA_REVISION='f68b92a3b4c5', DB_POOL_SIZE='5',
@@ -174,7 +181,8 @@ def main():
         if any(old_env.get(key) != business.get(key) for key in ('SECRET_KEY', 'ENCRYPTION_KEY')):
             raise ValueError('Cross-replica auth/encryption mismatch')
     env = api_environment(business, env_file('/etc/admirra/db-api.env'),
-                          env_file('/etc/admirra/redis-api.env'), flags, args.release)
+                          env_file('/etc/admirra/redis-api.env'), flags, args.release,
+                          local_database=args.action == 'api1')
     active = deepcopy(previous)
     service = active['services'][service_name]
     service.update(image=image, environment=env)

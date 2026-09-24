@@ -61,3 +61,10 @@ def test_compose_literals_preserve_dollars_in_nested_settings():
     assert literal(value) == {
         'environment': {'KEY': '$$a$${OTHER}$$$$'}, 'command': ['echo', '$$HOME'], 'n': 1}
     assert value['environment']['KEY'] == '$a${OTHER}$$'
+
+
+def test_api1_uses_local_docker_dns_but_keeps_restricted_credentials():
+    args = inputs()
+    result = api_environment(*args, local_database=True)
+    assert result['DATABASE_URL'] == 'postgresql://admirra_api:synthetic@db:5432/saas_project'
+    assert args[1]['DATABASE_URL'].endswith('@10.77.0.1:5432/saas_project')
