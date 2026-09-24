@@ -1,5 +1,13 @@
 # AdMirra DevOps — актуальный остаток до полного переключения
 
+**24.09, production cutover:** новая схема `f68b92a3b4c5`, API1/API2,
+frontend, consumers и единственный scheduler уже активны. Legacy automation
+остановлен. Manual sync Яндекс/VK, AI cross-replica replay и отчёт тестовому
+владельцу прошли. Осталось завершить ступени публичной балансировки 10→25→50%
+с выдержкой и финальным контролем. S3 и две ночи остаются отложенными.
+[Актуальный протокол и rollback](devops-production-cutover-2026-09-24.md).
+Исторические статусы ниже не отменяют эти результаты.
+
 **24.09 утром:** [новый mail candidate и фактические role configs](devops-launch-preparation-2026-09-24.md).
 Коды/ссылки доступа переведены на приоритетный Unisender Web API; тестовое письмо
 доставлено. Candidate `2ce9513` на обоих хостах, подготовлены root-only configs,

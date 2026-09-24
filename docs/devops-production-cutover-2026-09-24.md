@@ -44,6 +44,9 @@ S3/PITR вне двух runtime-серверов и две ночи наблюд
   force_full=false): SUCCESS; durable jobs succeeded, attempt=1. Первоначальный
   smoke ошибочно ожидал lowercase статусы; исправлен только probe, существующие
   jobs дочитаны без повторного enqueue. Related backfills succeeded.
+  Старт задач через 3.36–3.44 s, выполнение 7.87–17.60 s. VK сначала вернул
+  expired token; штатное ограниченное обновление credentials восстановило
+  запрос, итоговый commit успешен. Эти provider errors не скрыты.
 - Один короткий AI request: succeeded, provider_calls=1, replay через API2
   вернул сохранённый ответ без нового вызова. На согласованном тестовом аккаунте
   `charged=false`; не выдавать эту проверку за списание платной квоты.
@@ -54,6 +57,22 @@ S3/PITR вне двух runtime-серверов и две ночи наблюд
 - Alertmanager принял тест firing/resolved; telegram transport errors=0.
   Старый readiness monitor ожидал legacy payload: исправлен в `be5b0f5`,
   8 unit tests passed. Оба host probes теперь healthy, ложные alerts resolved.
+
+Дополнительные проверки после активации:
+
+- Короткий профиль, 8 запросов каждого типа на реплику: auth warm max
+  5.94/25.48 ms; compact projects 257.37/75.91 ms; 20-card batch
+  228.76/291.38 ms; global 72-project summary 102.22/152.82 ms (API1/API2).
+  Это малый operational sample, не статистическая гарантия SLO или UI latency.
+- Новый backup новой схемы `20260924T083852Z-75972c70` восстановлен в isolated
+  `network=none`: **55 s**, worker preflight и API boot passed, 64/64 HTTP200,
+  batch comparisons/access guards passed. Повторный запуск worker consumers
+  здесь не выполнялся; их boot уже проверен ранее и на фактическом runtime.
+- Актуальные закрытые credentials/configs/PKI/WireGuard второго сервера сохранены
+  через SSH pipe в server1 `worker-host-recovery/cutover-20260924`, включены
+  в этот encrypted backup. Offline AGE identity из server2 в копию не включалась.
+- Постоянные runtime monitors установлены на обоих узлах; Prometheus видит
+  обе health=1 метрики. Rule validation: **28 rules passed**, reload без restart.
 
 ## Публичное распределение
 
