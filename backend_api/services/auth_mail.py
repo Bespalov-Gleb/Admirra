@@ -5,11 +5,63 @@
 import asyncio
 import logging
 import smtplib
+import httpx
 from email.message import EmailMessage
 from typing import Optional
 from core.config import get_config
 
 logger = logging.getLogger("api.auth_mail")
+
+
+def _send_priority_auth_email(to_email: str, subject: str, body: str) -> bool:
+    """User-requested access mail only; never retry an ambiguous send via SMTP.
+
+    Unisender documents bypass flags for Web API, not its SMTP interface.
+    Local unsubscribes/complaints remain effective; no suppression is deleted.
+    """
+    if not smtp_delivery_active():
+        return False
+    cfg = get_config()
+    if cfg.smtp.host.lower().rstrip('.') not in {
+        'smtp.go1.unisender.ru', 'smtp.go2.unisender.ru',
+    }:
+        return _send_sync(to_email, subject, body)
+    if not cfg.unisender.api_key:
+        logger.error('Priority auth mail unavailable: Unisender API key missing')
+        return False
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            response = client.post(
+                cfg.unisender.api_url.rstrip('/') + '/email/send.json',
+                headers={'X-API-KEY': cfg.unisender.api_key},
+                json={'message': {
+                    'recipients': [{'email': to_email}],
+                    'from_email': cfg.smtp.from_addr,
+                    'from_name': cfg.unisender.from_name,
+                    'subject': subject,
+                    'body': {'plaintext': body},
+                    'bypass_global': 1,
+                    'bypass_unavailable': 1,
+                    'bypass_unsubscribed': 0,
+                    'bypass_complained': 0,
+                    'track_links': 0,
+                    'track_read': 0,
+                }},
+            )
+        data = response.json()
+        accepted = (
+            response.status_code == 200
+            and data.get('status') == 'success'
+            and bool(data.get('job_id'))
+            and not data.get('failed_emails')
+        )
+        if not accepted:
+            # Provider response may contain email/OTP/link: never log its body.
+            logger.warning('Priority auth mail not accepted: HTTP %s', response.status_code)
+        return accepted
+    except Exception as exc:
+        logger.warning('Priority auth mail failed: %s', type(exc).__name__)
+        return False
 
 
 def smtp_enabled() -> bool:
@@ -87,7 +139,7 @@ async def send_verification_link_email(to_email: str, verify_url: str) -> bool:
         f"Если вы не регистрировались, проигнорируйте это письмо.\n"
     )
     try:
-        return await asyncio.to_thread(_send_sync, to_email, subject, body)
+        return await asyncio.to_thread(_send_priority_auth_email, to_email, subject, body)
     except Exception as e:
         logger.exception("send_verification_link_email failed: %s", e)
         return False
@@ -117,7 +169,7 @@ async def send_reset_password_email(to_email: str, reset_url: str) -> bool:
         f"Ссылка действительна 1 час. Если вы не запрашивали сброс — проигнорируйте это письмо.\n"
     )
     try:
-        return await asyncio.to_thread(_send_sync, to_email, subject, body)
+        return await asyncio.to_thread(_send_priority_auth_email, to_email, subject, body)
     except Exception as e:
         logger.exception("send_reset_password_email failed: %s", e)
         return False
@@ -130,7 +182,7 @@ async def send_login_otp_email(to_email: str, code: str) -> bool:
         f"Код действителен несколько минут. Никому его не сообщайте.\n"
     )
     try:
-        return await asyncio.to_thread(_send_sync, to_email, subject, body)
+        return await asyncio.to_thread(_send_priority_auth_email, to_email, subject, body)
     except Exception as e:
         logger.exception("send_login_otp_email failed: %s", e)
         return False
