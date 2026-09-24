@@ -25,9 +25,9 @@ SMTP_ENABLED=false продолжает полностью выключать о
 провайдеры работают прежним способом. Для Unisender отсутствующий API key —
 явный отказ, а не незаметный возврат к старой политике.
 
-Проверки: 16 isolated unit tests passed на image 24f58b7 с точечным source
-overlay, сеть отключена. Полный новый image/регрессия и rollout проверяются
-отдельно. Этот документ не означает, что код уже активен в production.
+Первоначальная проверка до релиза: 16 isolated unit tests passed на image
+24f58b7 с точечным source overlay, сеть отключена. Затем выполнены полная
+регрессия нового image и production rollout, указанные в начале документа.
 
 Диагностика до изменения: SMTP AUTH 235, MAIL FROM 250, домен подтверждён,
 DKIM active. Два письма одному адресу @acmind.ru — skip_dup_unreachable;
