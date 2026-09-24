@@ -1,0 +1,11 @@
+[Unit]
+Description=Check AdMirra OpenRouter account balance every 15 minutes
+
+[Timer]
+OnCalendar=*:0/15
+RandomizedDelaySec=30
+Persistent=true
+Unit=admirra-openrouter-balance.service
+
+[Install]
+WantedBy=timers.target
