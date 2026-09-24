@@ -1,5 +1,17 @@
 # Production cutover — 24.09.2026
 
+## Обновление API в 17:35 МСК
+
+Обе API-реплики теперь на `60965ca`, image
+`sha256:a43f4ac289996731f4430ceb8c37a6b43dd9003afde134925b672b703faf3d62`.
+Убраны блокировки источников при чтении детектора/дашборда; балансировщик
+сохраняет 1:1, safe-read timeout 5 s, max_fails 3 / fail_timeout 5 s.
+Воркеры и scheduler остались на `2ce9513`, frontend — без изменений.
+Текущие API config paths и откат: [приёмка исправления](dashboard-contention-2026-09-24.md).
+Команды ниже для API исправлены; остальные разделы описывают исходный cutover.
+
+## Исходное переключение
+
 Статус на **11:10:55 UTC / 14:10:55 МСК: production cutover завершён**.
 API1/API2, frontend, consumers и единственный scheduler активны.
 Веса API1/API2 равны 1:1; финальная 30-минутная выдержка и итоговые gates пройдены.
@@ -186,14 +198,14 @@ JSON содержит credentials: не печатать `docker compose config`
 нового source release) команды на server1:
 
 ```sh
-docker compose -f /etc/admirra/releases/cutover-2ce9513-r2/api1-prepared.json up -d --no-deps backend
+docker compose -p admirra -f /etc/admirra/releases/dashboard-locks-60965ca/active.json up -d --no-deps --no-build --pull never backend
 docker compose -f /etc/admirra/releases/legal-sticky-1deb08b/frontend-active.json up -d --no-deps frontend
 ```
 
 На server2:
 
 ```sh
-docker compose -f /etc/admirra/releases/cutover-2ce9513/api2-prepared.json up -d --no-deps api
+docker compose -p admirra-api2 -f /etc/admirra/releases/dashboard-locks-60965ca-r2/active.json up -d --no-deps --no-build --pull never api
 docker compose -f /etc/admirra/releases/cutover-2ce9513/workers-prepared.json up -d --no-deps sync-manual sync-nightly reports maintenance scheduler
 ```
 
