@@ -1,7 +1,14 @@
 import unittest
+from pathlib import Path
 from ops.monitoring.check_runtime import ledger_checks,role_checks,EXPECTED_SCHEMA
 
 class RuntimeMonitorTest(unittest.TestCase):
+    def test_rules_detect_missing_probes_and_manual_queue_delay(self):
+        rules=(Path(__file__).resolve().parents[1]/'ops/monitoring/rules.yml').read_text()
+        for role in ('ingress','workers'):
+            self.assertIn('absent(admirra_runtime_monitor_timestamp_seconds{role="'+role+'"})',rules)
+        self.assertIn('admirra_runtime_value{role="ingress",name="manual_wait"} > 60',rules)
+
     def test_missing_tick_unknown_outcomes_and_expired_leases_fail_closed(self):
         data=dict(schema=EXPECTED_SCHEMA,scheduler_age=20,expired_leases=0,uncertain=0,report_unknown=0,ai_unknown=0,outbox_wait=1)
         self.assertTrue(all(ledger_checks(data).values()))

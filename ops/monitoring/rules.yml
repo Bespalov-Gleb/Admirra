@@ -11,12 +11,21 @@ groups:
           runbook: "docs/devops-production-cutover-2026-09-24.md"
 
       - alert: AdMirraDurableRuntimeMonitorStale
-        expr: time() - admirra_runtime_monitor_timestamp_seconds > 180
+        expr: time() - admirra_runtime_monitor_timestamp_seconds > 180 or absent(admirra_runtime_monitor_timestamp_seconds{role="ingress"}) or absent(admirra_runtime_monitor_timestamp_seconds{role="workers"})
         for: 1m
         labels:
           severity: critical
         annotations:
           summary: "AdMirra durable runtime monitoring stopped updating"
+          runbook: "docs/devops-production-cutover-2026-09-24.md"
+
+      - alert: AdMirraManualQueueDelay
+        expr: admirra_runtime_value{role="ingress",name="manual_wait"} > 60
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AdMirra manual synchronization queue is delayed"
           runbook: "docs/devops-production-cutover-2026-09-24.md"
 
       - alert: AdMirraSharedFilesUnavailable
