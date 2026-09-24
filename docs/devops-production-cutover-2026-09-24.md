@@ -9,7 +9,13 @@ S3/PITR вне двух runtime-серверов и две ночи наблюд
 
 ## Артефакты и конфигурации
 
-Позднейший document-only frontend hotfix: `1deb08b` (branding + sticky), image
+Текущий frontend hotfix: `6c00e1d` (статусы подготовки истории детектора), image
+`sha256:6119ccfe0a40e9461f42b16f6bbb53f883857da57dc078c9ccdb34a0c9957660`,
+active config `/etc/admirra/releases/frontend-readiness-6c00e1d/frontend-active.json`,
+SPA entry `index-Dc1ARDEc.js`. Landing/documents/API/workers сохранены.
+[Приёмка frontend hotfix](detector-readiness-ui-2026-09-24.md).
+
+Предыдущий document-only frontend hotfix: `1deb08b` (branding + sticky), image
 `sha256:f6ffb5227ecc9475cd814ae90d4cb5d006aac9e9f5845c309b8314d9d904c809`,
 active config `/etc/admirra/releases/legal-sticky-1deb08b/frontend-active.json`.
 SPA/landing/API/worker версия осталась прежней; ниже исходные cutover artifacts.
