@@ -72,7 +72,9 @@ S3/PITR вне двух runtime-серверов и две ночи наблюд
   через SSH pipe в server1 `worker-host-recovery/cutover-20260924`, включены
   в этот encrypted backup. Offline AGE identity из server2 в копию не включалась.
 - Постоянные runtime monitors установлены на обоих узлах; Prometheus видит
-  обе health=1 метрики. Rule validation: **28 rules passed**, reload без restart.
+  обе health=1 метрики. Rule validation: **29 rules passed**, reload без restart.
+  Три Prometheus behavioral fixtures (healthy, отсутствующий worker probe,
+  задержка manual queue) прошли `promtool test rules`.
 
 ## Публичное распределение
 
@@ -87,7 +89,7 @@ routes на обоих доменах. Предыдущие 30 min: 480 canary r
 Через публичный балансировщик: 8 SSE replay без дополнительного provider call,
 скачивание прежнего PDF успешно. Автоматический retry общего API выключен.
 
-Следующие ступени: 25% с расширением business API routes, затем 50%.
+Текущая ступень — 25% с расширенными business API routes; следующая — 50%.
 Для общего API/SSE `proxy_next_upstream off`: никакого автоматического
 повтора потенциально уже выполненной операции. Четыре проверенных safe-read
 routes сохраняют короткий bounded failover. Фактическую долю считать по access log:
@@ -114,6 +116,41 @@ drain workers и сохранить receipts. Не запускать стару
 `sha256:b959c09111a5278493e072452cec334bce7be4dda6e250a72c29be716eda1482`.
 Новые worker handlers из rollback image запускать нельзя. Схему не downgrade,
 production DB не перезаписывать restore поверх новых пользовательских записей.
+
+## Обслуживание запущенного релиза
+
+Runtime запущен по зафиксированным root-only Compose JSON, а не по старому
+checkout `/root/Admirra` на server1. **Не запускать общий `docker compose up`
+из этого checkout**: там остаётся legacy automation. Не делать `down`,
+`--remove-orphans` и не пересоздавать DB/Redis при обычном обновлении API.
+JSON содержит credentials: не печатать `docker compose config`, не класть его
+в git или тикеты. Имена проектов уже зафиксированы в конфигурациях.
+
+Для восстановления того же API/frontend после диагностики (не для установки
+нового source release) команды на server1:
+
+```sh
+docker compose -f /etc/admirra/releases/cutover-2ce9513-r2/api1-prepared.json up -d --no-deps backend
+docker compose -f /etc/admirra/releases/cutover-2ce9513-r2/frontend-prepared.json up -d --no-deps frontend
+```
+
+На server2:
+
+```sh
+docker compose -f /etc/admirra/releases/cutover-2ce9513/api2-prepared.json up -d --no-deps api
+docker compose -f /etc/admirra/releases/cutover-2ce9513/workers-prepared.json up -d --no-deps sync-manual sync-nightly reports maintenance scheduler
+```
+
+Не использовать эти команды как безусловный restart при неизвестном результате
+операции: сначала проверить receipts и leases. Новый релиз требует новых
+проверенных image/configs, а не редактирования старых sealed configs. API
+выводить из upstream по одному с учётом активных SSE; consumers останавливать
+gracefully после закрытия admission и остановки единственного scheduler.
+
+Постоянные проверки: `admirra-runtime-monitor@ingress.timer` на server1,
+`admirra-runtime-monitor@workers.timer` на server2. Следить за свежестью
+метрик, scheduler tick, manual queue age, uncertain outcomes и expired leases.
+Расхождение actual traffic share с весами при `least_conn` само по себе не сбой.
 
 Protected evidence/logs: release-root на server1. Локальные незавершённые правки
 владельца mobile/landing не включались в эти образы и остались нетронутыми.
