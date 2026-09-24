@@ -44,4 +44,14 @@ exceptions. Это НЕ доказательство успешной регис
 Только пять static document assets поверх pinned действующего frontend image,
 без rebuild SPA/лендинга, без изменений API, workers, ingress, схемы и env.
 `ops/Dockerfile.legal-branding`; rollback — прежний frontend image/config.
-Фактический image/release и production smoke фиксируются после выкладки.
+Выложено: source `cca1ca7`, image
+`sha256:de7359bb6a79f4b3c729195f4a5dd3ce7c460a1a725fcf20da07fa00e7ec4701`.
+Root-only release: `/etc/admirra/releases/legal-brand-cca1ca7/`;
+`frontend-active.json`, `frontend-previous.json`, `acceptance.json`.
+Публичные пять файлов побайтно совпали с source. Checksums SPA index, landing
+index и active nginx config не изменились; env/mounts/ports сохранены.
+Container IDs backend/DB/остановленной legacy automation прежние, API ready.
+Workers и upstream balance 1:1 не трогались.
+Повторный browser smoke непосредственно `https://admirra.ru`: 3 документа ×
+5 размеров экрана прошли, оба лого загружены, переполнения нет, мобильное меню
+и закрытие работают. Технический локальный preview остановлен после проверки.
