@@ -63,6 +63,13 @@ server {
         include /etc/nginx/snippets/admirra-api2-read-proxy.conf;
     }
 
+    # Canonical list URL used by Header.vue; mark-read mutations stay outside.
+    location = /api/notifications/ {
+        error_page 418 = @admirra_primary_api;
+        if ($request_method !~ ^(GET|HEAD)$) { return 418; }
+        include /etc/nginx/snippets/admirra-api2-read-proxy.conf;
+    }
+
     location /api/ {
         proxy_pass http://127.0.0.1:8001/api/;
         proxy_http_version 1.1;

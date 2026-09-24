@@ -10,7 +10,7 @@ class Api2CanaryNginxTests(unittest.TestCase):
     def test_read_canary_has_bounded_failover_time(self):
         config = READ_PROXY.read_text(encoding="utf-8")
 
-        self.assertIn("proxy_connect_timeout 1s;", config)
+        self.assertIn("proxy_connect_timeout 3s;", config)
         self.assertIn("proxy_read_timeout 5s;", config)
         self.assertIn("proxy_send_timeout 2s;", config)
         self.assertIn("proxy_next_upstream_tries 2;", config)

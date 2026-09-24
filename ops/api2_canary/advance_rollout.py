@@ -42,7 +42,7 @@ def business_routes(source):
         body=re.sub(old,'proxy_pass http://admirra_api_read_canary;',body)
         if 'proxy_next_upstream' in body:
             raise ValueError('Unexpected preexisting retry policy')
-        body+='        proxy_next_upstream off;\n        proxy_connect_timeout 1s;\n'
+        body+='        proxy_next_upstream off;\n        proxy_connect_timeout 3s;\n'
         body+='        proxy_set_header Connection "";\n        proxy_set_header X-Request-ID $request_id;\n'
         body+='        access_log /var/log/nginx/admirra-api2-canary.log admirra_api_canary;\n'
         if 'proxy_read_timeout' not in body:
