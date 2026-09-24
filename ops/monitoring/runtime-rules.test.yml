@@ -1,0 +1,49 @@
+rule_files: [rules.yml]
+evaluation_interval: 1m
+tests:
+  - name: healthy-runtime
+    interval: 1m
+    input_series:
+      - series: 'admirra_runtime_monitor_timestamp_seconds{role="ingress"}'
+        values: '0+60x10'
+      - series: 'admirra_runtime_monitor_timestamp_seconds{role="workers"}'
+        values: '0+60x10'
+      - series: 'admirra_runtime_value{role="ingress",name="manual_wait"}'
+        values: '0+0x10'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: AdMirraDurableRuntimeMonitorStale
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: AdMirraManualQueueDelay
+        exp_alerts: []
+  - name: missing-worker-monitor
+    interval: 1m
+    input_series:
+      - series: 'admirra_runtime_monitor_timestamp_seconds{role="ingress"}'
+        values: '0+60x10'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: AdMirraDurableRuntimeMonitorStale
+        exp_alerts:
+          - exp_labels: {role: workers, severity: critical}
+            exp_annotations:
+              summary: "AdMirra durable runtime monitoring stopped updating"
+              runbook: "docs/devops-production-cutover-2026-09-24.md"
+  - name: manual-queue-stalled
+    interval: 1m
+    input_series:
+      - series: 'admirra_runtime_monitor_timestamp_seconds{role="ingress"}'
+        values: '0+60x10'
+      - series: 'admirra_runtime_monitor_timestamp_seconds{role="workers"}'
+        values: '0+60x10'
+      - series: 'admirra_runtime_value{role="ingress",name="manual_wait"}'
+        values: '61+0x10'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: AdMirraManualQueueDelay
+        exp_alerts:
+          - exp_labels: {role: ingress, name: manual_wait, severity: warning}
+            exp_annotations:
+              summary: "AdMirra manual synchronization queue is delayed"
+              runbook: "docs/devops-production-cutover-2026-09-24.md"
