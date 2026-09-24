@@ -135,9 +135,11 @@
         </span>
         <div class="detector-banner__text">
           <span class="detector-banner__title">{{ neutralTitle }}</span>
-          <span class="detector-banner__hypothesis">{{ neutralSubtitle }}</span>
+          <span v-if="neutralSubtitle" class="detector-banner__hypothesis">{{ neutralSubtitle }}</span>
           <DataReadinessNotice v-for="item in syncIssues.filter(issue => issue.data_readiness)" :key="item.data_readiness.id"
-            :readiness="item.data_readiness" action-label="Обновить выводы детектора" @ready-action="$emit('refresh-data')" />
+            :readiness="item.data_readiness" context="detector" inline action-label="Обновить выводы детектора"
+            @state-change="rememberReadiness(item.data_readiness, $event)"
+            @ready="$emit('refresh-data')" @ready-action="$emit('refresh-data')" />
         </div>
       </div>
     </section>
@@ -160,8 +162,9 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import DataReadinessNotice from '@/components/DataReadinessNotice.vue'
+import { consumerReadiness, detectorReadinessTitle, readinessKey } from '@/utils/consumerReadiness'
 
 const props = defineProps({
   warningCount: { type: Number, default: 0 },
@@ -184,6 +187,11 @@ const emit = defineEmits(['ask-ai', 'snooze', 'acknowledge', 'not-problem', 'res
 const expandedId = ref(null)
 const openSnoozeId = ref(null)
 const hiddenListOpen = ref(false)
+const readinessStates = ref({})
+watch(() => props.syncIssues, () => { readinessStates.value = {} })
+function rememberReadiness(original, state) {
+  readinessStates.value[readinessKey(original)] = state
+}
 
 const activeAlerts = computed(() => props.alerts || [])
 const hiddenAlerts = computed(() => props.hiddenAlerts || [])
@@ -247,11 +255,18 @@ const neutralTitle = computed(() => {
     const days = props.warmupDaysLeft ?? '?'
     return `Детектор накапливает данные, заработает через ${days} дн.`
   }
-  return 'Нет свежих данных по подключению'
+  return detectorReadinessTitle(props.syncIssues.map(issue => {
+    const readiness = issue.data_readiness
+    return readinessStates.value[readinessKey(readiness)] || consumerReadiness(readiness)
+  }))
 })
 const neutralSubtitle = computed(() => {
   if (props.warmupStatus === 'warming_up') return 'Сначала нужна история по проекту. Это нейтральный статус, не алерт.'
-  return props.syncIssues.map((issue) => issue.text).join(' ')
+  return props.syncIssues.filter(issue => !issue.data_readiness).map(issue =>
+    issue.text?.startsWith('Полнота данных не подтверждена.')
+      ? 'Показатели могут быть доступны, но для выводов детектора нужна подтверждённая история. Обновите данные проекта.'
+      : issue.text
+  ).filter(Boolean).join(' ')
 })
 
 // Ведущая фраза = первая секция hypothesis_text (до первого «•»).
@@ -393,7 +408,10 @@ const snooze = (alert, mode) => { openSnoozeId.value = null; emit('snooze', aler
   background: rgba(255, 255, 255, 0.72);
 }
 .detector-banner__title { color: #1f2937; font-size: 0.8rem; font-weight: 900; letter-spacing: 0.02em; text-transform: uppercase; line-height: 1.25; }
-.detector-banner__text { display: flex; flex-direction: column; gap: 0.15rem; }
+.detector-banner__text { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; overflow-wrap: anywhere; }
+:global(.dark) .detector-banner--sync { background: #202a39; border-color: #3b4960; color: #c2ccda; }
+:global(.dark) .detector-banner--sync .detector-banner__title { color: #e2e8f0; }
+:global(.dark) .detector-banner--sync .detector-banner__head-ic { background: #293649; color: #c2ccda; }
 .detector-banner__hypothesis { color: currentColor; font-size: 0.84rem; font-weight: 650; opacity: 0.82; line-height: 1.35; }
 
 /* ───── Блок-эпизод ───── */

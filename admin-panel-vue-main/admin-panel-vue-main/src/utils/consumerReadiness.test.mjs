@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { consumerReadiness } from './consumerReadiness.js'
+import { consumerReadiness, createReadinessCompletion, readinessKey, readinessMessage, detectorReadinessTitle } from './consumerReadiness.js'
 
 test('old API waiting state is finite, unknown states are hidden', () => {
   assert.equal(consumerReadiness('waiting_data').status, 'held')
@@ -19,4 +19,29 @@ test('ready is not a command to run a paid action', () => {
 })
 test('held retry stays controlled by the server', () => {
   assert.equal(consumerReadiness({ status: 'held', can_retry: false }).can_retry, false)
+})
+test('completion is once per preparation, including retries with a new deadline', () => {
+  const notify = createReadinessCompletion()
+  const state = { id: 'a', deadline: 'later', status: 'waiting' }
+  assert.equal(notify(state), false)
+  assert.equal(notify({ ...state, status: 'held' }), false)
+  assert.equal(notify({ ...state, status: 'ready' }), true)
+  assert.equal(notify({ ...state, status: 'ready' }), false)
+  assert.equal(notify({ ...state, status: 'ready', deadline: 'new deadline' }), true)
+  assert.equal(notify({ status: 'ready' }), false)
+  assert.notEqual(readinessKey(state), readinessKey({ ...state, id: 'b' }))
+})
+test('detector describes history, not missing dashboard statistics', () => {
+  const value = { status: 'waiting', message: 'Обновляем недостающие данные. Повторите действие после завершения.' }
+  assert.match(readinessMessage(value, 'detector'), /историю/)
+  assert.doesNotMatch(readinessMessage(value, 'detector'), /Повторите действие/)
+  assert.equal(readinessMessage(value), value.message)
+  assert.match(readinessMessage(value, 'detector', true), /Не удалось проверить/)
+})
+test('titles distinguish preparation, held, ready and unknown history', () => {
+  assert.equal(detectorReadinessTitle([{ status: 'waiting' }]), 'Подготавливаем историю для детектора')
+  assert.equal(detectorReadinessTitle([{ status: 'held' }]), 'Подготовка истории приостановлена')
+  assert.equal(detectorReadinessTitle([{ status: 'ready' }]), 'История для детектора готова')
+  assert.equal(detectorReadinessTitle([null]), 'Проверяем полноту данных для детектора')
+  assert.notEqual(detectorReadinessTitle([{ status: 'ready' }, null]), 'История для детектора готова')
 })
