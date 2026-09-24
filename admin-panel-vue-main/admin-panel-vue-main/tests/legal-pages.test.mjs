@@ -16,7 +16,7 @@ for (const [name, hash] of Object.entries(originals)) {
     const html = read(`public/admirra/${name}.html`)
     const text = html.match(/<article[^>]*>([\s\S]*?)<\/article>/)[1].replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()
     assert.equal(createHash('sha256').update(text).digest('hex'), hash)
-    assert.ok(html.includes('href="/admirra/legal.css?v=brand-20260924"'))
+    assert.ok(html.includes('href="/admirra/legal.css?v=sticky-20260924"'))
     assert.ok(html.includes('href="/"'))
     assert.ok(html.includes(`href="/admirra/${name}.html" aria-current="page"`))
     assert.ok(!/href="(?:#"|index.html|entry.html|reg.html)/.test(html))

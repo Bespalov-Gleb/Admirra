@@ -5,7 +5,7 @@
 .skip-link{position:absolute;left:24px;top:-60px;padding:12px;background:#fff;z-index:100}.skip-link:focus{top:16px}
 /* Same logo, pill geometry, navigation and actions as the deployed landing.
    Kept independent of its global resets and page-specific JavaScript. */
-.site-header{position:sticky;top:0;z-index:50;padding:31.5px 24px 0}
+.site-header{position:sticky;top:0;z-index:50;padding:0 24px;background:#f5f7fc}
 .site-header__inner{position:relative;display:flex;align-items:center;gap:67.5px;width:fit-content;max-width:100%;min-height:68.4px;margin-inline:auto;padding:16.2px 31.5px;background:#fff;border-radius:999px;box-shadow:0 6px 28px #16213e06}
 .site-header__logo,.brand{display:inline-flex;flex:0 0 auto;align-items:center}
 .site-header__logo img,.brand img{display:block;width:131px;height:28px;object-fit:contain}
@@ -28,7 +28,7 @@
 .site-header__burger[aria-expanded=true] span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
 @media(max-width:1200px){.site-header__inner{gap:28px;padding-inline:24px}.site-nav{gap:16px}.site-header__actions{gap:9px}.site-header__actions .header-button{width:auto}}
 @media(max-width:1000px){
-  .site-header{padding:14px 20px 0}
+  .site-header{padding:0 20px}
   .site-header__inner{width:100%;min-height:64px;padding:10px 16px}
   .site-nav,.site-header__actions{display:none}
   .site-header__burger{display:flex;margin-left:auto}
