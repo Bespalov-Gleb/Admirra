@@ -94,3 +94,12 @@ gateway 10.78.0.3. Existing Telegram token is read via separate LoadCredential.
   403; key-management path 404; API-2 credits GET 403; public admirra.ru 200.
 - No app/worker/frontend containers restarted. Actual authenticated balance and
   Telegram acknowledgment remain to be checked after key provisioning.
+
+## Activation — 2026-09-24 12:57 UTC
+
+The pending-key status above is superseded: owner-supplied key validated through
+GET /credits and installed via hidden interactive input (root0600, no app env
+changes). Service succeeded, timer enabled/active. First low-balance notification
+to the existing Notifications group acknowledged by Telegram (`sent=true`).
+Key rotation is required because the initial credential was supplied in chat;
+use the same hidden-input activation command above, then revoke the old key.
