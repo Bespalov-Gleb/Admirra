@@ -76,3 +76,21 @@ gateway 10.78.0.3. Existing Telegram token is read via separate LoadCredential.
 - Health alerts here use the same Telegram transport as balance notices. A broken
   bot/gateway cannot alert through itself: existing independent infrastructure
   alerts and manual timer/journal checks remain necessary. This is not HA.
+
+## Prepared deployment — 2026-09-24
+
+- Source release `0512250`, pushed to `metrics-fallback-fix`.
+- API-1 release files: `/opt/admirra-ops-releases/openrouter-balance-0512250/`.
+- Runtime script/units installed; `systemd-analyze verify` passed. Config directory
+  root0700/config root0600, existing Notifications destination reused privately.
+- **Not activated:** no Management key supplied; timer disabled, service skipped
+  by `ConditionPathExists` as expected. Owner must run the activation command above.
+- Local 19 monitor + 8 gateway regression tests passed; server 19 monitor tests
+  passed. No synthetic Telegram notices sent during these tests.
+- Gateway backup `/root/openrouter-before-balance-0512250.conf` on gateway3.
+  Active `/etc/nginx/conf.d/admirra-openrouter.conf` SHA256:
+  `5b99d546921fc552ee6cd4679816da7c7078b7d5852c6f87e3361b80404acd6f`.
+- Verified: gateway health 200; API-1 unauthenticated credits GET 401; credits POST
+  403; key-management path 404; API-2 credits GET 403; public admirra.ru 200.
+- No app/worker/frontend containers restarted. Actual authenticated balance and
+  Telegram acknowledgment remain to be checked after key provisioning.
