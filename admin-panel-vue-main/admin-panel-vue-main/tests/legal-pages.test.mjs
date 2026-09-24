@@ -16,11 +16,19 @@ for (const [name, hash] of Object.entries(originals)) {
     const html = read(`public/admirra/${name}.html`)
     const text = html.match(/<article[^>]*>([\s\S]*?)<\/article>/)[1].replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()
     assert.equal(createHash('sha256').update(text).digest('hex'), hash)
-    assert.ok(html.includes('href="/admirra/legal.css"'))
+    assert.ok(html.includes('href="/admirra/legal.css?v=brand-20260924"'))
     assert.ok(html.includes('href="/"'))
     assert.ok(html.includes(`href="/admirra/${name}.html" aria-current="page"`))
     assert.ok(!/href="(?:#"|index.html|entry.html|reg.html)/.test(html))
     assert.ok(!html.includes('/src/main.js'))
+    assert.equal((html.match(/src="\/landing-new\/assets\/img\/logo.png"/g) || []).length, 2)
+    assert.ok(html.includes('class="site-header"'))
+    for (const section of ['audience', 'dashboard', 'features', 'integrations', 'pricing']) {
+      assert.ok(html.includes(`href="/#${section}"`))
+    }
+    assert.ok(html.includes('aria-controls="mobile-nav" aria-expanded="false"'))
+    assert.ok(html.includes('id="mobile-nav" aria-label="Мобильная навигация" hidden'))
+    assert.ok(html.includes('src="/admirra/legal.js?v=brand-20260924" defer'))
   })
 }
 

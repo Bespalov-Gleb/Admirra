@@ -1,0 +1,6 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+ARG SOURCE_REVISION
+LABEL ru.admirra.legal-branding.revision="${SOURCE_REVISION}"
+# Static document-only overlay: retain deployed landing, SPA and prior chunks.
+COPY agreement.html user-agreement.html personal-data.html legal.css legal.js /usr/share/nginx/html/admirra/
