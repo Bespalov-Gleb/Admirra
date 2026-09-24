@@ -75,6 +75,9 @@ try {
  await page.screenshot({path:path.join(os.tmpdir(),'admirra-readiness-mobile.png')})
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
  await page.evaluate(()=>document.body.classList.add('dark'))
+ await page.waitForFunction(()=>getComputedStyle(document.querySelector('.detector-banner--sync')).backgroundColor==='rgb(32, 42, 57)')
+ assert.equal(await page.evaluate(()=>getComputedStyle(document.body).backgroundColor),'rgb(17, 24, 39)')
+ assert.equal(await page.locator('.data-readiness').evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)')
  await page.screenshot({path:path.join(os.tmpdir(),'admirra-readiness-dark.png')})
  await page.evaluate(()=>document.body.classList.remove('dark'))
  response={...waiting,status:'ready'}

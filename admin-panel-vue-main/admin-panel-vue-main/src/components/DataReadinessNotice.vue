@@ -91,7 +91,7 @@ onBeforeUnmount(() => {
 .data-readiness small { display: block; margin-top: 4px; }
 .data-readiness button { display: block; margin-top: 10px; padding: 8px 12px; border-radius: 8px; border: 1px solid #ccd8eb; color: inherit; background: transparent; }
 .data-readiness button:disabled { opacity: .55; }
-:global(.dark) .data-readiness { background: #202a39; color: #d0dcee; border-color: #3b4960; }
+:global(.dark .data-readiness) { background: #202a39; color: #d0dcee; border-color: #3b4960; }
 .data-readiness.data-readiness--inline { padding: 0; margin: 0; border: 0; border-radius: 0; background: transparent; color: inherit; font-size: inherit; line-height: 1.5; }
 .data-readiness--inline button { margin-top: 8px; font-size: 13px; }
 </style>

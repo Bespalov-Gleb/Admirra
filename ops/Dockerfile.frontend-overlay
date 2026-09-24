@@ -1,6 +1,7 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
-ARG APP_RELEASE
-LABEL org.opencontainers.image.revision=${APP_RELEASE}
-# Keep deployed public files and hashed assets for already-open browser tabs.
-COPY dist/ /usr/share/nginx/html/
+ARG SOURCE_REVISION
+LABEL ru.admirra.frontend.revision="${SOURCE_REVISION}"
+# Keep deployed public landing/documents and older hashed chunks for open tabs.
+COPY index.html /usr/share/nginx/html/index.html
+COPY assets/ /usr/share/nginx/html/assets/

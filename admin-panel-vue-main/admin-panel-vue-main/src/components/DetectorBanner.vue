@@ -409,9 +409,9 @@ const snooze = (alert, mode) => { openSnoozeId.value = null; emit('snooze', aler
 }
 .detector-banner__title { color: #1f2937; font-size: 0.8rem; font-weight: 900; letter-spacing: 0.02em; text-transform: uppercase; line-height: 1.25; }
 .detector-banner__text { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; overflow-wrap: anywhere; }
-:global(.dark) .detector-banner--sync { background: #202a39; border-color: #3b4960; color: #c2ccda; }
-:global(.dark) .detector-banner--sync .detector-banner__title { color: #e2e8f0; }
-:global(.dark) .detector-banner--sync .detector-banner__head-ic { background: #293649; color: #c2ccda; }
+:global(.dark .detector-banner--sync) { background: #202a39; border-color: #3b4960; color: #c2ccda; }
+:global(.dark .detector-banner--sync .detector-banner__title) { color: #e2e8f0; }
+:global(.dark .detector-banner--sync .detector-banner__head-ic) { background: #293649; color: #c2ccda; }
 .detector-banner__hypothesis { color: currentColor; font-size: 0.84rem; font-weight: 650; opacity: 0.82; line-height: 1.35; }
 
 /* ───── Блок-эпизод ───── */
