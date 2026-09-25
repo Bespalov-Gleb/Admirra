@@ -22,6 +22,7 @@ import '/src/style.css';import Sidebar from '/src/components/SidebarV2.vue';impo
 import Create from '/src/views/Mockup/Create.vue';import Offer from '/src/components/IntegrationOffer.vue';import Prompt from '/src/components/ConnectAccountPrompt.vue';
 import Toaster from '/src/components/ui/Toaster.vue';import {useOnboarding} from '/src/composables/useOnboarding';import {useSidebar} from '/src/composables/useSidebar';
 import {useTheme} from '/src/composables/useTheme';
+import {consumeOfferEntry} from '/src/utils/onboardingAnalytics';window.qaConsumeOffer=consumeOfferEntry;
 window.qaState={trial_visible:true,trial_days_left:7,trial_total_days:7,trial_ends_at:new Date(Date.now()+604800000).toISOString(),projects_count:0,cabinets_count:0,eligible:true,active:false,discount_state:'not_granted'};
 window.qaGets=[];window.qaClaims=0;window.qaMilestones=[];window.qaGoals=[];window.ym=(...args)=>window.qaGoals.push(args);
 window.qaToken='e30.'+btoa(JSON.stringify({sub:'synthetic'}))+'.synthetic';sessionStorage.setItem('auth_token',window.qaToken);
@@ -56,6 +57,10 @@ try {
   assert.equal(await page.evaluate(()=>window.qaRouter.currentRoute.value.query.client_id),'project-synthetic')
   await page.locator('.integration-offer').click();await page.locator('.integration-offer').click()
   assert.equal(await page.evaluate(()=>window.qaGoals.filter(x=>x[2]==='signup_offer_click').length),1)
+  assert.equal(await page.evaluate(()=>window.qaConsumeOffer()),true)
+  assert.equal(await page.evaluate(()=>window.qaConsumeOffer()),false)
+  for(let i=0;i<2;i++)await page.locator('.trial-card a').evaluate(e=>{e.addEventListener('click',ev=>ev.preventDefault(),{once:true});e.click()})
+  assert.equal(await page.evaluate(()=>window.qaGoals.filter(x=>x[2]==='support_chat_click').length),1)
   await page.evaluate(()=>window.qaSet({active:true,discount_state:'granted',cabinets_count:1,expires_at:window.qaState.trial_ends_at}))
   await page.getByText(/Скидка 20% закреплена/).waitFor();assert.equal(await page.locator('.integration-offer').count(),0)
   assert.equal(await page.evaluate(()=>window.qaClaims),1)

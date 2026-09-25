@@ -74,6 +74,13 @@ def main():
         return
     current = json.loads(capture(['docker', 'inspect', a.container]))[0]
     assert current['Id'] == old['Id'], 'Prepared runtime changed'
+    # Docker removes the old container log during recreate. Retain a bounded,
+    # root-only diagnostic snapshot so a pre-cutover failure stays investigable.
+    log_path = a.root / 'pre-activation-logs.json'
+    if not log_path.exists():
+        logs = subprocess.run(['docker', 'logs', '--since', '10m', '--tail', '3000', a.container],
+                              text=True, capture_output=True, timeout=15, check=True)
+        private_json(log_path, {'stdout':logs.stdout, 'stderr':logs.stderr})
     try:
         compose(meta['project'], a.root / 'active.json', meta['service'])
         ready(a.container, a.release)
