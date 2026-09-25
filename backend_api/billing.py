@@ -982,7 +982,9 @@ async def subscribe(
         signup_discount=is_signup_discount,
         price_book_version=(intent_payload.get('price_book_snapshot') or {}).get('_price_book_version'),
         trial_to_paid=is_trial and bool(getattr(body, 'onboarding_analytics', False)),
-        discount_kind=quoted['discount_kind'] if is_signup_discount else None,
+        discount_kind=(quoted['discount_kind'] if is_signup_discount else
+                       'year' if billing_period == 'year' and _expected_amount(plan, billing_period) < int(plan.price_rub) * 12
+                       else 'none'),
         goal=("plan_upgrade" if not is_trial and (requested_rank > current_rank or
               (billing_period == "year" and sub.billing_period != "year")) else "payment_success"),
     )

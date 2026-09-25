@@ -82,3 +82,12 @@ def test_checkout_confirmation_analytics_and_receipt(scope):
     assert p['amount'] == 5520
     from backend_api.services import metrika_conversions
     assert metrika_conversions.upload_offline_conversion.call_args_list == []
+
+
+def test_regular_annual_price_is_tagged_year_without_signup_grant(scope):
+    factory, uid, _ = scope
+    q = checkout(scope, period='year', onboarding=True)
+    assert not q.signup_discount and q.amount == 69000
+    with factory() as db:
+        intent = billing._find_payment_intent(db, user_id=uid, invoice_id=q.invoice_id)
+        assert intent.payload['analytics']['discount_kind'] == 'year'

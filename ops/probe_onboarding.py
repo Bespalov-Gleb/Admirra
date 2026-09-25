@@ -6,6 +6,7 @@ contract checks and timings, not account data or credentials.
 from datetime import timedelta
 import json
 import logging
+import sys
 import time
 from urllib.request import Request, urlopen
 from sqlalchemy import text
@@ -21,7 +22,10 @@ def main():
         token = security.create_access_token({'sub': user.email}, expires_delta=timedelta(minutes=3))
         uid = user.id
         projects = db.query(models.Client).filter(models.Client.owner_id == uid).count()
-    for base in ('http://127.0.0.1:8001', 'http://10.77.0.2:8001', 'https://admirra.ru'):
+    allowed = ('http://127.0.0.1:8001', 'http://10.77.0.2:8001', 'https://admirra.ru')
+    bases = sys.argv[1:] or allowed
+    assert set(bases) <= set(allowed)
+    for base in bases:
         samples = []
         for _ in range(3):
             started = time.monotonic()
