@@ -734,7 +734,7 @@
             </span>
           </div>
         </div>
-        <div class="chart-area" @pointermove="handleChartHover" @pointerdown="handleChartHover" @pointerleave="event => { if(event.pointerType === 'mouse') chartHoverIndex = -1 }">
+        <div ref="chartAreaRef" class="chart-area" @pointermove="handleChartHover" @pointerdown="handleChartHover" @pointercancel="dismissChartTooltip" @pointerleave="event => { if(event.pointerType === 'mouse') dismissChartTooltip() }">
           <svg ref="chartSvgRef" :viewBox="`0 0 ${chartViewWidth} ${CHART_VIEWBOX_HEIGHT}`" preserveAspectRatio="xMidYMid meet" role="img" aria-label="График эффективности кампаний">
             <defs>
               <linearGradient
@@ -820,7 +820,7 @@
               </template>
             </g>
           </svg>
-          <div v-if="isAllChannelsMode && chartHoverIndex >= 0 && chartTooltipData" class="chart-tooltip" :style="chartTooltipStyle">
+          <div v-if="isAllChannelsMode && chartHoverIndex >= 0 && chartTooltipData" ref="chartTooltipRef" class="chart-tooltip" :style="chartTooltipStyle">
             <div class="chart-tooltip__date">
               <span>{{ chartTooltipData.date }}</span>
               <small>{{ chartScaleShortLabel }}</small>
@@ -840,7 +840,7 @@
               <strong>{{ ctx.value }}</strong>
             </div>
           </div>
-          <div v-else-if="chartHoverIndex >= 0 && chartTooltipData" class="chart-tooltip" :style="chartTooltipStyle">
+          <div v-else-if="chartHoverIndex >= 0 && chartTooltipData" ref="chartTooltipRef" class="chart-tooltip" :style="chartTooltipStyle">
             <div class="chart-tooltip__date">{{ chartTooltipData.date }}</div>
             <div v-for="item in chartTooltipData.main" :key="item.key" class="chart-tooltip__main">
               <span class="chart-tooltip__dot" :style="{ background: item.color }"></span>
@@ -1643,6 +1643,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useContainedChartTooltip } from '@/composables/useContainedChartTooltip'
 import { reachGoal } from '@/utils/metrika'
 import { useRoute, useRouter } from 'vue-router'
 import { getAccessToken } from '../../utils/authToken'
@@ -2083,6 +2084,8 @@ const buildChartTotalValues = (metricKey) => {
 }
 const chartHoverIndex = ref(-1)
 const chartSvgRef = ref(null)
+const chartAreaRef = ref(null)
+const chartTooltipRef = ref(null)
 const dashboardRef = ref(null)
 // Период по умолчанию — «Эта неделя»; общий с экраном списка проектов
 // (сохраняется в localStorage), чтобы держался при переходах.
@@ -4470,6 +4473,7 @@ const chartFillPath = computed(() => chartSeries.value[0]?.fillPath || '')
 const smoothChartPath = computed(() => chartSeries.value[0]?.path || chartPath.value)
 
 const handleChartHover = (e) => {
+  if (e.pointerType === 'touch' && e.type === 'pointermove') { dismissChartTooltip(); return }
   if (!chartSvgRef.value || !chartPoints.value.length) { chartHoverIndex.value = -1; return }
   const rect = chartSvgRef.value.getBoundingClientRect()
   const scaleX = chartViewWidth.value / rect.width
@@ -4574,29 +4578,12 @@ const chartTooltipData = computed(() => {
   return { date, main, context }
 })
 
-const chartTooltipStyle = computed(() => {
-  const idx = chartHoverIndex.value
-  if (idx < 0 || !chartSvgRef.value) return {}
-  const pt = chartPoints.value[idx]
-  if (!pt) return {}
-  const rect = chartSvgRef.value.getBoundingClientRect()
-  const x = (pt.x / chartViewWidth.value) * rect.width
-  const y = (pt.y / CHART_VIEWBOX_HEIGHT) * rect.height
-  const viewportX = rect.left + x
-  const viewportY = rect.top + y
-  const leftPx = viewportX + 12
-  const tooltipWidth = isAllChannelsMode.value ? 272 : 220
-  const lineCount = (chartTooltipData.value?.main?.length || 1) + (chartTooltipData.value?.context?.length || 0)
-  const tooltipHeight = 48 + lineCount * 22
-  const flip = leftPx + tooltipWidth > window.innerWidth - 8
-  const topPx = viewportY + tooltipHeight + 12 > window.innerHeight
-    ? Math.max(8, viewportY - tooltipHeight - 14)
-    : Math.max(8, viewportY - 40)
-  return {
-    top: `${topPx}px`,
-    [flip ? 'right' : 'left']: flip ? `${Math.max(8, window.innerWidth - viewportX + 12)}px` : `${leftPx}px`,
-  }
+const { style: chartTooltipStyle, dismiss: dismissChartTooltip } = useContainedChartTooltip({
+  area: chartAreaRef, svg: chartSvgRef, tooltip: chartTooltipRef, index: chartHoverIndex,
+  point: computed(() => chartHoverIndex.value < 0 ? null : chartPoints.value[chartHoverIndex.value]),
+  width: computed(() => isAllChannelsMode.value ? 272 : 220),
 })
+onMounted(() => { watch(chartSeries, dismissChartTooltip) })
 
 const dateLabels = computed(() => {
   const start = filters.start_date
@@ -4643,13 +4630,15 @@ const measureChartWidth = () => {
   if (w && Math.abs(w - chartViewWidth.value) >= 1) chartViewWidth.value = Math.round(w)
 }
 
-onMounted(() => {
-  if (typeof ResizeObserver !== 'undefined' && chartSvgRef.value) {
+watch(chartSvgRef, svg => {
+  chartResizeObserver?.disconnect()
+  dismissChartTooltip()
+  if (typeof ResizeObserver !== 'undefined' && svg) {
     chartResizeObserver = new ResizeObserver(() => measureChartWidth())
-    chartResizeObserver.observe(chartSvgRef.value)
+    chartResizeObserver.observe(svg)
   }
   nextTick(measureChartWidth)
-})
+}, { flush: 'post' })
 
 watch(isAllChannelsMode, () => nextTick(measureChartWidth))
 

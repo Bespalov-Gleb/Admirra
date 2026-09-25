@@ -476,14 +476,17 @@
   }
   .mobile-dashboard.figma-dashboard .chart-area {
     overflow: visible;
-    width: 100%;
+    /* Reclaim 8px on each side for the plot; keep header/chip alignment. */
+    width: calc(100% + var(--m));
     height: auto;
+    aspect-ratio: auto;
     min-height: 0;
-    margin: calc(0.75 * var(--m)) 0 0;
+    margin: calc(0.75 * var(--m)) calc(-0.5 * var(--m)) 0;
   }
   .mobile-dashboard.figma-dashboard .chart-area > svg {
     width: 100%;
     height: auto;
+    aspect-ratio: auto;
     min-width: 0;
     display: block;
     overflow: visible;
