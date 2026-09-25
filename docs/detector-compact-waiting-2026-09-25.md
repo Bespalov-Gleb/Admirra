@@ -20,3 +20,13 @@ generic consumer без автозапуска платного действия
 Выкладка только frontend overlay из clean archive; сохраняет предыдущую
 правку AI-комментария, landing/legal и старые chunks. API, БД, воркеры и Nginx
 не меняются. Чужие незакоммиченные MainLayout/SignIn/landing не включаются.
+
+## Production
+
+Выкатан source **df33462**, image
+`sha256:881f3e40840b21265d2a17fedfe93c5cd61991744ea8760eba5bdc07e05dfbfc`.
+Entry `/assets/index-SLyZg9ft.js`; публичный GeneralStats3-BN9cCC4a.js совпал
+с clean build по SHA256. Overlay подтвердил неизменность landing/legal/Nginx,
+API/DB/legacy automation. На 25.09.2026 13:39 UTC alerts=[], оба API ready=ok.
+Previous/active compose и acceptance:
+`/etc/admirra/releases/frontend-readiness-df33462/`, предыдущий source=64c45d9.
