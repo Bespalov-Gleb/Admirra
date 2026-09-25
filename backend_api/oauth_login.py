@@ -318,7 +318,7 @@ def _split_name(full_name: str | None) -> tuple[Optional[str], Optional[str]]:
     return parts[0], parts[1] if len(parts) > 1 else None
 
 
-def _get_or_create_max_user(db: Session, max_user: dict) -> models.User:
+def _get_or_create_max_user(db: Session, max_user: dict) -> tuple[models.User, bool]:
     max_uid = str(max_user.get("user_id") or "").strip()
     if not max_uid:
         raise HTTPException(status_code=400, detail="MAX не вернул user_id пользователя")
@@ -335,7 +335,7 @@ def _get_or_create_max_user(db: Session, max_user: dict) -> models.User:
         user = db.query(models.User).filter(models.User.id == identity.user_id).first()
         if not user:
             raise HTTPException(status_code=500, detail="Пользователь не найден")
-        return user
+        return user, False
 
     username = (max_user.get("username") or "").strip() or None
     first_name, last_name = _split_name(max_user.get("name"))
@@ -362,7 +362,7 @@ def _get_or_create_max_user(db: Session, max_user: dict) -> models.User:
         )
     )
     SubscriptionService.ensure_default_subscription(db, user)
-    return user
+    return user, True
 
 
 def _issue_token_for_user(
@@ -541,6 +541,7 @@ def max_oauth_status(
     attempt = (
         db.query(models.MaxOAuthLoginAttempt)
         .filter(models.MaxOAuthLoginAttempt.state_hash == _token_hash(state))
+        .with_for_update()
         .first()
     )
     if not attempt:
@@ -562,6 +563,7 @@ def max_oauth_status(
     attempt.consumed_at = now
     db.add(attempt)
     token = _issue_token_for_user(db, user, request, response, remember_me=True)
+    token['is_new_user'] = attempt.is_new_user
     db.commit()
     return {"status": "completed", **token, "expires_in_seconds": 0}
 
@@ -591,6 +593,7 @@ async def max_oauth_webhook(request: Request, db: Session = Depends(get_db)):
     attempt = (
         db.query(models.MaxOAuthLoginAttempt)
         .filter(models.MaxOAuthLoginAttempt.payload_hash == _token_hash(payload))
+        .with_for_update()
         .first()
     )
     if not attempt or attempt.expires_at <= _now():
@@ -605,6 +608,12 @@ async def max_oauth_webhook(request: Request, db: Session = Depends(get_db)):
         await _send_max_login_message(max_uid, chat_id, "Эта ссылка для входа уже использована.")
         return {"ok": True}
 
+    # A repeated delivery must not reassign the identity or turn a signup into
+    # an existing-user login. The status poll consumes this row under the same lock.
+    if attempt.authorized_at is not None:
+        db.rollback()
+        return {"ok": True}
+
     try:
         if attempt.user_id:
             user = db.query(models.User).filter(models.User.id == attempt.user_id).first()
@@ -612,7 +621,7 @@ async def max_oauth_webhook(request: Request, db: Session = Depends(get_db)):
                 raise HTTPException(status_code=500, detail="Пользователь MAX не найден")
             _attach_identity(db, user, "max", max_uid)
         else:
-            user = _get_or_create_max_user(db, user_info)
+            user, attempt.is_new_user = _get_or_create_max_user(db, user_info)
         attempt.user_id = user.id
         attempt.max_user_id = max_uid
         attempt.max_username = (user_info.get("username") or "").strip() or None

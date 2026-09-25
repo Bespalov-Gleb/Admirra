@@ -117,6 +117,7 @@ class MaxOAuthStatusResponse(BaseModel):
     status: str  # pending | completed | expired | used
     access_token: Optional[str] = None
     token_type: Optional[str] = None
+    is_new_user: Optional[bool] = None
     expires_in_seconds: Optional[int] = None
 
 

@@ -1,4 +1,5 @@
 import api from '../api/axios'
+import { trackOAuthCompletion } from '../utils/metrika'
 
 function assertVkAuthorizeUrl(url) {
   if (!url || typeof url !== 'string') {
@@ -114,6 +115,7 @@ export function useOAuthLogin() {
         })
 
         if (statusData?.status === 'completed' && statusData.access_token) {
+          trackOAuthCompletion(statusData, 'max')
           try {
             popup?.close()
           } catch {

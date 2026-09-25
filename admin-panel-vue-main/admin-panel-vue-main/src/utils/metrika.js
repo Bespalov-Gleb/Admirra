@@ -2,6 +2,7 @@
 // SPA-хитов на смену роута, получения ClientID и захвата yclid.
 import api from '@/api/axios'
 import { trackPurchase as sendPurchase } from './purchaseAnalytics'
+import { createOAuthTracker } from './oauthAnalytics'
 
 export const trackPurchase = payment => sendPurchase(payment, { goalIds: {
   payment_success: import.meta.env.VITE_YM_PAYMENT_SUCCESS_GOAL_ID,
@@ -14,10 +15,12 @@ function callYm(...args) {
   if (typeof window !== 'undefined' && typeof window.ym === 'function') {
     try {
       window.ym(YM_COUNTER_ID, ...args)
+      return true
     } catch (e) {
       // не роняем приложение из-за аналитики
     }
   }
+  return false
 }
 
 // Просмотр страницы при клиентском переходе (SPA). Первую загрузку счётчик
@@ -30,8 +33,8 @@ export function metrikaHit(url) {
 // сумма order_price/currency для денежных целей).
 export function reachGoal(goal, params) {
   if (!goal) return
-  if (params && Object.keys(params).length) callYm('reachGoal', String(goal), params)
-  else callYm('reachGoal', String(goal))
+  if (params && Object.keys(params).length) return callYm('reachGoal', String(goal), params)
+  return callYm('reachGoal', String(goal))
 }
 
 // ClientID Метрики (асинхронно через колбэк) → Promise<string|null>.
@@ -94,13 +97,25 @@ export async function trackFirstMilestone(name, goal, params) {
 // Отправить ClientID Метрики + yclid на бэкенд (привязать к аккаунту для
 // серверных офлайн-конверсий). Вызывать после успешной аутентификации.
 // Бэкенд фиксирует первое значение, повторные вызовы безопасны.
-export async function sendMetrikaIdentity() {
+export async function sendMetrikaIdentity(accessToken) {
   try {
     const clientId = await getClientID()
     const yclid = getStoredYclid()
     if (!clientId && !yclid) return
-    await api.post('auth/metrika/identity', { client_id: clientId, yclid })
+    const payload = { client_id: clientId, yclid }
+    if (accessToken) {
+      // MAX completes before the caller installs its new token. Do not let the
+      // shared Axios interceptor replace it with the previously signed-in user.
+      await fetch('/api/auth/metrika/identity', { method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify(payload), signal: AbortSignal.timeout(5000) })
+    } else await api.post('auth/metrika/identity', payload)
   } catch (e) {
     // аналитика не должна мешать входу
   }
 }
+
+export const trackOAuthCompletion = createOAuthTracker({
+  goal: reachGoal, identity: sendMetrikaIdentity,
+  storage: { getItem: key => sessionStorage.getItem(key), setItem: (key, value) => sessionStorage.setItem(key, value) },
+})

@@ -45,6 +45,7 @@ import { useAuth } from '../../composables/useAuth'
 import { DEFAULT_DASHBOARD_PATH } from '../../constants/config'
 import { setAuthProvider } from '../../utils/authToken'
 import { oauthLoginProviderFromState } from '../../utils/oauthLoginState'
+import { trackOAuthCompletion } from '../../utils/metrika'
 
 const route = useRoute()
 const router = useRouter()
@@ -116,6 +117,7 @@ onMounted(async () => {
       })
       setToken(data.access_token)
       setAuthProvider('yandex')
+      trackOAuthCompletion(data, 'yandex')
       const userResult = await fetchCurrentUser()
       if (!userResult.success) {
         throw new Error('Не удалось загрузить профиль')

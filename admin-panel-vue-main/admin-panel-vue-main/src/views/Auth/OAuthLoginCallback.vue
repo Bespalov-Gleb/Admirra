@@ -33,7 +33,7 @@ import { useAuth } from '@/composables/useAuth'
 import { consumeVkPkceByState } from '@/composables/useOAuthLogin'
 import { DEFAULT_DASHBOARD_PATH } from '@/constants/config'
 import { setAuthProvider } from '@/utils/authToken'
-import { reachGoal, sendMetrikaIdentity } from '@/utils/metrika'
+import { trackOAuthCompletion } from '@/utils/metrika'
 
 const route = useRoute()
 const router = useRouter()
@@ -112,24 +112,10 @@ onMounted(async () => {
     const { data } = await api.post(path, payload)
     setToken(data.access_token)
     setAuthProvider(provider)
+    trackOAuthCompletion(profileLinkProvider === provider ? { ...data, is_new_user: false } : data, provider)
     const userResult = await fetchCurrentUser()
     if (!userResult.success) {
       throw new Error('Не удалось загрузить профиль')
-    }
-    // Привязываем ClientID Метрики к аккаунту (для серверных конверсий)
-    sendMetrikaIdentity()
-    // Новый аккаунт через OAuth → регистрация завершена + старт триала.
-    // Флаг приходит с бэка; fallback по created_at оставлен для совместимости
-    // со старым backend во время rolling deploy.
-    if (profileLinkProvider !== provider) {
-      const createdAt = userResult.data?.created_at ? new Date(userResult.data.created_at).getTime() : 0
-      const hasNewUserFlag = typeof data.is_new_user === 'boolean'
-      const isNewUser = hasNewUserFlag ? data.is_new_user : (createdAt && (Date.now() - createdAt) < 60000)
-      if (isNewUser) {
-        reachGoal('signup_complete', { method: provider })
-        reachGoal('signup', { method: provider })
-        reachGoal('trial_start')
-      }
     }
     if (profileLinkProvider === provider) {
       sessionStorage.removeItem('oauth_profile_link')
