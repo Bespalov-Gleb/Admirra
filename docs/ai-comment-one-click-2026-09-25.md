@@ -58,3 +58,16 @@ Dashboard comment не списывает видимый AI-лимит по су
 Только frontend overlay из clean git archive, без dirty MainLayout/SignIn/landing.
 Сохранить public landing/legal и старые chunks. Не менять Nginx keepalive,
 API, БД, воркеры, схему и настройки оплаты. Старые открытые вкладки обновить.
+
+### Production acceptance
+
+- Source **64c45d9**, pushed; frontend запущен 25.09.2026 12:56:47 UTC.
+- Image `sha256:cd4685ef18524f5cac4fb8a9a2dc65f93543385db64b1e1e8c175c6159fb72c4`;
+  entry `/assets/index-lqRwTCME.js`, dashboard `/assets/GeneralStats3-CiytNKOk.js`.
+  Публичный dashboard chunk совпал с clean build по SHA256
+  `d148e5c6fda1354a86d63b598eb959bae0d10340d910dfa133681fda955c601c`.
+- Overlay подтвердил неизменность landing/legal/Nginx и API/DB контейнеров.
+  В 12:57:05 UTC оба API ready=ok, release 32a8d9e, alerts=[].
+- Snapshot/rollback compose:
+  `/etc/admirra/releases/frontend-readiness-64c45d9/`, previous=fdf2f4a.
+  Build context `/opt/admirra-ai-64c45d9/frontend/`.
