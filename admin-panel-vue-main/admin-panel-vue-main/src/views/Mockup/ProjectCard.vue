@@ -2297,7 +2297,8 @@ const handleSyncProjects = async () => {
     await Promise.all([fetchProjects(), fetchSyncStatus()])
     const result = await waitForSyncJobs(jobIds)
     await Promise.all([fetchProjects(), loadProjectMetrics(), fetchCrossProject(), fetchSyncStatus()])
-    if (result.failed?.length) toaster.warning(`Синхронизация завершена с ошибками: ${result.failed.length}`)
+    if (result.timedOut) toaster.warning('Ожидание завершено. Синхронизация ещё может выполняться — проверьте статус позже.')
+    else if (result.failed?.length) toaster.warning(`Синхронизация завершена с ошибками: ${result.failed.length}`)
     else toaster.success('Синхронизация завершена. Данные обновлены.')
   } catch (err) {
     console.error(err)

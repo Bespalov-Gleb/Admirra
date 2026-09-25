@@ -541,7 +541,9 @@ const syncNow = async (item) => {
     if (jobId) {
       const result = await waitForSyncJobs([jobId])
       await fetchIntegrations()
-      if (result.failed?.length) {
+      if (result.timedOut) {
+        toaster.warning('Ожидание завершено. Синхронизация ещё может выполняться — проверьте статус позже.')
+      } else if (result.failed?.length) {
         toaster.warning('Синхронизация завершена с ошибкой. Проверьте статус интеграции.')
       } else {
         toaster.success('Синхронизация завершена. Данные обновлены.')

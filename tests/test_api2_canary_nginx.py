@@ -21,6 +21,10 @@ class Api2CanaryNginxTests(unittest.TestCase):
         config = READ_PROXY.with_name('admirra-api2-upstream.conf').read_text()
         self.assertEqual(config.count('max_fails=3 fail_timeout=5s;'), 2)
 
+    def test_cached_sockets_expire_before_uvicorn_five_second_idle_limit(self):
+        config = READ_PROXY.with_name('admirra-api2-upstream.conf').read_text()
+        self.assertIn('keepalive_timeout 3s;', config)
+
 
 if __name__ == "__main__":
     unittest.main()

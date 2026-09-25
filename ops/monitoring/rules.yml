@@ -70,7 +70,7 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "API-2 canary health guard is failing"
+          summary: "AdMirra API pool health guard is failing (API-1/API-2)"
           runbook: "docs/devops-api2-monitor-2026-09-20.md"
 
       - alert: AdMirraCanaryMonitorStale
@@ -115,7 +115,7 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "API-2 canary produced final 5xx responses"
+          summary: "AdMirra API pool returned final 5xx responses (API-1/API-2)"
           runbook: "docs/devops-api2-canary-2026-09-20.md"
 
       - alert: AdMirraCanaryFallback

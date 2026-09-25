@@ -239,10 +239,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { EllipsisVerticalIcon, TrashIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/vue/24/outline'
 import api from '../../../api/axios'
+import { pollSyncJobsUntilDone } from '../../../utils/syncJobPolling'
 import { useToaster } from '../../../composables/useToaster'
 import { useProjects } from '../../../composables/useProjects'
 import avitoIcon from '@/assets/icons/avito.svg'
@@ -421,25 +422,33 @@ const refreshSyncStatuses = async () => {
   }))
 }
 
-const pollSyncJob = (integrationId, jobId) => {
-  const pollInterval = setInterval(async () => {
-    try {
-      const { data } = await api.get(`integrations/sync/jobs/${jobId}`)
-      syncProgressById.value[integrationId] = data
-      if (data.status === 'SUCCESS') {
-        clearInterval(pollInterval)
-        toaster.success('Синхронизация завершена успешно!')
-        await fetchIntegrations()
-      } else if (data.status === 'FAILED' || data.status === 'CANCELLED') {
-        clearInterval(pollInterval)
-        toaster.error('Ошибка при синхронизации: ' + (data.error || 'Неизвестная ошибка'))
-        await fetchIntegrations()
-      }
-    } catch {
-      clearInterval(pollInterval)
-    }
-  }, 3000)
-  setTimeout(() => clearInterval(pollInterval), 10 * 60 * 1000)
+const syncPollControllers = new Map()
+onUnmounted(() => {
+  for (const controller of syncPollControllers.values()) controller.abort()
+  syncPollControllers.clear()
+})
+const pollSyncJob = async (integrationId, jobId) => {
+  syncPollControllers.get(integrationId)?.abort()
+  const controller = new AbortController()
+  syncPollControllers.set(integrationId, controller)
+  try {
+    const result = await pollSyncJobsUntilDone([jobId], {
+      intervalMs: 3000, timeoutMs: 10 * 60 * 1000, signal: controller.signal,
+      getJob: async (id, config) => (await api.get(`integrations/sync/jobs/${id}`, config)).data,
+      onTick: (statuses) => {
+        if (statuses[jobId]) syncProgressById.value[integrationId] = statuses[jobId]
+      },
+    })
+    if (controller.signal.aborted) return
+    if (result.timedOut) toaster.warning('Синхронизация ещё может выполняться. Проверьте статус позже.')
+    else if (result.failed.length) toaster.error('Ошибка при синхронизации: ' + (result.statuses[jobId]?.error || 'Неизвестная ошибка'))
+    else toaster.success('Синхронизация завершена успешно!')
+    await fetchIntegrations()
+  } catch (error) {
+    if (!controller.signal.aborted) toaster.warning(error.message)
+  } finally {
+    if (syncPollControllers.get(integrationId) === controller) syncPollControllers.delete(integrationId)
+  }
 }
 
 const handleIntegrationSuccess = () => {
