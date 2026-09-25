@@ -50,6 +50,8 @@ try {
   await page.evaluate(()=>{if(innerWidth<1024)window.qaSide.isMobileMenuOpen.value=true})
   await page.getByRole('button',{name:'Создать проект',exact:true}).first().waitFor({state:'visible'})
   assert.equal(await page.locator('.trial-card').count(),1)
+  assert.equal(await page.locator('.trial-card p strong').textContent(),'закрепим скидку 20%')
+  assert.equal(await page.locator('.trial-card p strong').evaluate(e=>getComputedStyle(e).display),'inline')
   await page.evaluate(()=>window.qaSide.isMobileMenuOpen.value=false)
   await page.locator('.create-input').fill('Синтетический проект');await page.locator('.create-btn').click()
   await page.waitForSelector('.integration-offer');assert.equal(await page.evaluate(()=>window.qaRouter.currentRoute.value.query.client_id),'project-synthetic')
