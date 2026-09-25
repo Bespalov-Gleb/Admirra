@@ -79,7 +79,22 @@ try {
     await page.evaluate(d=>{window.qaTheme.isDarkMode.value=d},dark)
     await page.screenshot({path:path.join(os.tmpdir(),'admirra-onboarding-'+width+(dark?'-dark':'')+'.png')})
   }
-  if(width===1440){await page.evaluate(()=>window.qaSide.isCollapsed.value=true);await page.waitForFunction(()=>!document.querySelector('.trial-card'))}
+  if(width===1440){
+    // Short desktop viewport: the complete card and CTA must fit without scrolling.
+    await page.setViewportSize({width,height:660})
+    await page.evaluate(()=>window.qaTheme.isDarkMode.value=false)
+    const layout=await page.locator('.trial-card').evaluate(card=>({
+      height:card.getBoundingClientRect().height,
+      bottom:card.getBoundingClientRect().bottom,
+      visibleBottom:card.parentElement.getBoundingClientRect().bottom,
+      overflow:card.parentElement.scrollHeight-card.parentElement.clientHeight,
+    }))
+    assert.ok(layout.height<=180,JSON.stringify(layout))
+    assert.ok(layout.bottom<=layout.visibleBottom,JSON.stringify(layout))
+    assert.ok(layout.overflow<=1,JSON.stringify(layout))
+    await page.screenshot({path:path.join(os.tmpdir(),'admirra-onboarding-compact-660.png')})
+    await page.evaluate(()=>window.qaSide.isCollapsed.value=true);await page.waitForFunction(()=>!document.querySelector('.trial-card'))
+  }
  }
  assert.deepEqual(errors,[]);console.log('PASS: real sidebar/create/offer/prompt/toast lifecycle, 4 widths, themes, dedup, expiration, paid, navigation, no overflow/errors')
 } finally {await browser?.close();await server.close()}
