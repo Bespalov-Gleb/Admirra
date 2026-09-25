@@ -44,7 +44,8 @@ YandexCallback-Dagps99n.js совпал по SHA256 с исследованно�
   Всё внешнее IO заблокировано, ответ провайдеров и Метрика подменены.
 - Регрессия онбординга: четыре ширины, темы, карточка, скидка, навигация — passed.
 - Candidate a58b2ff: 112 backend-тестов на изолированном PostgreSQL passed.
-  Финальный candidate/результат приёмки записаны ниже после rollout.
+  Финальный candidate 32a8d9e: повторно 112 passed (52.87 s), включая expand без
+  изменения version_num и последующее идемпотентное выполнение Alembic upgrade.
 
 ## Порядок схемы: важно для следующих релизов
 
@@ -76,3 +77,27 @@ Frontend overlay сохраняет landing/legal и предыдущие chunks
 Полное подтверждение рекламной конверсии — после **новой реальной регистрации**:
 увидеть signup_complete в Метрике и сохранение attribution IDs, а затем проверить
 в Директе именно выбранную цель 571173208. Боевые тестовые конверсии не посылались.
+
+### Финальная приёмка, 25.09.2026 12:13 UTC / 15:13 МСК
+
+- API1 и API2 release **32a8d9e**, image
+  `sha256:07ef74be90b3b44df44c433f101d0126992b99e575133db7c9343c9541cd6f9e`.
+  Оба readiness=ok, restarts=0. MAX/Token response schemas содержат is_new_user.
+  API2 запущен 12:10:30 UTC, API1 — 12:11:43 UTC. Original ingress восстановлен.
+- Frontend source **a58b2ff**, image
+  `sha256:cf59d56eb7722b3bca43240c0e5cb40cd091f2e558506c41600d9ac1398ccdc2`,
+  entry `/assets/index-11ol-yhn.js`, запущен 12:12:13 UTC.
+  Публичные entry/useOAuthLogin/OAuthLoginCallback/YandexCallback проверены SHA256
+  против clean archive; landing/legal/Nginx неизменны. Чужие dirty файлы не включены.
+- Prometheus alerts=[] на 12:13:01 UTC. Canary access log с 12:02 UTC: 5xx=0.
+  Снятие алертов произошло естественно после исправления, без silences/отключений.
+- Root-only API configs/rollback на обеих нодах:
+  `/etc/admirra/releases/oauth-32a8d9e/` (previous=6233284).
+  Ingress snapshot на API1: `/etc/admirra/releases/oauth-ingress-a58b2ff/`.
+  Frontend configs/rollback: `/etc/admirra/releases/frontend-readiness-a58b2ff/`.
+  Для API rollback обязательно drain соответствующей ноды → дождаться старых
+  workers → deploy_dashboard_lockfix rollback → ready → ingress restore.
+  Колонку не удалять, общую метку схемы не менять.
+- Приёмка НЕ означает, что уже зарегистрирована новая боевая конверсия.
+  До поступления настоящей регистрации подтверждены код, сценарии и публикация,
+  но не новая запись в отчёте Метрики или атрибуция конкретной кампании Директа.
