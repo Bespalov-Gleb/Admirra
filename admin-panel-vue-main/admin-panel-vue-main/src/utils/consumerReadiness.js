@@ -32,7 +32,7 @@ export function createReadinessCompletion() {
 export function readinessMessage(state, context = 'action', pollError = false) {
   if (pollError) return 'Не удалось проверить готовность данных. Повторите проверку.'
   if (context === 'detector') {
-    if (state?.status === 'waiting') return 'Догружаем недостающую историю. После проверки выводы детектора обновятся автоматически.'
+    if (state?.status === 'waiting') return 'Анализируем данные…'
     if (state?.status === 'ready') return 'История подготовлена. Можно обновить выводы детектора.'
     if (state?.status === 'held') return state.can_retry
       ? 'Подготовка истории не завершена. Можно повторить обновление.'
@@ -42,8 +42,9 @@ export function readinessMessage(state, context = 'action', pollError = false) {
 }
 
 export function detectorReadinessTitle(states) {
-  if (states.some(state => state?.status === 'waiting')) return 'Подготавливаем историю для детектора'
+  if (states.some(state => state?.poll_error)) return 'Не удалось проверить данные'
   if (states.some(state => state?.status === 'held')) return 'Подготовка истории приостановлена'
+  if (states.some(state => state?.status === 'waiting')) return 'Анализируем данные…'
   if (states.length && states.every(state => state?.status === 'ready')) return 'История для детектора готова'
   return 'Проверяем полноту данных для детектора'
 }

@@ -33,15 +33,17 @@ test('completion is once per preparation, including retries with a new deadline'
 })
 test('detector describes history, not missing dashboard statistics', () => {
   const value = { status: 'waiting', message: 'Обновляем недостающие данные. Повторите действие после завершения.' }
-  assert.match(readinessMessage(value, 'detector'), /историю/)
+  assert.equal(readinessMessage(value, 'detector'), 'Анализируем данные…')
   assert.doesNotMatch(readinessMessage(value, 'detector'), /Повторите действие/)
   assert.equal(readinessMessage(value), value.message)
   assert.match(readinessMessage(value, 'detector', true), /Не удалось проверить/)
 })
 test('titles distinguish preparation, held, ready and unknown history', () => {
-  assert.equal(detectorReadinessTitle([{ status: 'waiting' }]), 'Подготавливаем историю для детектора')
+  assert.equal(detectorReadinessTitle([{ status: 'waiting' }]), 'Анализируем данные…')
   assert.equal(detectorReadinessTitle([{ status: 'held' }]), 'Подготовка истории приостановлена')
   assert.equal(detectorReadinessTitle([{ status: 'ready' }]), 'История для детектора готова')
   assert.equal(detectorReadinessTitle([null]), 'Проверяем полноту данных для детектора')
   assert.notEqual(detectorReadinessTitle([{ status: 'ready' }, null]), 'История для детектора готова')
+  assert.equal(detectorReadinessTitle([{ status: 'waiting' }, { status: 'held' }]), 'Подготовка истории приостановлена')
+  assert.equal(detectorReadinessTitle([{ status: 'waiting', poll_error: true }]), 'Не удалось проверить данные')
 })

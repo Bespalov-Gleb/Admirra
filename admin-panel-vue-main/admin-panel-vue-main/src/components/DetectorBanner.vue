@@ -128,16 +128,16 @@
     </section>
 
     <!-- Нейтральные статусы: прогрев / нет данных синхронизации -->
-    <section v-else-if="warmupStatus === 'warming_up' || syncIssues.length" class="detector-banner" :class="bannerClass">
+    <section v-else-if="warmupStatus === 'warming_up' || syncIssues.length" class="detector-banner" :class="[bannerClass, { 'detector-banner--preparing': compactPreparation }]">
       <div class="detector-banner__head">
         <span class="detector-banner__head-ic" aria-hidden="true">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
         </span>
         <div class="detector-banner__text">
-          <span class="detector-banner__title">{{ neutralTitle }}</span>
+          <span class="detector-banner__title" role="status" aria-live="polite">{{ neutralTitle }}</span>
           <span v-if="neutralSubtitle" class="detector-banner__hypothesis">{{ neutralSubtitle }}</span>
           <DataReadinessNotice v-for="item in syncIssues.filter(issue => issue.data_readiness)" :key="item.data_readiness.id"
-            :readiness="item.data_readiness" context="detector" inline action-label="Обновить выводы детектора"
+            :readiness="item.data_readiness" context="detector" inline quiet-waiting action-label="Обновить выводы детектора"
             @state-change="rememberReadiness(item.data_readiness, $event)"
             @ready="$emit('refresh-data')" @ready-action="$emit('refresh-data')" />
         </div>
@@ -250,15 +250,19 @@ const bannerClass = computed(() => {
   return `detector-banner--${bannerSeverity.value}`
 })
 
+const detectorStates = computed(() => props.syncIssues.map(issue => {
+  const readiness = issue.data_readiness
+  return readinessStates.value[readinessKey(readiness)] || consumerReadiness(readiness)
+}))
+const compactPreparation = computed(() => props.warmupStatus !== 'warming_up'
+  && detectorStates.value.some(state => state?.status === 'waiting')
+  && detectorStates.value.every(state => state && !state.poll_error && ['waiting', 'ready'].includes(state.status)))
 const neutralTitle = computed(() => {
   if (props.warmupStatus === 'warming_up') {
     const days = props.warmupDaysLeft ?? '?'
     return `Детектор накапливает данные, заработает через ${days} дн.`
   }
-  return detectorReadinessTitle(props.syncIssues.map(issue => {
-    const readiness = issue.data_readiness
-    return readinessStates.value[readinessKey(readiness)] || consumerReadiness(readiness)
-  }))
+  return detectorReadinessTitle(detectorStates.value)
 })
 const neutralSubtitle = computed(() => {
   if (props.warmupStatus === 'warming_up') return 'Сначала нужна история по проекту. Это нейтральный статус, не алерт.'
@@ -413,6 +417,22 @@ const snooze = (alert, mode) => { openSnoozeId.value = null; emit('snooze', aler
 :global(.dark .detector-banner--sync .detector-banner__title) { color: #e2e8f0; }
 :global(.dark .detector-banner--sync .detector-banner__head-ic) { background: #293649; color: #c2ccda; }
 .detector-banner__hypothesis { color: currentColor; font-size: 0.84rem; font-weight: 650; opacity: 0.82; line-height: 1.35; }
+.detector-banner--sync.detector-banner--preparing {
+  padding: 0.4rem 0.2rem;
+  border: 0;
+  background: transparent;
+}
+.detector-banner--preparing .detector-banner__title {
+  color: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.detector-banner--preparing .detector-banner__head-ic { width: 1.5rem; height: 1.5rem; background: transparent; }
+:global(.dark) .detector-banner--sync.detector-banner--preparing { background: transparent; }
+:global(.dark) .detector-banner--preparing .detector-banner__head-ic { background: transparent; }
+:global(.dark) .detector-banner--preparing .detector-banner__title { color: #c2ccda; }
 
 /* ───── Блок-эпизод ───── */
 .detector-blocks { display: flex; flex-direction: column; gap: 0.55rem; container-type: inline-size; }

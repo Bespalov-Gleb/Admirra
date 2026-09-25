@@ -7,6 +7,7 @@ import path from 'node:path'
 import os from 'node:os'
 import { createServer } from 'vite'
 const require = createRequire(import.meta.url)
+assert.equal(process.env.WW_TEST, '1'); assert.ok(process.env.WW_TEST_ID)
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
 const root = fileURLToPath(new URL('../', import.meta.url))
 const fixture = `
@@ -65,19 +66,21 @@ try {
  const waiting={id:'request',status:'waiting',deadline:new Date(Date.now()+3600000).toISOString(),message:'Обновляем недостающие данные. Повторите действие после завершения.'}
  const setup=async(v,generic=false,remove=true)=>{await page.evaluate(({v,generic,remove})=>window.probe.setup(v,generic,remove),{v,generic,remove});await page.waitForTimeout(10)}
  await setup(waiting)
- assert.equal(await page.getByText('Подготавливаем историю для детектора',{exact:true}).count(),1)
- assert.equal(await page.locator('.data-readiness p').count(),1)
+ assert.equal(await page.getByText('Анализируем данные…',{exact:true}).count(),1)
+ assert.equal(await page.locator('.data-readiness').count(),0)
  assert.equal(await page.locator('.detector-banner__hypothesis').count(),0)
  assert.equal(await page.locator('.data-readiness small').count(),0)
- assert.equal(await page.locator('.data-readiness').evaluate(e=>getComputedStyle(e).borderTopWidth),'0px')
+ assert.equal(await page.locator('.detector-banner').evaluate(e=>getComputedStyle(e).borderTopWidth),'0px')
+ assert.equal(await page.locator('.detector-banner__title').evaluate(e=>getComputedStyle(e).textTransform),'none')
  await page.screenshot({path:path.join(os.tmpdir(),'admirra-readiness-desktop.png')})
  await page.setViewportSize({width:390,height:700})
  await page.screenshot({path:path.join(os.tmpdir(),'admirra-readiness-mobile.png')})
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
  await page.evaluate(()=>document.body.classList.add('dark'))
- await page.waitForFunction(()=>getComputedStyle(document.querySelector('.detector-banner--sync')).backgroundColor==='rgb(32, 42, 57)')
+ await page.waitForFunction(()=>getComputedStyle(document.querySelector('.detector-banner--sync')).backgroundColor==='rgba(0, 0, 0, 0)')
  assert.equal(await page.evaluate(()=>getComputedStyle(document.body).backgroundColor),'rgb(17, 24, 39)')
- assert.equal(await page.locator('.data-readiness').evaluate(e=>getComputedStyle(e).backgroundColor),'rgba(0, 0, 0, 0)')
+ assert.equal(await page.locator('.data-readiness').count(),0)
+ await page.waitForFunction(()=>getComputedStyle(document.querySelector('.detector-banner__title')).color==='rgb(194, 204, 218)')
  await page.screenshot({path:path.join(os.tmpdir(),'admirra-readiness-dark.png')})
  await page.evaluate(()=>document.body.classList.remove('dark'))
  response={...waiting,status:'ready'}
@@ -115,6 +118,8 @@ try {
  await setup(waiting)
  await page.clock.fastForward(30001)
  await page.getByRole('button',{name:'Проверить статус',exact:true}).waitFor()
+ await page.getByText('Не удалось проверить данные',{exact:true}).waitFor()
+ assert.equal(await page.locator('.detector-banner--preparing').count(),0)
  before=calls.length
  await page.clock.fastForward(60001)
  assert.equal(calls.length,before)
@@ -129,7 +134,7 @@ try {
  assert.equal(calls.length,before)
  response={...waiting,status:'waiting'}
  await page.getByRole('button',{name:'Повторить подготовку данных',exact:true}).click()
- await page.getByText('Подготавливаем историю для детектора',{exact:true}).waitFor()
+ await page.getByText('Анализируем данные…',{exact:true}).waitFor()
  assert.deepEqual(calls.at(-1),{path:'/api/data-refresh/request/retry',method:'POST'})
  await page.evaluate(()=>window.probe.unmount())
  before=calls.length
