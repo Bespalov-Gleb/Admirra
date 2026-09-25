@@ -1,7 +1,8 @@
 **
 !ops/
 !ops/Dockerfile.frontend-overlay
-!dist/
-!dist/**
+!index.html
+!assets/
+!assets/**
 **/._*
 **/.DS_Store

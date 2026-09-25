@@ -981,7 +981,7 @@ async def subscribe(
         coupon=(promo_quote.promo.code if promo_quote and not is_winback else None),
         signup_discount=is_signup_discount,
         price_book_version=(intent_payload.get('price_book_snapshot') or {}).get('_price_book_version'),
-        trial_to_paid=is_trial and body.onboarding_analytics,
+        trial_to_paid=is_trial and bool(getattr(body, 'onboarding_analytics', False)),
         discount_kind=quoted['discount_kind'] if is_signup_discount else None,
         goal=("plan_upgrade" if not is_trial and (requested_rank > current_rank or
               (billing_period == "year" and sub.billing_period != "year")) else "payment_success"),
