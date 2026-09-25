@@ -7,6 +7,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class PoolKeepaliveTests(unittest.TestCase):
+    def test_nginx_qa_isolates_all_compiled_absolute_temp_paths(self):
+        source = (ROOT / 'ops/keepalive_qa.py').read_text()
+        for name, path in [('client_body', 'body'), ('proxy', 'proxy'),
+                           ('fastcgi', 'fastcgi'), ('uwsgi', 'uwsgi'), ('scgi', 'scgi')]:
+            self.assertIn(f'{name}_temp_path {{root}}/{path};', source)
+
     def test_production_weights_log_and_failover_are_preserved(self):
         source = '''upstream admirra_api_read_canary {
     least_conn;

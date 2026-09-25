@@ -47,6 +47,12 @@ error_log {root}/error.log;
 events {{ worker_connections 32; }}
 http {{
     access_log off;
+    # Ubuntu's compiled defaults are absolute; -p alone does not isolate them.
+    client_body_temp_path {root}/body;
+    proxy_temp_path {root}/proxy;
+    fastcgi_temp_path {root}/fastcgi;
+    uwsgi_temp_path {root}/uwsgi;
+    scgi_temp_path {root}/scgi;
     upstream test_backend {{
         server 127.0.0.1:{backend.server_address[1]};
         keepalive 16;
