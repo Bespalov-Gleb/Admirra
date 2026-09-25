@@ -8,7 +8,12 @@ branch_labels = None
 depends_on = None
 
 def upgrade():
-    op.add_column('max_oauth_login_attempts', sa.Column('is_new_user', sa.Boolean(), nullable=False, server_default=sa.false()))
+    # Online expand may precede the coordinated worker/schema-version rollout.
+    columns = {c['name']: c for c in sa.inspect(op.get_bind()).get_columns('max_oauth_login_attempts')}
+    if 'is_new_user' not in columns:
+        op.add_column('max_oauth_login_attempts', sa.Column('is_new_user', sa.Boolean(), nullable=False, server_default=sa.false()))
+    else:
+        assert isinstance(columns['is_new_user']['type'], sa.Boolean) and not columns['is_new_user']['nullable']
 
 def downgrade():
     op.drop_column('max_oauth_login_attempts', 'is_new_user')

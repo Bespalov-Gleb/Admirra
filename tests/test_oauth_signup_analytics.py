@@ -74,7 +74,7 @@ def test_duplicate_hook_cannot_rebind_completed_authorization(env):
     assert status(env,state)['is_new_user'] is True
 
 def test_additive_migration_preserves_old_rows_and_is_idempotent(pg):
-    from ops.migrate_max_signup_flag import migrate, OLD, NEW
+    from ops.migrate_max_signup_flag import migrate, OLD
     _,engine=pg
     with engine.begin() as c:
         c.execute(sa.text('CREATE TABLE alembic_version (version_num varchar(32) PRIMARY KEY)'))
@@ -83,8 +83,18 @@ def test_additive_migration_preserves_old_rows_and_is_idempotent(pg):
         c.execute(sa.text('INSERT INTO max_oauth_login_attempts VALUES (1)'))
         assert migrate(c)=='applied'
         assert c.execute(sa.text('SELECT is_new_user FROM max_oauth_login_attempts')).scalar_one() is False
-        assert c.execute(sa.text('SELECT version_num FROM alembic_version')).scalar_one()==NEW
+        assert c.execute(sa.text('SELECT version_num FROM alembic_version')).scalar_one()==OLD
         assert migrate(c)=='already applied'
+        # Later coordinated Alembic upgrade can consume the pre-expanded column.
+        import importlib.util
+        from pathlib import Path
+        from alembic.migration import MigrationContext
+        from alembic.operations import Operations
+        path=Path(__file__).resolve().parents[1]/'alembic/versions/f79ca3b4c5d6_max_signup_flag.py'
+        spec=importlib.util.spec_from_file_location('max_signup_migration',path)
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        module.op=Operations(MigrationContext.configure(c));module.upgrade()
+        assert c.execute(sa.text('SELECT is_new_user FROM max_oauth_login_attempts')).scalar_one() is False
 
 def test_migration_refuses_unknown_revision(pg):
     from ops.migrate_max_signup_flag import migrate
