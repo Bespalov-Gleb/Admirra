@@ -1,10 +1,12 @@
 """One account, one grant, first payment only. No external IO in transactions."""
 import os
 import uuid
+import math
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 
 from core import models
+from sqlalchemy import func, or_
 
 PERCENT = 20
 
@@ -85,7 +87,8 @@ def grant_for_integration(db, integration, *, finalized=False):
 def quote(plan_month, regular_price, billing):
     base = int(plan_month) * (12 if billing == 'year' else 1)
     discounted = int((Decimal(base) * Decimal('0.8')).quantize(Decimal('1'), rounding=ROUND_HALF_UP))
-    return {'list_price': base, 'amount': min(int(regular_price), discounted)}
+    return {'list_price': base, 'amount': min(int(regular_price), discounted),
+            'discount_kind': 'year' if billing == 'year' and int(regular_price) < discounted else 'signup20'}
 
 
 def status(db, user, sub):
@@ -97,3 +100,38 @@ def status(db, user, sub):
             'expires_at': getattr(user, 'signup_discount_expires_at', None) or (sub.current_period_end if sub else None),
             'modal_seen': bool(getattr(user, 'signup_discount_modal_seen_at', None)),
             'toast_seen': bool(getattr(user, 'signup_discount_toast_seen_at', None))}
+
+
+def onboarding_status(db, user, sub):
+    """Small indexed aggregates, not dashboard statistics or external API calls."""
+    result = status(db, user, sub)
+    paid = has_paid(db, user.id)
+    end = aware(sub.current_period_end) if sub else None
+    start = aware(sub.current_period_start) if sub else None
+    trial = bool(sub and not paid and sub.status in {
+        models.SubscriptionStatus.TRIAL, models.SubscriptionStatus.EXPIRED,
+    })
+    days = max(0, math.ceil((end - now()).total_seconds() / 86400)) if trial and end else 0
+    used = bool(getattr(user, 'signup_discount_used_at', None))
+    granted = bool(getattr(user, 'signup_discount_granted_at', None))
+    state = ('used' if used else 'granted' if result['active'] else
+             'expired' if granted or (trial and not days) else 'not_granted')
+    projects = db.query(func.count(models.Client.id)).filter(models.Client.owner_id == user.id).scalar()
+    cabinets = db.query(func.count(models.Integration.id)).join(
+        models.Client, models.Client.id == models.Integration.client_id,
+    ).filter(
+        models.Client.owner_id == user.id,
+        models.Integration.connection_status == 'active',
+        models.Integration.platform.in_([
+            models.IntegrationPlatform.YANDEX_DIRECT, models.IntegrationPlatform.VK_ADS,
+            models.IntegrationPlatform.AVITO_ADS,
+        ]),
+        or_(models.Integration.account_id.notin_(['', '0']), models.Integration.agency_client_login != ''),
+        or_(models.Integration.access_token != '', models.Integration.platform_client_secret != ''),
+    ).scalar()
+    result.update(trial_visible=trial and not used, trial_days_left=days,
+                  trial_ends_at=end if trial else None,
+                  trial_total_days=max(1, math.ceil((end - start).total_seconds() / 86400)) if trial and start and end else max(1, days),
+                  projects_count=int(projects or 0), cabinets_count=int(cabinets or 0),
+                  discount_state=state)
+    return result

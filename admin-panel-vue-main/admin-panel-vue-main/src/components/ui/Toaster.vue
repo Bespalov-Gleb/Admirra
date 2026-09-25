@@ -1,5 +1,5 @@
 <template>
-  <div class="fixed top-6 right-6 z-[2147483647] flex flex-col gap-3 pointer-events-none max-w-sm w-full">
+  <div class="fixed top-6 right-6 z-[2147483647] flex flex-col gap-3 pointer-events-none max-w-sm w-[calc(100%-3rem)]" role="status" aria-live="polite">
     <TransitionGroup name="toast">
       <div
         v-for="toast in toasts"

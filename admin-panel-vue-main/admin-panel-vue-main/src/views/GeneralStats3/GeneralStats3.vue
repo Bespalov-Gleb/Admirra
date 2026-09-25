@@ -368,8 +368,9 @@
       @restore="handleRestoreDetectorAlert"
     />
 
+    <ConnectAccountPrompt v-if="emptyConnectedProject" :client-id="String(filters.client_id)" :state="onboardingState" class="detector-banner-slot" />
     <PlanOnboardingBanner
-      v-if="filters.client_id"
+      v-else-if="filters.client_id && integrationsLoadedFor === String(filters.client_id)"
       :plan-status="detectorSummary?.plan_status"
       :detector-enabled="!['disabled', 'paused'].includes(detectorSummary?.warmup_status)"
       :paused="detectorSummary?.warmup_status === 'paused'"
@@ -1695,6 +1696,9 @@ import { VueDraggable } from 'vue-draggable-plus'
 import DetectorBanner from '@/components/DetectorBanner.vue'
 import DetectorSidebar from '@/components/DetectorSidebar.vue'
 import PlanOnboardingBanner from '@/components/PlanOnboardingBanner.vue'
+import ConnectAccountPrompt from '@/components/ConnectAccountPrompt.vue'
+import { useOnboarding } from '@/composables/useOnboarding'
+const { state: onboardingState } = useOnboarding()
 import DynamicsView from './components/DynamicsView.vue'
 import ProjectReportSettingsModal from './components/ProjectReportSettingsModal.vue'
 import ProjectSettingsModal from '@/components/ProjectSettingsModal.vue'
@@ -2426,6 +2430,8 @@ const reportGoalsByChannel = ref({})
 const reportGoalsLoading = ref(false)
 let reportGoalsRequestId = 0
 const integrations = ref([])
+const integrationsLoadedFor = ref(null)
+const emptyConnectedProject = computed(() => Boolean(filters.client_id) && integrationsLoadedFor.value === String(filters.client_id) && !integrations.value.some(i => i.is_connected))
 const topAds = ref([])
 const topAdsLoading = ref(false)
 const selectedCreativeImage = ref(null)
@@ -5227,6 +5233,8 @@ let integrationsController = null
 onUnmounted(() => { integrationsRequestId += 1; integrationsController?.abort() })
 const fetchIntegrations = async () => {
   const requestId = ++integrationsRequestId
+  const projectId = filters.client_id ? String(filters.client_id) : null
+  integrationsLoadedFor.value = null
   integrationsController?.abort()
   integrationsController = new AbortController()
   const signal = integrationsController.signal
@@ -5235,7 +5243,10 @@ const fetchIntegrations = async () => {
       ? { folder_id: filters.folder_id }
       : (filters.client_id ? { client_id: filters.client_id } : {})
     const { data } = await api.get('dashboard/integrations', { params, signal })
-    if (requestId === integrationsRequestId) integrations.value = data || []
+    if (requestId === integrationsRequestId) {
+      integrations.value = data || []
+      integrationsLoadedFor.value = projectId
+    }
   } catch {
     if (requestId === integrationsRequestId) integrations.value = []
   }

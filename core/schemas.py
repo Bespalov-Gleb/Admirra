@@ -1328,6 +1328,9 @@ class MetrikaMilestoneResponse(BaseModel):
 
 class BillingSubscribeRequest(BaseModel):
     plan_code: str
+    # Capability only; never influences price or eligibility. Old tabs retain
+    # offline trial conversion while new tabs send confirmed goal parameters.
+    onboarding_analytics: bool = False
     billing_period: str = "month"
     success_url: Optional[str] = None
     fail_url: Optional[str] = None

@@ -9,6 +9,7 @@
       {{ error }}
     </div>
 
+    <IntegrationOffer :state="onboardingState" @activate="goToVisibleStep(1)" />
     <div class="wizard-shell">
       <section :ref="(el) => setStepRef(1, el)" class="wizard-step-section" :class="{ 'wizard-step-section--active': step === 1, 'wizard-step-section--done': step > 1 }">
         <button
@@ -766,6 +767,10 @@ import { useIntegrationWizard } from '../../composables/useIntegrationWizard'
 import { useToaster } from '../../composables/useToaster'
 import api from '../../api/axios'
 import { trackFirstMilestone } from '@/utils/metrika'
+import IntegrationOffer from '@/components/IntegrationOffer.vue'
+import { useOnboarding } from '@/composables/useOnboarding'
+import { consumeOfferEntry } from '@/utils/onboardingAnalytics'
+const { state: onboardingState } = useOnboarding()
 
 const router = useRouter()
 const { projects, currentProjectId, fetchProjects } = useProjects()
@@ -1557,7 +1562,11 @@ const doFinish = async () => {
     })
     localStorage.removeItem('metrika_integration_id')
     // Цель «Подключён первый кабинет» — только при первом подключении на аккаунт
-    trackFirstMilestone('integration_connected', 'integration_connected')
+    trackFirstMilestone('integration_connected', 'integration_connected', {
+      channel: { YANDEX_DIRECT: 'direct', VK_ADS: 'vk', AVITO_ADS: 'avito', YANDEX_METRIKA: 'metrika' }[form.platform],
+      from_offer: consumeOfferEntry(),
+    })
+    window.dispatchEvent(new Event('admirra:onboarding-changed'))
     toaster.success('Интеграция успешно настроена!')
     resetStore()
     router.push('/integrations')

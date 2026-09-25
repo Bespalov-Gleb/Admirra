@@ -32,8 +32,12 @@ export function trackPurchase(payment, { win = globalThis.window, counterId = 10
     const done = () => resolve(true)
     setTimeout(done, 300)
     try {
-      win.ym(counterId, 'reachGoal', p.goal, { order_price: p.amount, currency: 'RUB',
-        plan: p.plan, billing: p.billing, signup_discount: Boolean(p.signup_discount) }, done)
+      const discount = ['signup20', 'year', 'none'].includes(p.discount_kind) ? p.discount_kind
+        : p.signup_discount ? 'signup20' : p.billing === 'year' && p.discount > 0 ? 'year' : 'none'
+      const params = { order_price: p.amount, currency: 'RUB', plan: p.plan, billing: p.billing,
+        signup_discount: Boolean(p.signup_discount), discount }
+      win.ym(counterId, 'reachGoal', p.goal, params, done)
+      if (p.trial_to_paid === true) win.ym(counterId, 'reachGoal', 'trial_to_paid', params)
       win.ym(counterId, 'reachGoal', 'subscription_paid', { signup_discount: Boolean(p.signup_discount) })
     } catch { done() }
   })

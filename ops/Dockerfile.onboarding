@@ -1,0 +1,10 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+WORKDIR /app
+COPY core/schemas.py /app/core/
+COPY backend_api/auth.py backend_api/billing.py /app/backend_api/
+COPY backend_api/services/signup_discount.py backend_api/services/purchase_analytics.py /app/backend_api/services/
+ARG APP_RELEASE
+ENV APP_RELEASE=${APP_RELEASE}
+LABEL org.opencontainers.image.revision=${APP_RELEASE}
+RUN chmod a+r /app/core/schemas.py /app/backend_api/auth.py /app/backend_api/billing.py /app/backend_api/services/signup_discount.py /app/backend_api/services/purchase_analytics.py

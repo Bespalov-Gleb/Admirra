@@ -185,6 +185,7 @@
 
         </div>
       </nav>
+      <TrialCard v-if="!isCollapsed" :state="onboardingState" @navigate="openOnboarding" @support="trackFirstMilestone('support_chat_click')" />
     </div>
 
     <!-- Bottom: separator + support + logout -->
@@ -255,6 +256,17 @@ import { useAuth } from '../composables/useAuth'
 import { useTheme } from '../composables/useTheme'
 import { useReportsQueue } from '../composables/useReportsQueue'
 import ConfirmModal from './ConfirmModal.vue'
+import TrialCard from './TrialCard.vue'
+import { useOnboarding } from '@/composables/useOnboarding'
+import { markOfferEntry } from '@/utils/onboardingAnalytics'
+import { trackFirstMilestone } from '@/utils/metrika'
+
+const { state: onboardingState } = useOnboarding()
+function openOnboarding(card) {
+  if (card.offer) markOfferEntry()
+  trackFirstMilestone('signup_offer_click')
+  handleLinkClick(card.path)
+}
 
 const { isCollapsed, toggleCollapse, isMobileViewport, isMobileMenuOpen, closeMobileMenu, toggleMobileMenu } = useSidebar()
 const { isDarkMode } = useTheme()

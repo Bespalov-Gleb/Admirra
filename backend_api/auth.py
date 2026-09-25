@@ -598,6 +598,9 @@ def claim_metrika_milestone(
     name = (body.name or "").strip()
     if not name:
         return schemas.MetrikaMilestoneResponse(first=False)
+    # Serialize simultaneous tabs; a JSON read/modify/write without a lock loses
+    # claims and emits duplicate first-account goals.
+    current_user = db.query(models.User).filter(models.User.id == current_user.id).populate_existing().with_for_update().one()
     try:
         claimed = set(_json.loads(current_user.ym_milestones)) if current_user.ym_milestones else set()
     except Exception:

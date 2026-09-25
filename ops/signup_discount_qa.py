@@ -41,7 +41,7 @@ try:
     if candidate:
         mounts += ['-v',str(root/'tests')+':/app/tests:ro', '-v',str(root/'ops/run_isolated_tests.py')+':/app/ops/run_isolated_tests.py:ro',
                    '-v',str(root/'alembic/versions/ef1a2b3c4d5e_signup_discount.py')+':/app/alembic/versions/ef1a2b3c4d5e_signup_discount.py:ro']
-    tests = ['tests/test_signup_discount.py','tests/test_purchase_analytics.py','tests/test_signup_discount_flow.py',
+    tests = ['tests/test_signup_discount.py','tests/test_purchase_analytics.py','tests/test_signup_discount_flow.py','tests/test_onboarding.py','tests/test_onboarding_ingress.py',
              'tests/test_billing_slot_purchase.py','tests/test_billing_guards.py']
     if not candidate:
         tests += ['tests/test_billing_work.py','-k','not test_recurring_changed_after_io_blocks_redelivery_and_next_occurrence']

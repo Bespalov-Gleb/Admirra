@@ -924,8 +924,9 @@ async def subscribe(
             receipt['items'][0]['price'] = quoted['amount']
             receipt['items'][0]['amount'] = quoted['amount']
             discount_text = f"{original_amount - amount:,.2f} ₽".replace(',', ' ').replace('.', ',')
-            receipt['userRequisiteData'] = {'requisiteKey': 'Скидка за подключение 20%', 'requisiteValue': discount_text}
-            receipt['additionalReceiptInfos'] = [f'Скидка за подключение 20%: {discount_text}']
+            discount_label = 'Годовая скидка' if quoted['discount_kind'] == 'year' else 'Скидка за подключение 20%'
+            receipt['userRequisiteData'] = {'requisiteKey': discount_label, 'requisiteValue': discount_text}
+            receipt['additionalReceiptInfos'] = [f'{discount_label}: {discount_text}']
             receipt['amounts']['electronic'] = amount
     elif is_winback:
         try:
@@ -980,6 +981,8 @@ async def subscribe(
         coupon=(promo_quote.promo.code if promo_quote and not is_winback else None),
         signup_discount=is_signup_discount,
         price_book_version=(intent_payload.get('price_book_snapshot') or {}).get('_price_book_version'),
+        trial_to_paid=is_trial and body.onboarding_analytics,
+        discount_kind=quoted['discount_kind'] if is_signup_discount else None,
         goal=("plan_upgrade" if not is_trial and (requested_rank > current_rank or
               (billing_period == "year" and sub.billing_period != "year")) else "payment_success"),
     )
@@ -1032,7 +1035,7 @@ def signup_discount_status(current_user: models.User = Depends(security.get_curr
     if owner.id != current_user.id:
         return {"eligible": False, "active": False}
     sub = SubscriptionService.get_user_subscription(db, owner.id)
-    result = signup_discount.status(db, owner, sub)
+    result = signup_discount.onboarding_status(db, owner, sub)
     if result['active']:
         result['prices'] = {spec.code: {
             period: signup_discount.quote(spec.price_month, spec.price_year if period == 'year' else spec.price_month, period)
@@ -2049,7 +2052,10 @@ async def cloudpayments_webhook(
                                                 currency=_currency, client_id=_cid, yclid=_yclid)
                 await upload_offline_conversion(target="payment_success", price=_amount,
                                                 currency=_currency, client_id=_cid, yclid=_yclid)
-            elif extend_period:
+            elif extend_period and not (intent_payload.get('analytics') or {}).get('trial_to_paid'):
+                # New manual trial checkouts emit the goal with discount params
+                # from the authenticated confirmation, just like payment_success.
+                # Preserve offline delivery for existing/legacy payment intents.
                 await upload_offline_conversion(target="trial_to_paid", price=_amount,
                                                 currency=_currency, client_id=_cid, yclid=_yclid)
         except Exception as _conv_err:

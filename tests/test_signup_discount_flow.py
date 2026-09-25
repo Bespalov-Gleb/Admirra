@@ -73,10 +73,10 @@ def grant(scope):
         return discount.grant_for_integration(db,db.get(models.Integration,iid),finalized=True)
 
 
-def checkout(scope, period='month'):
+def checkout(scope, period='month', onboarding=False):
     factory,uid,_=scope
     with factory() as db:
-        return asyncio.run(billing.subscribe(schemas.BillingSubscribeRequest(plan_code='agency',billing_period=period), db.get(models.User,uid),db))
+        return asyncio.run(billing.subscribe(schemas.BillingSubscribeRequest(plan_code='agency',billing_period=period,onboarding_analytics=onboarding), db.get(models.User,uid),db))
 
 
 def request(data):

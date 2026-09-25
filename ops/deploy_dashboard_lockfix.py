@@ -42,16 +42,18 @@ def main():
     p.add_argument('--root', type=Path, required=True)
     p.add_argument('--image')
     p.add_argument('--release', required=True)
+    p.add_argument('--expected-image', default=BASE)
+    p.add_argument('--expected-release', default='2ce9513')
     a = p.parse_args()
     assert os.geteuid() == 0 and re.fullmatch('[a-f0-9]{7,40}', a.release)
     a.root.mkdir(parents=True, mode=0o700, exist_ok=True)
     assert not a.root.is_symlink() and a.root.stat().st_mode & 0o077 == 0
     if a.action == 'prepare':
         old, config, service, project = inspect_config(a.container)
-        assert old['Image'] == BASE, 'Runtime image drift'
+        assert old['Image'] == a.expected_image, 'Runtime image drift'
         image = capture(['docker', 'image', 'inspect', '--format', '{{.Id}}', a.image]).strip()
         env = config['services'][service]['environment']
-        assert env['APP_PROCESS_ROLE'] == 'api' and env['APP_RELEASE'] == '2ce9513'
+        assert env['APP_PROCESS_ROLE'] == 'api' and env['APP_RELEASE'] == a.expected_release
         private_json(a.root / 'before.json', old)
         private_json(a.root / 'previous.json', literal(config))
         active = deepcopy(config)
@@ -59,7 +61,7 @@ def main():
         active['services'][service]['environment']['APP_RELEASE'] = a.release
         save_checked(a.root, 'active', active, service, active['services'][service]['environment'], project)
         private_json(a.root / 'deployment.json', dict(project=project, service=service, image=image,
-                                                      release=a.release, container=a.container))
+                                                      release=a.release, container=a.container, previous_release=env['APP_RELEASE']))
         print('Prepared API-only pinned image and rollback; runtime unchanged')
         return
     meta = json.loads((a.root / 'deployment.json').read_text())
@@ -67,7 +69,7 @@ def main():
     assert meta['release'] == a.release and meta['container'] == a.container
     if a.action == 'rollback':
         compose(meta['project'], a.root / 'previous.json', meta['service'])
-        ready(a.container, '2ce9513')
+        ready(a.container, meta.get('previous_release', '2ce9513'))
         print('Previous API restored')
         return
     current = json.loads(capture(['docker', 'inspect', a.container]))[0]
@@ -91,7 +93,7 @@ def main():
                                                    release=a.release, container=a.container))
     except Exception:
         compose(meta['project'], a.root / 'previous.json', meta['service'])
-        ready(a.container, '2ce9513')
+        ready(a.container, meta.get('previous_release', '2ce9513'))
         raise
     print('API ready; only image/release changed; rollback retained')
 

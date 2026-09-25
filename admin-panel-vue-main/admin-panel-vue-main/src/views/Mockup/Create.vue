@@ -108,6 +108,7 @@ const handleSubmit = async () => {
     trackProjectCreated(data?.owner_project_count)
     await fetchProjects()
     setCurrentProject(data.id)
+    window.dispatchEvent(new Event('admirra:onboarding-changed'))
     router.push({ path: '/integrations/wizard', query: { client_id: data.id } })
   } catch (err) {
     errorMsg.value = err.response?.data?.detail || 'Не удалось создать проект'

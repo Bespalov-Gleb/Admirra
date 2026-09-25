@@ -43,3 +43,9 @@ test('upgrade preserves actual top-up',async()=>{
   assert.equal(win.dataLayer[0].ecommerce.purchase.actionField.revenue,1000)
   assert.equal(win.calls[0][2],'plan_upgrade')
 })
+test('trial goal has actual amount and discount once, no replay on refresh',async()=>{
+  const win=browser(),p={...payment(),trial_to_paid:true,discount_kind:'signup20'}
+  await trackPurchase(p,{win});await trackPurchase(p,{win})
+  const calls=win.calls.filter(c=>c[2]==='trial_to_paid')
+  assert.equal(calls.length,1);assert.equal(calls[0][3].discount,'signup20');assert.equal(calls[0][3].order_price,5520)
+})

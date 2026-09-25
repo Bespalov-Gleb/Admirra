@@ -4,7 +4,7 @@ from decimal import Decimal
 from core import pricing
 
 
-def purchase_snapshot(*, plan, billing, amount, list_price, coupon=None, goal='payment_success', signup_discount=False, price_book_version=None):
+def purchase_snapshot(*, plan, billing, amount, list_price, coupon=None, goal='payment_success', signup_discount=False, price_book_version=None, trial_to_paid=False, discount_kind=None):
     return {
         'plan': pricing.normalize_code(plan.code), 'name': plan.name,
         'sku': pricing.analytics_sku(plan.code, billing),
@@ -12,6 +12,8 @@ def purchase_snapshot(*, plan, billing, amount, list_price, coupon=None, goal='p
         'discount': float(max(Decimal('0'), Decimal(str(list_price)) - Decimal(str(amount)))),
         'coupon': coupon or None, 'goal': goal, 'signup_discount': bool(signup_discount),
         'price_book_version': price_book_version or pricing.current_price_book_version(),
+        'discount_kind': discount_kind or ('signup20' if signup_discount else 'year' if billing == 'year' and amount < list_price else 'none'),
+        'trial_to_paid': bool(trial_to_paid),
     }
 
 

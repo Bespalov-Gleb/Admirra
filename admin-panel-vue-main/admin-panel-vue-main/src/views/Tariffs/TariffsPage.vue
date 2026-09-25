@@ -867,6 +867,7 @@ async function onSubscribe(planCode, bp = 'month') {
   const prevPlanCode = String(subscription.value?.plan_code || currentPlanCode.value || 'start').toLowerCase()
   try {
     const { data } = await api.post('billing/subscribe', {
+      onboarding_analytics: true,
       plan_code: planCode,
       billing_period: bp,
       success_url: `${window.location.origin}/settings?tab=tariff`,
@@ -901,6 +902,7 @@ async function onSubscribe(planCode, bp = 'month') {
     if (promoApplied.value?.code) {
       try {
         const resub = await api.post('billing/subscribe', {
+          onboarding_analytics: true,
           plan_code: planCode,
           billing_period: bp,
           success_url: `${window.location.origin}/settings?tab=tariff`,
@@ -1095,6 +1097,7 @@ async function maybeOfferWinback(planCode, bp, prevPlanCode) {
   // Оформление со скидкой: авторитетный subscribe с winback:true → виджет с новой суммой.
   try {
     const { data: wbData } = await api.post('billing/subscribe', {
+      onboarding_analytics: true,
       plan_code: planCode,
       billing_period: bp,
       success_url: `${window.location.origin}/settings?tab=tariff`,

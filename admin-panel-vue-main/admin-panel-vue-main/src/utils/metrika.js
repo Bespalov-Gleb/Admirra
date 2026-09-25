@@ -82,10 +82,10 @@ export function trackProjectCreated(ownerProjectCount) {
 
 // Цель «первого раза» через серверную «веху» (дедупликация на бэке).
 // goal сработает только при первом достижении на аккаунт.
-export async function trackFirstMilestone(name, goal) {
+export async function trackFirstMilestone(name, goal, params) {
   try {
     const { data } = await api.post('auth/metrika/milestone', { name })
-    if (data && data.first) reachGoal(goal || name)
+    if (data && data.first) reachGoal(goal || name, params)
   } catch (e) {
     // аналитика не критична
   }
