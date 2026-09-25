@@ -1013,7 +1013,7 @@
     </section>
 
     <section v-if="!isAllProjectsSummary" class="bottom-grid">
-      <article class="panel ai-panel ai-comment" :class="{ 'panel--syncing': dashboardSyncInProgress, 'ai-comment--collapsed': aiCommentCollapsed }">
+      <article class="panel ai-panel ai-comment" :class="{ 'ai-comment--collapsed': aiCommentCollapsed }">
         <div class="ai-comment__head">
           <span class="ai-comment__icon"><SparklesIcon /></span>
           <h2 class="ai-comment__title">AI-комментарий за период</h2>
@@ -1038,10 +1038,10 @@
         </div>
 
         <template v-if="!aiCommentCollapsed">
-        <DataReadinessNotice :readiness="aiDataReadiness" action-label="Получить комментарий" @ready-action="triggerAiComment" />
+        <p v-if="aiCommentRequestError" class="ai-comment__request-error" role="alert">{{ aiCommentRequestError }}</p>
         <!-- Генерация по кнопке -->
         <div v-if="loadingInitialComment || loadingAiComment" class="ai-comment__skeleton">
-          <p class="ai-comment__skeleton-note">{{ loadingAiComment ? 'Формируем комментарий…' : 'Загружаем…' }}</p>
+          <p class="ai-comment__skeleton-note" role="status" aria-live="polite">{{ loadingAiComment ? (aiCommentPhase === 'preparing' ? 'Подготавливаем анализ…' : 'Формируем комментарий…') : 'Загружаем…' }}</p>
           <div class="ai-skeleton-line ai-skeleton-line--wide"></div>
           <div class="ai-skeleton-line"></div>
           <div class="ai-skeleton-line ai-skeleton-line--medium"></div>
@@ -1055,11 +1055,11 @@
           <button
             class="ai-comment__calc"
             type="button"
-            :disabled="loadingAiComment || dashboardSyncInProgress"
+            :disabled="loadingAiComment"
             @click="triggerAiComment"
           >
             <SparklesIcon />
-            Получить комментарий
+            {{ aiCommentRequestError ? 'Повторить' : 'Получить комментарий' }}
           </button>
         </div>
 
@@ -1083,11 +1083,11 @@
             <button
               class="ai-comment__calc"
               type="button"
-              :disabled="loadingAiComment || dashboardSyncInProgress"
+              :disabled="loadingAiComment"
               @click="triggerAiComment"
             >
               <ArrowPathIcon />
-              Обновить
+              {{ aiCommentRequestError ? 'Повторить' : 'Обновить' }}
             </button>
           </div>
           <div class="ai-comment__foot">
@@ -1121,12 +1121,6 @@
           </div>
         </template>
 
-        <div v-if="dashboardSyncInProgress" class="sync-panel-overlay">
-          <ArrowPathIcon class="spinning" />
-          <strong>Выполняется синхронизация</strong>
-          <span>Комментарий обновится после пересчёта данных.</span>
-          <i></i><i></i><i></i>
-        </div>
         </template>
       </article>
     </section>
@@ -1687,7 +1681,7 @@ import { useTelegramReportLink } from '@/composables/useTelegramReportLink'
 import { refreshReportsQueue } from '@/composables/useReportsQueue'
 import { useToaster } from '@/composables/useToaster'
 import api from '@/api/axios'
-import DataReadinessNotice from '@/components/DataReadinessNotice.vue'
+import { createAiCommentRequest, aiCommentError } from '@/utils/aiCommentRequest'
 import { createLatestRequest } from '@/utils/latestRequest'
 import { reportExportError } from '@/utils/reportExportError'
 import DateRangePicker from '@/components/ui/DateRangePicker.vue'
@@ -2281,10 +2275,20 @@ const formatReportDate = (value) => {
 }
 
 const reportComment = ref('')
-const aiDataReadiness = ref(null)
 const aiScopeKey = () => JSON.stringify([filters.client_id, filters.start_date, filters.end_date])
 let savedCommentRequest = 0
 const loadingAiComment = ref(false)
+const aiCommentPhase = ref('idle')
+const aiCommentRequestError = ref('')
+const aiCommentRequest = createAiCommentRequest({ api, onPhase: (phase) => {
+  aiCommentPhase.value = phase
+  loadingAiComment.value = phase !== 'idle'
+} })
+watch(() => JSON.stringify([aiScopeKey(), filters.folder_id, filters.channel]), () => {
+  aiCommentRequest.cancel()
+  aiCommentRequestError.value = ''
+})
+onUnmounted(() => aiCommentRequest.cancel())
 const loadingInitialComment = ref(false)
 const aiCommentGeneratedAt = ref(null)
 // null — период не определён; true — стандартный (кэш); false — произвольный (нужна кнопка «Рассчитать»)
@@ -2296,7 +2300,6 @@ const aiCommentDownvoteHint = ref(false)
 const loadSavedComment = async () => {
   const requestId = ++savedCommentRequest
   const scope = aiScopeKey()
-  aiDataReadiness.value = null
   if (!filters.client_id) { loadingInitialComment.value = false; return }
   loadingInitialComment.value = true
   reportComment.value = ''
@@ -2309,7 +2312,6 @@ const loadSavedComment = async () => {
     if (filters.end_date) params.set('end_date', filters.end_date)
     const { data } = await api.get(`ai/comment?${params.toString()}`)
     if (requestId !== savedCommentRequest || scope !== aiScopeKey()) return
-    aiDataReadiness.value = data?.data_readiness || null
     if (data?.text) reportComment.value = data.text
     aiCommentGeneratedAt.value = data?.generated_at || null
     aiCommentStandard.value = data?.standard ?? null
@@ -5436,13 +5438,11 @@ const handleGenerateReport = async () => {
     })
     if (scope !== aiScopeKey()) return ''
     reportComment.value = data?.text || ''
-    aiDataReadiness.value = null
     aiCommentGeneratedAt.value = new Date().toISOString()
     return reportComment.value
   } catch (err) {
     if (scope !== aiScopeKey()) return ''
     const detail = err.response?.data?.detail
-    aiDataReadiness.value = detail?.data_readiness || null
     toaster.error(typeof detail === 'string' ? detail : detail?.message || 'Не удалось сгенерировать отчет')
     return ''
   }
@@ -5450,17 +5450,27 @@ const handleGenerateReport = async () => {
 
 const triggerAiComment = async () => {
   if (loadingAiComment.value) return
-  loadingAiComment.value = true
+  const scope = aiScopeKey()
+  aiCommentRequestError.value = ''
   aiCommentRating.value = 0
   aiCommentDownvoteHint.value = false
   try {
-    // Бэк кэширует dashboard_comment по периоду сам (ТЗ §12) — отдельный POST не нужен.
-    const result = await handleGenerateReport()
+    const result = await aiCommentRequest.run({
+      client_id: filters.client_id || null,
+      start_date: filters.start_date,
+      end_date: filters.end_date,
+    })
+    if (scope !== aiScopeKey()) return
+    // Invalidate an older passive cache read before publishing this response.
+    savedCommentRequest += 1
+    loadingInitialComment.value = false
+    reportComment.value = result?.text || ''
+    aiCommentGeneratedAt.value = new Date().toISOString()
     // После ручного «Рассчитать» произвольный период считается посчитанным.
     if (reportComment.value) aiCommentStandard.value = aiCommentStandard.value ?? false
     if (result) aiCommentStale.value = false
-  } finally {
-    loadingAiComment.value = false
+  } catch (error) {
+    if (scope === aiScopeKey()) aiCommentRequestError.value = aiCommentError(error)
   }
 }
 
@@ -16328,6 +16338,14 @@ function mobilePlanProgress(key) {
   font-size: 0.82rem;
   color: #6b7280;
 }
+.ai-comment__request-error {
+  margin: 0 0 12px;
+  color: #b45309;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+:global(.dark) .ai-comment__request-error { color: #fbbf24; }
 .ai-comment__stale {
   margin: 0 0 0.75rem;
   padding: 0.5rem 0.8rem;
