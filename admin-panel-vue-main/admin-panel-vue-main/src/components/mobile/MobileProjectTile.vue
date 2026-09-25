@@ -60,21 +60,26 @@
         <small v-else-if="stat.reason">{{ stat.reason }}</small>
       </div>
     </div>
-    <div
-      v-for="channel in channels"
-      :key="channel.code"
-      class="mw-channel"
-      :aria-label="channel.name"
-    >
-      <img :src="channel.icon" :alt="channel.name" /><span
-        >{{ channel.spendText }} ·
-        {{
-          channel.needsGoalSelection
-            ? "цели не выбраны"
-            : `${channel.goalTotal} заявок`
-        }}</span
-      ><b>{{ channel.cplText }} <small>CPL</small></b>
-    </div>
+    <template v-if="channels.length > 1">
+      <div
+        v-for="channel in channels"
+        :key="channel.code"
+        class="mw-channel"
+        :aria-label="channel.name"
+      >
+        <img :src="channel.icon" :alt="channel.name" /><span
+          >{{ channel.spendText }} ·
+          {{
+            channel.needsGoalSelection
+              ? "цели не выбраны"
+              : `${channel.goalTotal} заявок`
+          }}</span
+        ><b>{{ channel.cplText }} <small>CPL</small></b>
+      </div>
+    </template>
+    <p v-if="channels.length === 1 && channels[0].needsGoalSelection" class="mw-muted">
+      {{ channels[0].name }}: цели не выбраны
+    </p>
     <p v-if="!channels.length" class="mw-muted">Каналы не подключены</p>
     <details class="mw-traffic">
       <summary>
@@ -100,17 +105,7 @@
       ><small v-if="!balances.length">Нет кабинетов</small>
     </div>
     <footer class="mw-project-actions">
-      <button class="mw-button" @click="$emit('open')">
-        <ChartBarIcon />Аналитика</button
-      ><button class="mw-button" @click="$emit('report')">
-        <DocumentTextIcon />Отчёт</button
-      ><button
-        class="mw-button mw-square"
-        aria-label="Настройки проекта"
-        @click="$emit('settings')"
-      >
-        <Cog6ToothIcon /></button
-      ><button
+      <button
         v-if="!project.__isFolder"
         class="mw-button mw-square"
         aria-label="Другие действия"
@@ -118,6 +113,16 @@
       >
         <EllipsisHorizontalIcon />
       </button>
+      <button
+        class="mw-button mw-square"
+        aria-label="Настройки проекта"
+        @click="$emit('settings')"
+      >
+        <Cog6ToothIcon /></button
+      ><button class="mw-button" @click="$emit('report')">
+        <DocumentTextIcon />Отчёт</button
+      ><button class="mw-button" @click="$emit('open')">
+        <ChartBarIcon />Аналитика</button>
     </footer>
     <MobileSheet :open="more" title="Действия с проектом" @close="more = false"
       ><button

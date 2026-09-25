@@ -583,6 +583,10 @@
   .mw-slice--dashboard {
     height: calc(3 * var(--m));
   }
+  .mw-slice:not(.mw-slice--dashboard) {
+    height: calc(3.375 * var(--m));
+    padding-bottom: calc(0.5 * var(--m));
+  }
   .mw-period-pill {
     flex: 1;
     min-width: 0;
