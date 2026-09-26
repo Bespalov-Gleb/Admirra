@@ -14273,6 +14273,15 @@ function mobilePlanProgress(key) {
     font-size: 1.35rem;
   }
 
+  .direction-label-setting {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .direction-label-setting select {
+    width: 100%;
+    min-width: 0;
+  }
+
   .direction-campaign-option {
     align-items: flex-start;
   }

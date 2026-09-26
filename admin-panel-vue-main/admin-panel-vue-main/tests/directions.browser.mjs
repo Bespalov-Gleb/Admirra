@@ -75,6 +75,7 @@ try {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.screenshot({ path: path.join(os.tmpdir(), 'admirra-directions-mobile.png') })
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false)
+  assert.equal(await page.locator('.direction-label-setting').evaluate(e => e.scrollWidth > e.clientWidth), false)
   failList = true
   await page.evaluate(() => { window.probe.filters.client_id = 'two' })
   await page.getByRole('alert').waitFor()
