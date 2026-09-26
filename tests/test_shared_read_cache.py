@@ -69,6 +69,37 @@ async def test_exception_not_cached_and_lock_released(shared):
 
 
 @pytest.mark.asyncio
+async def test_expiry_refreshes_without_caching_old_result_forever(shared):
+    calls = []
+    async def load():
+        calls.append(1)
+        return {'leads': len(calls)}
+    assert await cache.remember('expiry', 'owner', [], load, ttl=1) == {'leads': 1}
+    assert await cache.remember('expiry', 'owner', [], load, ttl=1) == {'leads': 1}
+    await asyncio.sleep(1.1)
+    assert await cache.remember('expiry', 'owner', [], load, ttl=1) == {'leads': 2}
+
+
+@pytest.mark.asyncio
+async def test_metrika_profile_counter_period_dimension_and_filter_are_scoped(shared, monkeypatch):
+    from automation import yandex_metrica as metrica
+    calls = []
+    def receive(request):
+        calls.append(request)
+        return httpx.Response(200, json={'data': [], 'total_rows': 0})
+    monkeypatch.setattr(metrica, 'provider_client', lambda *a, **kw:
+        httpx.AsyncClient(transport=httpx.MockTransport(receive)))
+    base = dict(counter_id='1', date_from='2026-09-01', date_to='2026-09-07', goal_ids=['1'], dimension='campaign')
+    async def query(profile='p1', **changes):
+        return await metrica.YandexMetricaAPI('test', client_login=profile).get_conversions_by_dimension(**dict(base, **changes))
+    await query(); await query()
+    assert len(calls) == 1
+    await query(profile='p2'); await query(counter_id='2'); await query(date_to='2026-09-08')
+    await query(dimension='group'); await query(filters="ym:s:UTMSource=='avito-ads'")
+    assert len(calls) == 6
+
+
+@pytest.mark.asyncio
 async def test_redis_outage_falls_back_to_loader(shared, monkeypatch):
     class Broken:
         def get(self, *args): raise ConnectionError("test")

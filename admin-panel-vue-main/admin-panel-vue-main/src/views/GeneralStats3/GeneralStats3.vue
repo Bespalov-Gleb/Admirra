@@ -1,7 +1,7 @@
 <template>
   <div ref="dashboardRef" class="figma-dashboard mobile-workspace mobile-dashboard" :class="{ 'is-dark': isDarkMode }">
     <MobileSliceBar dashboard :period="periodKey" :range="customPeriodRange" v-model:vat="includeVat" :filtered="!!filters.campaign_ids.length || filters.channel !== 'all'" :sync-text="syncStatusLabel" @period="selectPeriodPreset" @range="selectCustomPeriod" @filters="mobileFiltersOpen = true" />
-    <MobileDashboardFilters :open="mobileFiltersOpen" :directions="directionStats.items" :direction-label="directionStats.label" :direction-id="selectedDirectionId" :campaigns="allCampaigns" :campaign-ids="filters.campaign_ids" :channel="filters.channel" :channel-options="filterChannels" @close="mobileFiltersOpen = false" @apply="applyMobileFilters" />
+    <MobileDashboardFilters :open="mobileFiltersOpen" :directions="directionOptions" :direction-label="directionStats.label" :direction-id="selectedDirectionId" :campaigns="allCampaigns" :campaign-ids="filters.campaign_ids" :channel="filters.channel" :channel-options="filterChannels" @close="mobileFiltersOpen = false" @apply="applyMobileFilters" />
     <MobileDashboardTop :title="mobileProjectTitle" :avatar="mobileProjectAvatar" :sync-text="syncStatusLabel" :alert-count="detectorActiveCount" v-model:view="activeView" :channels="serviceChannelItems" :syncing="dashboardSyncInProgress" :sending="preparingReport || sendingTg || sendingEmail || sendingMax" @pickup="mobileTitlePickedUp = $event" @refresh="handleSyncIntegrations" @connect="goToIntegrations" @send="handleSendSelectedReport" @settings="openProjectSettingsModal" @switch="router.push('/project-card')" @delivery="openProjectReportSettings" @export="handleExportAction" @detector="onDetectorShieldClick" />
     <!-- Сервисная строка: входы рекламы слева, доставка отчётов справа. -->
     <section class="dashboard-service-row" :class="{ 'dashboard-service-row--empty': reportsBlockEmpty }">
@@ -148,7 +148,7 @@
               Все {{ directionLabelLower }}
             </button>
             <button
-              v-for="item in directionStats.items"
+              v-for="item in directionOptions"
               :key="item.id"
               type="button"
               class="cs-option direction-option"
@@ -158,6 +158,8 @@
               <span>{{ item.name }}</span>
               <small>{{ item.campaign_count }} камп.</small>
             </button>
+            <span v-if="directionsLoading && !directionOptions.length" class="cs-option" role="status">Загружаем направления…</span>
+            <button v-if="directionsError" type="button" class="cs-option" @click="fetchDirections({ force: true })">Не удалось загрузить · Повторить</button>
             <div class="directions-menu__divider"></div>
             <button type="button" class="cs-option direction-action" @click="openDirectionEditor()">
               + Создать направление
@@ -1495,7 +1497,12 @@
                 <button type="button" class="danger" @click="deleteDirection(direction)">Удалить</button>
               </div>
             </div>
-            <div v-if="!directions.length" class="direction-preview__empty">Направления пока не созданы</div>
+            <div v-if="directionsLoading" class="direction-preview__empty" role="status">Загружаем направления…</div>
+            <div v-else-if="directionsError" class="direction-preview__empty" role="alert">
+              {{ directionsError }}
+              <button type="button" class="direction-secondary" @click="fetchDirections({ force: true })">Повторить</button>
+            </div>
+            <div v-else-if="!directions.length" class="direction-preview__empty">Направления пока не созданы</div>
           </div>
           <div v-if="unassignedDirection" class="direction-unassigned-note">
             <div>
@@ -1683,6 +1690,7 @@ import { useToaster } from '@/composables/useToaster'
 import api from '@/api/axios'
 import { createAiCommentRequest, aiCommentError } from '@/utils/aiCommentRequest'
 import { createLatestRequest } from '@/utils/latestRequest'
+import { useDirectionData } from '@/composables/useDirectionData'
 import { reportExportError } from '@/utils/reportExportError'
 import DateRangePicker from '@/components/ui/DateRangePicker.vue'
 import { projectPeriodOptions, getProjectPeriodLabel, getProjectPeriodRange, DEFAULT_PROJECT_PERIOD, loadSavedProjectPeriod, saveProjectPeriod } from '@/utils/projectPeriods'
@@ -2437,8 +2445,6 @@ const emptyConnectedProject = computed(() => Boolean(filters.client_id) && integ
 const topAds = ref([])
 const topAdsLoading = ref(false)
 const selectedCreativeImage = ref(null)
-const directions = ref([])
-const directionStats = ref({ label: 'Направления', label_key: 'directions', mode: 'cards', total_expenses: 0, items: [] })
 const selectedDirectionId = ref(null)
 const directionModalOpen = ref(false)
 const directionManagerOpen = ref(false)
@@ -2577,11 +2583,11 @@ const filteredDirectionPreviewCampaigns = computed(() => {
   })
 })
 const unassignedDirection = computed(() => directionStats.value.items?.find((item) => item.is_unassigned) || null)
-const selectedDirection = computed(() => directionStats.value.items?.find((item) => item.id === selectedDirectionId.value) || null)
+const selectedDirection = computed(() => directionOptions.value.find((item) => item.id === selectedDirectionId.value) || null)
 const selectedDirectionLabel = computed(() => selectedDirection.value?.name || `Все ${directionLabelLower.value}`)
 const directionNameByCampaignId = computed(() => {
   const map = new Map()
-  for (const item of directionStats.value.items || []) {
+  for (const item of directionOptions.value) {
     for (const campaignId of item.campaign_ids || []) {
       map.set(String(campaignId), item.name)
     }
@@ -2603,83 +2609,21 @@ const platformShortLabel = (platform) => {
   return '—'
 }
 
-let directionsRequestId = 0
-let directionStatsRequestId = 0
-let directionsController = null
-let directionStatsController = null
-onUnmounted(() => {
-  directionsRequestId += 1; directionStatsRequestId += 1
-  directionsController?.abort(); directionStatsController?.abort()
-})
-const fetchDirections = async () => {
-  const requestId = ++directionsRequestId
-  directionsController?.abort()
-  directionsController = new AbortController()
-  const signal = directionsController.signal
-  if (!filters.client_id) {
-    directions.value = []
-    return
-  }
-  try {
-    const { data } = await api.get(`clients/${filters.client_id}/directions/`, {
-      signal,
-      params: { platform: filters.channel }
-    })
-    if (requestId === directionsRequestId) directions.value = Array.isArray(data) ? data : []
-  } catch (err) {
-    if (requestId !== directionsRequestId) return
-    console.error('[Directions] list failed:', err)
-    directions.value = []
-  }
-}
-
-const fetchDirectionStats = async () => {
-  const requestId = ++directionStatsRequestId
-  directionStatsController?.abort()
-  directionStatsController = new AbortController()
-  const signal = directionStatsController.signal
-  if (!filters.client_id || !filters.start_date || !filters.end_date) {
-    directionStats.value = { label: 'Направления', label_key: 'directions', mode: 'cards', total_expenses: 0, items: [] }
-    return
-  }
-  try {
-    const { data } = await api.get(`clients/${filters.client_id}/directions/stats`, {
-      signal,
-      params: {
-        start_date: filters.start_date,
-        end_date: filters.end_date,
-        platform: filters.channel
-      }
-    })
-    if (requestId !== directionStatsRequestId) return
-    directionStats.value = {
-      label: data?.label || 'Направления',
-      label_key: data?.label_key || 'directions',
-      mode: data?.mode || 'cards',
-      total_expenses: Number(data?.total_expenses || 0),
-      items: Array.isArray(data?.items) ? data.items : []
+const { directions, directionStats, directionOptions, directionsLoading, directionsError,
+  fetchDirections, refreshDirections } = useDirectionData(api, () => ({
+    client_id: filters.client_id, channel: filters.channel,
+    start_date: filters.start_date, end_date: filters.end_date,
+  }), (stats) => {
+    selectedDirectionLabelKey.value = stats.label_key
+    if (!selectedDirectionId.value) return
+    const current = stats.items.find(item => item.id === selectedDirectionId.value)
+    if (current) {
+      if (JSON.stringify(filters.campaign_ids) !== JSON.stringify(current.campaign_ids)) filters.campaign_ids = [...current.campaign_ids]
+    } else {
+      selectedDirectionId.value = null
+      filters.campaign_ids = []
     }
-    selectedDirectionLabelKey.value = directionStats.value.label_key
-    if (selectedDirectionId.value) {
-      const current = directionStats.value.items.find((item) => item.id === selectedDirectionId.value)
-      if (current) {
-        if (JSON.stringify(filters.campaign_ids) !== JSON.stringify(current.campaign_ids)) filters.campaign_ids = [...current.campaign_ids]
-      }
-      else {
-        selectedDirectionId.value = null
-        filters.campaign_ids = []
-      }
-    }
-  } catch (err) {
-    if (requestId !== directionStatsRequestId) return
-    console.error('[Directions] stats failed:', err)
-    directionStats.value = { label: 'Направления', label_key: 'directions', mode: 'cards', total_expenses: 0, items: [] }
-  }
-}
-
-const refreshDirections = async () => {
-  await Promise.all([fetchDirections(), fetchDirectionStats()])
-}
+  })
 
 const saveDirectionLabel = async () => {
   if (!filters.client_id || selectedDirectionLabelKey.value === directionStats.value.label_key) return
@@ -2694,7 +2638,6 @@ const saveDirectionLabel = async () => {
       label_key: data?.label_key || selectedDirectionLabelKey.value,
     }
     toaster.success('Название блока обновлено')
-    await refreshDirections()
   } catch (err) {
     toaster.error(err.response?.data?.detail || 'Не удалось обновить название блока')
   } finally {
@@ -5990,15 +5933,10 @@ watch(() => filters.client_id, (newId) => {
   if (currentProjectId.value !== newId && !filters.folder_id) setCurrentProject(newId)
   selectedDirectionId.value = null
   fetchIntegrations()
-  refreshDirections()
 }, { immediate: true })
 
 watch(() => [filters.start_date, filters.end_date, filters.client_id, filters.folder_id, filters.channel, filters.campaign_ids, filters.vk_goal_action_ids], () => {
   fetchReportGoals()
-}, { deep: true })
-
-watch(() => [filters.start_date, filters.end_date, filters.client_id, filters.channel], () => {
-  if (filters.client_id) refreshDirections()
 }, { deep: true })
 
 watch(() => [

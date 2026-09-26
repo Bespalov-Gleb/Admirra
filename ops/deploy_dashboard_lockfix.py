@@ -44,6 +44,8 @@ def main():
     p.add_argument('--release', required=True)
     p.add_argument('--expected-image', default=BASE)
     p.add_argument('--expected-release', default='2ce9513')
+    p.add_argument('--shared-read-cache', choices=['true', 'false'],
+                   help='Explicit, separately tested Metrika read-cache rollout only')
     a = p.parse_args()
     assert os.geteuid() == 0 and re.fullmatch('[a-f0-9]{7,40}', a.release)
     a.root.mkdir(parents=True, mode=0o700, exist_ok=True)
@@ -59,9 +61,15 @@ def main():
         active = deepcopy(config)
         active['services'][service].update(image=image, pull_policy='never')
         active['services'][service]['environment']['APP_RELEASE'] = a.release
+        overrides = {}
+        if a.shared_read_cache is not None:
+            assert env.get('READ_CACHE_REDIS_URL'), 'Cache Redis must already be configured'
+            overrides['SHARED_READ_CACHE'] = a.shared_read_cache
+        active['services'][service]['environment'].update(overrides)
         save_checked(a.root, 'active', active, service, active['services'][service]['environment'], project)
         private_json(a.root / 'deployment.json', dict(project=project, service=service, image=image,
-                                                      release=a.release, container=a.container, previous_release=env['APP_RELEASE']))
+                                                      release=a.release, container=a.container, previous_release=env['APP_RELEASE'],
+                                                      environment_overrides=overrides))
         print('Prepared API-only pinned image and rollback; runtime unchanged')
         return
     meta = json.loads((a.root / 'deployment.json').read_text())
@@ -87,6 +95,7 @@ def main():
         new = json.loads(capture(['docker', 'inspect', a.container]))[0]
         expected_env = dict(item.split('=', 1) for item in old['Config']['Env'])
         expected_env['APP_RELEASE'] = a.release
+        expected_env.update(meta.get('environment_overrides', {}))
         checks = {
             'environment': dict(item.split('=', 1) for item in new['Config']['Env']) == expected_env,
             'image': new['Image'] == meta['image'],
@@ -102,7 +111,7 @@ def main():
         compose(meta['project'], a.root / 'previous.json', meta['service'])
         ready(a.container, meta.get('previous_release', '2ce9513'))
         raise
-    print('API ready; only image/release changed; rollback retained')
+    print('API ready; pinned image/release and explicit cache flag verified; rollback retained')
 
 
 if __name__ == '__main__':
