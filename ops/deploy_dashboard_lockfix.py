@@ -1,6 +1,7 @@
 """API-only rolling patch. Invoke only after removing the target from ingress.
 
-Preserves the running environment (except release), networks, mounts and ports.
+Preserves the running environment (except release and an explicit optional
+read-cache flag), networks, mounts and ports.
 Does not migrate, touch workers, retry business requests or silence alerts.
 Root-only literal rollback configs; no credential output.
 """

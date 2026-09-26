@@ -57,4 +57,23 @@ Rollback — previous.json этого rollout с прежним false; Redis flu
   1.944 s не заявляется как cold-cache benchmark. Cold reads всё ещё зависят от
   времени ответа Метрики; 0.072 s не обещание для любой загрузки дашборда.
 
-Production acceptance дописывается после фактического rollout.
+## Production acceptance
+
+- Commits `90d12d2`, `14d1014`, pushed. Frontend source `14d1014`, clean archive
+  build: 962 modules. Owner dirty MainLayout/SignIn/landing не включены.
+- API2 cache flag activated 06:04:51 UTC, API1 06:05:53 UTC. API image/release
+  **не менялись**; helper подтвердил exact environment (кроме явного флага), image,
+  ports, mounts, networks. После каждого drain старые Nginx workers завершились
+  перед пересозданием API. Оба readiness: ok, api, 32a8d9e; restart count 0.
+- Runtime/rollback snapshots на обеих нодах:
+  `/etc/admirra/releases/directions-cache-90d12d2/`.
+  Ingress snapshot API1 `.../ingress/`; исходная балансировка восстановлена.
+- Frontend image
+  `sha256:05d9866274b98769c75f7a7a27f6c6c38d52a77adbf72af8337a767d38864354`,
+  entry `/assets/index-avohSQVO.js`, dashboard `/assets/GeneralStats3-_UtyQjnJ.js`.
+  Snapshot `/etc/admirra/releases/frontend-readiness-14d1014/`.
+  Overlay verified public index/entry, landing/legal/nginx unchanged, no DB,
+  worker or legacy automation restart. Полного authenticated browser E2E на
+  production не выполняли: browser QA изолирован и использует синтетические данные.
+- Короткий post-rollout smoke: 70 API requests, final5xx=0, active alerts=[].
+  Это приёмка выкладки, не длительное наблюдение или обещание latency для всех запросов.
