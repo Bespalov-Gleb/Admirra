@@ -127,8 +127,12 @@
       </div>
     </section>
 
-    <!-- Нейтральные статусы: прогрев / нет данных синхронизации -->
-    <section v-else-if="warmupStatus === 'warming_up' || syncIssues.length" class="detector-banner" :class="[bannerClass, { 'detector-banner--preparing': compactPreparation }]">
+    <!-- Routine history preparation is background work, not a user action.
+         Keep the poller mounted while hiding its entire slot (including spacing).
+         Only plan warmup or a real preparation failure needs visible UI. -->
+    <section v-else-if="warmupStatus === 'warming_up' || syncIssues.length"
+      v-show="warmupStatus === 'warming_up' || actionableReadiness"
+      class="detector-banner" :class="bannerClass">
       <div class="detector-banner__head">
         <span class="detector-banner__head-ic" aria-hidden="true">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
@@ -137,7 +141,7 @@
           <span class="detector-banner__title" role="status" aria-live="polite">{{ neutralTitle }}</span>
           <span v-if="neutralSubtitle" class="detector-banner__hypothesis">{{ neutralSubtitle }}</span>
           <DataReadinessNotice v-for="item in syncIssues.filter(issue => issue.data_readiness)" :key="item.data_readiness.id"
-            :readiness="item.data_readiness" context="detector" inline quiet-waiting action-label="Обновить выводы детектора"
+            :readiness="item.data_readiness" context="detector" inline quiet-routine
             @state-change="rememberReadiness(item.data_readiness, $event)"
             @ready="$emit('refresh-data')" @ready-action="$emit('refresh-data')" />
         </div>
@@ -254,9 +258,7 @@ const detectorStates = computed(() => props.syncIssues.map(issue => {
   const readiness = issue.data_readiness
   return readinessStates.value[readinessKey(readiness)] || consumerReadiness(readiness)
 }))
-const compactPreparation = computed(() => props.warmupStatus !== 'warming_up'
-  && detectorStates.value.some(state => state?.status === 'waiting')
-  && detectorStates.value.every(state => state && !state.poll_error && ['waiting', 'ready'].includes(state.status)))
+const actionableReadiness = computed(() => detectorStates.value.some(state => state?.poll_error || state?.status === 'held'))
 const neutralTitle = computed(() => {
   if (props.warmupStatus === 'warming_up') {
     const days = props.warmupDaysLeft ?? '?'

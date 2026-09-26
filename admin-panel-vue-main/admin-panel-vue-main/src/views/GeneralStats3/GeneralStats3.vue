@@ -343,10 +343,11 @@
       <span class="detector-action-bar__cta">Открыть<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
     </button>
 
-    <!-- Нейтральные статусы (прогрев / нет данных) — единственное, что баннер
-         теперь рисует; список отклонений уехал в сайдбар. -->
+    <!-- Background readiness remains mounted for automatic refresh, without
+         showing routine preparation/ready banners. Real failures stay actionable. -->
     <DetectorBanner
       v-if="filters.client_id && (detectorSummary?.warmup_status === 'warming_up' || detectorSummary?.sync_issues?.length)"
+      :key="filters.client_id"
       :warmup-status="detectorSummary?.warmup_status"
       :warmup-days-left="detectorSummary?.warmup_days_left"
       :alerts="[]"

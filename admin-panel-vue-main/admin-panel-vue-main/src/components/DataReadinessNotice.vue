@@ -1,5 +1,5 @@
 <template>
-  <div v-if="state && !(quietWaiting && state.status === 'waiting' && !pollError)" class="data-readiness" :class="{ 'data-readiness--inline': inline }" role="status" aria-live="polite">
+  <div v-if="state && !hideRoutine" class="data-readiness" :class="{ 'data-readiness--inline': inline }" role="status" aria-live="polite">
     <p>{{ message }}</p>
     <small v-if="state.status === 'waiting' && context !== 'detector'">Запрос к ИИ и отправка отчёта автоматически не запускаются.</small>
     <button v-if="pollError" type="button" :disabled="busy" @click="poll">Проверить статус</button>
@@ -19,12 +19,17 @@ const props = defineProps({
   context: { type: String, default: 'action' },
   inline: { type: Boolean, default: false },
   quietWaiting: { type: Boolean, default: false },
+  quietRoutine: { type: Boolean, default: false },
 })
 const emit = defineEmits(['ready-action', 'ready', 'state-change'])
 const firstCompletion = createReadinessCompletion()
 const state = ref(null)
 const pollError = ref(false)
 const busy = ref(false)
+const hideRoutine = computed(() => !pollError.value && (
+  (props.quietWaiting && state.value?.status === 'waiting') ||
+  (props.quietRoutine && ['waiting', 'ready'].includes(state.value?.status))
+))
 let timer, generation = 0, controller
 const message = computed(() => readinessMessage(state.value, props.context, pollError.value))
 const presentationState = computed(() => state.value ? { ...state.value, poll_error: pollError.value } : null)

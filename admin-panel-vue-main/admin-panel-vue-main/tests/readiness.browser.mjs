@@ -14,18 +14,19 @@ const fixture = `
 import {createApp,ref,h} from 'vue';
 import Detector from '@/components/DetectorBanner.vue';
 import Notice from '@/components/DataReadinessNotice.vue';
-const issues=ref([]), mode=ref('detector'), key=ref(0), readiness=ref(null);
+const issues=ref([]), mode=ref('detector'), key=ref(0), readiness=ref(null), warmup=ref(null);
 let refreshes=0, actions=0, completions=0, remove=true;
 window.probe={
  setup(value, generic=false, autoRemove=true){key.value++;refreshes=actions=completions=0;remove=autoRemove;mode.value=generic?'action':'detector';readiness.value=value;issues.value=value?[{text:value.message||'old text',data_readiness:value}]:[{text:'Полнота данных не подтверждена. Обновите данные проекта.'}];},
  replace(value){readiness.value=value;issues.value=[{text:'old text',data_readiness:value}];},
  unmount(){mode.value='none'},
+ warmup(){warmup.value='warming_up'},
  stats(){return {refreshes,actions,completions}},
  hidden(value){Object.defineProperty(document,'hidden',{configurable:true,value});document.dispatchEvent(new Event('visibilitychange'));}
 };
 createApp({setup(){return ()=>h('main',{style:'max-width:1100px;margin:20px auto;padding:12px'},[
  h('h2','Отчёт: БВК Новый / ВК'),
- mode.value==='detector'&&issues.value.length?h(Detector,{key:key.value,syncIssues:issues.value,onRefreshData(){refreshes++;if(remove)issues.value=[]}}):null,
+ mode.value==='detector'&&issues.value.length?h(Detector,{key:key.value,syncIssues:issues.value,warmupStatus:warmup.value,warmupDaysLeft:3,onRefreshData(){refreshes++;if(remove)issues.value=[]}}):null,
  mode.value==='action'?h(Notice,{key:key.value,readiness:readiness.value,onReady(){completions++},onReadyAction(){actions++}}):null
 ])}}).mount('#app');
 `
@@ -66,26 +67,26 @@ try {
  const waiting={id:'request',status:'waiting',deadline:new Date(Date.now()+3600000).toISOString(),message:'Обновляем недостающие данные. Повторите действие после завершения.'}
  const setup=async(v,generic=false,remove=true)=>{await page.evaluate(({v,generic,remove})=>window.probe.setup(v,generic,remove),{v,generic,remove});await page.waitForTimeout(10)}
  await setup(waiting)
- assert.equal(await page.getByText('Анализируем данные…',{exact:true}).count(),1)
+ assert.equal(await page.locator('.detector-banner').isVisible(),false)
+ assert.equal(await page.locator('.detector-banner').boundingBox(),null)
  assert.equal(await page.locator('.data-readiness').count(),0)
  assert.equal(await page.locator('.detector-banner__hypothesis').count(),0)
  assert.equal(await page.locator('.data-readiness small').count(),0)
- assert.equal(await page.locator('.detector-banner').evaluate(e=>getComputedStyle(e).borderTopWidth),'0px')
- assert.equal(await page.locator('.detector-banner__title').evaluate(e=>getComputedStyle(e).textTransform),'none')
  await page.screenshot({path:path.join(os.tmpdir(),'admirra-readiness-desktop.png')})
  await page.setViewportSize({width:390,height:700})
  await page.screenshot({path:path.join(os.tmpdir(),'admirra-readiness-mobile.png')})
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
  await page.evaluate(()=>document.body.classList.add('dark'))
- await page.waitForFunction(()=>getComputedStyle(document.querySelector('.detector-banner--sync')).backgroundColor==='rgba(0, 0, 0, 0)')
+ assert.equal(await page.locator('.detector-banner').isVisible(),false)
  assert.equal(await page.evaluate(()=>getComputedStyle(document.body).backgroundColor),'rgb(17, 24, 39)')
  assert.equal(await page.locator('.data-readiness').count(),0)
- await page.waitForFunction(()=>getComputedStyle(document.querySelector('.detector-banner__title')).color==='rgb(194, 204, 218)')
  await page.screenshot({path:path.join(os.tmpdir(),'admirra-readiness-dark.png')})
  await page.evaluate(()=>document.body.classList.remove('dark'))
  response={...waiting,status:'ready'}
  await page.clock.fastForward(30001)
  await page.waitForFunction(()=>window.probe.stats().refreshes===1)
+ assert.equal(await page.locator('.detector-banner').isVisible(),false)
+ assert.equal(await page.getByRole('button',{name:'Обновить выводы детектора'}).count(),0)
  await page.waitForFunction(()=>!document.querySelector('.detector-banner'))
  assert.deepEqual(calls,[{path:'/api/data-refresh/request',method:'GET'}])
  await page.clock.fastForward(60001)
@@ -93,6 +94,8 @@ try {
  // Same receipt does not loop if parent still shows it (e.g. refresh failed).
  await setup(response,false,false)
  await page.waitForFunction(()=>window.probe.stats().refreshes===1)
+ assert.equal(await page.locator('.detector-banner').isVisible(),false)
+ assert.equal(await page.locator('.data-readiness').count(),0)
  await page.evaluate(v=>window.probe.replace(v),response)
  await page.waitForTimeout(10)
  assert.equal((await page.evaluate(()=>window.probe.stats())).refreshes,1)
@@ -134,16 +137,19 @@ try {
  assert.equal(calls.length,before)
  response={...waiting,status:'waiting'}
  await page.getByRole('button',{name:'Повторить подготовку данных',exact:true}).click()
- await page.getByText('Анализируем данные…',{exact:true}).waitFor()
+ await page.waitForFunction(()=>getComputedStyle(document.querySelector('.detector-banner')).display==='none')
  assert.deepEqual(calls.at(-1),{path:'/api/data-refresh/request/retry',method:'POST'})
  await page.evaluate(()=>window.probe.unmount())
  before=calls.length
  await page.clock.fastForward(60001)
  assert.equal(calls.length,before)
  await setup(null)
- assert.equal(await page.getByText('Проверяем полноту данных для детектора',{exact:true}).count(),1)
+ assert.equal(await page.locator('.detector-banner').isVisible(),false)
+ assert.equal(await page.locator('.detector-banner').boundingBox(),null)
+ await page.evaluate(()=>window.probe.warmup())
+ await page.getByText('Детектор накапливает данные, заработает через 3 дн.',{exact:true}).waitFor()
  assert.deepEqual(errors,[])
- console.log(JSON.stringify({passed:true,automaticDetectorRefresh:true,paidActionsRequireClick:true,hiddenTabsPaused:true,unmountStopsPolling:true,duplicateText:false,mobileOverflow:false,apiCalls:calls}))
+ console.log(JSON.stringify({passed:true,routineBannersHidden:true,noEmptySpace:true,planWarmupPreserved:true,automaticDetectorRefresh:true,paidActionsRequireClick:true,hiddenTabsPaused:true,unmountStopsPolling:true,mobileOverflow:false,apiCalls:calls}))
 } finally {
  await browser?.close()
  await server.close()
