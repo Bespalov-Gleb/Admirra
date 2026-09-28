@@ -2,8 +2,6 @@ ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 ARG SOURCE_REVISION
 LABEL ru.admirra.frontend.revision="${SOURCE_REVISION}"
-COPY index.html /usr/share/nginx/html/index.html
-COPY assets/ /usr/share/nginx/html/assets/
 COPY signup-attribution.js /usr/share/nginx/html/signup-attribution.js
-# Preserve live landing bytes except one early, same-origin collector script.
-RUN sed -i '/<head>/a\  <script src="/signup-attribution.js?v=1"></script>' /usr/share/nginx/html/landing-new/index.html
+# Keep the deployed application/assets intact; insert only the collector hook.
+RUN sed -i '/<head>/a\  <script src="/signup-attribution.js?v=1"></script>' /usr/share/nginx/html/index.html /usr/share/nginx/html/landing-new/index.html
