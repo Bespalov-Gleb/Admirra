@@ -17,7 +17,8 @@ from tests.test_oauth_signup_analytics import env, hook
 
 
 def request(source='yandex', **overrides):
-    value = dict(utm_source=source, utm_medium='cpc', utm_campaign='Тест 123', expires=int(time.time()*1000)+86400000, **overrides)
+    value = dict(utm_source=source, utm_medium='cpc', utm_campaign='Тест 123', expires=int(time.time()*1000)+86400000)
+    value.update(overrides)
     cookie = 'admirra_signup_utm=' + quote(json.dumps(value))
     return Request({'type':'http','headers':[(b'cookie',cookie.encode())]})
 
