@@ -1,0 +1,9 @@
+**
+!ops/
+!ops/Dockerfile.signup-attribution-frontend
+!index.html
+!signup-attribution.js
+!assets/
+!assets/**
+**/._*
+**/.DS_Store

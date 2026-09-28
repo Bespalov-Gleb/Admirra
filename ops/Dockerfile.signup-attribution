@@ -1,0 +1,10 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+WORKDIR /app
+COPY core/models.py /app/core/models.py
+COPY backend_api/auth.py backend_api/oauth_login.py /app/backend_api/
+COPY backend_api/services/signup_attribution.py /app/backend_api/services/
+COPY alembic/versions/f8ad4b5c6d7e_signup_attribution.py /app/alembic/versions/
+ARG APP_RELEASE
+ENV APP_RELEASE=${APP_RELEASE}
+LABEL org.opencontainers.image.revision=${APP_RELEASE}

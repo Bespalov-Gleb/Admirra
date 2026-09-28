@@ -16,6 +16,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from core.database import get_db
 from core import models, pricing, schemas, security
 from core.public_domain import resolve_frontend_url
+from .services.signup_attribution import registration_attribution
 from .auth_helpers import (
     generate_email_verification_raw_token,
     generate_otp_digits,
@@ -210,7 +211,7 @@ def _touch_last_login(db: Session, user: models.User) -> None:
 
 
 @router.post("/register", response_model=schemas.RegisterPendingResponse, status_code=status.HTTP_201_CREATED)
-async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+async def register_user(user: schemas.UserCreate, request: Request = None, db: Session = Depends(get_db)):
     """
     Регистрация: пользователь создаётся с email_verified=False, JWT не выдаётся.
     На почту уходит ссылка с токеном.
@@ -242,9 +243,7 @@ async def register_user(user: schemas.UserCreate, db: Session = Depends(get_db))
         email_verification_token_hash=token_hash,
         email_verification_expires_at=exp,
         verification_email_last_sent_at=utcnow(),
-        registration_utm_source=(user.registration_utm_source or None),
-        registration_utm_medium=(user.registration_utm_medium or None),
-        registration_utm_campaign=(user.registration_utm_campaign or None),
+        **registration_attribution(request, user.model_dump()),
     )
     db.add(new_user)
     db.commit()

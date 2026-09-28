@@ -22,6 +22,7 @@ def main():
     parser.add_argument('--image', required=True)
     parser.add_argument('--source', required=True)
     parser.add_argument('--index', required=True, type=Path)
+    parser.add_argument('--signup-attribution', action='store_true', help='Verify exactly one collector insertion into the live landing')
     args = parser.parse_args()
     assert re.fullmatch(r'[0-9a-f]{7,40}', args.source)
     assert re.fullmatch(r'sha256:[0-9a-f]{64}', args.expected_image)
@@ -53,6 +54,13 @@ def main():
                    *['/usr/share/nginx/html/admirra/' + name for name in
                      ('agreement.html', 'user-agreement.html', 'personal-data.html', 'legal.css', 'legal.js')]]
     before = {path: checksum(path) for path in fixed_paths}
+    landing_path = '/usr/share/nginx/html/landing-new/index.html'
+    if args.signup_attribution:
+        landing_before = capture(['docker', 'exec', 'admirra-frontend-1', 'cat', landing_path])
+        marker = '  <script src="/signup-attribution.js?v=1"></script>\n'
+        assert marker not in landing_before and landing_before.count('<head>\n') == 1
+        expected_landing = landing_before.replace('<head>\n', '<head>\n' + marker)
+        before[landing_path] = hashlib.sha256(expected_landing.encode()).hexdigest()
     unchanged = {name: inspect(name)['Id'] for name in
                  ('admirra-backend-1', 'admirra-automation-1', 'admirra-db-1')}
     try:
@@ -72,6 +80,10 @@ def main():
                 assert data == expected_index
                 assert urllib.request.urlopen('https://admirra.ru' + entry, timeout=10).status == 200
                 assert urllib.request.urlopen('https://admirra.ru', timeout=10).status == 200
+                if args.signup_attribution:
+                    assert urllib.request.urlopen('https://admirra.ru', timeout=10).read() == expected_landing.encode()
+                    asset = args.index.parent / 'signup-attribution.js'
+                    assert urllib.request.urlopen('https://admirra.ru/signup-attribution.js?v=1', timeout=10).read() == asset.read_bytes()
                 assert json.load(urllib.request.urlopen('http://127.0.0.1:8001/api/health/ready', timeout=10))['status'] == 'ok'
                 break
             except Exception:
@@ -82,7 +94,8 @@ def main():
         start('frontend-previous.json')
         raise
     evidence = dict(source=args.source, image=image, release_root=str(release), entry=entry,
-                    public_index_verified=True, landing_documents_nginx_unchanged=True,
+                    public_index_verified=True, landing_documents_nginx_unchanged=not args.signup_attribution,
+                    landing_collector_only=args.signup_attribution,
                     api_db_legacy_automation_unchanged=True)
     private_json(release / 'acceptance.json', evidence)
     print(json.dumps(evidence))

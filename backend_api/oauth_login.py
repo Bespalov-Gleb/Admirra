@@ -34,6 +34,7 @@ from core.config import get_config
 from core.database import get_db
 
 from backend_api.services.subscription import SubscriptionService
+from backend_api.services.signup_attribution import registration_attribution
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth/oauth", tags=["OAuth Login"])
@@ -318,7 +319,7 @@ def _split_name(full_name: str | None) -> tuple[Optional[str], Optional[str]]:
     return parts[0], parts[1] if len(parts) > 1 else None
 
 
-def _get_or_create_max_user(db: Session, max_user: dict) -> tuple[models.User, bool]:
+def _get_or_create_max_user(db: Session, max_user: dict, attribution: dict | None = None) -> tuple[models.User, bool]:
     max_uid = str(max_user.get("user_id") or "").strip()
     if not max_uid:
         raise HTTPException(status_code=400, detail="MAX не вернул user_id пользователя")
@@ -344,6 +345,7 @@ def _get_or_create_max_user(db: Session, max_user: dict) -> tuple[models.User, b
     user = models.User(
         email=email,
         username=_pick_username(db, username),
+        **registration_attribution(explicit=attribution),
         first_name=first_name,
         last_name=last_name,
         password_hash=security.get_password_hash(secrets.token_urlsafe(48)),
@@ -513,6 +515,7 @@ async def max_oauth_authorize_url(request: Request, db: Session = Depends(get_db
     attempt = models.MaxOAuthLoginAttempt(
         state_hash=_token_hash(state),
         payload_hash=_token_hash(payload),
+        registration_attribution=registration_attribution(request),
         user_id=getattr(_optional_current_user(request, db), "id", None),
         expires_at=expires_at,
     )
@@ -621,7 +624,7 @@ async def max_oauth_webhook(request: Request, db: Session = Depends(get_db)):
                 raise HTTPException(status_code=500, detail="Пользователь MAX не найден")
             _attach_identity(db, user, "max", max_uid)
         else:
-            user, attempt.is_new_user = _get_or_create_max_user(db, user_info)
+            user, attempt.is_new_user = _get_or_create_max_user(db, user_info, attempt.registration_attribution)
         attempt.user_id = user.id
         attempt.max_user_id = max_uid
         attempt.max_username = (user_info.get("username") or "").strip() or None
@@ -768,6 +771,7 @@ async def yandex_oauth_callback(
     user = models.User(
         email=email,
         username=_pick_username(db, login),
+        **registration_attribution(request),
         first_name=first_name,
         last_name=last_name,
         password_hash=security.get_password_hash(pwd),
@@ -951,6 +955,7 @@ async def vk_oauth_callback(
     user = models.User(
         email=email,
         username=None,
+        **registration_attribution(request),
         first_name=first_name,
         last_name=last_name,
         phone=phone,
