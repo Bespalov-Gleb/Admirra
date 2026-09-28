@@ -181,6 +181,8 @@
           :aria-expanded="showUsagePopover ? 'true' : 'false'"
           aria-haspopup="dialog"
           aria-label="Использование лимитов тарифа"
+          :aria-busy="subscriptionSnapshot.loading"
+          :title="subscriptionSnapshot.error ? (subscriptionSnapshot.data ? 'Не удалось обновить лимиты. Показаны последние полученные данные.' : 'Лимиты временно недоступны. Повторяем загрузку.') : ''"
           class="usage-chip"
         >
           <span :class="['usage-gauge', (projectsAtLimit || cabinetsAtLimit) ? 'usage-gauge--amber' : '']" title="Папка занимает один проект в лимите тарифа, сколько бы проектов в ней ни было">
@@ -450,6 +452,7 @@ import { useAuth } from '../composables/useAuth'
 import { useProjects } from '../composables/useProjects'
 import { projectAvatarUrl, projectInitials } from '../utils/projectAvatar'
 import { mobileWorkspace } from '../composables/useMobileWorkspace'
+import { useHeaderSubscription } from '../composables/useHeaderSubscription'
 
 const router = useRouter()
 const route = useRoute()
@@ -581,8 +584,26 @@ const showNotifications = ref(false)
 const showAddMenu = ref(false)
 const showLogoutModal = ref(false)
 
-const subscription = ref({ planName: '—', expiresAt: null, expiresAtLabel: '' })
-const usage = ref({ projectsUsed: 0, projectsLimit: 1, cabinetsUsed: 0, cabinetsLimit: 1, aiUsed: 0, aiLimit: 30, aiRemaining: 30, aiResetDate: '' })
+const { subscriptionSnapshot, loadSubscription } = useHeaderSubscription()
+const refreshSubscription = () => loadSubscription({ force: true })
+const subscription = computed(() => {
+  const data = subscriptionSnapshot.value.data
+  return {
+    planName: data?.plan_name || data?.plan_code || '—',
+    expiresAt: data?.subscription_expires_at || null,
+    expiresAtLabel: formatDate(data?.subscription_expires_at),
+  }
+})
+const usage = computed(() => {
+  const data = subscriptionSnapshot.value.data
+  const count = (key) => Number.isFinite(data?.[key]) ? data[key] : '—'
+  return {
+    projectsUsed: count('projects_used'), projectsLimit: count('max_projects'),
+    cabinetsUsed: count('cabinets_used'), cabinetsLimit: count('max_cabinets'),
+    aiUsed: count('ai_requests_used'), aiLimit: count('max_ai_requests_per_period'),
+    aiRemaining: count('ai_requests_remaining'), aiResetDate: data?.ai_reset_date || '',
+  }
+})
 const showUsagePopover = ref(false)
 const usageChipRef = ref(null)
 let usageCloseTimer = null
@@ -639,35 +660,15 @@ const formatDate = (iso) => {
   return d.toLocaleDateString('ru-RU')
 }
 
-const loadSubscription = async () => {
-  try {
-    const { data } = await api.get('billing/subscription')
-    subscription.value = {
-      planName: data?.plan_name || data?.plan_code || '—',
-      expiresAt: data?.subscription_expires_at || null,
-      expiresAtLabel: formatDate(data?.subscription_expires_at),
-    }
-    usage.value = {
-      projectsUsed: data?.projects_used ?? 0,
-      projectsLimit: data?.max_projects ?? 1,
-      aiUsed: data?.ai_requests_used ?? 0,
-      aiLimit: data?.max_ai_requests_per_period ?? 30,
-      aiRemaining: data?.ai_requests_remaining ?? 30,
-      aiResetDate: data?.ai_reset_date || '',
-      cabinetsUsed: data?.cabinets_used ?? 0,
-      cabinetsLimit: data?.max_cabinets ?? 1,
-    }
-  } catch {
-    subscription.value = { planName: '—', expiresAt: null, expiresAtLabel: '' }
-  }
-}
-
-const projectsAtLimit = computed(() => usage.value.projectsUsed >= usage.value.projectsLimit)
-const cabinetsAtLimit = computed(() => usage.value.cabinetsUsed >= usage.value.cabinetsLimit)
-const cabinetsPct = computed(() => Math.min(100, Math.round((usage.value.cabinetsUsed / Math.max(usage.value.cabinetsLimit, 1)) * 100)))
-const aiAtLimit = computed(() => usage.value.aiRemaining <= 0)
-const projectsPct = computed(() => Math.min(100, Math.round((usage.value.projectsUsed / Math.max(usage.value.projectsLimit, 1)) * 100)))
-const aiPct = computed(() => Math.min(100, Math.round((usage.value.aiUsed / Math.max(usage.value.aiLimit, 1)) * 100)))
+const atLimit = (used, limit) => Number.isFinite(used) && Number.isFinite(limit) && used >= limit
+const percent = (used, limit) => Number.isFinite(used) && Number.isFinite(limit)
+  ? Math.min(100, Math.round((used / Math.max(limit, 1)) * 100)) : 0
+const projectsAtLimit = computed(() => atLimit(usage.value.projectsUsed, usage.value.projectsLimit))
+const cabinetsAtLimit = computed(() => atLimit(usage.value.cabinetsUsed, usage.value.cabinetsLimit))
+const cabinetsPct = computed(() => percent(usage.value.cabinetsUsed, usage.value.cabinetsLimit))
+const aiAtLimit = computed(() => Number.isFinite(usage.value.aiRemaining) && usage.value.aiRemaining <= 0)
+const projectsPct = computed(() => percent(usage.value.projectsUsed, usage.value.projectsLimit))
+const aiPct = computed(() => percent(usage.value.aiUsed, usage.value.aiLimit))
 
 const clearUsageCloseTimer = () => {
   if (usageCloseTimer) {
@@ -800,13 +801,13 @@ onMounted(() => {
   subscriptionPollTimer = setInterval(loadSubscription, 60_000)
   document.addEventListener('click', handleClickOutside)
   document.addEventListener('keydown', handleKeydown)
-  window.addEventListener('admirra:ai-usage-changed', loadSubscription)
+  window.addEventListener('admirra:ai-usage-changed', refreshSubscription)
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
   document.removeEventListener('keydown', handleKeydown)
-  window.removeEventListener('admirra:ai-usage-changed', loadSubscription)
+  window.removeEventListener('admirra:ai-usage-changed', refreshSubscription)
   clearUsageCloseTimer()
   if (notificationsPollTimer) clearInterval(notificationsPollTimer)
   if (subscriptionPollTimer) clearInterval(subscriptionPollTimer)
@@ -814,7 +815,7 @@ onUnmounted(() => {
 
 watch(
   () => projects.value.map((project) => `${project.id}:${project.status || ''}`).join('|'),
-  () => loadSubscription(),
+  refreshSubscription,
 )
 </script>
 
